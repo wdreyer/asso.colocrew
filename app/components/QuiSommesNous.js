@@ -5,7 +5,7 @@ import { FaClock, FaPaintBrush, FaRunning, FaUtensils, FaUsers } from "react-ico
 import Image from "next/image";
 
 export default function QuiSommesNous() {
-  const images = ["/1.jpg", "/2.jpg", "/3.jpg", "/4.jpg"];
+  const images = ["/1.jpg", "/2.jpg", "/3.jpg", "/4.jpg", "/5.jpg"];
   const [currentImage, setCurrentImage] = useState(0);
 
   // Change the image every 5 seconds
