@@ -27,9 +27,9 @@ export default function QuiSommesNous() {
   // Transition between images (opacity only)
   const transitions = useTransition(currentImage, {
     key: currentImage,
-    from: { opacity: 0 },
+    from: { opacity: 1 },
     enter: { opacity: 1 },
-    leave: { opacity: 0 },
+    leave: { opacity: 1 },
     config: { duration: 1500 }, // Smooth fade between images
   });
 
