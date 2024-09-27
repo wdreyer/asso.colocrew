@@ -3,7 +3,9 @@ import { FaWater, FaPaintBrush, FaUtensils } from 'react-icons/fa';
 
 export default function NosSejours() {
   return (
-    <section id="nos-sejours" className="py-24 bg-gradient-to-r from-purple-50 to-pink-50">
+    <section id="nos-sejours" className="py-12 bg-purple-50">
+            <h2 className="text-4xl text-center font-bold text-purple-800 mb-12">Nos séjours :</h2>
+
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
 
         {/* Image section for Surf and Camp */}
@@ -30,7 +32,7 @@ export default function NosSejours() {
 
         {/* Information section */}
         <div className="flex flex-col  text-left">
-          <h2 className="text-5xl font-bold text-purple-800 mb-6">Séjour Surf Été 2025</h2>
+          <h2 className="text-2xl font-bold text-purple-800 text-center mb-6">Séjour Surf Été 2025</h2>
           <p className="text-xl text-gray-600 mb-8">
             Rejoignez-nous cet été pour 12 jours inoubliables de surf sur les magnifiques plages de Vendays-Montalivet.
             Profitez de 8 séances de surf encadrées par des professionnels, avec une vraie progression pour tous les niveaux.
@@ -43,7 +45,7 @@ export default function NosSejours() {
           <p className="text-xl text-gray-600 mb-4">
             Nous vous proposons 12 nuits en camping en pension complète avec les dates suivantes : 
           </p>
-          <ul className="text-xl font-semibold text-purple-600 mb-8 list-disc list-inside">
+          <ul className="pl-6 text-xl font-semibold text-purple-600 mb-8 list-disc list-inside">
             <li>6 juillet au 18 juillet</li>
             <li>20 juillet au 1er août</li>
             <li>3 août au 15 août</li>
