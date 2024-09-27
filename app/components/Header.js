@@ -26,9 +26,9 @@ export default function Header() {
     <header className="fixed w-full bg-white shadow-md z-50 py-4 ">
       <nav className="flex justify-between items-center max-w-7xl mx-auto">
         {/* Logo et nom de l'asso */}
-        <div className="flex items-baseline  space-x-2">
+        <div className="flex items-center space-x-2">
   <Image src="/LogoColoCrew.png" alt="Logo de ColoCrew" width={80} height={80} />
-  <span className="text-xl font-semibold text-[#261B45] tracking-tight font-poppins">
+  <span className="text-2xl font-semibold text-purple-800 tracking-tight font-poppins">
     L'asso
   </span>
 </div>
