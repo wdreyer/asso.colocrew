@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useSpring, animated, useTransition } from "@react-spring/web";
-import { FaUsers, FaMoneyBillWave, FaClock, FaPaintBrush, FaRunning, FaHandHoldingHeart } from "react-icons/fa";
+import { FaClock, FaPaintBrush, FaRunning } from "react-icons/fa";
 import Image from "next/image";
 
 export default function QuiSommesNous() {
-  const images = ["/1.jpg", "/2.jpg", "/3.jpg", "/4.jpg"]; // Carousel images
+  const images = ["/1.jpg", "/2.jpg", "/3.jpg", "/4.jpg"];
   const [currentImage, setCurrentImage] = useState(0);
 
   // Change the image every 5 seconds
@@ -16,32 +16,33 @@ export default function QuiSommesNous() {
     return () => clearInterval(interval);
   }, [images.length]);
 
-  // Continuous camera movement and zoom independent of the transition
+  // Continuous camera movement and zoom
   const zoomAndMoveProps = useSpring({
     from: { scale: 1.1, x: 50 },
     to: { scale: 1.3, x: -50 },
-    config: { duration: 10000 }, // Long duration for continuous movement
-    loop: { reverse: true }, // Continuously reverse the animation for smooth back-and-forth movement
+    config: { duration: 10000 },
+    loop: { reverse: true },
   });
 
   // Transition between images (opacity only)
   const transitions = useTransition(currentImage, {
     key: currentImage,
-    from: { opacity: 1 },
+    from: { opacity: 0, position: "absolute" },
     enter: { opacity: 1 },
-    leave: { opacity: 1 },
-    config: { duration: 1500 }, // Smooth fade between images
+    leave: { opacity: 0 },
+    config: { duration: 1500 },
+    trail: 200,
   });
 
   return (
-    <div className="relative">
-      {/* Carousel background */}
-      <div className="relative h-[65vh] overflow-hidden">
+    <div>
+      {/* Carousel Background */}
+      <div className="relative h-[65vh] overflow-hidden z-0"> {/* z-0 to ensure it's the lowest layer */}
         {transitions((style, index) => (
           <animated.div
             key={index}
             className="absolute inset-0 w-full h-full"
-            style={{ ...style, ...zoomAndMoveProps }} // Apply both zoom/move and opacity transition
+            style={{ ...style, ...zoomAndMoveProps }}
           >
             <Image
               src={images[index]}
@@ -83,7 +84,7 @@ export default function QuiSommesNous() {
       </section>
 
       {/* Mesures concrètes section */}
-      <section className="bg-gray-100 py-12">
+      <section className="relative z-20 bg-gray-100 py-12"> {/* z-20 to bring it above the carousel */}
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-4xl font-bold text-center text-purple-800 mb-12">Nos actions concrètes</h2>
 
