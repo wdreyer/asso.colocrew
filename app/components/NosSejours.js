@@ -5,7 +5,7 @@ export default function NosSejours() {
   return (
     <section id="nos-sejours" className="py-24 bg-gradient-to-r from-purple-50 to-pink-50">
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
-        
+
         {/* Image section for Surf and Camp */}
         <div className="space-y-8">
           <div className="overflow-hidden rounded-lg shadow-lg">
@@ -29,25 +29,27 @@ export default function NosSejours() {
         </div>
 
         {/* Information section */}
-        <div className="flex flex-col justify-center text-left">
+        <div className="flex flex-col  text-left">
           <h2 className="text-5xl font-bold text-purple-800 mb-6">Séjour Surf Été 2025</h2>
           <p className="text-xl text-gray-600 mb-8">
             Rejoignez-nous cet été pour 12 jours inoubliables de surf sur les magnifiques plages de Vendays-Montalivet.
             Profitez de 8 séances de surf encadrées par des professionnels, avec une vraie progression pour tous les niveaux.
           </p>
           <p className="text-xl text-gray-600 mb-8">
-            En plus des activités sportives, plongez dans la création d'un projet artistique unique, comme un vlog ou un clip vidéo, 
-            qui vous permettra de capturer les meilleurs moments de votre séjour. Les soirées seront également animées avec des activités 
+            En plus des activités sportives, plongez dans la création d'un projet artistique unique, comme un vlog ou un clip vidéo,
+            qui vous permettra de capturer les meilleurs moments de votre séjour. Les soirées seront également animées avec des activités
             en camping pour renforcer les liens entre les participants.
           </p>
-          <p className="text-xl text-gray-600 mb-8">
-            Nous vous proposons 12 nuits en camping, avec des repas équilibrés : 12 dîners, 12 petits déjeuners, et 11 déjeuners avec 
-            un pique-nique spécial pour une journée d'excursion. 
+          <p className="text-xl text-gray-600 mb-4">
+            Nous vous proposons 12 nuits en camping en pension complète avec les dates suivantes : 
           </p>
-          <p className="text-xl text-gray-600 mb-8">
-            Voici les dates disponibles pour cet été : <strong className="text-purple-600">6 juillet au 18 juillet, 20 juillet au 1er août, 
-            3 août au 15 août, 17 août au 29 août.</strong>
-          </p>
+          <ul className="text-xl font-semibold text-purple-600 mb-8 list-disc list-inside">
+            <li>6 juillet au 18 juillet</li>
+            <li>20 juillet au 1er août</li>
+            <li>3 août au 15 août</li>
+            <li>17 août au 29 août</li>
+          </ul>
+
 
           {/* Call to action */}
           <a
