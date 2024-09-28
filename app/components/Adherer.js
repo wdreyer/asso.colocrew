@@ -5,7 +5,7 @@ export default function Adherer() {
     <section id="nous-rejoindre" className="text-center py-24 bg-gradient-to-r from-pink-50 to-purple-50">
       <h2 className="text-4xl font-bold text-purple-800 mb-6">Nous rejoindre</h2>
       <p className="text-gray-700 text-lg max-w-3xl mx-auto mb-12">
-        Aider notre asso en devenant adhérent et en recevant toutes les infos et mises à jour de Colocrew.
+      Soutenez notre association en devenant adhérent et restez informé de toutes les actualités et nouveautés de ColoCrew. Ensemble, construisons des séjours inoubliables !
       </p>
       <a
         href="https://www.helloasso.com/associations/colocrew/adhesions/adhesion-a-colocrew-1"
