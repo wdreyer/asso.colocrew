@@ -66,11 +66,11 @@ export default function NosSejours() {
           </h2>
           <p className="text-xl text-gray-600 mb-8">
             Rejoignez-nous cet été pour 12 jours inoubliables de surf 🌊 sur les magnifiques plages de Vendays-Montalivet. 
-            Profitez de 8 séances de surf encadrées par des professionnels 🏄‍♂️, avec une vraie progression pour tous les niveaux !
+            Profitez de 6 séances de surf encadrées par des professionnels 🏄‍♂️, avec une vraie progression pour tous les niveaux !
           </p>
           <p className="text-xl text-gray-600 mb-8">
             En plus des activités sportives 💪, plongez dans la création d'un projet artistique unique 🎨, comme un vlog ou un clip vidéo,
-            qui vous permettra de capturer les meilleurs moments de votre séjour. Les soirées seront également animées avec des activités
+            qui vous permettra de capturer les meilleurs moments de votre séjour. Les soirées seront également animées avec des veillées 
             en camping ⛺ pour renforcer les liens entre les participants.
           </p>
           <p className="text-xl text-gray-600 mb-4">
