@@ -57,12 +57,12 @@ export default function QuiSommesNous() {
         {/* Hero section content */}
         <div className="relative z-10 h-full flex items-center justify-center text-center">
           <div className="text-white space-y-8">
-            <h1 className="text-6xl font-extrabold uppercase tracking-wide">
-              Réinventons les colos
-            </h1>
-            <h2 className="text-4xl font-semibold uppercase tracking-widest">
-              Avec ColoCrew
-            </h2>
+          <h1 className="text-6xl font-extrabold uppercase tracking-wide px-4 sm:px-6 md:px-8">
+  Réinventons les colos
+</h1>
+<h2 className="text-4xl font-semibold uppercase tracking-widest px-4 sm:px-6 md:px-8">
+  Avec ColoCrew
+</h2>
           </div>
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function QuiSommesNous() {
         <div className="max-w-6xl mx-auto px-6 text-center">
           <h2  className="text-4xl font-bold text-purple-800 mb-6">Qui sommes nous ? </h2>
           <p className="text-gray-600 text-lg mb-4">
-            À l'origine de ce projet, Marion et William, animateurs.ice et directeurs.ice de séjours depuis plus de 10 ans,
+            À l'origine de ce projet, nous Marion et William, animateurs.ice et directeurs.ice de séjours depuis plus de 10 ans,
             avons voulu transformer les séjours de vacances pour les jeunes et les animateurs.ices. Forts de nos expériences,
             nous avons créé ColoCrew avec l'idée de remettre l'humain au centre du projet.
           </p>

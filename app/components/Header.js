@@ -74,7 +74,7 @@ export default function Header() {
             </button>
             <h2 className="text-2xl font-bold mb-4 text-purple-800">Adhérez à ColoCrew !</h2>
             <p className="text-gray-700 mb-6">
-              Rejoignez notre communauté pour participer à des séjours inoubliables et soutenir nos projets !
+              Adhérer à colocrew pour soutenir nos projets et permettre à des jeunes des vacances et des séjours inoubliables !
             </p>
             <div className=" flex flex-col space-y-2">
               <a
