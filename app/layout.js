@@ -1,5 +1,7 @@
 // app/layout.js
 import './globals.css';
+import Script from 'next/script'
+
 
 export const metadata = {
   title: 'Colocrew',
@@ -16,6 +18,11 @@ export default function RootLayout({ children }) {
         {/* Le contenu des balises <head> sera géré ici automatiquement par Next.js */}
       </head>
       <body>{children}</body>
+      <Script src="https://scripts.simpleanalyticscdn.com/latest.js"  />
+
     </html>
   );
 }
+
+
+// app/layout.js
