@@ -25,42 +25,52 @@ export default function Header() {
     <>
       {/* Modal for adhésion */}
       {showModal && (
-        <div
-          id="modal-background"
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
-          onClick={handleClickOutside} // Close modal when clicking outside
+  <div
+    id="modal-background"
+    className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
+    onClick={handleClickOutside} // Fermer la modale en cliquant à l'extérieur
+  >
+    <div
+      className="relative bg-white p-6 rounded-lg shadow-lg max-w-lg w-full mx-4"
+      onClick={(e) => e.stopPropagation()} // Empêcher la propagation du clic pour éviter de fermer la modale
+    >
+      {/* Bouton de fermeture (croix) */}
+      <button
+        onClick={closeModal}
+        className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition duration-300"
+      >
+        <FaTimes size={20} />
+      </button>
+      <h2 className="text-2xl font-bold mb-4 text-gray-800 text-center">
+        Adhérez à ColoCrew !
+      </h2>
+      <p className="text-gray-600 mb-6 text-center">
+        Devenez membre de ColoCrew pour soutenir nos projets et permettre aux
+        jeunes de vivre des vacances et des séjours inoubliables !
+      </p>
+      <div className="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4">
+        <button
+          onClick={() =>
+            window.open(
+              "https://www.helloasso.com/associations/colocrew/adhesions/adhesion-a-colocrew-1",
+              "_blank"
+            )
+          }
+          className="w-full md:w-auto bg-gray-700 text-white px-6 py-2 rounded-md hover:bg-gray-800 transition duration-300 text-sm md:text-base"
         >
-          <div className="relative bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
-            {/* Close button (cross) */}
-            <button
-              onClick={closeModal}
-              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition duration-300"
-            >
-              <FaTimes size={20} />
-            </button>
-            <h2 className="text-2xl font-bold mb-4 text-gray-600">Adhérez à ColoCrew !</h2>
-            <p className="text-gray-700 mb-6">
-              Adhérer à ColoCrew pour soutenir nos projets et permettre à des jeunes de vivre des vacances et des séjours inoubliables !
-            </p>
-            <div className="flex flex-col space-y-2">
-              <a
-                href="https://www.helloasso.com/associations/colocrew/adhesions/adhesion-a-colocrew-1"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block bg-pink-500 text-white px-6 py-2 rounded-full hover:bg-pink-600 transition duration-300"
-              >
-                Adhérer maintenant
-              </a>
-              <button
-                onClick={closeModal}
-                className="block text-gray-500 hover:text-gray-700 transition duration-300"
-              >
-                Peut-être plus tard
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          Adhérer maintenant
+        </button>
+        <button
+          onClick={closeModal}
+          className="w-full md:w-auto bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-100 transition duration-300 text-sm md:text-base"
+        >
+          Peut-être plus tard
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       <header id="top" className="w-full bg-white shadow-md z-50 pr-8 pl-4 py-2 h-22">
         <nav className="mx-4 w-full flex justify-even items-center">
