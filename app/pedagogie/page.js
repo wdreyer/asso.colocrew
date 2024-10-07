@@ -9,7 +9,7 @@ export default function Pedagogie() {
   return (
     <section className="bg-gray-50">
       {/* Section Héro avec Overlay */}
-      <div className="relative w-full h-[50vh] sm:h-[40vh] overflow-hidden">
+      <div className="relative w-full h-[40vh] sm:h-[35vh] overflow-hidden">
         <Image
           src="/pedagogie.jpg"
           alt="Notre Pédagogie"
