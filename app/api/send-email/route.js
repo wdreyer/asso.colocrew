@@ -21,7 +21,7 @@ export async function POST(request) {
     secure: false,
     auth: {
       user: '7d6e72001@smtp-brevo.com',
-      pass: process.env.SENDINBLUE_SMTP_PASSWORD,
+      pass: 'fFIcnKREGCTYsvzj',
     },
   });
 
