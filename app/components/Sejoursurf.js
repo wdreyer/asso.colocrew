@@ -1,11 +1,18 @@
 import Image from "next/image";
-import { FaWater, FaUtensils, FaBed, FaPaintBrush, FaUsers, FaBus } from "react-icons/fa";
+import {
+  FaWater,
+  FaUtensils,
+  FaBed,
+  FaPaintBrush,
+  FaUsers,
+  FaBus,
+} from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 
 export default function SejourSurf() {
   return (
-    <section className="relative bg-gray-50">
+    <section className="relative bg-gray-50 dark:bg-gray-900">
       {/* Section Héro avec Overlay */}
       <div className="relative w-full h-[40vh] sm:h-[35vh] overflow-hidden">
         <Image
@@ -20,7 +27,8 @@ export default function SejourSurf() {
             Séjour Surf Été 2025
           </h1>
           <p className="sm:text-base mt-2 max-w-2xl text-center">
-            Éveillez vos passions, gagnez en autonomie, et vivez une expérience inoubliable à Montalivet, sur les plus belles vagues de la côte.
+            Éveillez vos passions, gagnez en autonomie, et vivez une expérience
+            inoubliable à Montalivet, sur les plus belles vagues de la côte.
           </p>
         </div>
       </div>
@@ -32,59 +40,87 @@ export default function SejourSurf() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {/* Élément Icône */}
           <div className="flex flex-col items-center space-y-2">
-            <FaWater className="text-gray-600 text-3xl" />
-            <h4 className="text-xl font-semibold">Surf</h4>
-            <p className="text-base text-gray-600">6 sessions adaptées à tous les niveaux.</p>
+            <FaWater className="text-gray-600 dark:text-gray-300 text-3xl" />
+            <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Surf
+            </h4>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              6 sessions adaptées à tous les niveaux.
+            </p>
           </div>
           <div className="flex flex-col items-center space-y-2">
-            <FaUtensils className="text-gray-600 text-3xl" />
-            <h4 className="text-xl font-semibold">Nourriture</h4>
-            <p className="text-base text-gray-600">Repas équilibrés préparés sur place.</p>
+            <FaUtensils className="text-gray-600 dark:text-gray-300 text-3xl" />
+            <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Nourriture
+            </h4>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              Repas équilibrés préparés sur place.
+            </p>
           </div>
           <div className="flex flex-col items-center space-y-2">
-            <FaBed className="text-gray-600 text-3xl" />
-            <h4 className="text-xl font-semibold">Lieu</h4>
-            <p className="text-base text-gray-600">Montalivet en camping tout confort.</p>
+            <FaBed className="text-gray-600 dark:text-gray-300 text-3xl" />
+            <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Lieu
+            </h4>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              Montalivet en camping tout confort.
+            </p>
           </div>
           <div className="flex flex-col items-center space-y-2">
-            <FaPaintBrush className="text-gray-600 text-3xl" />
-            <h4 className="text-xl font-semibold">Projet Artistique</h4>
-            <p className="text-base text-gray-600">Vlog, peinture, clip vidéo, etc.</p>
+            <FaPaintBrush className="text-gray-600 dark:text-gray-300 text-3xl" />
+            <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Projet Artistique
+            </h4>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              Vlog, peinture, clip vidéo, etc.
+            </p>
           </div>
           <div className="flex flex-col items-center space-y-2">
-            <FaUsers className="text-gray-600 text-3xl" />
-            <h4 className="text-xl font-semibold">Encadrement</h4>
-            <p className="text-base text-gray-600">Équipe diplômée BAFA/BAFD.</p>
+            <FaUsers className="text-gray-600 dark:text-gray-300 text-3xl" />
+            <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Encadrement
+            </h4>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              Équipe diplômée BAFA/BAFD.
+            </p>
           </div>
           <div className="flex flex-col items-center space-y-2">
-            <FaBus className="text-gray-600 text-3xl" />
-            <h4 className="text-xl font-semibold">Transport</h4>
-            <p className="text-base text-gray-600">Aller-retour en train avec accompagnement.</p>
+            <FaBus className="text-gray-600 dark:text-gray-300 text-3xl" />
+            <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              Transport
+            </h4>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              Aller-retour en train avec accompagnement.
+            </p>
           </div>
         </div>
       </div>
 
       {/* Séparateur */}
-      <hr className=" border-gray-300" />
+      <hr className="border-gray-300 dark:border-gray-700" />
 
       {/* Section "Le séjour en bref" */}
       <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 text-center">
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">Le séjour en bref</h2>
-        <p className="text-base text-gray-600 max-w-4xl mx-auto">
-          Un <strong>séjour de 12 jours</strong> unique combinant surf, art et convivialité à{" "}
-          <strong>Montalivet</strong>. Rejoignez-nous pour une aventure inoubliable sur les plus
-          belles vagues de la côte atlantique, tout en développant votre créativité et en partageant
-          des moments forts avec de nouveaux amis.
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+          Le séjour en bref
+        </h2>
+        <p className="text-base text-gray-600 dark:text-gray-300 max-w-4xl mx-auto">
+          Un <strong>séjour de 12 jours</strong> unique combinant surf, art et
+          convivialité à <strong>Montalivet</strong>. Rejoignez-nous pour une
+          aventure inoubliable sur les plus belles vagues de la côte
+          atlantique, tout en développant votre créativité et en partageant des
+          moments forts avec de nouveaux amis.
         </p>
       </div>
 
       {/* Séparateur */}
+      <hr className="border-gray-300 dark:border-gray-700" />
 
       {/* Sections détaillées avec indicateur de progression */}
       <div className="relative max-w-7xl mx-auto py-8 sm:py-12 px-4 sm:px-6">
         {/* Ligne de progression verticale */}
         <div className="absolute inset-0 justify-center hidden lg:flex">
-          <div className="w-1 bg-gray-200 h-full"></div>
+          <div className="w-1 bg-gray-200 dark:bg-gray-700 h-full"></div>
         </div>
 
         {/* Sections */}
@@ -154,8 +190,10 @@ function Section({ index, totalSections, title, text, imageSrc }) {
       {isEven ? (
         <>
           <div className="flex flex-col justify-center">
-            <h3 className="text-3xl font-bold text-gray-800 mb-4">{title}</h3>
-            <p className="text-base text-gray-600">{text}</p>
+            <h3 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+              {title}
+            </h3>
+            <p className="text-base text-gray-600 dark:text-gray-300">{text}</p>
           </div>
           <div className="relative w-full h-80">
             <Image
@@ -181,8 +219,10 @@ function Section({ index, totalSections, title, text, imageSrc }) {
             </div>
           </div>
           <div className="flex flex-col justify-center lg:text-right">
-            <h3 className="text-3xl font-bold text-gray-800 mb-4">{title}</h3>
-            <p className="text-base text-gray-600">{text}</p>
+            <h3 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+              {title}
+            </h3>
+            <p className="text-base text-gray-600 dark:text-gray-300">{text}</p>
           </div>
         </>
       )}
@@ -195,7 +235,7 @@ function Section({ index, totalSections, title, text, imageSrc }) {
         transition={{ duration: 0.5 }}
       >
         <div className="relative flex items-center justify-center">
-          <div className="w-4 h-4 bg-white rounded-full border-2 border-purple-500 z-10"></div>
+          <div className="w-4 h-4 bg-white dark:bg-gray-800 rounded-full border-2 border-purple-500 z-10"></div>
         </div>
       </motion.div>
 
@@ -217,7 +257,7 @@ function Section({ index, totalSections, title, text, imageSrc }) {
           transition={{ duration: 0.5 }}
         >
           <div className="relative flex items-center justify-center">
-            <div className="w-4 h-4 bg-white rounded-full border-2 border-purple-500 z-10"></div>
+            <div className="w-4 h-4 bg-white dark:bg-gray-800 rounded-full border-2 border-purple-500 z-10"></div>
           </div>
         </motion.div>
       )}
