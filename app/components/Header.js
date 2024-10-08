@@ -110,7 +110,7 @@ export default function Header() {
               href="/anims"
               className="text-lg font-semibold text-gray-700 uppercase tracking-tight transition duration-300 ease-in-out hover:text-teal-600"
             >
-              Anims et Directeurs.ice
+              Anims et Directeurs.ices
             </Link>
             <Link
               href="/pedagogie"
@@ -144,7 +144,7 @@ export default function Header() {
               onClick={toggleMenu}
               className="block text-lg font-semibold text-gray-700 uppercase tracking-tight transition duration-300 ease-in-out hover:text-teal-600"
             >
-              Anims et Directeurs.ice
+              Anims et Directeurs.ices
             </Link>
             <Link
               href="/pedagogie"
