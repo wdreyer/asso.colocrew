@@ -46,7 +46,7 @@ export default function Header() {
       </h2>
       <p className="text-gray-600 mb-6 text-center">
         Devenez membre de ColoCrew pour soutenir nos projets et permettre aux
-        jeunes de vivre des vacances et des séjours inoubliables !
+        jeunes de vivre des vacances et des séjours inoubliables ! (à partir de 5€)
       </p>
       <div className="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4">
         <button
