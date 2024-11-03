@@ -109,7 +109,8 @@ export default function SejourSurf() {
           convivialité à <strong>Montalivet</strong>. Rejoignez-nous pour une
           aventure inoubliable sur les plus belles vagues de la côte
           atlantique, tout en développant votre créativité et en partageant des
-          moments forts avec de nouveaux amis.
+          moments forts avec de nouveaux amis. Les séjours sont organisés pour
+          deux tranches d'âge distinctes : les <strong>11-13 ans</strong> et les <strong>14-17 ans</strong>, avec des programmes séparés mais sur le même centre pour assurer des activités adaptées à chaque groupe.
         </p>
       </div>
 

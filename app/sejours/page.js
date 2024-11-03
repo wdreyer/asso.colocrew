@@ -12,6 +12,7 @@ import {
   FaCalendar,
   FaMoneyBillWave,
   FaCity,
+  FaChild,
 } from "react-icons/fa";
 import SejourSurf from "../components/Sejoursurf";
 import Image from "next/image";
@@ -23,21 +24,28 @@ export default function NosSejours() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState("6 juillet au 18 juillet");
   const [selectedCity, setSelectedCity] = useState("Paris");
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState("11-13");
   const [reservationPrice, setReservationPrice] = useState(200); // Calcul dynamique du prix
 
-  const basePrice = 960;
+  const basePrice = 980;
 
-  // Calcul du prix basé sur la ville sélectionnée
+  // Calcul du prix basé sur la ville et le groupe d'âge sélectionnés
   useEffect(() => {
     const cityPriceMap = {
-      Paris: 150,
-      Bordeaux: 100,
-      Lyon: 220,
-      Toulouse: 100,
-      Marseille: 200,
+      Paris: 130,
+      Bordeaux: 40,
+      Lyon: 130,
+      Montpellier : 110,
+      Toulouse: 90,
+      Marseille: 130,
+      Nantes : 120, 
+      Rennes : 120,
     };
-    setReservationPrice(basePrice + cityPriceMap[selectedCity]);
-  }, [selectedCity]);
+
+    const ageGroupPriceModifier = selectedAgeGroup === "14-17" ? 0 : 0;
+
+    setReservationPrice(basePrice + cityPriceMap[selectedCity] + ageGroupPriceModifier);
+  }, [selectedCity, selectedAgeGroup]);
 
   // Effet de carrousel
   useEffect(() => {
@@ -70,11 +78,15 @@ export default function NosSejours() {
     setSelectedCity(e.target.value);
   };
 
+  const handleAgeGroupChange = (e) => {
+    setSelectedAgeGroup(e.target.value);
+  };
+
   return (
     <section id="nos-sejours">
       <div className="fixed inset-x-0 z-10 bottom-0 border bg-gray-100 dark:bg-gray-800 p-1 shadow-lg">
         <div className="flex flex-col md:flex-row md:justify-center md:space-x-10 md:px-8 space-y-4 md:space-y-0 items-center">
-          {/* Date, Ville, Prix alignés sur la même ligne sur les grands écrans */}
+          {/* Date, Ville, Groupe d'âge, Prix alignés sur la même ligne sur les grands écrans */}
           <div className="flex md:flex-row justify-between items-center md:space-y-0 md:space-x-10 w-full">
             {/* Sélection de la date */}
             <div className="flex items-center space-x-2">
@@ -85,12 +97,8 @@ export default function NosSejours() {
                 onChange={handleDateChange}
                 className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-md p-1 text-sm w-24 md:w-auto md:text-base"
               >
-                <option value="6 juillet au 18 juillet">
-                  6 juillet au 18 juillet
-                </option>
-                <option value="20 juillet au 1er août">
-                  20 juillet au 1er août
-                </option>
+                <option value="6 juillet au 18 juillet">6 juillet au 18 juillet</option>
+                <option value="20 juillet au 1er août">20 juillet au 1er août</option>
                 <option value="3 août au 15 août">3 août au 15 août</option>
                 <option value="17 août au 29 août">17 août au 29 août</option>
               </select>
@@ -110,6 +118,23 @@ export default function NosSejours() {
                 <option value="Lyon">Lyon</option>
                 <option value="Toulouse">Toulouse</option>
                 <option value="Marseille">Marseille</option>
+                <option value="Montpellier">Montpellier</option>
+                <option value="Nantes">Nantes</option>
+                <option value="Rennes">Rennes</option>
+              </select>
+            </div>
+
+            {/* Sélection du groupe d'âge */}
+            <div className="flex items-center space-x-2">
+              <FaChild className="text-yellow-500 text-sm md:text-lg" />
+              <select
+                id="age-group-select"
+                value={selectedAgeGroup}
+                onChange={handleAgeGroupChange}
+                className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-md p-1 text-sm md:w-auto md:text-base"
+              >
+                <option value="11-13">11-13 ans</option>
+                <option value="14-17">14-17 ans</option>
               </select>
             </div>
 
@@ -145,6 +170,7 @@ export default function NosSejours() {
           setIsModalOpen={setIsModalOpen}
           selectedDate={selectedDate}
           selectedCity={selectedCity}
+          selectedAgeGroup={selectedAgeGroup}
           reservationPrice={reservationPrice}
         />
       )}
@@ -152,8 +178,7 @@ export default function NosSejours() {
       {/* Mentions légales */}
       <footer className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-center pt-4">
         <p className="text-sm">
-          Photos non contractuelles. Les conditions d'accueil, d'hébergement et
-          autres sont susceptibles d'évoluer.
+          Photos non contractuelles. Les conditions d'accueil, d'hébergement et autres sont susceptibles d'évoluer.
         </p>
       </footer>
     </section>
