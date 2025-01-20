@@ -27,7 +27,7 @@ export default function NosSejours() {
   const [selectedAgeGroup, setSelectedAgeGroup] = useState("11-13");
   const [reservationPrice, setReservationPrice] = useState(200); // Calcul dynamique du prix
 
-  const basePrice = 980;
+  const basePrice = 1090;
 
   // Calcul du prix basé sur la ville et le groupe d'âge sélectionnés
   useEffect(() => {
