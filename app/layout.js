@@ -16,8 +16,21 @@ export default function RootLayout({ children }) {
     <html lang="fr">
       <head>
         {/* Le contenu des balises <head> sera géré ici automatiquement par Next.js */}
+        <script type="text/javascript">
+var sc_project=13080506; 
+var sc_invisible=1; 
+var sc_security="bb9779c0"; 
+</script>
+<script type="text/javascript"
+src="https://www.statcounter.com/counter/counter.js" async></script>
+<noscript><div class="statcounter"><a title="Web Analytics Made Easy -
+Statcounter" href="https://statcounter.com/" target="_blank">
+</a></div></noscript>     
+
+
       </head>
       <body>
+      
       <Header />
      {children}
       <Footer />
