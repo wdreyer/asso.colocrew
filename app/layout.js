@@ -15,25 +15,24 @@ export default function RootLayout({ children }) {
   return (
     <html lang="fr">
       <head>
-        {/* Le contenu des balises <head> sera géré ici automatiquement par Next.js */}
-        <script type="text/javascript">
-var sc_project=13080506; 
-var sc_invisible=1; 
-var sc_security="bb9779c0"; 
-</script>
-<script type="text/javascript"
-src="https://www.statcounter.com/counter/counter.js" async></script>
-<noscript><div class="statcounter"><a title="Web Analytics Made Easy -
-Statcounter" href="https://statcounter.com/" target="_blank">
-</a></div></noscript>     
+        {/* Le contenu des balises <head> sera géré ici automatiquement par Next.js */} 
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-PWJ8EQLG1Z"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
 
+  gtag('config', 'G-PWJ8EQLG1Z');
+</script>
 
       </head>
       <body>
+      <div className="flex flex-col min-h-screen">
       
       <Header />
-     {children}
+      <main className="flex-grow">{children}</main>
       <Footer />
+      </div>
       </body>
       <Script src="https://scripts.simpleanalyticscdn.com/latest.js"  />
 

@@ -29,19 +29,20 @@ export default function NosSejours() {
 
   const basePrice = 1090;
 
-  // Calcul du prix basé sur la ville et le groupe d'âge sélectionnés
+  // Calcul du prix basé sur la ville et la tranche d'âge sélectionnée
   useEffect(() => {
     const cityPriceMap = {
       Paris: 130,
       Bordeaux: 40,
       Lyon: 130,
-      Montpellier : 110,
+      Montpellier: 110,
       Toulouse: 90,
       Marseille: 130,
-      Nantes : 120, 
-      Rennes : 120,
+      Nantes: 120,
+      Rennes: 120,
     };
 
+    // Optionnel : ajuster le prix en fonction de l'âge
     const ageGroupPriceModifier = selectedAgeGroup === "14-17" ? 0 : 0;
 
     setReservationPrice(basePrice + cityPriceMap[selectedCity] + ageGroupPriceModifier);
@@ -86,9 +87,8 @@ export default function NosSejours() {
     <section id="nos-sejours">
       <div className="fixed inset-x-0 z-10 bottom-0 border bg-gray-100 dark:bg-gray-800 p-1 shadow-lg">
         <div className="flex flex-col md:flex-row md:justify-center md:space-x-10 md:px-8 space-y-4 md:space-y-0 items-center">
-          {/* Date, Ville, Groupe d'âge, Prix alignés sur la même ligne sur les grands écrans */}
+          {/* Sélection de la date, ville, tranche d'âge, et prix */}
           <div className="flex md:flex-row justify-between items-center md:space-y-0 md:space-x-10 w-full">
-            {/* Sélection de la date */}
             <div className="flex items-center space-x-2">
               <FaCalendar className="text-purple-700 text-sm md:text-lg" />
               <select
@@ -104,7 +104,6 @@ export default function NosSejours() {
               </select>
             </div>
 
-            {/* Sélection de la ville */}
             <div className="flex items-center space-x-2">
               <FaCity className="text-blue-600 text-sm md:text-lg" />
               <select
@@ -124,7 +123,6 @@ export default function NosSejours() {
               </select>
             </div>
 
-            {/* Sélection du groupe d'âge */}
             <div className="flex items-center space-x-2">
               <FaChild className="text-yellow-500 text-sm md:text-lg" />
               <select
@@ -147,7 +145,7 @@ export default function NosSejours() {
             </div>
           </div>
 
-          {/* Bouton de réservation */}
+          {/* Bouton de réservation ouvre la modale */}
           <div className="flex justify-center md:justify-start w-full md:w-auto">
             <button
               onClick={() => setIsModalOpen(true)}
@@ -164,7 +162,6 @@ export default function NosSejours() {
         <SejourSurf />
       </div>
 
-      {/* Modal de réservation */}
       {isModalOpen && (
         <ReservationModal
           setIsModalOpen={setIsModalOpen}
@@ -175,7 +172,6 @@ export default function NosSejours() {
         />
       )}
 
-      {/* Mentions légales */}
       <footer className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-center pt-4">
         <p className="text-sm">
           Photos non contractuelles. Les conditions d'accueil, d'hébergement et autres sont susceptibles d'évoluer.
