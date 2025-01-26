@@ -140,7 +140,7 @@ export default function ReservationPage({ params }) {
         <div className="bg-gray-50 p-4 rounded-md shadow-sm space-y-2">
           <h2 className="font-semibold text-lg text-gray-800">Informations financières</h2>
           <p><strong>Acompte :</strong> {acompte ?? "N/A"} €</p>
-          <p><strong>Reste à payer :</strong> {resteAPayer ?? "N/A"} €</p>
+          <p><strong>Reste à payer : </strong> {resteAPayer ?? "N/A"} €</p>
         </div>
       </div>
 
