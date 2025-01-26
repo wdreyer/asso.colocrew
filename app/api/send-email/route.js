@@ -21,8 +21,8 @@ export async function POST(request) {
     port: 587,
     secure: false, // STARTTLS
     auth: {
-      user: "7d6e72001@smtp-brevo.com", // Ton identifiant
-      pass: "fFIcnKREGCTYsvzj",        // Ton mot de passe
+      user: process.env.NEXT_USER_MAIL, // Ton identifiant
+      pass: process.env.NEXT_USER_PASSWOR,        // Ton mot de passe
     },
   });
 
