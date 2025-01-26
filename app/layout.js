@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 
 
+
 export const metadata = {
   title: 'Colocrew',
   description: 'Des colos réinventés',
@@ -16,14 +17,7 @@ export default function RootLayout({ children }) {
     <html lang="fr">
       <head>
         {/* Le contenu des balises <head> sera géré ici automatiquement par Next.js */} 
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-PWJ8EQLG1Z"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-PWJ8EQLG1Z');
-</script>
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-PWJ8EQLG1Z"></Script>
 
       </head>
       <body>
