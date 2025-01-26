@@ -148,7 +148,7 @@ export default function NosSejours() {
           {/* Bouton de réservation ouvre la modale */}
           <div className="flex justify-center md:justify-start w-full md:w-auto">
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => setIsModalOpen(false)}
               className="w-full md:w-auto bg-gray-700 text-white px-6 py-2 rounded-md hover:bg-gray-800 transition duration-300 text-sm md:text-base"
             >
               Réserver
