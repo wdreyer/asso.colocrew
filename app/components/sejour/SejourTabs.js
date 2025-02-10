@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import ReservationCard from "./ReservationCard";
 import ReactMarkdown from "react-markdown"; // Pour rendre le Markdown
+// On n'utilise plus remark-breaks afin de conserver le comportement standard
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 
 export default function SejourTabs({
@@ -72,17 +73,31 @@ export default function SejourTabs({
   };
 
   // Fonction pour rendre une sous‑section
-  // Sur mobile, l'ordre naturel (texte puis image) est utilisé.
-  // Sur desktop (à partir de md), on utilise md:order-* pour alterner l'ordre :
-  // pour les sous‑sections à index impair, le texte est affiché en second (order-2) et l'image en premier (order-1)
+  // Pour chaque portion de texte encadrée par "/p" ... "/p",
+  // on la remplace par le même contenu entouré de deux retours à la ligne.
+  // Ensuite, via ReactMarkdown, on redéfinit le rendu des paragraphes
+  // pour ajouter un <br> après chaque paragraphe.
   const renderSubSection = (sub, idx) => {
     const isOdd = idx % 2 === 1;
+    const processedText = sub.text
+      ? sub.text.replace(/\/p\s*(.*?)\s*\/p/g, "\n\n$1\n\n")
+      : "";
     return (
       <div key={idx} className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className={`lg:col-span-2 ${isOdd ? "md:order-2" : "md:order-1"}`}>
           <h2 className="text-2xl font-bold mb-2 text-black">{sub.title}</h2>
-          <ReactMarkdown className="text-base text-black">
-            {sub.text}
+          <ReactMarkdown
+            className="text-base text-black"
+            components={{
+              p: ({ node, children, ...props }) => (
+                <>
+                  <p {...props}>{children}</p>
+                  <br />
+                </>
+              ),
+            }}
+          >
+            {processedText}
           </ReactMarkdown>
         </div>
         {sub.imageSrc && (

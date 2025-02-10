@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
-
   },
   "dependencies": {
     "@react-spring/web": "^9.7.4",
@@ -30,6 +29,7 @@
     "react-markdown": "^9.0.3",
     "react-scroll": "^1.9.0",
     "react-simplemde-editor": "^5.2.0",
+    "remark-breaks": "^4.0.0",
     "stripe": "^17.6.0",
     "swiper": "^11.1.14"
   },

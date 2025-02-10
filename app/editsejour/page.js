@@ -1,14 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  doc,
-  updateDoc,
-  getDoc,
-} from "firebase/firestore";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import Image from "next/image";
+import ReactMarkdown from "react-markdown"; // Pour rendre le Markdown
+// On retire remark-breaks pour conserver le comportement Markdown standard
+import { FaChevronLeft, FaChevronRight, FaParagraph } from "react-icons/fa";
+import { collection, getDocs, addDoc, doc, updateDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/app/firebase";
 import DatePicker from "react-datepicker";
@@ -38,6 +35,8 @@ function EditSejourContent() {
     () => ({
       spellChecker: false,
       lint: false,
+      lineWrapping: true,
+      forceSync: true,
       toolbar: [
         "bold",
         "italic",
@@ -47,14 +46,31 @@ function EditSejourContent() {
         "unordered-list",
         "ordered-list",
         "|",
+        // Bouton personnalisé pour insérer un paragraphe
+        {
+          name: "paragraph",
+          action: (editor) => {
+            const cm = editor.codemirror;
+            // Insère deux sauts de ligne à la position du curseur
+            const output = "\n\n";
+            cm.replaceSelection(output);
+            // Optionnel : repositionner le curseur à la fin de la sélection
+            cm.focus();
+          },
+          className: "fa fa-paragraph", // Vous pouvez utiliser une classe FontAwesome ou autre
+          title: "Ajouter un paragraphe",
+        },
+        "|",
         "preview",
         "side-by-side",
         "fullscreen",
       ],
-      placeholder: "Écrivez votre texte en Markdown...",
+      placeholder:
+        "Écrivez votre texte en Markdown (laissez une ligne vide pour séparer les paragraphes ou utilisez le bouton paragraphe)...",
     }),
     []
   );
+  
 
   // Récupération des séjours depuis Firestore
   useEffect(() => {
