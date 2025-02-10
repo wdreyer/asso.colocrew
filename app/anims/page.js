@@ -18,9 +18,9 @@ export default function Anims() {
           style={{ objectFit: "cover" }}
           className="w-full h-full"
         />
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-40 text-white px-4 sm:px-8">
-          <h1 className="text-3xl md:text-5xl font-bold uppercase tracking-wide text-center">
-            TRAVAILLER CHEZ ColoCrew
+        <div className="absolute inset-0 flex flex-col items-center justify-center  text-white px-4 sm:px-8">
+          <h1 className="text-3xl md:text-5xl font-bold tracking-wide text-center">
+            Travailler Chez ColoCrew
           </h1>
           <p className="sm:text-base mt-2 max-w-2xl text-center">
             Nous croyons fermement que le bien-être des animateurs est la clé du succès de nos séjours. Chez ColoCrew, nous nous battons pour améliorer les conditions de travail et garantir un environnement sain, respectueux et engagé.

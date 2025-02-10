@@ -1,10 +1,33 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+/* Importation des polices depuis Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&family=Raleway:wght@400;500;700&family=Roboto:wght@400;700&family=Open+Sans:wght@300;600&family=Montserrat:wght@400;700&display=swap');
 
 
+
+
+@import "tailwindcss";
+
+.test-inter {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.test-poppins {
+  font-family: 'Poppins', sans-serif !important;
+}
+
+.test-montserrat {
+  font-family: 'Montserrat', sans-serif !important;
+}
+.font-inter {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.font-montserrat {
+  font-family: 'Montserrat', sans-serif !important;
+}
+
+
+
+/* Variables CSS pour les couleurs */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -17,18 +40,27 @@
   }
 }
 
+/* Style global pour le body */
+/* Par défaut, nous utilisons la police Inter */
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
+
+/* Exemple d'utilisation de la police Poppins pour certains titres ou éléments */
+h1,
+.font-poppins {
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Utilitaires personnalisés */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 }
 
+/* Animation fadeIn */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -44,7 +76,7 @@ body {
   animation: fadeIn 1s ease-out;
 }
 
-/* CSS for fade-in and fade-out animations */
+/* Animations de fade-in et fade-out */
 .fade-in {
   opacity: 1;
   transition: opacity 1s ease-in-out, transform 2s ease-in-out;
@@ -58,4 +90,26 @@ body {
 .scale-up {
   transform: scale(1.3);
   transition: transform 2s ease-in-out;
+}
+
+/* Positionnement personnalisé (exemple pour une bannière) */
+.tarteaucitronAlertBig {
+  bottom: 50px !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE et Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+.gradient-fade {
+  /* Utilisation d'un masque dégradé qui part d'une opacité totale (opaque) en bas à gauche 
+     et devient transparent vers le haut droit */
+  -webkit-mask-image: linear-gradient(to top right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to top right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
 }

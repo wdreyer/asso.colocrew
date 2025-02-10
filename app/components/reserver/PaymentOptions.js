@@ -1,0 +1,353 @@
+"use client";
+
+import Link from "next/link";
+import { FaShieldAlt, FaCreditCard, FaMoneyCheck } from "react-icons/fa";
+
+export default function PaymentOptions({
+  formData,
+  handleChange,
+  basePrice,
+  transportFee,
+  computedTotalPrice,
+  insuranceFee,
+  urlCity,
+  urlStartDate,
+}) {
+  const isOneTime = formData.paymentOption === "oneTime";
+  const isTwoTimes = formData.paymentOption === "twoTimes";
+
+  // Calcul de la date limite J-90 si urlStartDate est valide
+  let paymentDeadlineString = "";
+  if (urlStartDate) {
+    const sejourStart = new Date(urlStartDate);
+    if (!Number.isNaN(sejourStart.getTime())) {
+      const deadline = new Date(sejourStart);
+      deadline.setDate(deadline.getDate() - 90);
+      paymentDeadlineString = deadline.toLocaleDateString("fr-FR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow mb-6">
+      <h2 className="text-2xl font-bold text-[#B8336A] mb-4">
+        Options de paiement & Récapitulatif
+      </h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+        {/* Colonne GAUCHE : Choix utilisateur */}
+        <div className="flex flex-col divide-y divide-gray-200 pr-6 md:border-r border-gray-200">
+          {/* Méthode de paiement */}
+          <div className="py-4">
+            <p className="text-sm font-semibold mb-2">
+              Méthode de paiement<span className="text-red-500 ml-1">*</span> :
+            </p>
+            <div className="flex items-center space-x-4">
+              <label className="inline-flex items-start text-sm">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="CB"
+                  checked={formData.paymentMethod === "CB"}
+                  onChange={handleChange}
+                  className="form-radio h-5 w-5 text-[#B8336A]"
+                />
+                <span className="ml-2 flex flex-col">
+                  <span className="flex items-center">
+                    <FaCreditCard className="mr-1 text-[#B8336A]" />
+                    Carte Bancaire
+                  </span>
+                </span>
+              </label>
+              <label className="inline-flex items-center text-sm">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="chequeVirement"
+                  checked={formData.paymentMethod === "chequeVirement"}
+                  onChange={handleChange}
+                  className="form-radio h-5 w-5 text-[#B8336A]"
+                />
+                <span className="ml-2 flex items-center">
+                  <FaMoneyCheck className="mr-1 text-[#B8336A]" />
+                  Chèque / Virement
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Paiement en 1 ou 2 fois */}
+          <div className="py-4">
+            <p className="text-sm font-semibold mb-2">
+              Option de règlement<span className="text-red-500 ml-1">*</span> :
+            </p>
+            <div className="flex items-center space-x-4">
+              <label className="inline-flex items-center text-sm">
+                <input
+                  type="radio"
+                  name="paymentOption"
+                  value="oneTime"
+                  checked={isOneTime}
+                  onChange={handleChange}
+                  className="form-radio h-5 w-5 text-[#B8336A]"
+                />
+                <span className="ml-2">Paiement en une fois</span>
+              </label>
+              <label className="inline-flex items-center text-sm">
+                <input
+                  type="radio"
+                  name="paymentOption"
+                  value="twoTimes"
+                  checked={isTwoTimes}
+                  onChange={handleChange}
+                  className="form-radio h-5 w-5 text-[#B8336A]"
+                />
+                <span className="ml-2">Paiement en deux fois</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Assurance annulation (facultative) */}
+          <div className="py-4 flex items-start">
+            <input
+              type="checkbox"
+              name="insuranceOpted"
+              checked={formData.insuranceOpted}
+              onChange={handleChange}
+              className="form-checkbox h-5 w-5 text-[#B8336A] mt-1"
+            />
+            <label className="ml-2 text-sm leading-snug">
+              <span className="font-semibold inline-flex items-center mb-1">
+                <FaShieldAlt className="mr-1 text-[#B8336A]" />
+                Souscrire à l’assurance annulation (facultative)
+              </span>
+              <span className="block">
+                Montant : {insuranceFee} € (<a
+                  href="/AssuranceAnnulationMaif.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#B8336A] underline"
+                >
+                  Voir document
+                </a>)
+              </span>
+            </label>
+          </div>
+
+          {/* CGV, Documents, Rétractation et RGPD */}
+          <div className="py-4 text-xs space-y-2">
+            {/* CGV */}
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="acceptedCGV"
+                checked={formData.acceptedCGV}
+                onChange={handleChange}
+                className="form-checkbox h-4 w-4 text-[#B8336A]"
+              />
+              <span className="ml-2">
+                J'accepte les{" "}
+                <a
+                  href="/conditions-generales-de-ventes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#B8336A] underline"
+                >
+                  CGV
+                </a>
+                <span className="text-red-500 ml-1">*</span>
+              </span>
+            </div>
+            {/* Documents */}
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="acceptedDocs"
+                checked={formData.acceptedDocs}
+                onChange={handleChange}
+                className="form-checkbox h-4 w-4 text-[#B8336A]"
+              />
+              <span className="ml-2">
+                Je m’engage à envoyer les documents demandés
+                <span className="text-red-500 ml-1">*</span>
+              </span>
+            </div>
+            {/* Rétractation */}
+            <div className="flex items-start">
+              <input
+                type="checkbox"
+                name="acceptedNoWithdrawal"
+                checked={formData.acceptedNoWithdrawal}
+                onChange={handleChange}
+                className="form-checkbox h-4 w-4 text-[#B8336A] mt-0.5"
+              />
+              <span className="ml-2 leading-snug">
+                Je reconnais que, conformément à l'article L221‑28 du Code de la consommation, le droit de rétractation ne s'applique pas aux séjours de vacances.
+                <span className="text-red-500 ml-1">*</span>
+              </span>
+            </div>
+            {/* RGPD */}
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="acceptedRGPD"
+                checked={formData.acceptedRGPD}
+                onChange={handleChange}
+                className="form-checkbox h-4 w-4 text-[#B8336A]"
+              />
+              <span className="ml-2">
+                J'accepte la{" "}
+                <a
+                  href="/rgpd"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#B8336A] underline"
+                >
+                  politique de confidentialité (RGPD)
+                </a>
+                <span className="text-red-500 ml-1">*</span>
+              </span>
+            </div>
+            <p>
+            <Link href="/aide-financement" className=" text-m  font-bold font-poppins cursor-pointer md:w-auto  text-[#B8336A]  hover:text-[#A2225A] transition duration-300  ">
+            <span>
+             Si vous êtes éligible à une aide (Pass Colo, VACAF, etc.),nous contacter
+             </span>
+             </Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Colonne DROITE : Détails & conditions */}
+        <div className="space-y-1 md:space-y-4 md:pl-6">
+          {/* Bloc "devis" : Détail du prix */}
+          <div className="md:border md:border-gray-200 md:p-4 rounded text-sm">
+            <h3 className="text-lg font-bold mb-3">Détail du prix</h3>
+            {/* Prix de base */}
+            <div className="border-b border-gray-200 py-2 flex justify-between">
+              <span>Prix de base</span>
+              <span>{basePrice} €</span>
+            </div>
+            {/* Transport */}
+            <div className="border-b border-gray-200 py-2 flex justify-between">
+              <span>Transport A/R vers {urlCity || "Sur place"}</span>
+              <span>{transportFee} €</span>
+            </div>
+            {/* Assurance */}
+            <div className="border-b border-gray-200 py-2 flex justify-between">
+              <span>Assurance annulation</span>
+              <span>{formData.insuranceOpted ? insuranceFee : 0} €</span>
+            </div>
+            {/* Total */}
+            <div className="pt-3 flex justify-end">
+              <div className="text-right">
+                <p className="text-sm uppercase font-light">Total</p>
+                <p className="text-xl font-extrabold text-[#B8336A]">
+                  {computedTotalPrice} €
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Paiement en deux fois : Acompte + Solde + Deadline */}
+          {isTwoTimes && (
+            <div className="md:border border-gray-200 md:p-4 rounded text-sm space-y-1">
+              <p className="font-semibold">Paiement en deux fois :</p>
+              <p>
+                Acompte (30%) :{" "}
+                <strong>{(computedTotalPrice * 0.3).toFixed(2)} €</strong>
+              </p>
+              <p>
+                Solde (70%) :{" "}
+                <strong>{(computedTotalPrice * 0.7).toFixed(2)} €</strong>
+              </p>
+              {paymentDeadlineString ? (
+                <p className="text-xs text-gray-600 mt-1">
+                  Le solde doit être réglé au plus tard le{" "}
+                  <strong>{paymentDeadlineString}</strong>.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-600 mt-1">
+                  Le solde doit être réglé au plus tard 90 jours avant le début du séjour.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="md:border border-gray-200 md:p-4 rounded text-xs leading-snug">
+            {isOneTime ? (
+              <>
+                <strong>Paiement en une fois :</strong>
+                <br />
+                Le montant total doit être payé dès la réservation.
+                <br />
+                Règlement par{" "}
+                {formData.paymentMethod === "CB"
+                  ? "Carte Bancaire "
+                  : "Chèque / Virement"}
+                .{" "}
+                {formData.paymentMethod === "CB" && (
+                  <span className="block mt-1 text-xs text-gray-500">
+                    (Paiement sécurisé via{" "}
+                    <a
+                      href="https://stripe.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#B8336A] underline"
+                    >
+                      Stripe
+                    </a>
+                    )
+                  </span>
+                )}
+                {formData.paymentMethod === "chequeVirement" && (
+                  <span className="block mt-1">
+                    Vous disposez de <strong>15 jours</strong> pour envoyer votre règlement, faute de quoi l’inscription sera annulée.
+                  </span>
+                )}
+                <br />
+                Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90 jours avant le séjour. Au-delà, se reporter aux CGV.
+              </>
+            ) : (
+              <>
+                <strong>Paiement en deux fois :</strong>
+                <br />
+                Un acompte de 30% lors de la réservation, solde 70% à régler 90 jours avant le séjour.
+                <br />
+                Règlement par{" "}
+                {formData.paymentMethod === "CB"
+                  ? "Carte Bancaire (via Stripe sécurisé)"
+                  : "Chèque / Virement"}
+                .{" "}
+                {formData.paymentMethod === "CB" && (
+                  <span className="block mt-1 text-xs text-gray-500">
+                    (Paiement sécurisé via{" "}
+                    <a
+                      href="https://stripe.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#B8336A] underline"
+                    >
+                      Stripe
+                    </a>
+                    )
+                  </span>
+                )}
+                {formData.paymentMethod === "chequeVirement" && (
+                  <span className="block mt-1">
+                    Vous disposez de <strong>15 jours</strong> pour envoyer votre règlement faute de quoi l’inscription sera annulée.
+                  </span>
+                )}
+                <br />
+                Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90 jours avant le séjour, puis se reporter aux CGV.
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -14,15 +14,16 @@ export default function Adherer() {
         <Image
           src="/follow.jpg"
           alt="Nous soutenir"
-          fill
-          style={{ objectFit: "cover" }}
+          layout="fill"
+          objectFit="cover"
+          priority
           className="w-full h-full"
         />
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-40 text-white px-4 sm:px-8">
-          <h1 className="text-3xl md:text-5xl font-bold uppercase tracking-wide text-center">
-            NOUS SOUTENIR
+        <div className="absolute inset-0 flex flex-col items-center justify-center  text-white px-4 sm:px-8">
+          <h1 className="text-3xl md:text-5xl font-black  tracking-wide text-center">
+            Nous soutenir
           </h1>
-          <p className="sm:text-base mt-2 max-w-2xl text-center">
+          <p className="sm:text-base mt-2 max-w-2xl text-center font-bold">
             Rejoignez-nous dans cette aventure et contribuez à créer des séjours inoubliables pour les jeunes. Votre soutien est essentiel pour faire la différence.
           </p>
         </div>
@@ -44,7 +45,6 @@ export default function Adherer() {
           </button>
         </div>
 
-        {/* Séparateur */}
         <hr className="my-8 border-gray-300" />
 
         {/* Section Partager sur les réseaux */}
@@ -53,50 +53,19 @@ export default function Adherer() {
           <p className="text-gray-600 text-base max-w-4xl mx-auto mb-6">
             📣 Votre voix compte ! En partageant sur les réseaux sociaux, vous nous aidez à toucher plus de personnes et à réaliser nos projets. Suivez-nous et partagez nos contenus pour soutenir nos actions.
           </p>
-          {/* Icônes des réseaux sociaux */}
           <div className="flex justify-center space-x-8 mb-6">
-            {/* Instagram */}
-            <a
-              href="https://www.instagram.com/_colocrew/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-700 hover:text-purple-700 transition"
-              aria-label="Instagram"
-            >
-              <FaInstagram className="text-4xl" />
-            </a>
-
-            {/* TikTok */}
-            <a
-              href="https://www.tiktok.com/@colocrew"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-700 hover:text-purple-700 transition"
-              aria-label="TikTok"
-            >
-              <FaTiktok className="text-4xl" />
-            </a>
-
-            {/* LinkedIn */}
-            <a
-              href="https://www.linkedin.com/company/colocrew"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-700 hover:text-purple-700 transition"
-              aria-label="LinkedIn"
-            >
-              <FaLinkedin className="text-4xl" />
-            </a>
+            {[
+              { href: "https://www.instagram.com/_colocrew/", icon: FaInstagram },
+              { href: "https://www.tiktok.com/@colocrew", icon: FaTiktok },
+              { href: "https://www.linkedin.com/company/colocrew", icon: FaLinkedin },
+            ].map(({ href, icon: Icon }, index) => (
+              <a key={index} href={href} target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-purple-700 transition">
+                <Icon className="text-4xl" />
+              </a>
+            ))}
           </div>
-          <button
-            onClick={() => window.open("https://www.instagram.com/_colocrew/", "_blank")}
-            className="hidden"
-          >
-            {/* Bouton supprimé */}
-          </button>
         </div>
 
-        {/* Séparateur */}
         <hr className="my-8 border-gray-300" />
 
         {/* Section Nous contacter */}

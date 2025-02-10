@@ -1,12 +1,12 @@
 
-import QuiSommesNous from './components/QuiSommesNous';
-import Sections from './components/Sections';
+import QuiSommesNous from './components/homepage/QuiSommesNous';
+import Sections from './components/homepage/Sections';
 
 export default function Home() {
   return (
-    <div className="min-h-screen font-sans">
+    <div className="min-h-screen font-inter">
       <QuiSommesNous />
-      <Sections />
+
     </div>
   );
 }

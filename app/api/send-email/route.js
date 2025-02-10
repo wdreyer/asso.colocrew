@@ -1,178 +1,139 @@
 import nodemailer from "nodemailer";
 
+/**
+ * POST /api/send-email
+ * En fonction de formType, on envoie différents mails :
+ *  - "candidature"  => mail admin
+ *  - "contact"      => mail admin
+ *  - "reservation"  => mail admin + mail user stylé
+ */
 export async function POST(request) {
-  // On récupère tous les champs du body
-  const {
-    nom,
-    prenom,
-    email,
-    telephone,
-    message,
-    selectedDate,
-    selectedCity,
-    reservationPrice,
-    lienAcces, // lien unique pour gérer la réservation
-    formType,  // distingue les types de formulaires : "candidature", "contact", "reservation", etc.
-  } = await request.json();
-
-  // 1) Configurer le transporteur SMTP (Brevo/Sendinblue)
-  const transporter = nodemailer.createTransport({
-    host: "smtp-relay.sendinblue.com",
-    port: 587,
-    secure: false, // STARTTLS
-    auth: {
-      user: process.env.NEXT_USER_MAIL, // Ton identifiant
-      pass: process.env.NEXT_USER_PASSWOR,        // Ton mot de passe
-    },
-  });
-
-  // Variables qui vont contenir `subject` et `htmlContent` pour l'email admin
-  let adminSubject = "";
-  let adminHtmlContent = "";
-
-  // Variables pour l'email utilisateur (optionnel)
-  let userSubject = "";
-  let userHtmlContent = "";
-  let userMailOptions = null; // On construira cet objet si on veut envoyer un mail user
-
-  // 2) Selon formType, on construit le contenu
-  if (formType === "candidature") {
-    // ----------------- Candidature -----------------
-    adminSubject = "Nouvelle candidature";
-    adminHtmlContent = `
-      <h1>Nouvelle candidature</h1>
-      <p><strong>Nom :</strong> ${nom}</p>
-      <p><strong>Prénom :</strong> ${prenom}</p>
-      <p><strong>Email :</strong> ${email}</p>
-      <p><strong>Téléphone :</strong> ${telephone}</p>
-      <p><strong>Message de motivation :</strong><br/>${message}</p>
-    `;
-    // Pas d'email utilisateur, ou alors tu peux en créer un.
-
-  } else if (formType === "contact") {
-    // ----------------- Contact -----------------
-    adminSubject = "Nouveau message de contact";
-    adminHtmlContent = `
-      <h1>Nouveau message de contact</h1>
-      <p><strong>Nom :</strong> ${nom}</p>
-      <p><strong>Prénom :</strong> ${prenom}</p>
-      <p><strong>Email :</strong> ${email}</p>
-      <p><strong>Téléphone :</strong> ${telephone}</p>
-      <p><strong>Message :</strong> ${message}</p>
-    `;
-    // Pas d'email utilisateur, sauf si tu veux accuser réception.
-
-  } else if (formType === "reservation" && selectedDate && selectedCity && reservationPrice) {
-    // ----------------- Réservation -----------------
-    // (1) Email Admin
-    adminSubject = "Nouvelle réservation";
-    adminHtmlContent = `
-      <h1>Nouvelle réservation</h1>
-      <p><strong>Nom :</strong> ${nom}</p>
-      <p><strong>Prénom :</strong> ${prenom}</p>
-      <p><strong>Email :</strong> ${email}</p>
-      <p><strong>Téléphone :</strong> ${telephone}</p>
-      <p><strong>Date :</strong> ${selectedDate}</p>
-      <p><strong>Ville de départ :</strong> ${selectedCity}</p>
-      <p><strong>Prix total :</strong> ${reservationPrice} €</p>
-    `;
-
-    // (2) Email utilisateur
-    userSubject = "Votre réservation pour votre séjour Colocrew a bien été enregistrée !";
-    userHtmlContent = `
-      <div style="font-family: Arial, sans-serif; margin: 20px; padding: 20px; border: 1px solid #ddd;">
-        <h1 style="color: #333;">Merci pour votre réservation, ${prenom} !</h1>
-        <p>Voici un récapitulatif :</p>
-        <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Nom :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${nom}</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Prénom :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${prenom}</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Email :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${email}</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Téléphone :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${telephone}</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Date sélectionnée :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${selectedDate}</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Ville de départ :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${selectedCity}</td>
-          </tr>
-          <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;"><strong>Prix total :</strong></td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${reservationPrice} €</td>
-          </tr>
-        </table>
-
-        <p style="margin-bottom: 20px;">
-          Pour gérer votre réservation (modifier des infos, payer le solde, etc.),
-          cliquez sur le lien ci-dessous :
-        </p>
-        ${
-          lienAcces
-            ? `<p style="text-align: center;">
-                <a 
-                  href="${lienAcces}" 
-                  style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: #fff; text-decoration: none; border-radius: 5px;"
-                >
-                  Accéder à ma réservation
-                </a>
-              </p>`
-            : "<p>Aucun lien n'est disponible pour le moment.</p>"
-        }
-
-        <p style="margin-top: 30px; color: #777; font-size: 0.9em;">
-          Si vous avez des questions, n'hésitez pas à nous contacter.
-        </p>
-      </div>
-    `;
-
-    // Créer l'objet userMailOptions
-    userMailOptions = {
-      from: `"Colocrew Réservation" <contact@colocrew.com>`,
-      to: email, 
-      subject: userSubject,
-      html: userHtmlContent,
-    };
-  } else {
-    // Cas message non reconnu ou données incomplètes
-    return new Response(
-      JSON.stringify({ error: "Données invalides ou formType non reconnu" }),
-      { status: 400 }
-    );
-  }
-
-  // 4) Configurer l'email admin
-  const adminMailOptions = {
-    from: `"Colocrew Réservation" <contact@colocrew.com>`,
-    to: "contact@colocrew.com",
-    subject: adminSubject,
-    html: adminHtmlContent,
-  };
-
   try {
-    // 1) Envoyer l'e-mail admin
-    await transporter.sendMail(adminMailOptions);
+    // On récupère tous les champs envoyés en JSON
+    const data = await request.json();
+    const {
+      formType, // "candidature" | "contact" | "reservation"
 
-    // 2) Si c'est une réservation, on envoie également un e-mail user
-    if (formType === "reservation") {
-      // On suppose que 'userMailOptions' a été construit
-      if (userMailOptions) {
-        await transporter.sendMail(userMailOptions);
-      }
+      // Champs communs
+      nom,
+      prenom,
+      email,
+      telephone,
+      message,
+
+      // Champs pour "reservation"
+      reservationId,
+      numeroDeReservation,
+      lienAcces,
+
+      // mineur, legal, options, payment, sejour
+      minor,
+      legal,
+      options,
+      payment,
+      sejour,
+    } = data;
+
+    // 1) Configurer le transporteur SMTP (Sendinblue / Brevo)
+    const transporter = nodemailer.createTransport({
+      host: "smtp-relay.sendinblue.com",
+      port: 587,
+      secure: false, // STARTTLS
+      auth: {
+        user: process.env.NEXT_USER_MAIL,
+        pass: process.env.NEXT_USER_PASSWORD,
+      },
+      tls: {
+        // Si vous rencontrez des problèmes de certificat, décommentez la ligne suivante
+        // rejectUnauthorized: false,
+      },
+    });
+
+    // Optionnel : Vérifier la connexion (pour le debug)
+    // await transporter.verify();
+
+    // Variables pour l'e-mail "admin"
+    let adminSubject = "";
+    let adminHtmlContent = "";
+
+    // Variables pour l'e-mail "user"
+    let userSubject = "";
+    let userHtmlContent = "";
+    let userMailOptions = null;
+
+    // 2) On gère formType
+    if (formType === "candidature") {
+      adminSubject = "Nouvelle candidature";
+      adminHtmlContent = `
+        <h1>Nouvelle candidature</h1>
+        <p><strong>Nom :</strong> ${nom}</p>
+        <p><strong>Prénom :</strong> ${prenom}</p>
+        <p><strong>Email :</strong> ${email}</p>
+        <p><strong>Téléphone :</strong> ${telephone}</p>
+        <p><strong>Message de motivation :</strong><br/>${message}</p>
+      `;
+    } else if (formType === "contact") {
+      adminSubject = "Nouveau message de contact";
+      adminHtmlContent = `
+        <h1>Nouveau message de contact</h1>
+        <p><strong>Nom :</strong> ${nom}</p>
+        <p><strong>Prénom :</strong> ${prenom}</p>
+        <p><strong>Email :</strong> ${email}</p>
+        <p><strong>Téléphone :</strong> ${telephone}</p>
+        <p><strong>Message :</strong> ${message}</p>
+      `;
+    } else if (formType === "reservation") {
+      // (1) Email Admin
+      adminSubject = `Nouvelle réservation No. ${numeroDeReservation || "???"}`;
+      adminHtmlContent = `
+        <h1 style="color:#B8336A;">Nouvelle réservation</h1>
+        <p><strong>Numéro de résa :</strong> ${numeroDeReservation || "???"}</p>
+        <p><strong>Réservation ID :</strong> ${reservationId || "???"}</p>
+        <p>Lien d'accès éventuel : ${lienAcces || "N/A"}</p>
+      `;
+
+      // (2) Email Utilisateur
+      userSubject = `Colocrew - Confirmation de réservation No. ${numeroDeReservation || "???"}`;
+      userHtmlContent = buildReservationEmail({
+        numeroDeReservation,
+        lienAcces,
+        minor,
+        legal,
+        options,
+        payment,
+        sejour,
+      });
+
+      userMailOptions = {
+        from: `"Colocrew Réservation" <contact@colocrew.com>`,
+        to: legal?.email || email || "inconnu@na.com",
+        subject: userSubject,
+        html: userHtmlContent,
+      };
+    } else {
+      return new Response(
+        JSON.stringify({ error: "Données invalides ou formType non reconnu" }),
+        { status: 400 }
+      );
     }
 
-    // 3) Tout est OK
+    // 3) Configurer l'e-mail admin
+    const adminMailOptions = {
+      from: `"Colocrew Réservation" <contact@colocrew.com>`,
+      to: "contact@colocrew.com",
+      subject: adminSubject,
+      html: adminHtmlContent,
+    };
+
+    // 4) Envoi des mails
+    // (a) Envoyer l'email admin
+    await transporter.sendMail(adminMailOptions);
+
+    // (b) Si c'est une réservation, envoyer l'email utilisateur
+    if (formType === "reservation" && userMailOptions) {
+      await transporter.sendMail(userMailOptions);
+    }
+
     return new Response(
       JSON.stringify({ message: "Emails envoyés avec succès" }),
       { status: 200 }
@@ -184,4 +145,290 @@ export async function POST(request) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * buildReservationEmail : génère l'HTML final pour la "reservation"
+ * Couleurs : #B8336A, #A2225A
+ * Récapitulatif : Séjour (dates, tranche d'âge), Mineur, Responsable, Paiement
+ */
+function buildReservationEmail({
+  numeroDeReservation,
+  lienAcces,
+  minor = {},
+  legal = {},
+  options = {},
+  payment = {},
+  sejour = {},
+}) {
+  // Couleurs
+  const colorPrimary = "#B8336A";
+  const colorSecondary = "#A2225A";
+
+  // Récap Paiement
+  const total = payment.basePrice || 0;
+  const deposit = payment.depositValue || 0;
+  const insurance = payment.insuranceFee || 0;
+
+  // Payment Option => traduction
+  let paymentOptionLabel = "";
+  if (options.paymentOption === "oneTime") {
+    paymentOptionLabel = "Paiement en une fois";
+  } else if (options.paymentOption === "twoTimes") {
+    paymentOptionLabel = "Paiement en deux fois";
+  } else {
+    paymentOptionLabel = options.paymentOption || "Inconnu";
+  }
+
+  // Payment Method => traduction
+  let paymentMethodLabel = options.paymentMethod;
+  if (options.paymentMethod === "chequeVirement") {
+    paymentMethodLabel = "Chèque ou virement";
+  } else if (options.paymentMethod === "CB") {
+    paymentMethodLabel = "Carte bancaire";
+  }
+
+  // Message selon la méthode de paiement
+  let paymentMsg = "";
+  if (options.paymentMethod === "CB") {
+    paymentMsg = `
+      <p style="color:${colorPrimary}; font-weight:bold;">
+        Vous avez choisi le paiement par <u>carte bancaire</u>.<br/>
+        Un email de confirmation Stripe vous sera envoyé sous peu.
+      </p>`;
+  } else {
+    paymentMsg = `
+      <p style="color:${colorPrimary}; font-weight:bold;">
+        Vous avez choisi le paiement par <u>chèque ou virement</u>.<br/>
+        Vous disposez de 15 jours pour nous faire parvenir votre règlement,
+        faute de quoi la réservation sera annulée.
+      </p>
+      <div style="margin:10px 0; padding:10px; border:1px dashed ${colorPrimary};">
+        <p style="margin:0 0 5px 0;">
+          <strong>Pour un paiement par chèque :</strong><br/>
+          Libeller le chèque à l'ordre de <em>“Colocrew”</em> et l'envoyer à :
+        </p>
+        <pre style="margin:0; padding:0; font-family:inherit; font-size:14px;">
+Colocrew
+1 rue Magenta
+93500 Pantin
+        </pre>
+      </div>
+      <div style="margin:10px 0; padding:10px; border:1px dashed ${colorPrimary};">
+        <p style="margin:0 0 5px 0;">
+          <strong>Pour un paiement par virement :</strong><br/>
+          IBAN :
+        </p>
+        <pre style="margin:0; padding:0; font-family:inherit; font-size:14px;">
+FR7616958000015867806033040
+        </pre>
+      </div>
+    `;
+  }
+
+  // Format des dates en français
+  const formatDateFR = (isoString) => {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString; // fallback si invalide
+    return d.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const startDate = formatDateFR(sejour?.startDate);
+  const endDate = formatDateFR(sejour?.endDate);
+  const ageGroup = sejour?.ageGroup || "";
+
+  return `
+  <div style="font-family: Arial, sans-serif; max-width:800px; margin: auto; border:1px solid #ddd; border-radius:8px; overflow:hidden;">
+    <!-- Header -->
+    <div style="background: ${colorPrimary}; padding:20px; text-align:center;">
+      <h1 style="color:#fff; margin:0;">Confirmation de réservation</h1>
+      <p style="color:#fff; margin:5px 0;">
+        No. ${numeroDeReservation || "???"}
+      </p>
+    </div>
+
+    <!-- Contenu -->
+    <div style="background:#fff; padding:20px;">
+      <h2 style="color:${colorPrimary}; margin-top:0;">
+        Récapitulatif du séjour
+      </h2>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Séjour</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${sejour.urlSejour || "Inconnu"}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Date de début</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${startDate || "Non renseignée"}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Date de fin</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${endDate || "Non renseignée"}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Tranche d'âge</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${ageGroup || "Non renseignée"}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Ville de départ</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${sejour.urlCity || "Sur place"}
+          </td>
+        </tr>
+      </table>
+
+      <h2 style="color:${colorPrimary}; margin-top:0;">
+        Informations du mineur
+      </h2>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Prénom</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${minor.firstName || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Nom</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${minor.lastName || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Date de naissance</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${minor.birthDate || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Lieu de naissance</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${minor.birthPlace || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Adresse</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${(minor.address || "") + ", " + (minor.postalCode || "") + " " + (minor.city || "")}
+          </td>
+        </tr>
+      </table>
+
+      <h2 style="color:${colorPrimary}; margin-top:0;">
+        Responsable légal
+      </h2>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Prénom</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${legal.firstName || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Nom</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${legal.lastName || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Relation</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${(legal.relation || "") + (legal.relationOther ? " (" + legal.relationOther + ")" : "")}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Email</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${legal.email || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Téléphone</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${legal.phone || ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Adresse</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${(legal.address || "Même que le mineur") + (legal.postalCode || "") + " " + (legal.city || "")}
+          </td>
+        </tr>
+      </table>
+
+      <h2 style="color:${colorPrimary}; margin-top:0;">
+        Récapitulatif du paiement
+      </h2>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Méthode</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${paymentMethodLabel}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Option</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${paymentOptionLabel}
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Montant total</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${total} €
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Acompte</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${deposit} €
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Assurance</td>
+          <td style="border:1px solid #eee; padding:8px;">
+            ${insurance} €
+          </td>
+        </tr>
+      </table>
+
+      <!-- Message spécifique au mode de paiement -->
+      ${paymentMsg}
+
+      <p style="margin:20px 0;">
+        Vous pouvez gérer votre réservation (upload de documents, payer le solde, etc.) via le lien ci-dessous :
+      </p>
+      ${
+        lienAcces
+          ? `<div style="text-align:center;">
+              <a href="${lienAcces}/?justCreated=true"
+                 style="display:inline-block; background:${colorSecondary};
+                        color:#fff; padding:12px 20px; text-decoration:none;
+                        border-radius:5px; font-weight:bold;"
+              >
+                Accéder à ma réservation
+              </a>
+            </div>`
+          : `<p>Aucun lien n'est disponible pour le moment.</p>`
+      }
+
+      <p style="color:#777; font-size:0.9em; margin-top:20px;">
+        Merci de votre confiance.<br/>
+        L'équipe Colocrew
+      </p>
+    </div>
+  </div>
+  `;
 }

@@ -1,42 +1,53 @@
-// app/api/find-reservation/route.js
-import { NextResponse } from 'next/server';
-import { db } from '@/app/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/app/firebase"; // Assurez-vous d'avoir configuré Firebase
 
 export async function POST(request) {
   try {
+    // Récupération des données du client
     const { email, numeroDeReservation } = await request.json();
 
-    if (!email || !numeroDeReservation) {
-      return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
-    }
-
-    // On cherche dans Firestore la doc correspondante
+    // On interroge la collection "reservations" en filtrant sur:
+    // - numeroDeReservation (champ au niveau racine)
+    // - legal.email (champ imbriqué dans l'objet "legal")
+    const reservationsRef = collection(db, "reservations");
     const q = query(
-      collection(db, 'campBooking'),
-      where('email', '==', email),
-      where('numeroDeReservation', '==', numeroDeReservation)
+      reservationsRef,
+      where("numeroDeReservation", "==", numeroDeReservation),
+      where("legal.email", "==", email)
     );
-    const snap = await getDocs(q);
+    const querySnapshot = await getDocs(q);
 
-    if (snap.empty) {
-      return NextResponse.json({ error: 'Réservation introuvable' }, { status: 404 });
+    // Si aucune réservation n'est trouvée, on renvoie une erreur 404
+    if (querySnapshot.empty) {
+      return new Response(
+        JSON.stringify({ error: "Aucune réservation trouvée pour cet email et ce numéro." }),
+        { status: 404 }
+      );
     }
 
-    // Normalement, on s’attend à une seule réservation qui match
-    const docSnap = snap.docs[0];
-    const data = docSnap.data();
+    // Supposons qu'il y ait une seule réservation correspondante
+    const reservationDoc = querySnapshot.docs[0];
+    const reservationData = reservationDoc.data();
 
-    // Construire l'URL vers la page /reservation/[tokenUnique]
-    const lienAcces = `${process.env.NEXT_PUBLIC_APP_URL}/reservation/${data.tokenUnique}`;
+    // Vérifier qu'un token unique existe
+    const tokenUnique = reservationData.tokenUnique;
+    if (!tokenUnique) {
+      return new Response(
+        JSON.stringify({ error: "Token unique manquant dans la réservation." }),
+        { status: 500 }
+      );
+    }
 
-    // Option A: on REnvoie juste le lien, et le front l’affiche ou l’envoie par mail
-    return NextResponse.json({ lienAcces });
-
-    // Option B: on appelle /api/send-email ici pour envoyer le mail
-    // ...
+    // Renvoie le lien d'accès sous la forme "/reservation/{tokenUnique}"
+    return new Response(
+      JSON.stringify({ lienAcces: `/reservation/${tokenUnique}` }),
+      { status: 200 }
+    );
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    console.error("Erreur lors de la recherche de la réservation:", error);
+    return new Response(
+      JSON.stringify({ error: "Erreur lors de la recherche de la réservation." }),
+      { status: 500 }
+    );
   }
 }
