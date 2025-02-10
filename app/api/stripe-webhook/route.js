@@ -11,12 +11,9 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-// Désactiver le body parser par défaut pour accéder au corps brut de la requête
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// Si besoin, vous pouvez définir explicitement le runtime.
+// Pour un environnement Node.js (par défaut), décommentez ou laissez tel quel :
+export const runtime = "nodejs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -106,7 +103,7 @@ export async function POST(request) {
       }
     } catch (err) {
       console.error("Erreur lors de la mise à jour de la réservation :", err);
-      // Vous pouvez retourner un 500 pour indiquer à Stripe de réessayer le webhook.
+      // Retourner un code 500 pour indiquer à Stripe de réessayer le webhook.
       return new Response("Erreur lors de la mise à jour de la réservation", { status: 500 });
     }
   }
