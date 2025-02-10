@@ -397,10 +397,6 @@ FR7616958000015867806033040
         </div>
       </div>
 
-      {/* Documents Obligatoires */}
-      <div className="bg-white mt-6 p-4 rounded shadow-md">
-        <DocumentsObligatoires initialDocuments={documents} />
-      </div>
     </div>
   );
 }
