@@ -11,8 +11,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-// Si besoin, vous pouvez définir explicitement le runtime.
-// Pour un environnement Node.js (par défaut), décommentez ou laissez tel quel :
+// On précise le runtime nodejs pour être sûr que l'environnement est compatible
 export const runtime = "nodejs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -23,7 +22,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 export async function POST(request) {
   console.log("Requête reçue avec la méthode POST");
 
-  // Récupérer le corps brut en tant qu'ArrayBuffer
+  // Récupérer le corps brut sous forme d'ArrayBuffer
   let buf;
   try {
     buf = await request.arrayBuffer();
@@ -32,16 +31,17 @@ export async function POST(request) {
     return new Response("Erreur serveur", { status: 500 });
   }
 
-  // Récupérer la signature dans les headers
+  // Récupérer la signature depuis les headers
   const sig = request.headers.get("stripe-signature");
 
-  // Convertir l'ArrayBuffer en Buffer Node
+  // Convertir l'ArrayBuffer en Buffer Node (sans le transformer en string)
   const payload = Buffer.from(buf);
 
   let event;
   try {
+    // Passer le Buffer brut directement pour conserver le format exact
     event = stripe.webhooks.constructEvent(
-      payload.toString(),
+      payload,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
@@ -50,16 +50,16 @@ export async function POST(request) {
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
-  // Traiter l'événement (seulement checkout.session.completed pour l'instant)
+  // Traiter l'événement "checkout.session.completed"
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     // Récupérer tokenUnique depuis les metadata
     const tokenUnique = session.metadata.tokenUnique;
-    // Convertir le montant payé (centimes en euros) et arrondir à 2 décimales
+    // Convertir le montant payé (en centimes) en euros et arrondir à 2 décimales
     const amountPaid = Number((session.amount_total / 100).toFixed(2));
 
     try {
-      // Rechercher dans Firestore le document dont le tokenUnique correspond
+      // Rechercher dans Firestore la réservation correspondant au tokenUnique
       const reservationsRef = collection(db, "reservations");
       const q = query(reservationsRef, where("tokenUnique", "==", tokenUnique));
       const snap = await getDocs(q);
@@ -69,16 +69,15 @@ export async function POST(request) {
         const reservationDoc = snap.docs[0];
         const reservationData = reservationDoc.data();
         const payment = reservationData.payment;
-        const basePrice = Number(payment.basePrice); // On suppose que basePrice est déjà défini en euros
+        const basePrice = Number(payment.basePrice); // basePrice en euros
 
-        // Récupérer le montant déjà payé (ou 0 s'il n'existe pas) et arrondir
+        // Calculer le montant déjà payé et le nouveau montant total payé
         const alreadyPaid = Number(payment.alreadyPaid) || 0;
-        // Additionner le paiement actuel au montant déjà payé et arrondir à 2 décimales
         const newAlreadyPaid = Number((alreadyPaid + amountPaid).toFixed(2));
-        // Calculer le nouveau reste à payer et arrondir à 2 décimales
+        // Calculer le nouveau reste à payer
         const newRemainingValue = Number((basePrice - newAlreadyPaid).toFixed(2));
 
-        // Déterminer le nouveau statut de paiement
+        // Déterminer le nouveau statut du paiement
         let newStatus;
         if (newRemainingValue <= 0) {
           newStatus = "paid";
@@ -88,7 +87,7 @@ export async function POST(request) {
           newStatus = "not_paid";
         }
 
-        // Mettre à jour le document dans Firestore
+        // Mettre à jour la réservation dans Firestore
         const reservationRef = doc(db, "reservations", reservationDoc.id);
         await updateDoc(reservationRef, {
           "payment.paymentStatus": newStatus,
@@ -103,7 +102,7 @@ export async function POST(request) {
       }
     } catch (err) {
       console.error("Erreur lors de la mise à jour de la réservation :", err);
-      // Retourner un code 500 pour indiquer à Stripe de réessayer le webhook.
+      // Retourner une erreur 500 pour que Stripe réessaie ultérieurement
       return new Response("Erreur lors de la mise à jour de la réservation", { status: 500 });
     }
   }
