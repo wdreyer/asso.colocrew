@@ -146,10 +146,10 @@ export async function POST(request) {
     const docRef = await addDoc(collection(db, "reservations"), newReservation);
 
     // 2) Construire un lien d'accès
-    const lienAcces = `http://localhost:3000/reservation/${tokenUnique}`;
+    const lienAcces = https://wwww.colocrew.com/reservation/${tokenUnique}`;
 
     // 3) Appeler l'envoi d'email
-    const sendMailRes = await fetch("http://localhost:3000/api/send-email", {
+    const sendMailRes = await fetch("https://wwww.colocrew.com:3000/api/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
