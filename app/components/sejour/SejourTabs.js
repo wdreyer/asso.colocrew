@@ -80,8 +80,8 @@ export default function SejourTabs({
     return (
       <div key={idx} className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className={`lg:col-span-2 ${isOdd ? "md:order-2" : "md:order-1"}`}>
-          <h2 className="text-2xl font-bold mb-2">{sub.title}</h2>
-          <ReactMarkdown className="text-base text-gray-700 dark:text-gray-300">
+          <h2 className="text-2xl font-bold mb-2 text-black">{sub.title}</h2>
+          <ReactMarkdown className="text-base text-black">
             {sub.text}
           </ReactMarkdown>
         </div>
@@ -106,7 +106,7 @@ export default function SejourTabs({
   const renderContent = () => {
     if (activeTab === 0) {
       if (summarySubsArray.length === 0) {
-        return <div className="p-4">Contenu non disponible.</div>;
+        return <div className="p-4 text-black">Contenu non disponible.</div>;
       }
       return (
         <div>
@@ -122,12 +122,12 @@ export default function SejourTabs({
           </div>
         );
       }
-      return <div className="p-4">Contenu non disponible.</div>;
+      return <div className="p-4 text-black">Contenu non disponible.</div>;
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto my-4 ">
+    <div className="max-w-7xl mx-auto my-4">
       {/* Conteneur relatif pour les onglets et les flèches */}
       <div className="relative">
         <div
@@ -140,8 +140,8 @@ export default function SejourTabs({
               onClick={() => setActiveTab(idx)}
               className={`whitespace-nowrap text-xl px-4 py-2 -mb-px font-medium cursor-pointer focus:outline-none ${
                 activeTab === idx
-                  ? "border-b-2 border-[#B8336A] text-[#B8336A]"
-                  : "text-gray-600 dark:text-gray-300"
+                  ? "border-b-2 border-[#B8336A] text-black"
+                  : "text-black"
               }`}
             >
               {label}
@@ -153,7 +153,7 @@ export default function SejourTabs({
             onClick={scrollLeft}
             className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white p-1 rounded-full shadow"
           >
-            <FaChevronLeft className="text-gray-600" />
+            <FaChevronLeft className="text-black" />
           </button>
         )}
         {showRightArrow && (
@@ -161,7 +161,7 @@ export default function SejourTabs({
             onClick={scrollRight}
             className="absolute right-0 top-1/2 transform -translate-y-1/2 bg-white p-1 rounded-full shadow"
           >
-            <FaChevronRight className="text-gray-600" />
+            <FaChevronRight className="text-black" />
           </button>
         )}
       </div>
