@@ -10,7 +10,9 @@ import { FaSave, FaPlus, FaTrash, FaUpload } from "react-icons/fa";
 import Link from "next/link";
 
 // Import de l'éditeur Markdown et de son CSS
-import SimpleMDEEditor from "react-simplemde-editor";
+import dynamic from "next/dynamic";
+
+const SimpleMDEEditor = dynamic(() => import("react-simplemde-editor"), { ssr: false });
 
 export default function EditSejour() {
   const [sejours, setSejours] = useState({});
