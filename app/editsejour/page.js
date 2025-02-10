@@ -1,20 +1,28 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, getDocs, addDoc, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  updateDoc,
+  getDoc,
+} from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/app/firebase";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FaSave, FaPlus, FaTrash, FaUpload } from "react-icons/fa";
 import Link from "next/link";
-
-// Import de l'éditeur Markdown et de son CSS
 import dynamic from "next/dynamic";
 
 const SimpleMDEEditor = dynamic(() => import("react-simplemde-editor"), { ssr: false });
 
-export default function EditSejour() {
+/* ---------------------------------------------------------------------------
+   Composant enfant pour l'édition des séjours (tous les hooks y sont utilisés)
+--------------------------------------------------------------------------- */
+function EditSejourContent() {
   const [sejours, setSejours] = useState({});
   const [selectedSejour, setSelectedSejour] = useState("");
   const [sejourData, setSejourData] = useState(null);
@@ -25,7 +33,7 @@ export default function EditSejour() {
   const [activeSummarySubSectionIndex, setActiveSummarySubSectionIndex] = useState(0);
   const [newAgeGroup, setNewAgeGroup] = useState("");
 
-  // Mémorisation des options de l'éditeur Markdown pour éviter qu'elles ne se recréent à chaque rendu.
+  // Options mémorisées pour l'éditeur Markdown
   const simpleMDEOptions = useMemo(
     () => ({
       spellChecker: false,
@@ -71,7 +79,7 @@ export default function EditSejour() {
       sections: [],
       dates: [],
       stations: [],
-      ageGroups: []
+      ageGroups: [],
     };
 
     try {
@@ -105,7 +113,7 @@ export default function EditSejour() {
     setSejourData((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Upload d'image pour le heroImage ou autres
+  // Upload d'image (hero ou autre)
   const handleImageUpload = async (event, key) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -115,9 +123,9 @@ export default function EditSejour() {
     setSejourData((prev) => ({ ...prev, [key]: downloadURL }));
   };
 
-  // ---------------------------
-  // Gestion des sous‑sections du résumé
-  // ---------------------------
+  /* ---------------------------
+     Gestion des sous‑sections du résumé
+  --------------------------- */
   const handleSummarySubSectionChange = (index, field, value) => {
     const summarySubsections = [...(sejourData.summarySubsections || [])];
     summarySubsections[index] = { ...summarySubsections[index], [field]: value };
@@ -161,9 +169,9 @@ export default function EditSejour() {
     }
   };
 
-  // ---------------------------
-  // Gestion des Sections et de leurs sous‑sections
-  // ---------------------------
+  /* ---------------------------
+     Gestion des Sections et de leurs sous‑sections
+  --------------------------- */
   const addSection = () => {
     const updatedSections = [
       ...(sejourData.sections || []),
@@ -226,27 +234,23 @@ export default function EditSejour() {
     const downloadURL = await getDownloadURL(storageRef);
     const updatedSections = [...(sejourData.sections || [])];
     const subSections = [...(updatedSections[sectionIndex].subSections || [])];
-    subSections[subSectionIndex] = {
-      ...subSections[subSectionIndex],
-      imageSrc: downloadURL,
-    };
-    updatedSections[sectionIndex] = {
-      ...updatedSections[sectionIndex],
-      subSections,
-    };
+    subSections[subSectionIndex] = { ...subSections[subSectionIndex], imageSrc: downloadURL };
+    updatedSections[sectionIndex] = { ...updatedSections[sectionIndex], subSections };
     setSejourData((prev) => ({ ...prev, sections: updatedSections }));
     try {
       const docRef = doc(db, "sejours", selectedSejour);
       await updateDoc(docRef, { sections: updatedSections });
-      console.log(`Image de la sous-section ${subSectionIndex} de la section ${sectionIndex} mise à jour`);
+      console.log(
+        `Image de la sous-section ${subSectionIndex} de la section ${sectionIndex} mise à jour`
+      );
     } catch (error) {
       console.error("Erreur lors de la mise à jour de l'image de la sous-section", error);
     }
   };
 
-  // ---------------------------
-  // Dates, Stations, Tranches d'âge (inchangés)
-  // ---------------------------
+  /* ---------------------------
+     Dates, Stations, Tranches d'âge
+  --------------------------- */
   const handleArrayItemChange = (arrayKey, index, field, value) => {
     const updatedArray = [...(sejourData[arrayKey] || [])];
     updatedArray[index] = { ...updatedArray[index], [field]: value };
@@ -299,9 +303,9 @@ export default function EditSejour() {
     setSejourData((prev) => ({ ...prev, ageGroups: updatedAges }));
   };
 
-  // ---------------------------
-  // Sauvegarde globale dans Firestore
-  // ---------------------------
+  /* ---------------------------
+     Sauvegarde globale dans Firestore
+  --------------------------- */
   const handleSave = async () => {
     if (!selectedSejour || !sejourData) return;
     setIsSaving(true);
@@ -319,7 +323,7 @@ export default function EditSejour() {
   return (
     <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
       <h1 className="text-3xl font-bold mb-6 text-center">Édition des Séjours</h1>
-      
+
       {/* Bouton pour ajouter un nouveau séjour */}
       <div className="mb-4">
         <button
@@ -329,7 +333,7 @@ export default function EditSejour() {
           + Ajouter un séjour
         </button>
       </div>
-      
+
       <div className="mb-6">
         <label className="block mb-2 font-medium">Choisissez un séjour</label>
         <select
@@ -518,7 +522,6 @@ export default function EditSejour() {
                         <label className="block font-medium">
                           Texte de la sous-section
                         </label>
-                        {/* Utilisation de l'éditeur Markdown */}
                         <SimpleMDEEditor
                           value={
                             sejourData.summarySubsections[activeSummarySubSectionIndex].text || ""
@@ -656,7 +659,6 @@ export default function EditSejour() {
                             <label className="block font-medium">
                               Texte de la sous-section
                             </label>
-                            {/* Utilisation de l'éditeur Markdown pour le texte */}
                             <SimpleMDEEditor
                               value={
                                 sejourData.sections[activeSectionIndex].subSections[activeSubSectionIndex].text || ""
@@ -892,4 +894,79 @@ export default function EditSejour() {
       )}
     </div>
   );
+}
+
+/* ---------------------------------------------------------------------------
+   Composant principal qui gère l'authentification
+--------------------------------------------------------------------------- */
+export default function EditSejour() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [inputPassword, setInputPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  // Vérification dans le localStorage
+  useEffect(() => {
+    const authData = localStorage.getItem("colocrew_auth");
+    if (authData) {
+      try {
+        const { expiry } = JSON.parse(authData);
+        if (expiry && new Date().getTime() < expiry) {
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.error("Erreur lors de la lecture de l'authentification", err);
+      }
+    }
+  }, []);
+
+  // Vérification du mot de passe depuis Firebase
+  const handleLogin = async () => {
+    try {
+      const docRef = doc(db, "ColoCrew", "dMSwY57fd61hF8861MyW");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const storedPassword = docSnap.data().password;
+        if (inputPassword === storedPassword) {
+          // Authentification réussie : mémorisation pour 7 jours
+          const expiry = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
+          localStorage.setItem("colocrew_auth", JSON.stringify({ expiry }));
+          setIsAuthenticated(true);
+          setAuthError("");
+        } else {
+          setAuthError("Mot de passe incorrect");
+        }
+      } else {
+        setAuthError("Erreur : document d'authentification introuvable");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la vérification du mot de passe", error);
+      setAuthError("Erreur lors de la vérification du mot de passe");
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto p-6 bg-gray-50 min-h-screen flex flex-col justify-center">
+        <h1 className="text-2xl font-bold mb-4 text-center">Authentification</h1>
+        <div className="mb-4">
+          <label className="block font-medium mb-2">Mot de passe</label>
+          <input
+            type="password"
+            value={inputPassword}
+            onChange={(e) => setInputPassword(e.target.value)}
+            className="w-full p-2 border rounded-md"
+          />
+        </div>
+        {authError && <div className="text-red-500 mb-4">{authError}</div>}
+        <button
+          onClick={handleLogin}
+          className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+        >
+          Se connecter
+        </button>
+      </div>
+    );
+  }
+
+  return <EditSejourContent />;
 }
