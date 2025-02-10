@@ -30,7 +30,11 @@ export async function POST(request) {
       const d = new Date(isoString);
       return isNaN(d.getTime())
         ? isoString
-        : d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+        : d.toLocaleDateString("fr-FR", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          });
     };
 
     const startDateFR = formatDateFR(startDate);
@@ -39,8 +43,8 @@ export async function POST(request) {
     // 📌 Construction d'une description plus attrayante
     let description = `Séjour : ${sejourTitle} •  ${ageGroup} •  ${startDateFR} → ${endDateFR} •  ${
       typeof transportFee === "number" && transportFee > 0 ? `+${transportFee}€` : "Sur place (0€)"
-    } •  ${insuranceOpted ? " Assurance incluse" : " Sans assurance"} •  ${finalAmount}€`;
-    
+    } •  ${insuranceOpted ? "Assurance incluse" : "Sans assurance"} •  ${finalAmount}€`;
+
     // 🔄 Gestion du mode de paiement
     const paymentOptions = {
       oneTime: "Paiement en une fois",
@@ -48,13 +52,23 @@ export async function POST(request) {
       rest: "Solde (2 fois)",
     };
 
-    description += `💳 **Option de règlement** : ${paymentOptions[paymentOption] || "Paiement en une fois (défaut)"}\n\n`;
+    description += ` **Option de règlement** : ${
+      paymentOptions[paymentOption] || "Paiement en une fois (défaut)"
+    }\n\n`;
     description += `---\n\n`;
-    description += `💰 **Montant total** : **${finalAmount}€**`;
+    description += ` **Montant total** : **${finalAmount}€**`;
 
-    // 🎯 Création de la session Stripe
+    // 🎯 Création de la session Stripe avec 3DS activé
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      // Active le 3DS en forçant la demande d'authentification
+      payment_intent_data: {
+        payment_method_options: {
+          card: {
+            request_three_d_secure: "any",
+          },
+        },
+      },
       line_items: [
         {
           price_data: {
