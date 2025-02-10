@@ -6,7 +6,10 @@ import { db } from "@/app/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import crypto from "crypto";
 
+
 export async function POST(request) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
   try {
     const body = await request.json();
     const {
@@ -146,7 +149,7 @@ export async function POST(request) {
     const docRef = await addDoc(collection(db, "reservations"), newReservation);
 
     // 2) Construire un lien d'accès
-    const lienAcces = `colocrew.com/reservation/${tokenUnique}`;
+    const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
 
     // 3) Appeler l'envoi d'email
     const sendMailRes = await fetch(`${baseUrl}/api/send-email`, {
