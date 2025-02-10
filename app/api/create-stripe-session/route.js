@@ -58,17 +58,9 @@ export async function POST(request) {
     description += `---\n\n`;
     description += ` **Montant total** : **${finalAmount}€**`;
 
-    // 🎯 Création de la session Stripe avec 3DS activé
+    // 🎯 Création de la session Stripe (sans paramètre de 3DS forcé)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      // Active le 3DS en forçant la demande d'authentification
-      payment_intent_data: {
-        payment_method_options: {
-          card: {
-            request_three_d_secure: "any",
-          },
-        },
-      },
       line_items: [
         {
           price_data: {
