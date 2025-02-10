@@ -116,7 +116,7 @@ export default function GenericSejour({ sejourData }) {
         <div className="absolute bottom-4 left-4">
           <h1 className="text-3xl md:text-5xl font-black text-white">{name}</h1>
           {heroSubtitle && (
-            <p className="mt-1 text-white text-lg font-bold">{heroSubtitle}</p>
+            <p className="mt-1 text-white text-sm md:text-lg font-bold">{heroSubtitle}</p>
           )}
         </div>
       </div>
