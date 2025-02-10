@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase";
@@ -12,11 +12,12 @@ import PaymentOptions from "../components/reserver/PaymentOptions";
 import Spinner from "../components/layout/Spinner";
 import Link from "next/link";
 
-export default function ReservationPage() {
+// Ce composant contient toute la logique et utilise useSearchParams()
+function ReservationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // 1) Récup des paramètres dans l'URL
+  // 1) Récupérer les paramètres dans l'URL
   const urlSejour = searchParams.get("sejour") || "";
   const urlStartDate = searchParams.get("startDate") || "";
   const urlEndDate = searchParams.get("endDate") || "";
@@ -47,9 +48,8 @@ export default function ReservationPage() {
     }
     fetchSejour();
   }, [urlSejour]);
-  
 
-  // Form initial
+  // Formulaire initial
   const initialFormData = {
     minorFirstName: "Alice",
     minorLastName: "Martin",
@@ -77,13 +77,12 @@ export default function ReservationPage() {
     acceptedDocs: false,
     acceptedNoWithdrawal: false,
     acceptedRGPD: false, // Ajout de l'acceptation RGPD
-
   };
 
   const [formData, setFormData] = useState(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // handleChange du formulaire
+  // Gestion des changements du formulaire
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -96,13 +95,12 @@ export default function ReservationPage() {
   const insuranceFee = 58.86;
   const basePrice = sejour ? Number(sejour.basePrice) : 1000;
   const transportFee = Number(
-    sejour?.stations?.find((station) => station.name === urlCity)?.priceExtra ||
-      0
+    sejour?.stations?.find((station) => station.name === urlCity)?.priceExtra || 0
   );
   const computedTotalPrice =
     basePrice + transportFee + (formData.insuranceOpted ? insuranceFee : 0);
 
-  // Validation basique
+  // Validation basique du formulaire
   const validateForm = () => {
     const errors = [];
 
@@ -126,28 +124,18 @@ export default function ReservationPage() {
       !formData.legalEmail ||
       !formData.legalRelation
     ) {
-      errors.push(
-        "Veuillez remplir tous les champs obligatoires du responsable légal."
-      );
+      errors.push("Veuillez remplir tous les champs obligatoires du responsable légal.");
     }
 
-    // Relation autre
+    // Relation "autre"
     if (formData.legalRelation === "autre" && !formData.legalRelationOther) {
-      errors.push(
-        "Veuillez préciser la relation du responsable légal (autre)."
-      );
+      errors.push("Veuillez préciser la relation du responsable légal (autre).");
     }
 
     // Adresse différente
     if (formData.legalAddressDifferent) {
-      if (
-        !formData.legalAddress ||
-        !formData.legalCity ||
-        !formData.legalPostalCode
-      ) {
-        errors.push(
-          "Veuillez remplir l'adresse complète du responsable légal."
-        );
+      if (!formData.legalAddress || !formData.legalCity || !formData.legalPostalCode) {
+        errors.push("Veuillez remplir l'adresse complète du responsable légal.");
       }
     }
 
@@ -159,9 +147,7 @@ export default function ReservationPage() {
       errors.push("Vous devez accepter d'envoyer les documents demandés.");
     }
     if (!formData.acceptedNoWithdrawal) {
-      errors.push(
-        "Vous devez reconnaître que le droit de rétractation ne s'applique pas."
-      );
+      errors.push("Vous devez reconnaître que le droit de rétractation ne s'applique pas.");
     }
     if (!formData.acceptedRGPD) {
       errors.push("Vous devez accepter la politique de confidentialité (RGPD).");
@@ -174,7 +160,7 @@ export default function ReservationPage() {
     return true;
   };
 
-  // handleSubmit
+  // Gestion de la soumission du formulaire
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -182,7 +168,7 @@ export default function ReservationPage() {
     setIsSubmitting(true);
 
     try {
-      // Montant de l'acompte si twoTimes
+      // Calcul de l'acompte si option "twoTimes"
       const depositValue =
         formData.paymentOption === "twoTimes" ? computedTotalPrice * 0.3 : 0;
 
@@ -208,7 +194,7 @@ export default function ReservationPage() {
       }
       const { reservationId, tokenUnique } = await resReservation.json();
 
-      // Si paiement par chèque/virement => pas de Stripe
+      // Paiement par chèque/virement
       if (formData.paymentMethod === "chequeVirement") {
         alert(
           "Votre réservation a bien été enregistrée.\n" +
@@ -219,20 +205,16 @@ export default function ReservationPage() {
         return;
       }
 
-      // Sinon => CB => Stripe
+      // Paiement par carte bancaire via Stripe
       const amountToCharge =
-        formData.paymentOption === "oneTime"
-          ? computedTotalPrice
-          : depositValue;
+        formData.paymentOption === "oneTime" ? computedTotalPrice : depositValue;
 
       // 2) Création de la session Stripe
       console.log("Données envoyées à Stripe:", {
-         urlStartDate,
-         urlEndDate,
+        urlStartDate,
+        urlEndDate,
       });
       const resStripe = await fetch("/api/create-stripe-session", {
-
-        
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -241,12 +223,10 @@ export default function ReservationPage() {
           amount: amountToCharge,
           currency: "eur",
           sejourTitle: sejour.name,
-
-          // On passe la tranche d'âge, les dates
+          // Passage de la tranche d'âge et des dates
           ageGroup: urlAgeGroup,
           startDate: urlStartDate,
           endDate: urlEndDate,
-
           paymentOption: formData.paymentOption,
           metadata: {
             sejour: JSON.stringify({
@@ -321,9 +301,7 @@ export default function ReservationPage() {
             insuranceFee={insuranceFee}
             urlCity={urlCity}
             urlStartDate={urlStartDate}
-            // Passer la date de fin si besoin
             urlEndDate={urlEndDate}
-            // Passer la tranche d'âge si besoin
             urlAgeGroup={urlAgeGroup}
           />
 
@@ -331,8 +309,7 @@ export default function ReservationPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full font-poppins cursor-pointer md:w-auto bg-[#B8336A] text-white px-6 py-2 rounded-md
-                hover:bg-[#A2225A] transition duration-300 text-sm md:text-base"
+              className="w-full font-poppins cursor-pointer md:w-auto bg-[#B8336A] text-white px-6 py-2 rounded-md hover:bg-[#A2225A] transition duration-300 text-sm md:text-base"
             >
               {isSubmitting
                 ? "Envoi en cours..."
@@ -344,5 +321,14 @@ export default function ReservationPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+// Composant par défaut enveloppé dans une Suspense boundary
+export default function ReservationPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <ReservationPageContent />
+    </Suspense>
   );
 }
