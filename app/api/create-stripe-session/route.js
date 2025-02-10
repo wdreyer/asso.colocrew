@@ -37,9 +37,9 @@ export async function POST(request) {
     const endDateFR = formatDateFR(endDate);
 
     // 📌 Construction d'une description plus attrayante
-    let description = `🏄 Séjour : ${sejourTitle} • 👥 ${ageGroup} • 📅 ${startDateFR} → ${endDateFR} • 🚍 ${
+    let description = `Séjour : ${sejourTitle} •  ${ageGroup} •  ${startDateFR} → ${endDateFR} •  ${
       typeof transportFee === "number" && transportFee > 0 ? `+${transportFee}€` : "Sur place (0€)"
-    } • 🛡 ${insuranceOpted ? "✅ Assurance incluse" : "❌ Sans assurance"} • 💰 ${finalAmount}€`;
+    } •  ${insuranceOpted ? " Assurance incluse" : " Sans assurance"} •  ${finalAmount}€`;
     
     // 🔄 Gestion du mode de paiement
     const paymentOptions = {
