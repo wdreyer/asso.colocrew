@@ -60,7 +60,7 @@ export async function POST(request) {
 
     // 🎯 Création de la session Stripe (sans paramètre de 3DS forcé)
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+payment_method_types: ["card", "klarna"],
       line_items: [
         {
           price_data: {

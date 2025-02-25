@@ -362,6 +362,74 @@ export default function ReservationPage({ params }) {
                   >
                     Payer le reste
                   </button>
+                  {payment?.remainingValue > 0 && payment?.paymentStatus !== "paid" && (
+  <div className="mt-6 p-4 text-sm">
+    {options?.paymentMethod === "CB" ? (
+      <>
+        {/* Bouton pour paiement par carte (Stripe) */}
+        <p className="mb-3">
+          Vous pouvez régler le solde restant par <strong>carte bancaire</strong> :
+        </p>
+        <button
+          onClick={async () => {
+            // Code Stripe déjà présent…
+          }}
+          className="cursor-pointer px-4 py-2 bg-[#B8336A] text-white rounded hover:bg-[#A2225A]"
+        >
+          Payer le reste par CB
+        </button>
+        {/* Bouton pour paiement en plusieurs fois avec Alma */}
+        <button
+          onClick={async () => {
+            try {
+              const payload = {
+                tokenUnique: token,
+                amount: payment.remainingValue,
+                currency: "eur",
+                sejourTitle: sejourTitle,
+                customer_email: legal?.email,
+                // Vous pouvez ajouter d'autres infos (ex : metadata) si besoin
+              };
+
+              const response = await fetch("/api/create-alma-session", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+
+              if (!response.ok) {
+                throw new Error("Erreur lors de la création de la session Alma.");
+              }
+
+              const data = await response.json();
+              if (data.url) {
+                // Rediriger l'utilisateur vers l'interface de paiement Alma
+                window.location.href = data.url;
+              } else {
+                throw new Error("L'URL de paiement Alma est introuvable.");
+              }
+            } catch (error) {
+              console.error("Erreur lors du paiement avec Alma :", error);
+            }
+          }}
+          className="ml-4 cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Payer en plusieurs fois
+        </button>
+      </>
+    ) : (
+      /* Code pour les autres modes de paiement (chèque ou virement) */
+      <div>
+        <p className="mb-3">
+          Vous avez choisi un paiement par <strong>Chèque ou virement</strong>.
+          Il reste <strong>{formatMontant(payment.remainingValue)}</strong> à payer.
+        </p>
+        {/* Instructions pour chèque/virement */}
+      </div>
+    )}
+  </div>
+)}
+
                 </div>
               ) : (
                 <div>
