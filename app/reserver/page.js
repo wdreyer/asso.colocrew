@@ -51,31 +51,31 @@ function ReservationPageContent() {
 
   // Formulaire initial (le champ paymentOption a été supprimé)
   const initialFormData = {
-    minorFirstName: "TestMinorFirstName",
-    minorLastName: "TestMinorLastName",
-    minorBirthDate: "2000-01-01",
-    minorBirthPlace: "TestBirthPlace",
-    minorAddress: "123 Rue de Test",
-    minorCity: "TestCity",
-    minorPostalCode: "12345",
+    minorFirstName: "",
+    minorLastName: "",
+    minorBirthDate: "",
+    minorBirthPlace: "",
+    minorAddress: "",
+    minorCity: "",
+    minorPostalCode: "",
 
-    legalFirstName: "TestLegalFirstName",
-    legalLastName: "TestLegalLastName",
-    legalPhone: "0123456789",
-    legalEmail: "test@example.com",
-    legalRelation: "Parent",
-    legalRelationOther: "Autre",
-    legalAddressDifferent: true,
-    legalAddress: "456 Avenue de Test",
-    legalCity: "TestLegalCity",
-    legalPostalCode: "54321",
+    legalFirstName: "",
+    legalLastName: "",
+    legalPhone: "",
+    legalEmail: "",
+    legalRelation: "",
+    legalRelationOther: "",
+    legalAddressDifferent: false,
+    legalAddress: "",
+    legalCity: "",
+    legalPostalCode: "",
 
-    insuranceOpted: true,
-    paymentMethod: "chequeVirement", // peut être "CB" ou "chequeVirement"
-    acceptedCGV: true,
-    acceptedDocs: true,
-    acceptedNoWithdrawal: true,
-    acceptedRGPD: true // Ajout de l'acceptation RGPD
+    insuranceOpted: false,
+    paymentMethod: "CB", // peut être "CB" ou "chequeVirement"
+    acceptedCGV: false,
+    acceptedDocs: false,
+    acceptedNoWithdrawal: false,
+    acceptedRGPD: false // Ajout de l'acceptation RGPD
   };
 
   const [formData, setFormData] = useState(initialFormData);

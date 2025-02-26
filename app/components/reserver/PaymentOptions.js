@@ -179,13 +179,13 @@ export default function PaymentOptions({
                 <span className="text-red-500 ml-1">*</span>
               </span>
             </div>
-            <p>
+            <p className="mt-2 pt-4">
               <Link
                 href="/aide-financement"
-                className="text-m font-bold font-poppins cursor-pointer md:w-auto text-[#B8336A] hover:text-[#A2225A] transition duration-300"
+                className="text-xl text-center font-bold font-poppins cursor-pointer md:w-auto text-[#B8336A] hover:text-[#A2225A] transition duration-300"
               >
                 <span>
-                  Si vous êtes éligible à une aide (Pass Colo, VACAF, etc.), nous contacter
+                  Si vous êtes éligible à une aide (Pass Colo, VACAF, etc.), nous contacter !
                 </span>
               </Link>
             </p>
