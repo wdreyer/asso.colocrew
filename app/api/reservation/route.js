@@ -6,7 +6,6 @@ import { db } from "@/app/firebase";
 import { collection, addDoc } from "firebase/firestore";
 import crypto from "crypto";
 
-
 export async function POST(request) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -38,8 +37,6 @@ export async function POST(request) {
       insuranceOpted,
       insuranceFee,
       paymentMethod,
-      paymentOption,
-      depositValue,
       paymentStatus = "not_paid", // "à faire", "en cours", "payé"
       acceptedCGV,
       acceptedDocs,
@@ -101,23 +98,20 @@ export async function POST(request) {
       options: {
         insuranceOpted,
         paymentMethod,
-        paymentOption,
         acceptedCGV,
         acceptedDocs,
         acceptedNoWithdrawal,
       },
       // Informations financières
       payment: {
+        totalPrice: Number(computedTotalPrice),
         basePrice,
         transportPrice,
         insuranceFee: insuranceOpted ? Number(insuranceFee) : 0,
-        paymentFrequency: paymentOption,
-        depositValue: depositValue.toFixed(2),
-        remainingValue: basePrice,
         paymentStatus,
         alreadyPaid: 0,
       },
-      // Informations séjour, on y ajoute date de début, date de fin, tranche d'âge
+      // Informations sur le séjour, incluant dates et tranche d'âge
       sejour: {
         urlSejour,   // ex: "Surf Camp"
         urlCity,     // ex: "Paris"

@@ -93,30 +93,17 @@ export default function ReservationPage({ params }) {
     });
   };
 
-  // Formatage date de création en FR
+  // Formatage de la date de création
   const createdAtFr = formatDateFR(createdAt);
 
-  // Séjour
+  // Informations sur le séjour
   const sejourTitle = sejour?.urlSejour || "N/A";
   const ageGroup = sejour?.ageGroup || "N/A";
   const city = sejour?.urlCity || "N/A";
   const startDate = formatDateFR(sejour?.startDate);
   const endDate = formatDateFR(sejour?.endDate);
 
-  // Fonctions utilitaires
-  const traduireStatut = (statut) => {
-    switch (statut) {
-      case "not_paid":
-        return "Non payé";
-      case "in_progress":
-        return "En cours";
-      case "paid":
-        return "Payé";
-      default:
-        return "N/A";
-    }
-  };
-
+  // Fonction utilitaire pour formater un montant
   const formatMontant = (val) => {
     if (val === undefined || val === null) return "N/A";
     return val + " €";
@@ -132,13 +119,7 @@ export default function ReservationPage({ params }) {
     paymentMethodLabel = "N/A";
   }
 
-  const frequencyLabel =
-    payment?.paymentFrequency === "twoTimes"
-      ? "Paiement en deux fois"
-      : "Paiement en une fois";
-
   const colorPrimary = "#B8336A";
-  const colorSecondary = "#A2225A";
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -151,7 +132,7 @@ export default function ReservationPage({ params }) {
       )}
 
       {/* Cadre général */}
-      <div className="bg-white  p-6">
+      <div className="bg-white p-6">
         <h1 className="text-2xl font-bold mb-4" style={{ color: colorPrimary }}>
           Détails de la réservation
         </h1>
@@ -167,7 +148,7 @@ export default function ReservationPage({ params }) {
         </div>
 
         {/* Cadre Séjour */}
-        <div className=" shadow p-4 mb-6">
+        <div className="shadow p-4 mb-6">
           <h2 className="text-lg font-semibold mb-3" style={{ color: colorPrimary }}>
             <FaCalendarAlt className="inline mr-2" /> Séjour
           </h2>
@@ -193,7 +174,7 @@ export default function ReservationPage({ params }) {
         {/* Cadre Infos Mineur & Responsable */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Mineur */}
-          <div className=" shadow p-4 space-y-2">
+          <div className="shadow p-4 space-y-2">
             <h2 className="font-semibold text-lg" style={{ color: colorPrimary }}>
               <FaUserFriends className="inline mr-2" /> Informations du mineur
             </h2>
@@ -233,7 +214,7 @@ export default function ReservationPage({ params }) {
           </div>
 
           {/* Responsable légal */}
-          <div className=" shadow p-4 space-y-2">
+          <div className="shadow p-4 space-y-2">
             <h2 className="font-semibold text-lg" style={{ color: colorPrimary }}>
               <FaHome className="inline mr-2" /> Responsable légal
             </h2>
@@ -252,8 +233,7 @@ export default function ReservationPage({ params }) {
                   <strong>Email :</strong> {legal.email}
                 </p>
                 <p>
-                  <strong>Relation :</strong>{" "}
-                  {legal.relationOther || legal.relation}
+                  <strong>Relation :</strong> {legal.relationOther || legal.relation}
                 </p>
                 {legal.addressDifferent && (
                   <p>
@@ -268,15 +248,14 @@ export default function ReservationPage({ params }) {
         </div>
 
         {/* Cadre Informations financières */}
-        <div className=" shadow p-4 mb-6">
+        <div className="shadow p-4 mb-6">
           <h2 className="font-semibold text-lg mb-3" style={{ color: colorPrimary }}>
             <FaMoneyBillWave className="inline mr-2" /> Informations financières
           </h2>
           <div className="space-y-2 text-sm">
-            {/* Petites lignes style "devis" */}
             <div className="flex justify-between border-b pb-2">
               <span>Prix total à payer</span>
-              <span>{formatMontant(payment?.basePrice)}</span>
+              <span>{formatMontant(payment?.totalPrice)}</span>
             </div>
             <div className="flex justify-between border-b pb-2">
               <span>Transport</span>
@@ -288,7 +267,7 @@ export default function ReservationPage({ params }) {
             </div>
             <div className="flex justify-between pt-2">
               <strong>Total</strong>
-              <strong>{formatMontant(payment?.basePrice)}</strong>
+              <strong>{formatMontant(payment?.totalPrice)}</strong>
             </div>
           </div>
 
@@ -297,44 +276,29 @@ export default function ReservationPage({ params }) {
               <strong>Mode de paiement :</strong> {paymentMethodLabel}
             </p>
             <p>
-              <strong>Option de règlement :</strong> {frequencyLabel}
-            </p>
-            {payment?.depositValue > 0 && (
-              <p>
-                <strong>Acompte :</strong> {formatMontant(payment.depositValue)}
-              </p>
-            )}
-            <p>
-              <strong>Montant déjà payé :</strong> {formatMontant(payment?.alreadyPaid)}
-            </p>
-            <p>
-              <strong>Reste à payer :</strong> {formatMontant(payment?.remainingValue)}
-            </p>
-            <p className="text-sm">
-              <strong>Statut de paiement :</strong> {traduireStatut(payment?.paymentStatus)}
+              <strong>Statut de paiement :</strong>{" "}
+              {payment?.paymentStatus === "paid" ? "Payé" : "Non payé"}
             </p>
           </div>
 
-          {/* Paiement en cours : bouton Stripe ou instructions chèque/virement */}
-          {payment?.remainingValue > 0 && payment?.paymentStatus !== "paid" && (
-            <div className="mt-6 p-4  text-sm">
+          {/* Bouton de paiement ou instructions pour chèque/virement */}
+          {payment?.totalPrice > 0 && payment?.paymentStatus !== "paid" && (
+            <div className="mt-6 p-4 text-sm">
               {options?.paymentMethod === "CB" ? (
                 <div>
                   <p className="mb-3">
-                    Vous pouvez régler le solde restant par <strong>carte bancaire</strong> :
+                    Vous pouvez régler le montant total par <strong>carte bancaire</strong> :
                   </p>
                   <button
                     onClick={async () => {
                       try {
                         const payload = {
                           tokenUnique: token,
-                          amount: payment.remainingValue,
+                          amount: payment.totalPrice,
                           currency: "eur",
                           sejourTitle: sejourTitle,
                           ageGroup: ageGroup,
                           date: startDate,
-                          paymentOption: "rest",
-                          metadata: {},
                           customer_email: legal?.email,
                         };
 
@@ -355,92 +319,24 @@ export default function ReservationPage({ params }) {
                           throw new Error("L'URL de paiement est introuvable.");
                         }
                       } catch (error) {
-                        console.error("Erreur lors du paiement du solde :", error);
+                        console.error("Erreur lors du paiement :", error);
                       }
                     }}
-                    className=" cursor-pointer px-4 py-2 bg-[#B8336A] text-white rounded hover:bg-[#A2225A]"
+                    className="cursor-pointer px-4 py-2 bg-[#B8336A] text-white rounded hover:bg-[#A2225A]"
                   >
-                    Payer le reste
+                    Payer par carte bancaire
                   </button>
-                  {payment?.remainingValue > 0 && payment?.paymentStatus !== "paid" && (
-  <div className="mt-6 p-4 text-sm">
-    {options?.paymentMethod === "CB" ? (
-      <>
-        {/* Bouton pour paiement par carte (Stripe) */}
-        <p className="mb-3">
-          Vous pouvez régler le solde restant par <strong>carte bancaire</strong> :
-        </p>
-        <button
-          onClick={async () => {
-            // Code Stripe déjà présent…
-          }}
-          className="cursor-pointer px-4 py-2 bg-[#B8336A] text-white rounded hover:bg-[#A2225A]"
-        >
-          Payer le reste par CB
-        </button>
-        {/* Bouton pour paiement en plusieurs fois avec Alma */}
-        <button
-          onClick={async () => {
-            try {
-              const payload = {
-                tokenUnique: token,
-                amount: payment.remainingValue,
-                currency: "eur",
-                sejourTitle: sejourTitle,
-                customer_email: legal?.email,
-                // Vous pouvez ajouter d'autres infos (ex : metadata) si besoin
-              };
-
-              const response = await fetch("/api/create-alma-session", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-              });
-
-              if (!response.ok) {
-                throw new Error("Erreur lors de la création de la session Alma.");
-              }
-
-              const data = await response.json();
-              if (data.url) {
-                // Rediriger l'utilisateur vers l'interface de paiement Alma
-                window.location.href = data.url;
-              } else {
-                throw new Error("L'URL de paiement Alma est introuvable.");
-              }
-            } catch (error) {
-              console.error("Erreur lors du paiement avec Alma :", error);
-            }
-          }}
-          className="ml-4 cursor-pointer px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Payer en plusieurs fois
-        </button>
-      </>
-    ) : (
-      /* Code pour les autres modes de paiement (chèque ou virement) */
-      <div>
-        <p className="mb-3">
-          Vous avez choisi un paiement par <strong>Chèque ou virement</strong>.
-          Il reste <strong>{formatMontant(payment.remainingValue)}</strong> à payer.
-        </p>
-        {/* Instructions pour chèque/virement */}
-      </div>
-    )}
-  </div>
-)}
-
                 </div>
               ) : (
                 <div>
                   <p className="mb-3">
                     Vous avez choisi un paiement par <strong>Chèque ou virement</strong>.
-                    Il reste <strong>{formatMontant(payment.remainingValue)}</strong> à payer.
+                    Veuillez suivre les instructions ci-dessous :
                   </p>
                   <div className="mb-2 p-3 border border-dashed border-[#B8336A] rounded">
                     <p className="mb-1 font-semibold">Pour un paiement par chèque :</p>
                     <p className="text-sm">
-                      Libeller le chèque à l'ordre de <em>Colocrew</em> et l'envoyer à :
+                      Libellez le chèque à l'ordre de <em>Colocrew</em> et envoyez-le à :
                     </p>
                     <pre className="text-sm mt-1">
 Colocrew
@@ -464,7 +360,6 @@ FR7616958000015867806033040
           )}
         </div>
       </div>
-
     </div>
   );
 }

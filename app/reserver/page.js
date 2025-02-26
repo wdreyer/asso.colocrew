@@ -49,34 +49,33 @@ function ReservationPageContent() {
     fetchSejour();
   }, [urlSejour]);
 
-  // Formulaire initial
+  // Formulaire initial (le champ paymentOption a été supprimé)
   const initialFormData = {
-    minorFirstName: "",
-    minorLastName: "",
-    minorBirthDate: "",
-    minorBirthPlace: "",
-    minorAddress: "",
-    minorCity: "",
-    minorPostalCode: "",
+    minorFirstName: "TestMinorFirstName",
+    minorLastName: "TestMinorLastName",
+    minorBirthDate: "2000-01-01",
+    minorBirthPlace: "TestBirthPlace",
+    minorAddress: "123 Rue de Test",
+    minorCity: "TestCity",
+    minorPostalCode: "12345",
 
-    legalFirstName: "",
-    legalLastName: "",
-    legalPhone: "",
-    legalEmail: "",
-    legalRelation: "",
-    legalRelationOther: "",
-    legalAddressDifferent: false,
-    legalAddress: "",
-    legalCity: "",
-    legalPostalCode: "",
+    legalFirstName: "TestLegalFirstName",
+    legalLastName: "TestLegalLastName",
+    legalPhone: "0123456789",
+    legalEmail: "test@example.com",
+    legalRelation: "Parent",
+    legalRelationOther: "Autre",
+    legalAddressDifferent: true,
+    legalAddress: "456 Avenue de Test",
+    legalCity: "TestLegalCity",
+    legalPostalCode: "54321",
 
-    insuranceOpted: false,
-    paymentMethod: "CB", // "CB" ou "chequeVirement"
-    paymentOption: "oneTime", // "oneTime" ou "twoTimes"
-    acceptedCGV: false,
-    acceptedDocs: false,
-    acceptedNoWithdrawal: false,
-    acceptedRGPD: false, // Ajout de l'acceptation RGPD
+    insuranceOpted: true,
+    paymentMethod: "chequeVirement", // peut être "CB" ou "chequeVirement"
+    acceptedCGV: true,
+    acceptedDocs: true,
+    acceptedNoWithdrawal: true,
+    acceptedRGPD: true // Ajout de l'acceptation RGPD
   };
 
   const [formData, setFormData] = useState(initialFormData);
@@ -168,10 +167,6 @@ function ReservationPageContent() {
     setIsSubmitting(true);
 
     try {
-      // Calcul de l'acompte si option "twoTimes"
-      const depositValue =
-        formData.paymentOption === "twoTimes" ? computedTotalPrice * 0.3 : 0;
-
       // 1) Enregistrement de la réservation
       const resReservation = await fetch("/api/reservation", {
         method: "POST",
@@ -185,7 +180,6 @@ function ReservationPageContent() {
           urlCity,
           urlAgeGroup, // on passe la tranche d'âge
           insuranceFee,
-          depositValue,
           transportFee,
         }),
       });
@@ -206,8 +200,7 @@ function ReservationPageContent() {
       }
 
       // Paiement par carte bancaire via Stripe
-      const amountToCharge =
-        formData.paymentOption === "oneTime" ? computedTotalPrice : depositValue;
+      const amountToCharge = computedTotalPrice;
 
       // 2) Création de la session Stripe
       console.log("Données envoyées à Stripe:", {
@@ -227,7 +220,6 @@ function ReservationPageContent() {
           ageGroup: urlAgeGroup,
           startDate: urlStartDate,
           endDate: urlEndDate,
-          paymentOption: formData.paymentOption,
           metadata: {
             sejour: JSON.stringify({
               title: sejour.name,

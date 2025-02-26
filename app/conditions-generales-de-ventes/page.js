@@ -8,82 +8,82 @@ export default function Page() {
       </h1>
 
       <p>
-        Ces conditions générales de vente sont susceptibles d’évoluer. Le client
-        en sera notifié via e-mail et sur le site internet. En cas de
-        modifications, le client devra à nouveau signer les nouvelles Conditions
-        Générales de Vente.
+        Ces conditions générales de vente sont susceptibles d’évoluer. Le client en sera notifié via e-mail et sur le site internet. En cas de modifications, le client devra à nouveau signer les nouvelles Conditions Générales de Vente.
       </p>
 
       {/* ARTICLE 1 */}
       <section className="mt-6">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 1 - Engagement de ColoCrew
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 1 - Engagement de ColoCrew</h2>
         <ul className="list-disc list-inside mb-4 space-y-1">
           <li>
-            ColoCrew s’engage à prendre en charge l’enfant dès sa dépose effectuée par
-            les responsables légaux le premier jour, et ce, jusqu’à son retour le dernier
-            jour du séjour.
+            ColoCrew s’engage à prendre en charge l’enfant dès sa dépose effectuée par les responsables légaux le premier jour, et ce, jusqu’à son retour le dernier jour du séjour.
           </li>
           <li>
-            La restauration est assurée avec la fourniture de <strong>4 repas par jour</strong>
-            durant toute la durée du séjour.
+            La restauration est assurée avec la fourniture de <strong>4 repas par jour</strong> durant toute la durée du séjour.
           </li>
           <li>
             L’accès à l’ensemble des activités prévues dans le catalogue est garanti.
           </li>
         </ul>
         <p className="mb-4">
-          De plus, ColoCrew met tout en œuvre pour garantir la sécurité et le bien-être
-          des participants en assurant un encadrement par un personnel qualifié et en appliquant
-          des protocoles de sécurité appropriés.
+          De plus, ColoCrew met tout en œuvre pour garantir la sécurité et le bien-être des participants en assurant un encadrement par un personnel qualifié et en appliquant des protocoles de sécurité appropriés.
         </p>
         <p>
-          Il est recommandé aux responsables légaux de communiquer toute information
-          spécifique (allergies, besoins particuliers, etc.) afin d’assurer une prise en charge
-          adaptée.
+          Il est recommandé aux responsables légaux de communiquer toute information spécifique (allergies, besoins particuliers, etc.) afin d’assurer une prise en charge adaptée.
         </p>
       </section>
 
       {/* ARTICLE 2 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 2 - Paiement en une fois
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 2 - Paiement par Carte Bancaire (CB)</h2>
 
-        <h3 className="text-lg font-semibold mb-2">
-          1. Réservation et paiement :
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">1. Réservation et paiement :</h3>
         <ul className="list-disc list-inside mb-4 space-y-1">
           <li>
-            Le paiement intégral du montant du séjour doit être effectué au moment de la réservation.
+            Le paiement intégral du montant du séjour doit être effectué au moment de la réservation, exclusivement par carte bancaire.
           </li>
           <li>
-            En cas de règlement par chèque ou virement bancaire, le paiement doit être reçu dans un délai de 15 jours après l’inscription. À défaut, l’inscription sera annulée et une nouvelle demande devra être réalisée.
+            Le règlement est géré par nos partenaires Stripe et Karna. Pour plus d’informations sur la sécurité des paiements, consultez&nbsp;
+            <a
+              href="https://stripe.com/fr/docs/security"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              la page de sécurité de Stripe
+            </a>
+            <span> et  </span>
+            <a
+              href="https://www.klarna.com/fr/politique-de-protection-de-lacheteur-klarna/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              de Klarna
+            </a>
+          </li>
+          <li>
+            <span className="font-bold">Le paiement en 3 fois sans frais</span> est également possible : lors de votre paiement par CB, vous devrez choisir <span className="font-bold">KLARNA</span> sur la page de paiement.
           </li>
         </ul>
 
-        <h3 className="text-lg font-semibold mb-2">
-          2. Conditions d’annulation (sans souscription à l’assurance facultative) :
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">2. Conditions d’annulation (sans souscription à l’assurance facultative) :</h3>
         <ul className="list-disc list-inside mb-4 space-y-1">
           <li>
-            Jusqu’à 90 jours avant le début du séjour : Remboursement intégral du montant versé, déduction faite de 80 € de frais de dossier.
+            Jusqu’à 90 jours avant le début du séjour : remboursement intégral du montant versé, déduction faite de 80 € de frais de dossier.
           </li>
           <li>
-            Entre 45 et 90 jours avant le début du séjour : Remboursement de 50 % du montant versé.
+            Entre 45 et 90 jours avant le début du séjour : remboursement de 50 % du montant versé.
           </li>
           <li>
-            Moins de 45 jours avant le début du séjour : Aucun remboursement.
+            Moins de 45 jours avant le début du séjour : aucun remboursement.
           </li>
         </ul>
 
-        <h3 className="text-lg font-semibold mb-2">
-          3. Assurance annulation facultative (Maif) :
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">3. Assurance annulation facultative (Maif) :</h3>
         <ul className="list-disc list-inside space-y-1">
           <li>
-            Il est possible pour chaque participant de souscrire à l’annulation facultative pour le montant de 58,86€ TTC{" "}
+            Il est possible pour chaque participant de souscrire à l’annulation facultative pour le montant de 58,86€ TTC&nbsp;
             <Link
               href="/AssuranceAnnulationMaif.pdf"
               target="_blank"
@@ -97,59 +97,45 @@ export default function Page() {
             Si vous ne souscrivez pas l’assurance annulation facultative, aucun remboursement ne sera effectué en dehors des conditions ci-dessus.
           </li>
           <li>
-            Pour toute demande d’annulation qui ne rentre pas dans les cas et délais spécifiés (par exemple annulation pour raison médicale en dehors des délais indiqués), il convient de se rapprocher de la Maif, si l’assurance a été souscrite, afin de vérifier la prise en charge éventuelle.
+            Pour toute demande d’annulation ne rentrant pas dans les cas et délais spécifiés, veuillez vous rapprocher de la Maif pour vérifier la prise en charge éventuelle.
           </li>
         </ul>
         <p className="mt-4 italic">
-          Important : Dans tous les cas, si vous n’avez pas souscrit l’assurance annulation auprès de la Maif, vous ne pourrez bénéficier d’aucun remboursement en dehors des délais et pourcentages de remboursement indiqués ci-dessus.
+          Important : Sans assurance annulation souscrite auprès de la Maif, aucun remboursement ne pourra être effectué en dehors des délais et pourcentages indiqués.
         </p>
       </section>
 
       {/* ARTICLE 3 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 3 - Paiement en deux fois
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 3 - Paiement par Chèque ou Virement</h2>
 
-        <h3 className="text-lg font-semibold mb-2">
-          1. Modalités de paiement :
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">1. Réservation et paiement :</h3>
         <ul className="list-disc list-inside mb-4 space-y-1">
           <li>
-            Acompte de 30 % du montant total : à verser au moment de la réservation.
+            Le paiement intégral du montant du séjour doit être effectué au moment de la réservation, exclusivement par chèque ou virement.
           </li>
           <li>
-            Solde (70 %) : à régler au plus tard 3 mois (90 jours) avant le début du séjour.
-          </li>
-          <li>
-            En cas de non-paiement du solde dans ce délai, l’inscription sera automatiquement annulée et aucun remboursement ne sera effectué.
+            En cas de règlement par chèque ou virement bancaire, vous disposez d’un délai de <strong>15 jours</strong> à compter de l’inscription pour que le paiement soit reçu. À défaut, l’inscription sera annulée.
           </li>
         </ul>
 
-        <h3 className="text-lg font-semibold mb-2">
-          2. Conditions d’annulation (sans souscription à l’assurance facultative) :
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">2. Conditions d’annulation (sans souscription à l’assurance facultative) :</h3>
         <ul className="list-disc list-inside mb-4 space-y-1">
           <li>
-            Jusqu’à 90 jours avant le début du séjour : Remboursement intégral des sommes versées, déduction faite de 80 € de frais de dossier.
+            Jusqu’à 90 jours avant le début du séjour : remboursement intégral du montant versé, déduction faite de 80 € de frais de dossier.
           </li>
           <li>
-            Entre 45 et 90 jours avant le début du séjour : Remboursement de 50 % des sommes versées.
+            Entre 45 et 90 jours avant le début du séjour : remboursement de 50 % du montant versé.
           </li>
           <li>
-            Moins de 45 jours avant le début du séjour : Aucun remboursement.
-          </li>
-          <li>
-            Absence de paiement du solde à 90 jours : Annulation de plein droit et aucun remboursement.
+            Moins de 45 jours avant le début du séjour : aucun remboursement.
           </li>
         </ul>
 
-        <h3 className="text-lg font-semibold mb-2">
-          3. Assurance annulation facultative (Maif) :
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">3. Assurance annulation facultative (Maif) :</h3>
         <ul className="list-disc list-inside space-y-1">
           <li>
-            Il est possible pour chaque participant de souscrire à l’annulation facultative pour le montant de 58,86€ TTC{" "}
+            Il est possible pour chaque participant de souscrire à l’annulation facultative pour le montant de 58,86€ TTC&nbsp;
             <Link
               href="/AssuranceAnnulationMaif.pdf"
               target="_blank"
@@ -163,29 +149,23 @@ export default function Page() {
             Si vous ne souscrivez pas l’assurance annulation facultative, aucun remboursement ne sera effectué en dehors des conditions ci-dessus.
           </li>
           <li>
-            Pour toute demande d’annulation qui ne rentre pas dans les cas et délais spécifiés (par exemple annulation pour raison médicale en dehors des délais indiqués), il convient de se rapprocher de la Maif, si l’assurance a été souscrite, afin de vérifier la prise en charge éventuelle.
+            Pour toute demande d’annulation ne rentrant pas dans les cas et délais spécifiés, veuillez vous rapprocher de la Maif pour vérifier la prise en charge éventuelle.
           </li>
         </ul>
-
         <p className="mt-4 italic">
-          Important : Dans tous les cas, si vous n’avez pas souscrit l’assurance annulation auprès de la Maif, vous ne pourrez bénéficier d’aucun remboursement en dehors des délais et pourcentages de remboursement indiqués ci-dessus.
+          Important : Sans assurance annulation souscrite auprès de la Maif, aucun remboursement ne pourra être effectué en dehors des délais et pourcentages indiqués.
         </p>
       </section>
 
       {/* ARTICLE 4 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 4 – Annulation par l’association ColoCrew
-        </h2>
-
+        <h2 className="text-xl font-semibold mb-3">Article 4 – Annulation par l’association ColoCrew</h2>
         <ul className="list-disc list-inside mb-4 space-y-1">
           <li>
             ColoCrew se réserve le droit d’annuler un séjour pour les raisons suivantes :
             <ul className="list-disc list-inside ml-6 space-y-1 mt-1">
               <li>Nombre insuffisant de participants.</li>
-              <li>
-                Conditions climatiques mettant en danger la sécurité des participants.
-              </li>
+              <li>Conditions climatiques mettant en danger la sécurité des participants.</li>
               <li>Autres raisons imprévues ou cas de force majeure.</li>
             </ul>
           </li>
@@ -223,9 +203,7 @@ export default function Page() {
 
       {/* ARTICLE 7 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 7 – Modification des conditions
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 7 – Modification des conditions</h2>
         <ul className="list-disc list-inside space-y-1 mb-4">
           <li>
             ColoCrew se réserve le droit de modifier les présentes CGV. Les participants seront informés de toute modification par écrit ou via le site internet.
@@ -235,9 +213,7 @@ export default function Page() {
 
       {/* ARTICLE 8 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 8 – Litiges
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 8 – Litiges</h2>
         <ul className="list-disc list-inside space-y-1 mb-4">
           <li>
             En cas de litige, les parties s’efforceront de trouver une solution amiable.
@@ -250,9 +226,7 @@ export default function Page() {
 
       {/* ARTICLE 9 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 9 – Protection des données personnelles
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 9 – Protection des données personnelles</h2>
         <ul className="list-disc list-inside space-y-1 mb-4">
           <li>
             Les données personnelles collectées lors des inscriptions sont utilisées uniquement pour les besoins organisationnels et administratifs des séjours.
@@ -265,9 +239,7 @@ export default function Page() {
 
       {/* ARTICLE 10 */}
       <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-3">
-          Article 10 – Droit de rétractation
-        </h2>
+        <h2 className="text-xl font-semibold mb-3">Article 10 – Droit de rétractation</h2>
         <ul className="list-disc list-inside space-y-1 mb-4">
           <li>
             Conformément à l’article L221-28 du Code de la consommation et à la directive européenne 2011/83/UE, le droit de rétractation ne peut être exercé pour les contrats de prestation de services dont la date ou la période d’exécution est fixée, comme c’est le cas pour les séjours de vacances ou les colonies de vacances.
@@ -276,7 +248,7 @@ export default function Page() {
             Le client reconnaît expressément que, lors de la validation de sa réservation, il a renoncé à l’exercice de ce droit, en connaissance de cause.
           </li>
           <li>
-            Cette information lui est communiquée préalablement à la conclusion du contrat, notamment via les présentes Conditions Générales de Vente et lors de la procédure de réservation.
+            Cette information lui est communiquée préalablement à la conclusion du contrat, notamment via les présentes CGV et lors de la procédure de réservation.
           </li>
         </ul>
       </section>
