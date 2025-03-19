@@ -1,8 +1,24 @@
 "use client";
 import Image from "next/image";
 import { FaUsers, FaLightbulb, FaHeart, FaCogs, FaDownload } from "react-icons/fa";
+import { useEffect, useRef } from "react";
 
 export default function Pedagogie() {
+  const instagramRef = useRef(null);
+
+  // Cette fonction charge le script Instagram Embed
+  useEffect(() => {
+    // Charger le script Instagram embed API
+    const script = document.createElement('script');
+    script.src = 'https://www.instagram.com/embed.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   return (
     <section className="bg-gray-50">
       {/* Section Hero avec Overlay */}
@@ -15,102 +31,113 @@ export default function Pedagogie() {
           className="w-full h-full"
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4 sm:px-8">
-          <h1 className="text-3xl md:text-5xl font-bold  tracking-wide text-center">
-            Qui sommes nous ? 
+          <h1 className="text-3xl md:text-5xl font-bold tracking-wide text-center">
+            Qui sommes-nous ?
           </h1>
           <p className="sm:text-base mt-2 max-w-2xl text-center">
-            Un projet éducatif basé sur l’inclusivité, le sport et la créativité.
+            Un projet éducatif centré sur l'inclusivité, le sport et la créativité.
           </p>
         </div>
       </div>
 
       {/* Contenu principal */}
       <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 space-y-12">
-        {/* Présentation succincte */}
-        <div>
-          <div className="flex items-center mb-4">
-            <FaUsers className="text-gray-600 text-2xl mr-3" />
-            <h2 className="text-2xl font-bold text-gray-800">
-              Notre Démarche Pédagogique
-            </h2>
-          </div>
-          <p className="text-gray-600 text-base leading-relaxed mb-4">
-            Colocrew est une association d’éducation populaire à but non lucratif.
-            Nous proposons des colonies de vacances pour les jeunes de 11 à 17 ans,
-            axées sur le sport, la pratique artistique et l’émancipation. Grâce à
-            des séjours plus longs (12 jours), nous favorisons la construction
-            d’un véritable collectif, l’épanouissement de chaque participant·e
-            et la mixité sociale.
-          </p>
-          <p className="text-gray-600 text-base leading-relaxed">
-            Nos équipes sont composées d’animateur·rice·s et de formateur·rice·s
-            expérimenté·e·s, partageant toutes et tous un même engagement
-            : promouvoir la bienveillance, l’inclusion et le respect de
-            l’environnement. Nous travaillons main dans la main avec différents
-            partenaires (mairies, ASE, CE, etc.) afin de rendre nos séjours
-            accessibles au plus grand nombre.
-          </p>
-        </div>
+        {/* Layout container avec Instagram à droite */}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Colonne principale */}
+          <div className="lg:w-2/3">
+            {/* Présentation succincte */}
+            <div className="mb-12">
+              <div className="flex items-center mb-4">
+                <FaUsers className="text-gray-600 text-2xl mr-3" />
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Notre approche
+                </h2>
+              </div>
+              <p className="text-gray-600 text-base leading-relaxed mb-4">
+                Colocrew est une association d'éducation populaire à but non lucratif.
+                Nous organisons des colonies de vacances pour les 11-17 ans
+                où le sport, l'art et l'émancipation sont au cœur de notre démarche. Nos séjours
+                durent 12 jours, ce qui permet de créer une vraie dynamique de groupe,
+                de favoriser l'épanouissement de chacun et de promouvoir la mixité sociale.
+              </p>
+              <p className="text-gray-600 text-base leading-relaxed">
+                Nos équipes sont composées d'animateurs et de formateurs passionnés
+                qui partagent les mêmes convictions : bienveillance, inclusion et respect
+                de l'environnement. Nous collaborons avec différents partenaires (mairies, ASE, CE...)
+                pour rendre nos séjours accessibles au plus grand nombre.
+              </p>
+            </div>
 
-        {/* Nos Valeurs */}
-        <div>
-          <div className="flex items-center mb-4">
-            <FaHeart className="text-gray-600 text-2xl mr-3" />
-            <h2 className="text-2xl font-bold text-gray-800">Nos Valeurs</h2>
+            {/* Nos Valeurs - maintenant également à gauche */}
+            <div>
+              <div className="flex items-center mb-4">
+                <FaHeart className="text-gray-600 text-2xl mr-3" />
+                <h2 className="text-2xl font-bold text-gray-800">Nos valeurs</h2>
+              </div>
+              <ul className="list-disc list-inside space-y-2 text-gray-600">
+                <li>
+                  <strong>Inclusivité :</strong> On accueille tout le monde, on lutte
+                  contre les discriminations et on mise vraiment sur la mixité sociale.
+                </li>
+                <li>
+                  <strong>Écologie :</strong> On sensibilise aux enjeux environnementaux
+                  en privilégiant les activités de pleine nature et les partenariats locaux.
+                </li>
+                <li>
+                  <strong>Émancipation :</strong> On encourage les jeunes à prendre des initiatives
+                  et des responsabilités (choix des menus, gestion du budget, activités en autonomie).
+                </li>
+                <li>
+                  <strong>Coopération :</strong> On mise sur une vie de groupe où l'entraide
+                  et le respect passent avant la compétition.
+                </li>
+              </ul>
+            </div>
           </div>
-          <ul className="list-disc list-inside space-y-2 text-gray-600">
-            <li>
-              <strong>Inclusivité :</strong> Ouverture à toutes et tous, lutte
-              contre toutes formes de discrimination et mise en avant d’une
-              réelle mixité sociale.
-            </li>
-            <li>
-              <strong>Respect de l’environnement :</strong> Sensibilisation aux
-              enjeux écologiques et ancrage local de nos actions (activités de
-              pleine nature, partenariats de proximité, etc.).
-            </li>
-            <li>
-              <strong>Émancipation :</strong> Encouragement à la prise
-              d’initiatives et à la responsabilité individuelle et collective
-              (choix des menus, gestion du budget, activités d’autogestion…).
-            </li>
-            <li>
-              <strong>Coopération :</strong> Vie de groupe où solidarité,
-              respect et aide mutuelle priment sur la compétition.
-            </li>
-          </ul>
+
+          {/* Instagram Reel à droite - version épurée */}
+          <div className="lg:w-1/3 flex justify-center lg:justify-end sticky top-4 self-start h-fit" ref={instagramRef}>
+            <div className="w-full max-w-xs">
+              {/* Version ultra épurée du Reel */}
+              <iframe
+                src={`https://www.instagram.com/p/DBg_7W0ojbf/embed/`}
+                width="100%"
+                height="450"
+                frameBorder="0"
+                scrolling="no"
+                allowtransparency="true"
+                className="rounded-lg shadow-md"
+              ></iframe>
+            </div>
+          </div>
         </div>
 
         {/* Activités phares */}
         <div>
           <div className="flex items-center mb-4">
             <FaLightbulb className="text-gray-600 text-2xl mr-3" />
-            <h2 className="text-2xl font-bold text-gray-800">Activités Phare</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Nos activités</h2>
           </div>
           <p className="text-gray-600 text-base leading-relaxed mb-4">
-            Notre offre repose sur un équilibre entre sport, créativité et temps
-            d’autogestion&nbsp;:
+            Nos séjours mêlent sport, créativité et moments d'autonomie :
           </p>
           <ul className="list-disc list-inside space-y-2 text-gray-600">
             <li>
-              <strong>Pratiques sportives :</strong> Surf, escalade, ski, voile…
-              Toujours encadrées par des professionnels, elles favorisent
-              l’esprit d’équipe et le dépassement de soi.
+              <strong>Sport :</strong> Surf, escalade, ski, voile... Toujours avec des pros
+              pour apprendre à se dépasser et faire équipe.
             </li>
             <li>
-              <strong>Ateliers artistiques :</strong> Théâtre, musique, danse,
-              arts plastiques ou production audiovisuelle, pour stimuler
-              la créativité et le sens de la collaboration.
+              <strong>Art :</strong> Théâtre, musique, danse, arts plastiques, vidéo...
+              Pour libérer sa créativité et travailler ensemble.
             </li>
             <li>
-              <strong>Vie en autogestion :</strong> Implication concrète des
-              jeunes dans la préparation des repas, la gestion du budget
-              et la mise en place des activités quotidiennes.
+              <strong>Vie quotidienne :</strong> Les jeunes préparent les repas,
+              gèrent un budget et organisent certaines activités. C'est la vraie vie !
             </li>
             <li>
-              <strong>Moments fédérateurs :</strong> Grandes veillées, jeux
-              coopératifs, débats sur des sujets d’actualité, favorisant
-              les échanges et la cohésion du groupe.
+              <strong>Moments de partage :</strong> Veillées, jeux coopératifs, débats...
+              Pour échanger et renforcer les liens dans le groupe.
             </li>
           </ul>
         </div>
@@ -120,22 +147,19 @@ export default function Pedagogie() {
           <div className="flex items-center mb-4">
             <FaCogs className="text-gray-600 text-2xl mr-3" />
             <h2 className="text-2xl font-bold text-gray-800">
-              Notre Engagement
+              Notre engagement
             </h2>
           </div>
           <p className="text-gray-600 text-base leading-relaxed mb-4">
-            Nous nous engageons à ce que chaque jeune revienne de colo avec de
-            nouvelles compétences sociales, une plus grande confiance en soi
-            et une conscience élargie de son pouvoir d’action citoyen. Nos
-            séjours de 12 jours permettent de tisser des liens plus forts
-            entre les participant·e·s, d’approfondir les apprentissages,
-            et de favoriser une véritable dynamique de groupe.
+            Après 12 jours chez nous, on veut que chaque jeune reparte avec de nouvelles
+            compétences sociales, plus de confiance en soi et l'envie d'agir en tant que
+            citoyen. La durée de nos séjours permet de créer des liens solides,
+            d'approfondir les apprentissages et de développer une vraie cohésion de groupe.
           </p>
           <p className="text-gray-600 text-base leading-relaxed">
-            Nous veillons aussi à prendre soin de nos équipes : salaires
-            décents, temps de repos et préparation garantis, pour que chacune
-            et chacun puisse transmettre nos valeurs dans les meilleures
-            conditions possibles.
+            On prend aussi soin de nos équipes : salaires corrects, temps de repos
+            et de préparation garantis. Parce que des animateurs épanouis,
+            c'est la base pour transmettre nos valeurs dans de bonnes conditions.
           </p>
         </div>
 
@@ -145,8 +169,8 @@ export default function Pedagogie() {
             En savoir plus
           </h2>
           <p className="text-gray-600 mb-6">
-            Pour découvrir l’intégralité de notre démarche et de nos objectifs,
-            n’hésitez pas à consulter notre projet éducatif détaillé.
+            Envie de connaître tous les détails de notre démarche et de nos objectifs ?
+            Jetez un œil à notre projet éducatif complet.
           </p>
           <a
             href="/projet-educatif.pdf"
@@ -154,7 +178,7 @@ export default function Pedagogie() {
             className="inline-flex items-center bg-gray-600 text-white px-6 py-3 rounded-md hover:bg-gray-700 transition duration-300"
           >
             <FaDownload className="mr-2" />
-            Consulter le projet éducatif
+            Télécharger le projet éducatif
           </a>
         </div>
       </div>

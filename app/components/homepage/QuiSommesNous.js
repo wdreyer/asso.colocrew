@@ -226,65 +226,64 @@ export default function MyCreativeSurfCampPage() {
         <div className="mx-auto flex flex-col lg:flex-row gap-8 px-4 items-start">
           {/* Colonne gauche : Carte du séjour phare */}
           <Link
-  href="/sejours/my-creative-surf-camp"
-  className="m-4 font-inter cursor-pointer bg-white rounded shadow-lg overflow-hidden transform transition duration-300 hover:scale-105 hover:shadow-2xl lg:w-3/5"
->
-  <div className="relative">
-    <img
-      src={sejour.heroImage || "/surf-camp.jpg"}
-      alt={sejour.name || "My Creative Surf Camp"}
-      className="w-full h-64 object-cover"
-    />
+            href="/sejours/my-creative-surf-camp"
+            className="m-4 font-inter cursor-pointer bg-white rounded shadow-lg overflow-hidden transform transition duration-300 hover:scale-105 hover:shadow-2xl lg:w-3/5"
+          >
+            <div className="relative">
+              <img
+                src={sejour.heroImage || "/surf-camp.jpg"}
+                alt={sejour.name || "My Creative Surf Camp"}
+                className="w-full h-64 object-cover"
+              />
 
-    {/* Version mobile : rubans centrés et empilés */}
-    <div className="absolute top-4 inset-x-0 flex flex-col items-center space-y-2 lg:hidden">
-      <div className="bg-[#B8336A] text-white font-bold py-1 px-3 rounded-md">
-        Notre séjour phare !
-      </div>
-      <div className="bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-        à partir de {sejour.basePrice} €
-      </div>
-    </div>
+              {/* Version mobile : rubans centrés et empilés */}
+              <div className="absolute top-4 inset-x-0 flex flex-col items-center space-y-2 lg:hidden">
+                <div className="bg-[#B8336A] text-white font-bold py-1 px-3 rounded-md">
+                  Notre séjour phare !
+                </div>
+                <div className="bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
+                  à partir de {sejour.basePrice} €
+                </div>
+              </div>
 
-    {/* Version desktop : rubans en position absolue aux extrémités */}
-    <div className="hidden lg:block">
-      <div className="bg-[#B8336A] absolute top-4 left-4 flex flex-col items-end space-y-2 text-white font-bold py-1 px-3 rounded-md">
-        Notre séjour phare !
-      </div>
-      <div className="absolute top-4 right-4 flex flex-col items-end space-y-2">
-        <div className="bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-          à partir de {sejour.basePrice} €
-        </div>
-      </div>
-    </div>
+              {/* Version desktop : rubans en position absolue aux extrémités */}
+              <div className="hidden lg:block">
+                <div className="bg-[#B8336A] absolute top-4 left-4 flex flex-col items-end space-y-2 text-white font-bold py-1 px-3 rounded-md">
+                  Notre séjour phare !
+                </div>
+                <div className="absolute top-4 right-4 flex flex-col items-end space-y-2">
+                  <div className="bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
+                    à partir de {sejour.basePrice} €
+                  </div>
+                </div>
+              </div>
 
-    <h2 className="font-poppins text-3xl absolute inset-0 flex items-center justify-center font-extrabold text-white text-center px-4">
-      {sejour.name || "My Creative Surf Camp"}
-    </h2>
-  </div>
-  <div className="p-5">
-    {/* Sur petits écrans, les icônes se placent sur deux lignes grâce à flex-wrap */}
-    <div className="flex flex-wrap lg:flex-nowrap gap-4 text-sm font-medium mb-4">
-      <div className="flex items-center space-x-2 basis-1/2">
-        <FaCalendarAlt className="text-[#B8336A]" />
-        <span>Juillet - Août 2025</span>
-      </div>
-      <div className="flex items-center space-x-2 basis-1/2">
-        <FaUserFriends className="text-[#B8336A]" />
-        <span>{sejour.ageGroup || "11 - 17 ans"}</span>
-      </div>
-      <div className="flex items-center space-x-2 basis-1/2">
-        <FaClock className="text-[#B8336A]" />
-        <span>{sejour.duration || "12 jours"}</span>
-      </div>
-      <div className="flex items-center space-x-2 basis-1/2">
-        <GiWaveSurfer className="text-[#B8336A]" />
-        <span>{sejour.extra || "Surf"}</span>
-      </div>
-    </div>
-  </div>
-</Link>
-
+              <h2 className="font-poppins text-3xl absolute inset-0 flex items-center justify-center font-extrabold text-white text-center px-4">
+                {sejour.name || "My Creative Surf Camp"}
+              </h2>
+            </div>
+            <div className="p-5">
+              {/* Sur petits écrans, les icônes se placent sur deux lignes grâce à flex-wrap */}
+              <div className="flex flex-wrap lg:flex-nowrap gap-4 text-sm font-medium mb-4">
+                <div className="flex items-center space-x-2 basis-1/2">
+                  <FaCalendarAlt className="text-[#B8336A]" />
+                  <span>Juillet - Août 2025</span>
+                </div>
+                <div className="flex items-center space-x-2 basis-1/2">
+                  <FaUserFriends className="text-[#B8336A]" />
+                  <span>{sejour.ageGroup || "11 - 17 ans"}</span>
+                </div>
+                <div className="flex items-center space-x-2 basis-1/2">
+                  <FaClock className="text-[#B8336A]" />
+                  <span>{sejour.duration || "12 jours"}</span>
+                </div>
+                <div className="flex items-center space-x-2 basis-1/2">
+                  <GiWaveSurfer className="text-[#B8336A]" />
+                  <span>{sejour.extra || "Surf"}</span>
+                </div>
+              </div>
+            </div>
+          </Link>
 
           {/* Colonne droite : Atouts et lien vers la réservation */}
           <div className="space-y-6 pt-4 lg:w-2/5">
@@ -322,6 +321,10 @@ export default function MyCreativeSurfCampPage() {
                 </span>
                 <span className="ml-3 text-lg text-gray-700">
                   Une pédagogie autour de l'émancipation
+                  <br />
+                  <span className="text-sm">
+                  🍽️ Choix et élaboration des repas, des activités et des projets !
+                  </span>
                 </span>
               </li>
             </ul>
@@ -403,12 +406,43 @@ export default function MyCreativeSurfCampPage() {
                   </h3>
                 </header>
                 <p className="text-gray-700 mb-2">
-                  Nous pensons qu'il est nécessaire de valoriser le travail des équipes dans
-                  l'animation. Nous proposons des salaires au dessus de la
-                  moyenne ainsi que des conditions de travail améliorées.
+                  Nous pensons qu'il est nécessaire de valoriser le travail des
+                  équipes dans l'animation. Nous proposons des salaires au
+                  dessus de la moyenne ainsi que des conditions de travail
+                  améliorées.
                 </p>
               </article>
             </Link>
+            <Link href="#" className="block cursor-pointer">
+  <article className="hover:bg-pink-50 p-4 rounded transition duration-300">
+    <header>
+      <h3 className="text-2xl font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] mb-2">
+        Nos réseaux sociaux
+      </h3>
+    </header>
+    <p className="text-gray-700 mb-2">
+      Nous sommes également très actifs sur les réseaux, retrouvez-nous sur&nbsp;
+      <a 
+        href="https://www.facebook.com/profile.php?id=61571533102707" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-[#B8336A] hover:text-[#A2225A] font-bold"
+      >
+        Facebook
+      </a> &nbsp;
+      et &nbsp; 
+      <a 
+        href="https://www.instagram.com/_colocrew/" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-[#B8336A] hover:text-[#A2225A] font-bold"
+      >
+        Instagram
+      </a>.
+    </p>
+  </article>
+</Link>
+
             <div className="relative -ml-8 -pr-8 h-64 overflow-hidden gradient-fade">
               <Image
                 src="/end.jpg"
