@@ -2,7 +2,8 @@ import './globals.css';
 import "easymde/dist/easymde.min.css";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
-import CookieConsentBanner from "./components/CookieConsentBanner"; // Composant client
+import Script from 'next/script';
+
 
 // Définition des métadonnées pour le SEO
 export const metadata = {
@@ -33,7 +34,12 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
+    
     <html lang="fr">
+              <Script
+            src="https://scripts.simpleanalyticscdn.com/latest.js"
+            strategy="afterInteractive"
+          />
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         {/* JSON-LD pour les données structurées */}
