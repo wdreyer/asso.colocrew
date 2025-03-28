@@ -63,7 +63,6 @@ export default function RootLayout({ children }) {
       </head>
       <body className="font-inter">
         {/* Composant client pour la gestion du consentement cookies */}
-        <CookieConsentBanner />
         <div className="flex flex-col min-h-screen">
           <Header />
           <main className="pt-18 flex-grow">{children}</main>
