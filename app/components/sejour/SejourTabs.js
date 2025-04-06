@@ -85,7 +85,10 @@ export default function SejourTabs({
       : "";
 
     return (
-      <div key={idx} className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+      <div
+        key={idx}
+        className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start"
+      >
         <div className={`lg:col-span-2 ${isOdd ? "md:order-2" : "md:order-1"}`}>
           <h2 className="text-2xl font-bold mb-2 text-black">{sub.title}</h2>
           <ReactMarkdown
@@ -109,6 +112,7 @@ export default function SejourTabs({
             }`}
           >
             <Image
+              key={sub.imageSrc} // Ajout de la clé dynamique basée sur la source
               src={sub.imageSrc}
               alt={sub.title}
               fill
@@ -201,7 +205,6 @@ export default function SejourTabs({
             handleAgeGroupChange={handleAgeGroupChange}
             reservationPrice={reservationPrice}
             handleReservation={handleReservation}
-
             // Transport
             isRoundTrip={isRoundTrip}
             handleRoundTripChange={onRoundTripChange}

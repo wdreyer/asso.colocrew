@@ -219,10 +219,8 @@ export default function MyCreativeSurfCampPage() {
         </div>
       </div>
 
-      {/* ==================================== */}
       {/* SECTION 1 : Séjour phare & Atouts */}
-      {/* ==================================== */}
-      <section className="py-4 mx-2 bg-white   ">
+      <section className="py-4 mx-2 bg-white">
         <div className="mx-auto flex flex-col lg:flex-row gap-8 px-4 items-start">
           {/* Colonne gauche : Carte du séjour phare */}
           <Link
@@ -242,7 +240,7 @@ export default function MyCreativeSurfCampPage() {
                   Notre séjour phare !
                 </div>
                 <div className="bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-                  à partir de {sejour.basePrice} €
+                  {sejour.basePrice} €
                 </div>
               </div>
 
@@ -253,7 +251,7 @@ export default function MyCreativeSurfCampPage() {
                 </div>
                 <div className="absolute top-4 right-4 flex flex-col items-end space-y-2">
                   <div className="bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-                    à partir de {sejour.basePrice} €
+                    {sejour.basePrice} €
                   </div>
                 </div>
               </div>
@@ -323,7 +321,7 @@ export default function MyCreativeSurfCampPage() {
                   Une pédagogie autour de l'émancipation
                   <br />
                   <span className="text-sm">
-                  🍽️ Choix et élaboration des repas, des activités et des projets !
+                    🍽️ Choix et élaboration des repas, des activités et des projets !
                   </span>
                 </span>
               </li>
@@ -345,13 +343,55 @@ export default function MyCreativeSurfCampPage() {
         style={{ borderColor: "rgba(184, 51, 106, 0.5)" }}
       ></div>
 
-      {/* ==================================== */}
       {/* SECTION 2 : Articles et Cartes supplémentaires */}
-      {/* ==================================== */}
       <section>
         <div className="mx-auto px-8 flex flex-col lg:flex-row gap-8">
           {/* Colonne de gauche (3/5) : Articles cliquables */}
           <div className="lg:w-4/5">
+            {/* Nouvel article ajouté au-dessus de "Nos réseaux sociaux" */}
+            <Link href="/demande-reservation" className="block cursor-pointer">
+              <article className="hover:bg-pink-50 p-4 rounded transition duration-300">
+                <header>
+                  <h3 className="text-2xl font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] mb-2">
+                    Demande de réservation
+                  </h3>
+                </header>
+                <p className="text-gray-700 mb-2">
+                  Faites votre demande de réservation en ligne et nous vous envoyons un devis personnalisé dans les <strong>24h</strong>.
+                </p>
+              </article>
+            </Link>
+            <Link href="#" className="block cursor-pointer">
+              <article className="hover:bg-pink-50 p-4 rounded transition duration-300">
+                <header>
+                  <h3 className="text-2xl font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] mb-2">
+                    Nos réseaux sociaux
+                  </h3>
+                </header>
+                <p className="text-gray-700 mb-2">
+                  Nous sommes également très actifs sur les réseaux,
+                  retrouvez-nous sur&nbsp;
+                  <a
+                    href="https://www.facebook.com/profile.php?id=61571533102707"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#B8336A] hover:text-[#A2225A] font-bold"
+                  >
+                    Facebook
+                  </a>{" "}
+                  &nbsp; et &nbsp;
+                  <a
+                    href="https://www.instagram.com/_colocrew/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#B8336A] hover:text-[#A2225A] font-bold"
+                  >
+                    Instagram
+                  </a>
+                  .
+                </p>
+              </article>
+            </Link>
             <Link href="/qui-sommes-nous" className="block cursor-pointer">
               <article className="hover:bg-pink-50 p-4 rounded transition duration-300">
                 <header>
@@ -413,35 +453,6 @@ export default function MyCreativeSurfCampPage() {
                 </p>
               </article>
             </Link>
-            <Link href="#" className="block cursor-pointer">
-  <article className="hover:bg-pink-50 p-4 rounded transition duration-300">
-    <header>
-      <h3 className="text-2xl font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] mb-2">
-        Nos réseaux sociaux
-      </h3>
-    </header>
-    <p className="text-gray-700 mb-2">
-      Nous sommes également très actifs sur les réseaux, retrouvez-nous sur&nbsp;
-      <a 
-        href="https://www.facebook.com/profile.php?id=61571533102707" 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="text-[#B8336A] hover:text-[#A2225A] font-bold"
-      >
-        Facebook
-      </a> &nbsp;
-      et &nbsp; 
-      <a 
-        href="https://www.instagram.com/_colocrew/" 
-        target="_blank" 
-        rel="noopener noreferrer" 
-        className="text-[#B8336A] hover:text-[#A2225A] font-bold"
-      >
-        Instagram
-      </a>.
-    </p>
-  </article>
-</Link>
 
             <div className="relative -ml-8 -pr-8 h-64 overflow-hidden gradient-fade">
               <Image
@@ -452,7 +463,7 @@ export default function MyCreativeSurfCampPage() {
               />
             </div>
           </div>
-          {/* Colonne de droite (2/5) : Cartes des autres séjours + Bloc réseaux sociaux */}
+          {/* Colonne de droite (2/5) : Cartes des autres séjours */}
           <div className="lg:w-2/5 space-y-8">
             {/* Titre pour les autres séjours */}
             <h4 className="text-2xl pt-4 font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] mb-2">
@@ -479,19 +490,19 @@ export default function MyCreativeSurfCampPage() {
                     href={`/sejours/${sejourItem.slug || sejourItem.id}`}
                     className="group block"
                   >
-                    <div className="bg-white m-6 rounded shadow overflow-hidden relative transform transition duration-300 hover:scale-102 ">
+                    <div className="bg-white m-6 rounded shadow overflow-hidden relative transform transition duration-300 hover:scale-102">
                       <div className="relative">
                         <img
                           src={sejourItem.heroImage || "/default.jpg"}
                           alt={sejourItem.name}
                           className="w-full h-56 object-cover"
                         />
-                        <div className="absolute inset-0  transition"></div>
+                        <div className="absolute inset-0 transition"></div>
                         <h2 className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white px-4 text-center">
                           {sejourItem.name}
                         </h2>
                         <div className="absolute top-4 right-4 bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-                          à partir de {sejourItem.basePrice} €
+                          {sejourItem.basePrice} €
                         </div>
                       </div>
                       <div className="p-5">
