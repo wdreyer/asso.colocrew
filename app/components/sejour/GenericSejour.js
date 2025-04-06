@@ -109,7 +109,7 @@ export default function GenericSejour({ sejourData }) {
             }
           />
           <InfoBadge icon={FaCalendar} text={getDuration()} />
-          <InfoBadge icon={FaMoneyBillWave} text={`À partir de ${basePrice} €`} />
+          <InfoBadge icon={FaMoneyBillWave} text={`${basePrice} €`} />
         </div>
 
         {/* Titre et sous-titre en bas à gauche */}

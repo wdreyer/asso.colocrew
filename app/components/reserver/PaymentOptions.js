@@ -2,38 +2,155 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { FaShieldAlt, FaCreditCard, FaMoneyCheck } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import {
+  FaShieldAlt,
+  FaCreditCard,
+  FaMoneyCheck,
+} from "react-icons/fa";
 
 export default function PaymentOptions({
   formData,
   handleChange,
-  basePrice,
+  sejour,
   transportFee,
-  computedTotalPrice,
   insuranceFee,
-  urlCity,
-  urlStartDate,
+  numberOfChildren,
+  urlAgeGroup,
+  onEstimatedPriceChange, // callback fourni par le parent
 }) {
-  // Calcul de la date limite J-90 si urlStartDate est valide (pour information éventuelle)
-  let paymentDeadlineString = "";
-  if (urlStartDate) {
-    const sejourStart = new Date(urlStartDate);
-    if (!Number.isNaN(sejourStart.getTime())) {
-      const deadline = new Date(sejourStart);
-      deadline.setDate(deadline.getDate() - 90);
-      paymentDeadlineString = deadline.toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
-    }
+  // ─────────────────────────────────────────────────────────────────
+  // 1) Parsing du basePrice (ex: "590-1200")
+  // ─────────────────────────────────────────────────────────────────
+  const basePriceString = sejour?.basePrice || "0-0"; 
+  const parsedRange = parseBasePriceRange(basePriceString); 
+  // { min: 590, max: 1200 } ou null
+
+  // ─────────────────────────────────────────────────────────────────
+  // 2) Calcul de la réduction
+  // ─────────────────────────────────────────────────────────────────
+  let discountFactor = 1;
+  if (numberOfChildren === 2) {
+    discountFactor = 0.95;
+  } else if (numberOfChildren >= 3) {
+    discountFactor = 0.9;
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // 3) Calcul fourchette min/max
+  // ─────────────────────────────────────────────────────────────────
+  let minEstime = 0;
+  let maxEstime = 0;
+
+  if (parsedRange) {
+    const baseMin = parsedRange.min * discountFactor;
+    const baseMax = parsedRange.max * discountFactor;
+
+    let minWithTransport = baseMin + transportFee;
+    let maxWithTransport = baseMax + transportFee;
+
+    if (formData.insuranceOpted) {
+      minWithTransport += insuranceFee;
+      maxWithTransport += insuranceFee;
+    }
+
+    minEstime = minWithTransport;
+    maxEstime = maxWithTransport;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 4) Ligne de réduction
+  // ─────────────────────────────────────────────────────────────────
+  let discountLine = null;
+  if (numberOfChildren === 2) {
+    discountLine = (
+      <div className="border-b border-gray-200 py-2 flex justify-between  text-green-600">
+        <span>Réduction pour 2 enfants</span>
+        <span>-5%</span>
+      </div>
+    );
+  } else if (numberOfChildren >= 3) {
+    discountLine = (
+      <div className="border-b border-gray-200 py-2 flex justify-between text-green-600">
+        <span>Réduction pour 3 enfants et plus</span>
+        <span>-10%</span>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 5) Texte final selon la méthode de paiement
+  // ─────────────────────────────────────────────────────────────────
+  let paymentConditions;
+  if (formData.paymentMethod === "chequeVirement") {
+    paymentConditions = (
+      <>
+        <p>
+          <strong>Règlement par Chèque / Virement.</strong>
+        </p>
+        <p>
+          Vous disposez de 15 jours pour envoyer votre règlement à partir de la
+          réception du prix total, faute de quoi l’inscription sera annulée.
+        </p>
+        <p>
+          Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90
+          jours avant le séjour. Au-delà, se reporter aux CGV.
+        </p>
+      </>
+    );
+  } else {
+    paymentConditions = (
+      <>
+        <p>
+          <strong>Règlement par Carte Bancaire.</strong>
+        </p>
+        <p>
+          Vous disposez de 48h dès réception du lien pour procéder au paiement, il
+          vous est possible de régler en 3X sans frais avec notre partenaire
+          Klarna.
+        </p>
+        <p>
+          Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90
+          jours avant le séjour. Au-delà, se reporter aux CGV.
+        </p>
+        <p>
+          Les paiements en CB sont gérés par nos partenaires :
+        </p>
+      </>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 6) Construire la chaîne de prix (ex: "de 600 à 1200 €")
+  // ─────────────────────────────────────────────────────────────────
+  let calculatedPriceString = "";
+  if (parsedRange) {
+    calculatedPriceString = `de ${formatPriceRange(minEstime, maxEstime)} €`;
+  } else {
+    // Si on n'a pas pu parser (ou basePrice = "0-0"), on fait un fallback
+    calculatedPriceString = sejour.basePrice + " €";
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 7) useState + effet pour propager le priceString
+  // ─────────────────────────────────────────────────────────────────
+  const [priceString, setPriceString] = useState("");
+
+  useEffect(() => {
+    setPriceString(calculatedPriceString);
+    if (onEstimatedPriceChange) {
+      onEstimatedPriceChange(calculatedPriceString);
+    }
+  }, [calculatedPriceString, onEstimatedPriceChange]);
+
+  // ─────────────────────────────────────────────────────────────────
+  // 8) Rendu
+  // ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow mb-6">
-      {/* Mention paiement en 3 fois sans frais (affichage discret) */}
+      {/* Message sur Klarna */}
       <p className="text-center text-sm text-blue-700 mb-4">
-        Paiement en 3 fois sans frais possible par carte bancaire (choisir Klarna à la page suivante)
+        Paiement en 3 fois sans frais possible par carte bancaire (choisir Klarna lors du paiement)
       </p>
 
       <h2 className="text-2xl font-bold text-[#B8336A] mb-4">
@@ -41,9 +158,9 @@ export default function PaymentOptions({
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Colonne GAUCHE : Choix utilisateur */}
+        {/* Colonne GAUCHE */}
         <div className="flex flex-col divide-y divide-gray-200 pr-6 md:border-r border-gray-200">
-          {/* Méthode de paiement */}
+          {/* Choix de paiement */}
           <div className="py-4">
             <p className="text-sm font-semibold mb-2">
               Méthode de paiement<span className="text-red-500 ml-1">*</span> :
@@ -80,7 +197,7 @@ export default function PaymentOptions({
             </div>
           </div>
 
-          {/* Assurance annulation (facultative) */}
+          {/* Assurance annulation */}
           <div className="py-4 flex items-start">
             <input
               type="checkbox"
@@ -109,7 +226,7 @@ export default function PaymentOptions({
             </label>
           </div>
 
-          {/* CGV, Documents, Rétractation et RGPD */}
+          {/* CGV, docs, noWithdrawal, RGPD */}
           <div className="py-4 text-xs space-y-2">
             <div className="flex items-center">
               <input
@@ -182,7 +299,7 @@ export default function PaymentOptions({
             <p className="mt-2 pt-4">
               <Link
                 href="/aide-financement"
-                className="text-xl text-center font-bold font-poppins cursor-pointer md:w-auto text-[#B8336A] hover:text-[#A2225A] transition duration-300"
+                className=" text-center font-bold font-poppins cursor-pointer md:w-auto text-[#B8336A] hover:text-[#A2225A] transition duration-300"
               >
                 <span>
                   Si vous êtes éligible à une aide (Pass Colo, VACAF, etc.), nous contacter !
@@ -192,58 +309,45 @@ export default function PaymentOptions({
           </div>
         </div>
 
-        {/* Colonne DROITE : Détails & récapitulatif */}
+        {/* Colonne DROITE : Détail du prix */}
         <div className="space-y-4 md:pl-6">
-          {/* Détail du prix */}
           <div className="border border-gray-200 p-4 rounded text-sm">
             <h3 className="text-lg font-bold mb-3">Détail du prix</h3>
+
             <div className="border-b border-gray-200 py-2 flex justify-between">
               <span>Prix de base</span>
-              <span>{basePrice} €</span>
+              <span>{sejour.basePrice} €</span>
             </div>
+            {discountLine}
             <div className="border-b border-gray-200 py-2 flex justify-between">
-              <span>Transport A/R vers {urlCity || "Sur place"}</span>
+              <span>Transport</span>
               <span>{transportFee} €</span>
             </div>
             <div className="border-b border-gray-200 py-2 flex justify-between">
               <span>Assurance annulation</span>
               <span>{formData.insuranceOpted ? insuranceFee : 0} €</span>
             </div>
+
             <div className="pt-3 flex justify-end">
               <div className="text-right">
-                <p className="text-sm uppercase font-light">Total</p>
+                <p className="text-sm uppercase font-light">Total estimé</p>
                 <p className="text-xl font-extrabold text-[#B8336A]">
-                  {computedTotalPrice} €
+                  {calculatedPriceString}
+                </p>
+                <span className="text-xs mt-1 text-gray-600">Par enfant</span>
+                <p className="text-xs mt-1 text-gray-600">
+                  Le total définitif sera calculé sous 24h,<br />
+                  et un lien vous sera envoyé !
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Informations paiement */}
-          <div className="border border-gray-200 p-4 rounded text-xs leading-snug">
-            <strong>Paiement en une fois :</strong>
-            <br />
-            Le montant total doit être payé dès la réservation.
-            <br />
-            Règlement par{" "}
-            {formData.paymentMethod === "CB"
-              ? "Carte Bancaire"
-              : "Chèque / Virement"}
-            .{" "}
-            {formData.paymentMethod === "chequeVirement" && (
-              <span className="block mt-1">
-                Vous disposez de <strong>15 jours</strong> pour envoyer votre règlement, faute de quoi l’inscription sera annulée.
-              </span>
-            )}
-            <br />
-            Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90 jours avant le séjour. Au-delà, se reporter aux CGV.
-            
-            {/* Affichage des logos uniquement si paiement par CB */}
+          <div className="border border-gray-200 p-4 rounded text-xs leading-snug whitespace-pre-line">
+            {paymentConditions}
+
             {formData.paymentMethod === "CB" && (
-              <div className="mt-4">
-                <p className="text-center text-sm mb-2">
-                  Les paiements en CB sont gérés par nos partenaires :
-                </p>
+              <div className="mt-4 text-center">
                 <div className="flex items-center justify-center space-x-4">
                   <a
                     href="https://www.klarna.com/fr/politique-de-protection-de-lacheteur-klarna/"
@@ -277,4 +381,28 @@ export default function PaymentOptions({
       </div>
     </div>
   );
+}
+
+/** 
+ * parseBasePriceRange:
+ * Ex: "590-1200", "590 à 1200", "590 / 1200" => { min: 590, max: 1200 }
+ */
+function parseBasePriceRange(basePriceStr) {
+  const match = basePriceStr.match(/(\d+)\D+(\d+)/);
+  if (!match) return null;
+  const min = parseFloat(match[1]);
+  const max = parseFloat(match[2]);
+  if (isNaN(min) || isNaN(max)) return null;
+  return { min, max };
+}
+
+/**
+ * formatPriceRange:
+ * Ex: min=600, max=1200 => "600 à 1200"
+ */
+function formatPriceRange(minVal, maxVal) {
+  const minStr = Math.round(minVal);
+  const maxStr = Math.round(maxVal);
+  if (minStr === maxStr) return minStr.toString();
+  return `${minStr} à ${maxStr}`;
 }

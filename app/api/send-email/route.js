@@ -26,7 +26,8 @@ export async function POST(request) {
       numeroDeReservation,
       lienAcces,
 
-      // mineur, legal, options, payment, sejour
+      // Pour "reservation" : mineur, legal, options, payment, sejour
+      // Pour la partie mineur, nous vérifions si un tableau "children" est fourni
       minor,
       legal,
       options,
@@ -80,19 +81,72 @@ export async function POST(request) {
         <p><strong>Prénom :</strong> ${prenom}</p>
         <p><strong>Email :</strong> ${email}</p>
         <p><strong>Téléphone :</strong> ${telephone}</p>
-        <p><strong>Message :</strong> ${message}</p>
+        <p><strong>Message :</strong><br/>${message}</p>
       `;
     } else if (formType === "reservation") {
-      // (1) Email Admin
+      // (1) Email Admin enrichi
+
       adminSubject = `Nouvelle réservation No. ${numeroDeReservation || "???"}`;
       adminHtmlContent = `
         <h1 style="color:#B8336A;">Nouvelle réservation</h1>
-        <p><strong>Numéro de résa :</strong> ${numeroDeReservation || "???"}</p>
+        <p><strong>Numéro de réservation :</strong> ${numeroDeReservation || "???"}</p>
         <p><strong>Réservation ID :</strong> ${reservationId || "???"}</p>
-        <p>Lien d'accès éventuel : ${lienAcces || "N/A"}</p>
+        <p><strong>Lien d'accès éventuel :</strong> ${lienAcces || "N/A"}</p>
+        <hr/>
+        <h2>Informations des enfants</h2>
+        ${
+          minor && Array.isArray(minor.children) && minor.children.length
+            ? minor.children
+                .map(
+                  (child, i) => `
+            <p>
+              <strong>Enfant ${i + 1} :</strong> ${child.firstName} ${child.lastName}, né(e) le ${child.birthDate}, 
+              Lieu de naissance : ${child.birthPlace || "Non renseigné"}, 
+              Adresse : ${child.address}, ${child.postalCode} ${child.city}
+            </p>
+          `
+                )
+                .join("")
+            : `<p><strong>Mineur :</strong> ${minor.firstName || ""} ${minor.lastName || ""}, né(e) le ${minor.birthDate || ""}, 
+                  Lieu de naissance : ${minor.birthPlace || "Non renseigné"}, 
+                  Adresse : ${minor.address || ""}, ${minor.postalCode || ""} ${minor.city || ""}</p>`
+        }
+        <hr/>
+        <h2>Informations du responsable légal</h2>
+        <p><strong>Nom :</strong> ${legal.firstName || ""} ${legal.lastName || ""}</p>
+        <p><strong>Relation :</strong> ${legal.relation || ""} ${
+        legal.relationOther ? "(" + legal.relationOther + ")" : ""
+      }</p>
+        <p><strong>Email :</strong> ${legal.email || ""}</p>
+        <p><strong>Téléphone :</strong> ${legal.phone || ""}</p>
+        <p><strong>Adresse :</strong> ${
+          legal.address
+            ? legal.address + ", " + legal.postalCode + " " + legal.city
+            : "Même que le mineur"
+        }</p>
+        <p><strong>Code promo / Parrain :</strong> ${legal.promoCode || "Non renseigné"}</p>
+        <p><strong>Numéro CAF ou Sécu :</strong> ${legal.cafOrSecu || "Non renseigné"}</p>
+        <p><strong>Justificatif :</strong> ${
+          legal.justificatif ? legal.justificatif.name : "Aucun"
+        }</p>
+        <hr/>
+        <h2>Récapitulatif du paiement</h2>
+        <p><strong>Méthode de paiement :</strong> ${
+          options.paymentMethod === "chequeVirement" ? "Chèque / Virement" : "Carte bancaire"
+        }</p>
+        <p><strong>Option de paiement :</strong> ${
+          options.paymentOption === "oneTime"
+            ? "Paiement en une fois"
+            : options.paymentOption === "twoTimes"
+            ? "Paiement en deux fois"
+            : options.paymentOption || "Inconnu"
+        }</p>
+        <p><strong>Montant total :</strong> ${payment.basePrice || 0} €</p>
+        <p><strong>Acompte :</strong> ${payment.depositValue || 0} €</p>
+        <p><strong>Assurance :</strong> ${payment.insuranceFee || 0} €</p>
       `;
 
-      // (2) Email Utilisateur
+      // (2) Email Utilisateur stylé
       userSubject = `Colocrew - Confirmation de réservation No. ${numeroDeReservation || "???"}`;
       userHtmlContent = buildReservationEmail({
         numeroDeReservation,
@@ -103,7 +157,6 @@ export async function POST(request) {
         payment,
         sejour,
       });
-
       userMailOptions = {
         from: `"Colocrew Réservation" <contact@colocrew.com>`,
         to: legal?.email || email || "inconnu@na.com",
@@ -117,7 +170,7 @@ export async function POST(request) {
       );
     }
 
-    // 3) Configurer l'e-mail admin
+    // 3) Configurer l'e-mail admin (on ne modifie pas ce qui existe déjà)
     const adminMailOptions = {
       from: `"Colocrew Réservation" <contact@colocrew.com>`,
       to: "contact@colocrew.com",
@@ -128,7 +181,6 @@ export async function POST(request) {
     // 4) Envoi des mails
     // (a) Envoyer l'email admin
     await transporter.sendMail(adminMailOptions);
-
     // (b) Si c'est une réservation, envoyer l'email utilisateur
     if (formType === "reservation" && userMailOptions) {
       await transporter.sendMail(userMailOptions);
@@ -150,7 +202,7 @@ export async function POST(request) {
 /**
  * buildReservationEmail : génère l'HTML final pour la "reservation"
  * Couleurs : #B8336A, #A2225A
- * Récapitulatif : Séjour (dates, tranche d'âge), Mineur, Responsable, Paiement
+ * Récapitulatif : Séjour (dates, tranche d'âge), Informations des enfants, Responsable légal, Paiement et lien d'accès.
  */
 function buildReservationEmail({
   numeroDeReservation,
@@ -165,43 +217,48 @@ function buildReservationEmail({
   const colorPrimary = "#B8336A";
   const colorSecondary = "#A2225A";
 
-  // Récap Paiement
+  // Format des dates en français
+  const formatDateFR = (isoString) => {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const startDate = formatDateFR(sejour?.startDate);
+  const endDate = formatDateFR(sejour?.endDate);
+  const ageGroup = sejour?.ageGroup || "";
+
+  // Traduction des options de paiement
+  const paymentMethodLabel = options.paymentMethod === "chequeVirement" ? "Chèque / Virement" : "Carte bancaire";
+  const paymentOptionLabel =
+    options.paymentOption === "oneTime"
+      ? "Paiement en une fois"
+      : options.paymentOption === "twoTimes"
+      ? "Paiement en deux fois"
+      : options.paymentOption || "Inconnu";
   const total = payment.basePrice || 0;
   const deposit = payment.depositValue || 0;
   const insurance = payment.insuranceFee || 0;
 
-  // Payment Option => traduction
-  let paymentOptionLabel = "";
-  if (options.paymentOption === "oneTime") {
-    paymentOptionLabel = "Paiement en une fois";
-  } else if (options.paymentOption === "twoTimes") {
-    paymentOptionLabel = "Paiement en deux fois";
-  } else {
-    paymentOptionLabel = options.paymentOption || "Inconnu";
-  }
-
-  // Payment Method => traduction
-  let paymentMethodLabel = options.paymentMethod;
-  if (options.paymentMethod === "chequeVirement") {
-    paymentMethodLabel = "Chèque ou virement";
-  } else if (options.paymentMethod === "CB") {
-    paymentMethodLabel = "Carte bancaire";
-  }
-
-  // Message selon la méthode de paiement
+  // Message spécifique selon la méthode de paiement
   let paymentMsg = "";
   if (options.paymentMethod === "CB") {
     paymentMsg = `
       <p style="color:${colorPrimary}; font-weight:bold;">
         Vous avez choisi le paiement par <u>carte bancaire</u>.<br/>
         Un email de confirmation Stripe vous sera envoyé sous peu.
-      </p>`;
+      </p>
+    `;
   } else {
     paymentMsg = `
       <p style="color:${colorPrimary}; font-weight:bold;">
         Vous avez choisi le paiement par <u>chèque ou virement</u>.<br/>
-        Vous disposez de 15 jours pour nous faire parvenir votre règlement,
-        faute de quoi la réservation sera annulée.
+        Vous disposez de 15 jours pour nous faire parvenir votre règlement.
       </p>
       <div style="margin:10px 0; padding:10px; border:1px dashed ${colorPrimary};">
         <p style="margin:0 0 5px 0;">
@@ -226,185 +283,145 @@ FR7616958000015867806033040
     `;
   }
 
-  // Format des dates en français
-  const formatDateFR = (isoString) => {
-    if (!isoString) return "";
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString; // fallback si invalide
-    return d.toLocaleDateString("fr-FR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  };
-
-  const startDate = formatDateFR(sejour?.startDate);
-  const endDate = formatDateFR(sejour?.endDate);
-  const ageGroup = sejour?.ageGroup || "";
-
   return `
-  <div style="font-family: Arial, sans-serif; max-width:800px; margin: auto; border:1px solid #ddd; border-radius:8px; overflow:hidden;">
+  <div style="font-family: Arial, sans-serif; max-width:800px; margin:auto; border:1px solid #ddd; border-radius:8px; overflow:hidden;">
     <!-- Header -->
     <div style="background: ${colorPrimary}; padding:20px; text-align:center;">
       <h1 style="color:#fff; margin:0;">Confirmation de réservation</h1>
-      <p style="color:#fff; margin:5px 0;">
-        No. ${numeroDeReservation || "???"}
-      </p>
+      <p style="color:#fff; margin:5px 0;">No. ${numeroDeReservation || "???"}</p>
     </div>
-
     <!-- Contenu -->
     <div style="background:#fff; padding:20px;">
-      <h2 style="color:${colorPrimary}; margin-top:0;">
-        Récapitulatif du séjour
-      </h2>
+      <h2 style="color:${colorPrimary}; margin-top:0;">Récapitulatif du séjour</h2>
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Séjour</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${sejour.urlSejour || "Inconnu"}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${sejour.urlSejour || "Inconnu"}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Date de début</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${startDate || "Non renseignée"}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${startDate || "Non renseignée"}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Date de fin</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${endDate || "Non renseignée"}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${endDate || "Non renseignée"}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Tranche d'âge</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${ageGroup || "Non renseignée"}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${ageGroup || "Non renseignée"}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Ville de départ</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${sejour.urlCity || "Sur place"}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${sejour.urlCity || "Sur place"}</td>
         </tr>
       </table>
 
-      <h2 style="color:${colorPrimary}; margin-top:0;">
-        Informations du mineur
-      </h2>
-      <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
-        <tr>
-          <td style="border:1px solid #eee; padding:8px;">Prénom</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${minor.firstName || ""}
-          </td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #eee; padding:8px;">Nom</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${minor.lastName || ""}
-          </td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #eee; padding:8px;">Date de naissance</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${minor.birthDate || ""}
-          </td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #eee; padding:8px;">Lieu de naissance</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${minor.birthPlace || ""}
-          </td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #eee; padding:8px;">Adresse</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${(minor.address || "") + ", " + (minor.postalCode || "") + " " + (minor.city || "")}
-          </td>
-        </tr>
-      </table>
+      <h2 style="color:${colorPrimary}; margin-top:0;">Informations des enfants</h2>
+      ${
+        minor && Array.isArray(minor.children) && minor.children.length
+          ? minor.children
+              .map(
+                (child, i) => `
+          <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+            <tr>
+              <td style="border:1px solid #eee; padding:8px;"><strong>Enfant ${i + 1} - Prénom</strong></td>
+              <td style="border:1px solid #eee; padding:8px;">${child.firstName || ""}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #eee; padding:8px;"><strong>Nom</strong></td>
+              <td style="border:1px solid #eee; padding:8px;">${child.lastName || ""}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #eee; padding:8px;"><strong>Date de naissance</strong></td>
+              <td style="border:1px solid #eee; padding:8px;">${child.birthDate || ""}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #eee; padding:8px;"><strong>Lieu de naissance</strong></td>
+              <td style="border:1px solid #eee; padding:8px;">${child.birthPlace || "Non renseigné"}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #eee; padding:8px;"><strong>Adresse</strong></td>
+              <td style="border:1px solid #eee; padding:8px;">${child.address}, ${child.postalCode} ${child.city}</td>
+            </tr>
+          </table>
+        `
+              )
+              .join("")
+          : `<p><strong>Mineur :</strong> ${minor.firstName || ""} ${minor.lastName || ""}, né(e) le ${minor.birthDate || ""}, 
+                Lieu de naissance : ${minor.birthPlace || "Non renseigné"}, 
+                Adresse : ${minor.address || ""}, ${minor.postalCode || ""} ${minor.city || ""}</p>`
+      }
 
-      <h2 style="color:${colorPrimary}; margin-top:0;">
-        Responsable légal
-      </h2>
+      <h2 style="color:${colorPrimary}; margin-top:0;">Responsable légal</h2>
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Prénom</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${legal.firstName || ""}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.firstName || ""}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Nom</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${legal.lastName || ""}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.lastName || ""}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Relation</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${(legal.relation || "") + (legal.relationOther ? " (" + legal.relationOther + ")" : "")}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.relation || ""} ${
+    legal.relationOther ? "(" + legal.relationOther + ")" : ""
+  }</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Email</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${legal.email || ""}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.email || ""}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Téléphone</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${legal.phone || ""}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.phone || ""}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Adresse</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${(legal.address || "Même que le mineur") + (legal.postalCode || "") + " " + (legal.city || "")}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${
+            legal.address
+              ? legal.address + ", " + legal.postalCode + " " + legal.city
+              : "Même que le mineur"
+          }</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Code promo / Parrain</td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.promoCode || "Non renseigné"}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Numéro CAF ou Sécu</td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.cafOrSecu || "Non renseigné"}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #eee; padding:8px;">Justificatif</td>
+          <td style="border:1px solid #eee; padding:8px;">${legal.justificatif ? legal.justificatif.name : "Aucun"}</td>
         </tr>
       </table>
 
-      <h2 style="color:${colorPrimary}; margin-top:0;">
-        Récapitulatif du paiement
-      </h2>
+      <h2 style="color:${colorPrimary}; margin-top:0;">Récapitulatif du paiement</h2>
       <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Méthode</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${paymentMethodLabel}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${paymentMethodLabel}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Option</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${paymentOptionLabel}
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${paymentOptionLabel}</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Montant total</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${total} €
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${total} €</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Acompte</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${deposit} €
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${deposit} €</td>
         </tr>
         <tr>
           <td style="border:1px solid #eee; padding:8px;">Assurance</td>
-          <td style="border:1px solid #eee; padding:8px;">
-            ${insurance} €
-          </td>
+          <td style="border:1px solid #eee; padding:8px;">${insurance} €</td>
         </tr>
       </table>
 
-      <!-- Message spécifique au mode de paiement -->
       ${paymentMsg}
 
       <p style="margin:20px 0;">
@@ -416,8 +433,7 @@ FR7616958000015867806033040
               <a href="${lienAcces}/?justCreated=true"
                  style="display:inline-block; background:${colorSecondary};
                         color:#fff; padding:12px 20px; text-decoration:none;
-                        border-radius:5px; font-weight:bold;"
-              >
+                        border-radius:5px; font-weight:bold;">
                 Accéder à ma réservation
               </a>
             </div>`

@@ -209,7 +209,7 @@ export default function SejoursList() {
                   {sejour.name}
                 </h2>
                 <div className="absolute top-4 right-4 bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-                  à partir de {sejour.basePrice} €
+                  {sejour.basePrice} €
                 </div>
               </div>
 

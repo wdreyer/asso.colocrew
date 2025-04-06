@@ -3,23 +3,29 @@
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import ReservationCard from "./ReservationCard";
-import ReactMarkdown from "react-markdown"; // Pour rendre le Markdown
-// On n'utilise plus remark-breaks afin de conserver le comportement standard
+import ReactMarkdown from "react-markdown";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 
 export default function SejourTabs({
   sections,
   sejour,
+  // States liés à la réservation
   selectedDate,
-  selectedCity,
   selectedAgeGroup,
   reservationPrice,
   handleDateChange,
-  handleCityChange,
   handleAgeGroupChange,
   handleReservation,
+
+  // Transport
+  isRoundTrip,
+  onRoundTripChange,
+  selectedDepartureCity,
+  selectedReturnCity,
+  onDepartureCityChange,
+  onReturnCityChange,
 }) {
-  // Récupération des sous‑sections du résumé
+  // Récupération des sous-sections du résumé
   const summarySubsArray = sejour.summarySubsections || [];
 
   // Construction dynamique des onglets (Résumé puis Sections)
@@ -41,7 +47,7 @@ export default function SejourTabs({
 
   const [activeTab, setActiveTab] = useState(0);
 
-  // Référencer le conteneur de défilement des onglets
+  // Gestion du défilement horizontal des onglets
   const scrollContainerRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
@@ -58,7 +64,6 @@ export default function SejourTabs({
     };
 
     container.addEventListener("scroll", handleScroll);
-    // Initialisation
     handleScroll();
 
     return () => container.removeEventListener("scroll", handleScroll);
@@ -72,16 +77,13 @@ export default function SejourTabs({
     scrollContainerRef.current.scrollBy({ left: 100, behavior: "smooth" });
   };
 
-  // Fonction pour rendre une sous‑section
-  // Pour chaque portion de texte encadrée par "/p" ... "/p",
-  // on la remplace par le même contenu entouré de deux retours à la ligne.
-  // Ensuite, via ReactMarkdown, on redéfinit le rendu des paragraphes
-  // pour ajouter un <br> après chaque paragraphe.
+  // Fonction pour rendre une sous-section
   const renderSubSection = (sub, idx) => {
     const isOdd = idx % 2 === 1;
     const processedText = sub.text
       ? sub.text.replace(/\/p\s*(.*?)\s*\/p/g, "\n\n$1\n\n")
       : "";
+
     return (
       <div key={idx} className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className={`lg:col-span-2 ${isOdd ? "md:order-2" : "md:order-1"}`}>
@@ -101,7 +103,11 @@ export default function SejourTabs({
           </ReactMarkdown>
         </div>
         {sub.imageSrc && (
-          <div className={`relative w-full h-64 lg:col-span-1 ${isOdd ? "md:order-1" : "md:order-2"}`}>
+          <div
+            className={`relative w-full h-64 lg:col-span-1 ${
+              isOdd ? "md:order-1" : "md:order-2"
+            }`}
+          >
             <Image
               src={sub.imageSrc}
               alt={sub.title}
@@ -130,7 +136,7 @@ export default function SejourTabs({
       );
     } else {
       const section = sections && sections[activeTab - 1];
-      if (section && section.subSections && section.subSections.length > 0) {
+      if (section?.subSections?.length > 0) {
         return (
           <div>
             {section.subSections.map((sub, idx) => renderSubSection(sub, idx))}
@@ -143,7 +149,7 @@ export default function SejourTabs({
 
   return (
     <div className="max-w-7xl mx-auto my-4">
-      {/* Conteneur relatif pour les onglets et les flèches */}
+      {/* Conteneur des onglets + flèches */}
       <div className="relative">
         <div
           ref={scrollContainerRef}
@@ -181,19 +187,28 @@ export default function SejourTabs({
         )}
       </div>
 
+      {/* Contenu + Colonne ReservationCard */}
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-3">{renderContent()}</div>
+
         <div className="lg:col-span-1">
           <ReservationCard
             sejour={sejour}
+            // Date & âge
             selectedDate={selectedDate}
-            selectedCity={selectedCity}
             selectedAgeGroup={selectedAgeGroup}
-            reservationPrice={reservationPrice}
             handleDateChange={handleDateChange}
-            handleCityChange={handleCityChange}
             handleAgeGroupChange={handleAgeGroupChange}
+            reservationPrice={reservationPrice}
             handleReservation={handleReservation}
+
+            // Transport
+            isRoundTrip={isRoundTrip}
+            handleRoundTripChange={onRoundTripChange}
+            selectedDepartureCity={selectedDepartureCity}
+            selectedReturnCity={selectedReturnCity}
+            handleDepartureCityChange={onDepartureCityChange}
+            handleReturnCityChange={onReturnCityChange}
           />
         </div>
       </div>

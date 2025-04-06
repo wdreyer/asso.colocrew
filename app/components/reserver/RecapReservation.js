@@ -1,31 +1,28 @@
 "use client";
 
+import { useMemo } from "react";
 import Image from "next/image";
 import {
   FaCalendarAlt,
-  FaMapMarkerAlt,
   FaUserFriends,
   FaEuroSign,
+  FaTrain,
 } from "react-icons/fa";
 
 /**
- * Affiche un récapitulatif en gérant DEUX dates : urlStartDate, urlEndDate
+ * RecapReservation
+ * - Calcule localement le prix du transport (si on a sejour.stations).
+ * - Affiche basePrice (fourchette, etc.) pour le "Prix total" (avec astérisque).
  */
 export default function RecapReservation({
   sejour,
   urlStartDate,
   urlEndDate,
-  urlCity,
+  departureCity,
+  returnCity,
   urlAgeGroup,
-  basePrice,
-  computedTotalPrice,
 }) {
-  // Image du séjour ou fallback
-  const imageUrl =
-    sejour?.heroImage ||
-    "https://via.placeholder.com/800x600.png?text=Votre+S%C3%A9jour";
-
-  // Petite fonction pour parser la date en FR
+  // Convertit une date string en date FR
   function parseDateToFR(dateStr) {
     if (!dateStr) return "";
     const parsedDate = new Date(dateStr);
@@ -36,22 +33,48 @@ export default function RecapReservation({
         year: "numeric",
       });
     }
-    // Si la chaîne n'est pas une date valide, on la renvoie telle quelle
     return dateStr;
   }
 
-  // On combine start et end en une seule chaîne si les deux existent
   const displayedStart = parseDateToFR(urlStartDate);
   const displayedEnd = parseDateToFR(urlEndDate);
+  const displayedDates =
+    displayedStart && displayedEnd
+      ? `${displayedStart} au ${displayedEnd}`
+      : displayedStart || "Dates non renseignées";
 
-  let displayedDates = displayedStart;
-  if (displayedStart && displayedEnd) {
-    displayedDates = `${displayedStart} au ${displayedEnd}`;
-  }
+  // Prix "fourchette" (ou autre) lu directement dans sejour.basePrice
+  const priceDisplay = sejour?.basePrice
+    ? `${sejour.basePrice} €`
+    : "Non défini";
+
+  // Calcul local du transport
+  // Si departureCity === returnCity => plein tarif
+  // Sinon => moitiés
+  const transportFee = useMemo(() => {
+    if (!sejour?.stations) return 0;
+
+    const depStation = sejour.stations.find((s) => s.name === departureCity);
+    const retStation = sejour.stations.find((s) => s.name === returnCity);
+
+    const depPrice = depStation?.priceExtra || 0;
+    const retPrice = retStation?.priceExtra || 0;
+
+    if (departureCity === returnCity) {
+      return depPrice; // prix complet
+    } else {
+      return depPrice / 2 + retPrice / 2; // addition des moitiés
+    }
+  }, [departureCity, returnCity, sejour]);
+
+  // Image du séjour ou fallback
+  const imageUrl =
+    sejour?.heroImage ||
+    "https://via.placeholder.com/800x600.png?text=Votre+S%C3%A9jour";
 
   return (
     <div className="max-w-4xl mx-auto bg-white rounded shadow overflow-hidden md:flex">
-      {/* Colonne gauche : Infos */}
+      {/* Colonne infos */}
       <div className="p-4 md:p-6 md:w-1/2">
         <h2 className="text-2xl font-bold mb-4 text-[#B8336A]">
           Récapitulatif de votre réservation
@@ -62,23 +85,32 @@ export default function RecapReservation({
           <span className="w-6 h-6 inline-block mr-2 bg-[#B8336A] text-white rounded-full text-sm flex items-center justify-center font-bold">
             S
           </span>
-          <p className="font-medium">{sejour?.name}</p>
+          <p className="font-medium">{sejour?.name || "Nom du séjour"}</p>
         </div>
 
-        {/* Dates de séjour */}
+        {/* Dates */}
         <div className="flex items-center text-gray-700 mb-2">
           <FaCalendarAlt className="text-[#B8336A] mr-2" />
           <p>
-            <span className="font-semibold">Dates :</span>{" "}
-            {displayedDates || "Non renseignées"}
+            <span className="font-semibold">Dates :</span> {displayedDates}
           </p>
         </div>
 
-        {/* Ville de départ */}
+        {/* Aller */}
         <div className="flex items-center text-gray-700 mb-2">
-          <FaMapMarkerAlt className="text-[#B8336A] mr-2" />
+          <FaTrain className="text-[#B8336A] mr-2" />
           <p>
-            <span className="font-semibold">Ville de départ :</span> {urlCity}
+            <span className="font-semibold">Aller :</span>{" "}
+            {departureCity || "—"}
+          </p>
+        </div>
+
+        {/* Retour */}
+        <div className="flex items-center text-gray-700 mb-2">
+          <FaTrain className="text-[#B8336A] mr-2 rotate-180" />
+          <p>
+            <span className="font-semibold">Retour :</span>{" "}
+            {returnCity || "—"}
           </p>
         </div>
 
@@ -86,21 +118,37 @@ export default function RecapReservation({
         <div className="flex items-center text-gray-700 mb-2">
           <FaUserFriends className="text-[#B8336A] mr-2" />
           <p>
-            <span className="font-semibold">Tranche d’âge :</span> {urlAgeGroup} ans
+            <span className="font-semibold">Tranche d’âge :</span>{" "}
+            {urlAgeGroup ? `${urlAgeGroup} ans` : "—"}
           </p>
         </div>
 
-        {/* Prix total */}
+        {/* Prix total (pas calculé) */}
         <div className="flex items-center text-gray-700 mb-2">
           <FaEuroSign className="text-[#B8336A] mr-2" />
           <p>
-            <span className="font-semibold">Prix total :</span>{" "}
-            {computedTotalPrice} €
+            <span className="font-semibold">Prix total :</span> {priceDisplay}
+            <sup>*</sup>
           </p>
         </div>
+
+        {/* Transport (calcul local) */}
+        <div className="flex items-center text-gray-700 mb-2">
+          <FaTrain className="text-[#B8336A] mr-2" />
+          <p>
+            <span className="font-semibold">Transport :</span>{" "}
+            {transportFee.toFixed(2)} € {/* formatté en 2 décimales */}
+          </p>
+        </div>
+
+        {/* Note sur l'astérisque */}
+        <p className="text-xs mt-2 text-gray-500">
+          <sup>*</sup> Le prix total sera calculé en fonction des différentes
+          aides du quotient familial, des réductions, etc,
+        </p>
       </div>
 
-      {/* Colonne droite : Image */}
+      {/* Colonne image */}
       <div className="relative w-full h-52 md:h-auto md:w-1/2">
         <Image
           src={imageUrl}
