@@ -318,7 +318,7 @@ export default function ReservationPage({ params }) {
                 </p>
                 <p>
                   <strong>Relation :</strong>{" "}
-                  {legal.relationOther || legal.relation}
+                  {legal.relation || ""}
                 </p>
                 {/* Code promo */}
                 {legal.cafOrSecu && (
@@ -336,6 +336,11 @@ export default function ReservationPage({ params }) {
                     <strong>Adresse différente :</strong> {legal.address}, {legal.city} {legal.postalCode}
                   </p>
                 )}
+                {legal.message && (
+                  <p>
+                    <strong>Message :</strong> {legal.message}
+                  </p>
+                )}
                 {/* Lien PDF */}
                 {legal.justificatifUrl && (
                   <p>
@@ -350,12 +355,7 @@ export default function ReservationPage({ params }) {
                     </a>
                   </p>
                 )}
-                {/* Message du responsable */}
-                {legal.message && (
-                  <p>
-                    <strong>Message du responsable :</strong> {legal.message}
-                  </p>
-                )}
+               
               </>
             ) : (
               <p>Aucune information sur le responsable légal.</p>

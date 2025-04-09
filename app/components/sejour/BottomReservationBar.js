@@ -265,7 +265,7 @@ export default function BottomReservationBar({
             </div>
             <button
               onClick={handleReservation}
-              className="w-full px-4 py-1 bg-[#B8336A] text-white rounded-md
+              className="w-full px-4 cursor-pointer py-1 bg-[#B8336A] text-white rounded-md
                          hover:bg-[#A2225A] transition duration-300 text-sm md:text-base
                          flex items-center justify-center"
             >
@@ -415,7 +415,7 @@ export default function BottomReservationBar({
             </div>
             <button
               onClick={handleReservation}
-              className="bg-[#B8336A] text-white rounded-md hover:bg-[#A2225A] transition
+              className="bg-[#B8336A] text-white cursor-pointer rounded-md hover:bg-[#A2225A] transition
                          duration-300 text-sm md:text-base py-2 px-4"
             >
               Réserver

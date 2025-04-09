@@ -1,93 +1,83 @@
 "use server";
 
 import { NextResponse } from "next/server";
-import { db, storage } from "@/app/firebase"; // client SDK (assurez-vous qu'il marche en SSR)
+import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
 import { collection, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import crypto from "crypto";
 
 export async function POST(request) {
   try {
-    // ─────────────────────────────────────────────────────
-    // 1) RÉCUPÉRER LE FormData (PDF + JSON)
-    // ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────
+    // 1) Récupérer le FormData (PDF + JSON)
+    // ───────────────────────────────────────────────
     const data = await request.formData();
 
-
-
-    // Récupération du PDF
+    // Récupération du PDF (justificatif) s'il est fourni
     const file = data.get("file");
     let pdfUrl = "";
-
     if (file && file.name) {
-      // Convertir en ArrayBuffer puis en Uint8Array
       const arrayBuffer = await file.arrayBuffer();
       const fileBytes = new Uint8Array(arrayBuffer);
-
-      // Nom unique
       const uniqueFileName = `${Date.now()}-${file.name}`;
-
-      // Référence Storage
       const fileRef = ref(storage, `justificatifs/${uniqueFileName}`);
-
-      // Upload
       await uploadBytes(fileRef, fileBytes);
-
-      // URL de téléchargement
       pdfUrl = await getDownloadURL(fileRef);
     }
 
-    // Récupération des champs JSON
+    // Récupération du champ JSON contenant toutes les infos
     const fields = data.get("fields");
     if (!fields) {
-      return NextResponse.json({ error: "Aucun champ JSON (fields)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Aucun champ JSON (fields)" },
+        { status: 400 }
+      );
     }
-
     const body = JSON.parse(fields);
 
-    // ─────────────────────────────────────────────────────
-    // 2) EXTRAIRE LES DONNÉES (AVEC VALEURS PAR DÉFAUT)
-    // ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────
+    // 2) EXTRAIRE LES DONNÉES PASSÉES À L'API
+    // ───────────────────────────────────────────────
     const {
-      // Objets
+      // Informations sur le(s) enfant(s)
       minor = {},
+      // Coordonnées et informations du responsable légal
       legal = {},
-      // Booléens/options
+      // Options / consentements
       insuranceOpted = false,
       acceptedCGV = false,
       acceptedDocs = false,
       acceptedNoWithdrawal = false,
       acceptedRGPD = false,
-      // Méthodes & status
+      // Infos de paiement
       paymentMethod = "CB",
       paymentStatus = "not_paid",
-      // Prix & calculs
       computedTotalPrice = 0,
       insuranceFee = 0,
       transportFee = 0,
       estimatedPriceString = "",
-      // Séjour
+      // Informations sur le séjour
       urlSejour = "",
       urlStartDate = "",
       urlEndDate = "",
       urlAgeGroup = "",
-      // Villes
+      // Villes de départ et de retour
       departureCity = "",
       returnCity = "",
       // Nombre d'enfants
       numberOfChildren = "1",
     } = body;
 
-    // ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────
     // 3) CONSTRUIRE LES OBJETS SANS undefined
-    // ─────────────────────────────────────────────────────
-    // A) mineur (plusieurs enfants)
+    // ───────────────────────────────────────────────
+    // A) Informations sur le(s) enfant(s)
     const safeMinor = {
       numberOfChildren,
       children: minor.children || [],
     };
 
-    // B) legal (PDF dans justificatifUrl)
+    // B) Coordonnées du responsable légal (avec l'URL du PDF uploadé)
     const safeLegal = {
       firstName: legal.firstName || "",
       lastName: legal.lastName || "",
@@ -101,11 +91,11 @@ export async function POST(request) {
       postalCode: legal.postalCode || "",
       promoCode: legal.promoCode || "",
       cafOrSecu: legal.cafOrSecu || "",
-      justificatifUrl: pdfUrl, // URL PDF si upload
-      message : legal.message || "",
+      justificatifUrl: pdfUrl,
+      message: legal.message || "",
     };
 
-    // C) options (assurance, consentements)
+    // C) Options et consentements
     const safeOptions = {
       insuranceOpted,
       paymentMethod,
@@ -115,42 +105,40 @@ export async function POST(request) {
       acceptedRGPD,
     };
 
-    // D) payment
+    // D) Informations de paiement
     const safePayment = {
       totalPrice: Number(computedTotalPrice) || 0,
       estimatedPriceString,
-      basePrice: Number(computedTotalPrice) || 0, // vous pouvez ajuster si besoin
+      basePrice: Number(computedTotalPrice) || 0,
       transportFee: Number(transportFee) || 0,
       insuranceFee: insuranceOpted ? Number(insuranceFee) : 0,
       paymentStatus,
       alreadyPaid: 0,
     };
 
-    // E) sejour
+    // E) Informations sur le séjour
     const safeSejour = {
-      name: urlSejour, // nom du séjour
+      name: urlSejour,
       startDate: urlStartDate,
       endDate: urlEndDate,
       ageGroup: urlAgeGroup,
     };
 
-    // F) transport (départ/arrivée)
+    // F) Informations de transport (villes de départ et de retour)
     const safeTransport = {
       departureCity,
       returnCity,
-      fee: Number(transportFee) || 0, // pour rappel
+      fee: Number(transportFee) || 0,
     };
 
-    // ─────────────────────────────────────────────────────
-    // Vérification minimale : email obligatoire
-    // ─────────────────────────────────────────────────────
+    // Vérification minimale : l'email du responsable légal est obligatoire
     if (!safeLegal.email) {
       return NextResponse.json({ error: "Email manquant" }, { status: 400 });
     }
 
-    // ─────────────────────────────────────────────────────
-    // 4) GÉNÉRER UNE RÉSERVATION
-    // ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────
+    // 4) GÉNÉRER UN IDENTIFIANT UNIQUE ET UN NUMÉRO DE RÉSERVATION
+    // ───────────────────────────────────────────────
     const tokenUnique = crypto.randomBytes(16).toString("hex");
     const now = new Date();
     const day = now.getDate().toString().padStart(2, "0");
@@ -158,6 +146,9 @@ export async function POST(request) {
     const lastNamePart = safeLegal.lastName.substring(0, 3).toUpperCase();
     const numeroDeReservation = `RES-${day}${month}${lastNamePart}`;
 
+    // ───────────────────────────────────────────────
+    // 5) CONSTRUIRE L'OBJET DE RÉSERVATION
+    // ───────────────────────────────────────────────
     const newReservation = {
       minor: safeMinor,
       legal: safeLegal,
@@ -168,17 +159,47 @@ export async function POST(request) {
       tokenUnique,
       createdAt: new Date().toISOString(),
       status: "pending",
-      numeroDeReservation
+      numeroDeReservation,
     };
 
-    // ─────────────────────────────────────────────────────
-    // 5) ENREGISTRER DANS FIRESTORE
-    // ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────
+    // 6) ENREGISTRER LA RÉSERVATION DANS FIRESTORE
+    // ───────────────────────────────────────────────
     const docRef = await addDoc(collection(db, "reservations"), newReservation);
 
-    // ─────────────────────────────────────────────────────
-    // 6) RÉPONDRE (vous pouvez ajouter l'envoi d'email ici)
-    // ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────
+    // 7) ENVOYER UN EMAIL DE CONFIRMATION
+    // ───────────────────────────────────────────────
+    // On construit l'URL d'accès à la réservation (baseUrl défini dans l'environnement)
+    const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+    const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
+
+    // Appel de l'API d'envoi d'email (vous pouvez adapter l'URL ou le endpoint)
+    const sendMailRes = await fetch(`${baseUrl}/api/mail-resa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        formType: "reservation",
+        reservationId: docRef.id,
+        numeroDeReservation,
+        lienAcces,
+        minor: newReservation.minor,
+        legal: newReservation.legal,
+        options: newReservation.options,
+        payment: newReservation.payment, // contient basePrice, depositValue, insuranceFee, totalPrice, transportFee, etc.
+        sejour: newReservation.sejour,
+        transport: newReservation.transport,
+        estimatedPriceString: newReservation.payment.estimatedPriceString // estimation du prix (texte)
+      }),
+    });
+
+    if (!sendMailRes.ok) {
+      console.error("Erreur lors de l'envoi d'email:", await sendMailRes.text());
+    }
+
+    // ───────────────────────────────────────────────
+    // 8) RÉPONDRE
+    // ───────────────────────────────────────────────
     return NextResponse.json({
       message: "Réservation créée avec succès",
       reservationId: docRef.id,
@@ -190,45 +211,3 @@ export async function POST(request) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
-
-
-
-
-
-
-// documents: {
-//   ficheSanitaire: { uploaded: false, url: "" },
-//   traitementsOrdonnances: { uploaded: false, url: "" },
-//   photocopieCarnetVaccination: { uploaded: false, url: "" },
-//   conditionsVentes: { uploaded: false, url: "" },
-//   charteParticipant: { uploaded: false, url: "" },
-//   photocopieIdentite: { uploaded: false, url: "" },
-//   passNautique: { uploaded: false, url: "" },
-//   attestationResponsabiliteCivile: { uploaded: false, url: "" },
-//   attestationComplementaireSante: { uploaded: false, url: "" },
-//   ficheInscription: { uploaded: false, url: "" },
-// },
-
-    // ─────────────────────────────────────────────────────
-    // 6) ENVOYER L'EMAIL DE CONFIRMATION
-    // ─────────────────────────────────────────────────────
-    // const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
-    // const sendMailRes = await fetch(`${baseUrl}/api/send-email`, {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({
-    //     formType: "reservation",
-    //     reservationId: docRef.id,
-    //     numeroDeReservation,
-    //     lienAcces,
-    //     minor: newReservation.minor,
-    //     legal: newReservation.legal,
-    //     options: newReservation.options,
-    //     payment: newReservation.payment,
-    //     sejour: newReservation.sejour,
-    //   }),
-    // });
-
-    // if (!sendMailRes.ok) {
-    //   console.error("Erreur lors de l'envoi d'email:", await sendMailRes.text());
-    // }

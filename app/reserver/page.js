@@ -36,21 +36,33 @@ function handleNestedChange(e, setFormData) {
   }
 }
 
+// Modal de traitement
+function ProcessingModal() {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white p-8 rounded-lg shadow-lg text-center">
+        <Spinner />
+        <h2 className="text-xl font-bold mt-4" style={{ color: "#B8336A" }}>
+          Votre réservation est en cours de traitement...
+        </h2>
+        <p className="text-gray-600 mt-2">
+          Veuillez patienter quelques instants.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function ReservationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [estimatedPriceString, setEstimatedPriceString] = useState("");
 
-  console.log(estimatedPriceString)
-
-  // 1) RÉCUPÉRER LES PARAMÈTRES DANS L'URL
+  // 1) Récupérer les paramètres dans l'URL
   const urlSejour = searchParams.get("sejour") || "";
   const urlStartDate = searchParams.get("startDate") || "";
   const urlEndDate = searchParams.get("endDate") || "";
   const urlAgeGroup = searchParams.get("ageGroup") || "";
-
-  // (Transport)
   const urlDepartureCity = searchParams.get("departureCity") || "";
   const urlReturnCity = searchParams.get("returnCity") || "";
 
@@ -58,48 +70,49 @@ function ReservationPageContent() {
   const [sejour, setSejour] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 2) FORM DATA
+  // 2) FORM DATA avec valeurs vides
   const initialFormData = {
     minor: {
       children: [
         {
-          firstName: "Alice",
-          lastName: "Dupont",
-          birthDate: "2015-01-01",
-          birthPlace: "Paris",
-          address: "10 Rue de l'École",
-          city: "Paris",
-          postalCode: "75001",
+          firstName: "",
+          lastName: "",
+          birthDate: "",
+          birthPlace: "",
+          address: "",
+          city: "",
+          postalCode: "",
         },
       ],
     },
-    numberOfChildren: "1",
+    numberOfChildren: "",
     legal: {
-      firstName: "Sophie",
-      lastName: "Martin",
-      phone: "0601020304",
-      email: "sophie.martin@example.com",
-      relation: "mère",
-      relationOther: "",
+      firstName: "",
+      lastName: "",
+      phone: "",
+      email: "",
+      relation: "",
       addressDifferent: false,
       address: "",
       city: "",
       postalCode: "",
       promoCode: "",
       cafOrSecu: "",
-      justificatif: null, // Fichier PDF si besoin
+      justificatif: null, // Aucun fichier
+      message: "",
     },
-    insuranceOpted: true,
-    paymentMethod: "CB", // ou "chequeVirement", etc.
+    insuranceOpted: false,
+    paymentMethod: "CB",
     acceptedCGV: false,
     acceptedDocs: false,
     acceptedNoWithdrawal: false,
     acceptedRGPD: false,
   };
+
   const [formData, setFormData] = useState(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 3) CHARGER LE SÉJOUR DEPUIS FIRESTORE
+  // 3) Charger le séjour depuis Firestore
   useEffect(() => {
     async function fetchSejour() {
       if (!urlSejour) {
@@ -125,9 +138,8 @@ function ReservationPageContent() {
     fetchSejour();
   }, [urlSejour]);
 
-  // 4) CALCUL DU PRIX (exemple simplifié)
+  // 4) Calcul du prix (exemple simplifié)
   const handleChange = (e) => handleNestedChange(e, setFormData);
-
   const insuranceFee = 58.86;
   const basePrice = sejour ? Number(sejour.basePrice) : 1000;
 
@@ -135,11 +147,9 @@ function ReservationPageContent() {
   let effectiveTransportFee = 0;
   if (sejour?.stations) {
     if (urlDepartureCity === urlReturnCity) {
-      // Même ville => prixExtra complet
       const station = sejour.stations.find((st) => st.name === urlDepartureCity);
       effectiveTransportFee = station ? station.priceExtra : 0;
     } else {
-      // 2 villes => moitiés
       const dep = sejour.stations.find((st) => st.name === urlDepartureCity);
       const ret = sejour.stations.find((st) => st.name === urlReturnCity);
       const depPrice = dep ? dep.priceExtra : 0;
@@ -151,18 +161,16 @@ function ReservationPageContent() {
   const nbChildren = parseInt(formData.numberOfChildren, 10);
   let totalBeforeInsurance = basePrice + effectiveTransportFee;
   if (nbChildren === 2) {
-    totalBeforeInsurance *= 0.95; // 5% de réduction
+    totalBeforeInsurance *= 0.95;
   } else if (nbChildren >= 3) {
-    totalBeforeInsurance *= 0.9; // 10% de réduction
+    totalBeforeInsurance *= 0.9;
   }
   const computedTotalPrice =
     totalBeforeInsurance + (formData.insuranceOpted ? insuranceFee : 0);
 
-  // 5) VALIDATION DU FORMULAIRE (simplifiée)
+  // 5) Validation du formulaire (simplifiée)
   const validateForm = () => {
     const errors = [];
-
-    // Champs enfants obligatoires
     if (
       formData.minor.children.some(
         (child) =>
@@ -174,12 +182,8 @@ function ReservationPageContent() {
           !child.postalCode
       )
     ) {
-      errors.push(
-        "Veuillez remplir tous les champs obligatoires pour chaque enfant."
-      );
+      errors.push("Veuillez remplir tous les champs obligatoires pour chaque enfant.");
     }
-
-    // Champs parent obligatoires
     if (
       !formData.legal.firstName ||
       !formData.legal.lastName ||
@@ -187,28 +191,16 @@ function ReservationPageContent() {
       !formData.legal.email ||
       !formData.legal.relation
     ) {
-      errors.push(
-        "Veuillez remplir tous les champs obligatoires du responsable légal."
-      );
+      errors.push("Veuillez remplir tous les champs obligatoires du responsable légal.");
     }
-
     if (formData.legal.relation === "autre" && !formData.legal.relationOther) {
       errors.push("Veuillez préciser la relation (autre).");
     }
-
     if (formData.legal.addressDifferent) {
-      if (
-        !formData.legal.address ||
-        !formData.legal.city ||
-        !formData.legal.postalCode
-      ) {
-        errors.push(
-          "Veuillez remplir l'adresse complète du responsable légal."
-        );
+      if (!formData.legal.address || !formData.legal.city || !formData.legal.postalCode) {
+        errors.push("Veuillez remplir l'adresse complète du responsable légal.");
       }
     }
-
-    // CGV, etc.
     if (!formData.acceptedCGV) {
       errors.push("Vous devez accepter les CGV.");
     }
@@ -216,16 +208,11 @@ function ReservationPageContent() {
       errors.push("Vous devez accepter d'envoyer les documents demandés.");
     }
     if (!formData.acceptedNoWithdrawal) {
-      errors.push(
-        "Vous devez reconnaître que le droit de rétractation ne s'applique pas."
-      );
+      errors.push("Vous devez reconnaître que le droit de rétractation ne s'applique pas.");
     }
     if (!formData.acceptedRGPD) {
-      errors.push(
-        "Vous devez accepter la politique de confidentialité (RGPD)."
-      );
+      errors.push("Vous devez accepter la politique de confidentialité (RGPD).");
     }
-
     if (errors.length > 0) {
       alert(errors.join("\n"));
       return false;
@@ -233,7 +220,7 @@ function ReservationPageContent() {
     return true;
   };
 
-  // 6) SUBMIT (uniquement vers /api/reservation)
+  // 6) Submit (uniquement vers /api/reservation)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -241,10 +228,7 @@ function ReservationPageContent() {
     setIsSubmitting(true);
 
     try {
-      // Préparer le FormData, si vous gérez l'upload d'un fichier
       const formDataToSend = new FormData();
-
-      // Joindre le fichier PDF, s’il existe
       if (formData.legal.justificatif) {
         formDataToSend.append(
           "file",
@@ -252,8 +236,6 @@ function ReservationPageContent() {
           formData.legal.justificatif.name
         );
       }
-
-      // Joindre les autres champs JSON
       const otherFields = {
         ...formData,
         estimatedPriceString,
@@ -267,35 +249,27 @@ function ReservationPageContent() {
         insuranceFee,
         transportFee: effectiveTransportFee,
       };
-      // On enlève le fichier pour éviter de le doubler
       otherFields.legal.justificatif = undefined;
-
       formDataToSend.append("fields", JSON.stringify(otherFields));
 
-      // Appel vers notre API
       const res = await fetch("/api/reservation", {
         method: "POST",
-        body: formDataToSend, // On envoie le FormData (incluant PDF)
+        body: formDataToSend,
       });
 
       if (!res.ok) {
         throw new Error("Erreur lors de l'enregistrement de la réservation.");
       }
 
-      // Récupérer la réponse
       const { reservationId, tokenUnique } = await res.json();
-      alert("Votre réservation est bien enregistrée !");
-      // Redirection si besoin
       router.push(`/reservation/${tokenUnique}?justCreated=true`);
     } catch (error) {
       console.error("Erreur lors de la soumission:", error);
       alert("Une erreur est survenue, veuillez réessayer.");
     }
-
     setIsSubmitting(false);
   };
 
-  // 7) AFFICHAGE
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -304,13 +278,15 @@ function ReservationPageContent() {
     );
   }
 
-  // Séjour introuvable ou non renseigné
   if (!sejour) {
     return <div className="p-4">Aucun séjour à afficher.</div>;
   }
 
   return (
-    <div className="min-h-screen md:p-6">
+    <div className="min-h-screen md:p-6 relative">
+      {/* Affichage de la modal pendant la soumission */}
+      {isSubmitting && <ProcessingModal />}
+
       {/* Récapitulatif */}
       <div className="bg-white rounded p-4">
         <RecapReservation
@@ -329,8 +305,6 @@ function ReservationPageContent() {
       <div className="bg-white rounded p-4 my-4">
         <form onSubmit={handleSubmit} className="space-y-6">
           <ReservationForm formData={formData} handleChange={handleChange} />
-
-          {/* Si vous conservez le composant PaymentOptions */}
           <PaymentOptions
             formData={formData}
             handleChange={handleChange}
@@ -342,7 +316,6 @@ function ReservationPageContent() {
             numberOfChildren={parseInt(formData.numberOfChildren, 10)}
             onEstimatedPriceChange={setEstimatedPriceString}
           />
-
           <div className="mt-6 text-center">
             <button
               type="submit"

@@ -400,8 +400,8 @@ export default function ReservationForm({ formData, handleChange }) {
        Message et questions :
      </label>
      <textarea
-       name="legal.messages"
-       value={formData.legal.messages}
+       name="legal.message"
+       value={formData.legal.message}
        onChange={handleChange}
        rows={4}
        className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"

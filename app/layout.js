@@ -4,7 +4,6 @@ import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
 import Script from 'next/script';
 
-
 // Définition des métadonnées pour le SEO
 export const metadata = {
   title: 'ColoCrew - Séjours de vacances',
@@ -16,7 +15,7 @@ export const metadata = {
   openGraph: {
     title: 'ColoCrew - Séjours de vacances sportifs et artistiques',
     description:
-      "Découvre les colonies de vacances ColoCrew : surf, projet artistique et autonomie  pour les jeunes.",
+      "Découvre les colonies de vacances ColoCrew : surf, projet artistique et autonomie pour les jeunes.",
     url: 'https://www.colocrew.com',
     type: 'website',
     images: [
@@ -34,12 +33,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    
     <html lang="fr">
-              <Script
-            src="https://scripts.simpleanalyticscdn.com/latest.js"
-            strategy="afterInteractive"
-          />
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         {/* JSON-LD pour les données structurées */}
@@ -60,9 +54,30 @@ export default function RootLayout({ children }) {
             }),
           }}
         />
+        {/* Script de Google Tag Manager */}
+        <Script
+          strategy="afterInteractive"
+          src="https://www.googletagmanager.com/gtag/js?id=AW-16992629917"
+        />
+        <Script
+          id="gtag-init"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'AW-16992629917');
+            `,
+          }}
+        />
+        {/* Autre script (ex: Simple Analytics) */}
+        <Script
+          src="https://scripts.simpleanalyticscdn.com/latest.js"
+          strategy="afterInteractive"
+        />
       </head>
       <body className="font-inter">
-        {/* Composant client pour la gestion du consentement cookies */}
         <div className="flex flex-col min-h-screen">
           <Header />
           <main className="pt-18 flex-grow">{children}</main>
