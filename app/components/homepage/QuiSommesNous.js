@@ -526,6 +526,22 @@ export default function MyCreativeSurfCampPage() {
                 );
               })}
             </div>
+            <div className="flex flex-row justify-center items-center">
+            <div className="my-4 ">
+              <a
+                href="https://juvigo.fr"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Nos séjours de surf sont aussi disponibles chez Juvigo !"
+              >
+                <img
+                  src="https://juvigo.fr/assets/img/logo.png"
+                  alt="Juvigo Logo"
+                  className="w-72" /* ~288 px, proche du 300 px souhaité */
+                />
+              </a>
+            </div>
+            </div>
           </div>
         </div>
       </section>
