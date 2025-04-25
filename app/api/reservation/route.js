@@ -171,7 +171,7 @@ export async function POST(request) {
     // 7) ENVOYER UN EMAIL DE CONFIRMATION
     // ───────────────────────────────────────────────
     // On construit l'URL d'accès à la réservation (baseUrl défini dans l'environnement)
-    const baseUrl = "https://www.colocrew.com";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
 
     // Appel de l'API d'envoi d'email (vous pouvez adapter l'URL ou le endpoint)
