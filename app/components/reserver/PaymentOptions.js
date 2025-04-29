@@ -3,11 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import {
-  FaShieldAlt,
-  FaCreditCard,
-  FaMoneyCheck,
-} from "react-icons/fa";
+import { FaShieldAlt, FaCreditCard, FaMoneyCheck } from "react-icons/fa";
 
 export default function PaymentOptions({
   formData,
@@ -19,68 +15,86 @@ export default function PaymentOptions({
   urlAgeGroup,
   onEstimatedPriceChange, // callback fourni par le parent
 }) {
-  // ─────────────────────────────────────────────────────────────────
-  // 1) Parsing du basePrice (ex: "590-1200")
-  // ─────────────────────────────────────────────────────────────────
-  const basePriceString = sejour?.basePrice || "0-0"; 
-  const parsedRange = parseBasePriceRange(basePriceString); 
-  // { min: 590, max: 1200 } ou null
+  /* ────────────────────────────────────────────────────────────────
+     1) Code-promo fixe 75 €
+  ────────────────────────────────────────────────────────────────── */
+  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75"];             // tous en MAJ
+  const promoInput = (formData.legal.promoCode || "").trim().toUpperCase();
+  const hasPromo75 = validPromo75.includes(promoInput);
 
-  // ─────────────────────────────────────────────────────────────────
-  // 2) Calcul de la réduction
-  // ─────────────────────────────────────────────────────────────────
+  const flatDiscount = hasPromo75 ? 75 : 0;
+
+  /* ────────────────────────────────────────────────────────────────
+     2) Parsing du basePrice (ex : "590-1200")
+  ────────────────────────────────────────────────────────────────── */
+  const basePriceString = sejour?.basePrice || "0-0";
+  const parsedRange = parseBasePriceRange(basePriceString); // {min,max}|null
+
+  /* ────────────────────────────────────────────────────────────────
+     3) Réduction % enfants
+  ────────────────────────────────────────────────────────────────── */
   let discountFactor = 1;
-  if (numberOfChildren === 2) {
-    discountFactor = 0.95;
-  } else if (numberOfChildren >= 3) {
-    discountFactor = 0.9;
-  }
+  if (numberOfChildren === 2) discountFactor = 0.95;
+  else if (numberOfChildren >= 3) discountFactor = 0.9;
 
-  // ─────────────────────────────────────────────────────────────────
-  // 3) Calcul fourchette min/max
-  // ─────────────────────────────────────────────────────────────────
+  /* ────────────────────────────────────────────────────────────────
+     4) Calcul fourchette min/max (enfants + transport + assurance − promo)
+  ────────────────────────────────────────────────────────────────── */
   let minEstime = 0;
   let maxEstime = 0;
-
   if (parsedRange) {
     const baseMin = parsedRange.min * discountFactor;
     const baseMax = parsedRange.max * discountFactor;
 
-    let minWithTransport = baseMin + transportFee;
-    let maxWithTransport = baseMax + transportFee;
+    let minWithExtras =
+      baseMin + transportFee + (formData.insuranceOpted ? insuranceFee : 0);
+    let maxWithExtras =
+      baseMax + transportFee + (formData.insuranceOpted ? insuranceFee : 0);
 
-    if (formData.insuranceOpted) {
-      minWithTransport += insuranceFee;
-      maxWithTransport += insuranceFee;
-    }
-
-    minEstime = minWithTransport;
-    maxEstime = maxWithTransport;
+    minEstime = Math.max(0, minWithExtras - flatDiscount);
+    maxEstime = Math.max(0, maxWithExtras - flatDiscount);
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // 4) Ligne de réduction
-  // ─────────────────────────────────────────────────────────────────
-  let discountLine = null;
+  /* ────────────────────────────────────────────────────────────────
+     5) Construction des lignes de réductions (enfants + promo)
+  ────────────────────────────────────────────────────────────────── */
+  const discountLines = [];
   if (numberOfChildren === 2) {
-    discountLine = (
-      <div className="border-b border-gray-200 py-2 flex justify-between  text-green-600">
-        <span>Réduction pour 2 enfants</span>
-        <span>-5%</span>
+    discountLines.push(
+      <div
+        key="kids2"
+        className="border-b border-gray-200 py-2 flex justify-between text-green-600"
+      >
+        <span>Réduction&nbsp;2&nbsp;enfants</span>
+        <span>-5&nbsp;%</span>
       </div>
     );
   } else if (numberOfChildren >= 3) {
-    discountLine = (
-      <div className="border-b border-gray-200 py-2 flex justify-between text-green-600">
-        <span>Réduction pour 3 enfants et plus</span>
-        <span>-10%</span>
+    discountLines.push(
+      <div
+        key="kids3"
+        className="border-b border-gray-200 py-2 flex justify-between text-green-600"
+      >
+        <span>Réduction&nbsp;3&nbsp;enfants&nbsp;et&nbsp;+</span>
+        <span>-10&nbsp;%</span>
+      </div>
+    );
+  }
+  if (hasPromo75) {
+    discountLines.push(
+      <div
+        key="promo75"
+        className="border-b border-gray-200 py-2 flex justify-between text-green-600 font-semibold"
+      >
+        <span>Code&nbsp;promo&nbsp;({formData.legal.promoCode.trim()})</span>
+        <span>-75&nbsp;€</span>
       </div>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // 5) Texte final selon la méthode de paiement
-  // ─────────────────────────────────────────────────────────────────
+  /* ────────────────────────────────────────────────────────────────
+     6) Conditions selon la méthode de paiement
+  ────────────────────────────────────────────────────────────────── */
   let paymentConditions;
   if (formData.paymentMethod === "chequeVirement") {
     paymentConditions = (
@@ -89,12 +103,12 @@ export default function PaymentOptions({
           <strong>Règlement par Chèque / Virement.</strong>
         </p>
         <p>
-          Vous disposez de 15 jours pour envoyer votre règlement à partir de la
+          Vous disposez de 15&nbsp;jours pour envoyer votre règlement à
           réception du prix total, faute de quoi l’inscription sera annulée.
         </p>
         <p>
-          Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90
-          jours avant le séjour. Au-delà, se reporter aux CGV.
+          Conditions d’annulation&nbsp;: remboursement intégral (−80&nbsp;€)
+          jusqu’à 90&nbsp;jours avant le séjour. Au-delà&nbsp;: voir CGV.
         </p>
       </>
     );
@@ -105,60 +119,50 @@ export default function PaymentOptions({
           <strong>Règlement par Carte Bancaire.</strong>
         </p>
         <p>
-          Vous disposez de 48h dès réception du lien pour procéder au paiement, il
-          vous est possible de régler en 3X sans frais avec notre partenaire
-          Klarna.
+          Vous disposez de 48&nbsp;h dès réception du lien pour procéder au
+          paiement ; règlement en 3× sans frais possible via Klarna.
         </p>
         <p>
-          Conditions d’annulation : remboursement intégral (moins 80 €) jusqu’à 90
-          jours avant le séjour. Au-delà, se reporter aux CGV.
+          Conditions d’annulation&nbsp;: remboursement intégral (−80&nbsp;€)
+          jusqu’à 90&nbsp;jours avant le séjour. Au-delà&nbsp;: voir CGV.
         </p>
-        <p>
-          Les paiements en CB sont gérés par nos partenaires :
-        </p>
+        <p>Les paiements CB sont gérés par nos partenaires&nbsp;:</p>
       </>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // 6) Construire la chaîne de prix (ex: "de 600 à 1200 €")
-  // ─────────────────────────────────────────────────────────────────
-  let calculatedPriceString = "";
-  if (parsedRange) {
-    calculatedPriceString = `de ${formatPriceRange(minEstime, maxEstime)} €`;
-  } else {
-    // Si on n'a pas pu parser (ou basePrice = "0-0"), on fait un fallback
-    calculatedPriceString = sejour.basePrice + " €";
-  }
+  /* ────────────────────────────────────────────────────────────────
+     7) Chaîne du prix estimé
+  ────────────────────────────────────────────────────────────────── */
+  const calculatedPriceString = parsedRange
+    ? `de ${formatPriceRange(minEstime, maxEstime)} €`
+    : `${sejour.basePrice} €`;
 
-  // ─────────────────────────────────────────────────────────────────
-  // 7) useState + effet pour propager le priceString
-  // ─────────────────────────────────────────────────────────────────
-  const [priceString, setPriceString] = useState("");
-
+  /* ────────────────────────────────────────────────────────────────
+     8) Propagation au parent
+  ────────────────────────────────────────────────────────────────── */
+  const [priceString, setPriceString] = useState(calculatedPriceString);
   useEffect(() => {
     setPriceString(calculatedPriceString);
-    if (onEstimatedPriceChange) {
-      onEstimatedPriceChange(calculatedPriceString);
-    }
+    onEstimatedPriceChange?.(calculatedPriceString);
   }, [calculatedPriceString, onEstimatedPriceChange]);
 
-  // ─────────────────────────────────────────────────────────────────
-  // 8) Rendu
-  // ─────────────────────────────────────────────────────────────────
+  /* ────────────────────────────────────────────────────────────────
+     9) Rendu UI
+  ────────────────────────────────────────────────────────────────── */
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow mb-6">
-      {/* Message sur Klarna */}
+      {/* Message Klarna */}
       <p className="text-center text-sm text-blue-700 mb-4">
-        Paiement en 3 fois sans frais possible par carte bancaire (choisir Klarna lors du paiement)
+        Paiement en 3&nbsp;fois sans frais possible par carte bancaire (Klarna).
       </p>
 
       <h2 className="text-2xl font-bold text-[#B8336A] mb-4">
-        Options de paiement & Récapitulatif
+        Options de paiement &amp; Récapitulatif
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Colonne GAUCHE */}
+        {/* ╭────────── Colonne GAUCHE ─────────╮ */}
         <div className="flex flex-col divide-y divide-gray-200 pr-6 md:border-r border-gray-200">
           {/* Choix de paiement */}
           <div className="py-4">
@@ -166,34 +170,28 @@ export default function PaymentOptions({
               Méthode de paiement<span className="text-red-500 ml-1">*</span> :
             </p>
             <div className="flex items-center space-x-4">
-              <label className="inline-flex items-center text-sm">
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="CB"
-                  checked={formData.paymentMethod === "CB"}
-                  onChange={handleChange}
-                  className="form-radio h-5 w-5 text-[#B8336A]"
-                />
-                <span className="ml-2 flex items-center">
-                  <FaCreditCard className="mr-1 text-[#B8336A]" />
-                  Carte Bancaire
-                </span>
-              </label>
-              <label className="inline-flex items-center text-sm">
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="chequeVirement"
-                  checked={formData.paymentMethod === "chequeVirement"}
-                  onChange={handleChange}
-                  className="form-radio h-5 w-5 text-[#B8336A]"
-                />
-                <span className="ml-2 flex items-center">
-                  <FaMoneyCheck className="mr-1 text-[#B8336A]" />
-                  Chèque / Virement
-                </span>
-              </label>
+              {[
+                { value: "CB", label: "Carte Bancaire", Icon: FaCreditCard },
+                {
+                  value: "chequeVirement",
+                  label: "Chèque / Virement",
+                  Icon: FaMoneyCheck,
+                },
+              ].map(({ value, label, Icon }) => (
+                <label key={value} className="inline-flex items-center text-sm">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value={value}
+                    checked={formData.paymentMethod === value}
+                    onChange={handleChange}
+                    className="form-radio h-5 w-5 text-[#B8336A]"
+                  />
+                  <span className="ml-2 flex items-center">
+                    <Icon className="mr-1 text-[#B8336A]" /> {label}
+                  </span>
+                </label>
+              ))}
             </div>
           </div>
 
@@ -209,24 +207,24 @@ export default function PaymentOptions({
             <label className="ml-2 text-sm leading-snug">
               <span className="font-semibold inline-flex items-center mb-1">
                 <FaShieldAlt className="mr-1 text-[#B8336A]" />
-                Souscrire à l’assurance annulation (facultative)
+                Souscrire à l’assurance annulation
               </span>
               <span className="block">
-                Montant : {insuranceFee} € (
-                <a
+                Montant&nbsp;: {insuranceFee} € (
+                <Link
                   href="/AssuranceAnnulationMaif.pdf"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#B8336A] underline"
                 >
                   Voir document
-                </a>
+                </Link>
                 )
               </span>
             </label>
           </div>
 
-          {/* CGV, docs, noWithdrawal, RGPD */}
+          {/* CGV / Docs / Rétractation / RGPD */}
           <div className="py-4 text-xs space-y-2">
             <div className="flex items-center">
               <input
@@ -237,15 +235,14 @@ export default function PaymentOptions({
                 className="form-checkbox h-4 w-4 text-[#B8336A]"
               />
               <span className="ml-2">
-                J'accepte les{" "}
-                <a
+                J’accepte les{" "}
+                <Link
                   href="/conditions-generales-de-ventes"
                   target="_blank"
-                  rel="noopener noreferrer"
                   className="text-[#B8336A] underline"
                 >
                   CGV
-                </a>
+                </Link>
                 <span className="text-red-500 ml-1">*</span>
               </span>
             </div>
@@ -271,7 +268,9 @@ export default function PaymentOptions({
                 className="form-checkbox h-4 w-4 text-[#B8336A] mt-0.5"
               />
               <span className="ml-2 leading-snug">
-                Je reconnais que, conformément à l'article L221‑28 du Code de la consommation, le droit de rétractation ne s'applique pas aux séjours de vacances.
+                Je reconnais que, conformément à l’article&nbsp;L221-28 du Code
+                de la consommation, le droit de rétractation ne s’applique pas
+                aux séjours de vacances.
                 <span className="text-red-500 ml-1">*</span>
               </span>
             </div>
@@ -284,98 +283,94 @@ export default function PaymentOptions({
                 className="form-checkbox h-4 w-4 text-[#B8336A]"
               />
               <span className="ml-2">
-                J'accepte la{" "}
-                <a
-                  href="/rgpd"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#B8336A] underline"
-                >
+                J’accepte la{" "}
+                <Link href="/rgpd" target="_blank" className="text-[#B8336A] underline">
                   politique de confidentialité (RGPD)
-                </a>
+                </Link>
                 <span className="text-red-500 ml-1">*</span>
               </span>
             </div>
-            <p className="mt-2 pt-4">
+
+            {/* Lien aide financement */}
+            <p className="pt-4">
               <Link
                 href="/aide-financement"
-                className=" text-center font-bold font-poppins cursor-pointer md:w-auto text-[#B8336A] hover:text-[#A2225A] transition duration-300"
+                className="font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] transition"
               >
-                <span>
-                  Si vous êtes éligible à une aide (Pass Colo, VACAF, etc.), nous contacter !
-                </span>
+                Si vous êtes éligible à une aide (Pass&nbsp;Colo, VACAF,
+                etc.), contactez-nous !
               </Link>
             </p>
           </div>
         </div>
 
-        {/* Colonne DROITE : Détail du prix */}
+        {/* ╭────────── Colonne DROITE ─────────╮ */}
         <div className="space-y-4 md:pl-6">
           <div className="border border-gray-200 p-4 rounded text-sm">
             <h3 className="text-lg font-bold mb-3">Détail du prix</h3>
 
+            {/* Prix de base */}
             <div className="border-b border-gray-200 py-2 flex justify-between">
               <span>Prix de base</span>
               <span>{sejour.basePrice} €</span>
             </div>
-            {discountLine}
+
+            {/* Réductions */}
+            {discountLines}
+
+            {/* Transport */}
             <div className="border-b border-gray-200 py-2 flex justify-between">
               <span>Transport</span>
               <span>{transportFee} €</span>
             </div>
+
+            {/* Assurance */}
             <div className="border-b border-gray-200 py-2 flex justify-between">
               <span>Assurance annulation</span>
               <span>{formData.insuranceOpted ? insuranceFee : 0} €</span>
             </div>
 
+            {/* Total estimé */}
             <div className="pt-3 flex justify-end">
               <div className="text-right">
                 <p className="text-sm uppercase font-light">Total estimé</p>
                 <p className="text-xl font-extrabold text-[#B8336A]">
-                  {calculatedPriceString}
+                  {priceString}
                 </p>
                 <span className="text-xs mt-1 text-gray-600">Par enfant</span>
                 <p className="text-xs mt-1 text-gray-600">
-                  Le total définitif sera calculé sous 24h,<br />
-                  et un lien vous sera envoyé !
+                  Le total définitif sera calculé sous 24&nbsp;h ; un lien de
+                  paiement vous sera ensuite envoyé.
                 </p>
               </div>
             </div>
           </div>
 
+          {/* Logos Klarna / Stripe */}
+          {formData.paymentMethod === "CB" && (
+            <div className="border border-gray-200 p-4 rounded text-center">
+              <div className="flex items-center justify-center space-x-4">
+                <Link
+                  href="https://www.klarna.com/fr/politique-de-protection-de-lacheteur-klarna/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Image src="/klarna.png" alt="Klarna" width={64} height={64} />
+                </Link>
+                <Link
+                  href="https://stripe.com/fr/customers"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Image src="/stripe.svg" alt="Stripe" width={64} height={64} />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Conditions dynamiques */}
           <div className="border border-gray-200 p-4 rounded text-xs leading-snug whitespace-pre-line">
             {paymentConditions}
-
-            {formData.paymentMethod === "CB" && (
-              <div className="mt-4 text-center">
-                <div className="flex items-center justify-center space-x-4">
-                  <a
-                    href="https://www.klarna.com/fr/politique-de-protection-de-lacheteur-klarna/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Image
-                      src="/klarna.png"
-                      alt="Klarna"
-                      width={64}
-                      height={64}
-                    />
-                  </a>
-                  <a
-                    href="https://stripe.com/fr/customers"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Image
-                      src="/stripe.svg"
-                      alt="Stripe"
-                      width={64}
-                      height={64}
-                    />
-                  </a>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -383,26 +378,16 @@ export default function PaymentOptions({
   );
 }
 
-/** 
- * parseBasePriceRange:
- * Ex: "590-1200", "590 à 1200", "590 / 1200" => { min: 590, max: 1200 }
- */
-function parseBasePriceRange(basePriceStr) {
-  const match = basePriceStr.match(/(\d+)\D+(\d+)/);
-  if (!match) return null;
-  const min = parseFloat(match[1]);
-  const max = parseFloat(match[2]);
-  if (isNaN(min) || isNaN(max)) return null;
-  return { min, max };
+/* ─────────────────── UTILITAIRES ─────────────────── */
+function parseBasePriceRange(str) {
+  const m = str.match(/(\d+)\D+(\d+)/);
+  if (!m) return null;
+  const min = +m[1],
+    max = +m[2];
+  return isNaN(min) || isNaN(max) ? null : { min, max };
 }
-
-/**
- * formatPriceRange:
- * Ex: min=600, max=1200 => "600 à 1200"
- */
-function formatPriceRange(minVal, maxVal) {
-  const minStr = Math.round(minVal);
-  const maxStr = Math.round(maxVal);
-  if (minStr === maxStr) return minStr.toString();
-  return `${minStr} à ${maxStr}`;
+function formatPriceRange(min, max) {
+  const a = Math.round(min);
+  const b = Math.round(max);
+  return a === b ? `${a}` : `${a} à ${b}`;
 }

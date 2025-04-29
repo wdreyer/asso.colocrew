@@ -3,11 +3,18 @@
 import { FaChild, FaUserShield } from "react-icons/fa";
 
 export default function ReservationForm({ formData, handleChange }) {
+  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75"];
+  const showPromo75 = validPromo75.includes(
+    (formData.legal.promoCode || "").trim().toUpperCase()
+   );
+
   // Gestion spécifique pour le fichier justificatif avec design amélioré
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     // Met à jour le champ imbriqué "legal.justificatif" (ou "legal.justificatifUrl" après upload)
-    handleChange({ target: { name: "legal.justificatif", value: file, type: "file" } });
+    handleChange({
+      target: { name: "legal.justificatif", value: file, type: "file" },
+    });
   };
 
   // Gestion du changement du nombre d'enfants et mise à jour du tableau minor.children
@@ -47,7 +54,6 @@ export default function ReservationForm({ formData, handleChange }) {
     });
   };
 
-
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow space-y-8">
       {/* Bloc : Informations des enfants */}
@@ -74,12 +80,14 @@ export default function ReservationForm({ formData, handleChange }) {
               ))}
             </select>
             <div className="flex-col items-end justify-end">
-            <div className="text-sm text-green-600">
-              -5% dès 2 enfants inscrits </div>
               <div className="text-sm text-green-600">
-              -10% dès 3 enfants inscrits</div>
+                -5% dès 2 enfants inscrits{" "}
               </div>
-                     </div>
+              <div className="text-sm text-green-600">
+                -10% dès 3 enfants inscrits
+              </div>
+            </div>
+          </div>
         </div>
         {formData.minor.children &&
           formData.minor.children.map((child, index) => (
@@ -94,7 +102,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="text"
                     value={child.firstName}
-                    onChange={(e) => handleChildChange(index, "firstName", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "firstName", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     placeholder="Ex: Alice"
                     required
@@ -108,7 +118,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="text"
                     value={child.lastName}
-                    onChange={(e) => handleChildChange(index, "lastName", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "lastName", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     placeholder="Ex: Dupont"
                     required
@@ -122,7 +134,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="date"
                     value={child.birthDate}
-                    onChange={(e) => handleChildChange(index, "birthDate", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "birthDate", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     required
                   />
@@ -135,7 +149,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="text"
                     value={child.birthPlace}
-                    onChange={(e) => handleChildChange(index, "birthPlace", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "birthPlace", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     placeholder="Ex: Paris"
                   />
@@ -148,7 +164,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="text"
                     value={child.address}
-                    onChange={(e) => handleChildChange(index, "address", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "address", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     placeholder="Ex: 10 Rue de l'École"
                     required
@@ -162,7 +180,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="text"
                     value={child.city}
-                    onChange={(e) => handleChildChange(index, "city", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "city", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     placeholder="Ex: Paris"
                     required
@@ -176,7 +196,9 @@ export default function ReservationForm({ formData, handleChange }) {
                   <input
                     type="text"
                     value={child.postalCode}
-                    onChange={(e) => handleChildChange(index, "postalCode", e.target.value)}
+                    onChange={(e) =>
+                      handleChildChange(index, "postalCode", e.target.value)
+                    }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                     placeholder="Ex: 75001"
                     required
@@ -289,19 +311,25 @@ export default function ReservationForm({ formData, handleChange }) {
               />
             </div>
           )}
-          {/* Nouveau champ : Code promo / Parrain */}
-          <div className="flex items-center">
-            <label className="w-1/3 text-sm font-medium text-gray-700">
+          <div className="flex items-start mb-4">
+            <label className="w-1/3 text-sm font-medium text-gray-700 pt-2">
               Code promo / Parrain
             </label>
-            <input
-              type="text"
-              name="legal.promoCode"
-              value={formData.legal.promoCode}
-              onChange={handleChange}
-              className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
-              placeholder="Ex: PROMO2025"
-            />
+            <div className="w-2/3 flex flex-col gap-1">
+              <input
+                type="text"
+                name="legal.promoCode"
+                value={formData.legal.promoCode}
+                onChange={handleChange}
+                className="border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
+                placeholder="Ex: PROMO2025"
+              />
+              {showPromo75 && (
+                <span className="text-sm text-green-600 font-semibold">
+                  🎉 Réduction de 75 €
+                </span>
+              )}
+            </div>
           </div>
           {/* Nouveau champ : Numéro CAF ou Sécu */}
           <div className="flex items-center">
@@ -323,7 +351,9 @@ export default function ReservationForm({ formData, handleChange }) {
               Justificatif (PDF)
             </label>
             <label className="w-2/3 border border-dashed border-gray-400 rounded-md p-4 cursor-pointer text-center hover:bg-gray-100">
-              {formData.legal.justificatif ? formData.legal.justificatif.name : "Cliquez pour uploader un PDF"}
+              {formData.legal.justificatif
+                ? formData.legal.justificatif.name
+                : "Cliquez pour uploader un PDF"}
               <input
                 type="file"
                 name="legal.justificatif"
@@ -342,7 +372,10 @@ export default function ReservationForm({ formData, handleChange }) {
               onChange={handleChange}
               className="h-4 w-4 mr-2 text-[#B8336A] focus:ring-[#B8336A]"
             />
-            <label htmlFor="legal.addressDifferent" className="text-sm text-gray-700">
+            <label
+              htmlFor="legal.addressDifferent"
+              className="text-sm text-gray-700"
+            >
               Adresse différente de celle du mineur
             </label>
           </div>
@@ -391,23 +424,21 @@ export default function ReservationForm({ formData, handleChange }) {
                   required
                 />
               </div>
-             
             </div>
-            
           )}
           <div className="md:col-span-2">
-     <label className="text-sm font-medium text-gray-700 mb-2">
-       Message et questions :
-     </label>
-     <textarea
-       name="legal.message"
-       value={formData.legal.message}
-       onChange={handleChange}
-       rows={4}
-       className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
-       placeholder="Écrivez ici vos questions ou remarques..."
-     />
-   </div>
+            <label className="text-sm font-medium text-gray-700 mb-2">
+              Message et questions :
+            </label>
+            <textarea
+              name="legal.message"
+              value={formData.legal.message}
+              onChange={handleChange}
+              rows={4}
+              className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
+              placeholder="Écrivez ici vos questions ou remarques..."
+            />
+          </div>
         </div>
       </div>
     </div>
