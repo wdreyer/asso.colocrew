@@ -104,8 +104,6 @@ function ReservationPageContent() {
     insuranceOpted: false,
     paymentMethod: "CB",
     acceptedCGV: false,
-    acceptedDocs: false,
-    acceptedNoWithdrawal: false,
     acceptedRGPD: false,
   };
 
@@ -203,12 +201,6 @@ function ReservationPageContent() {
     }
     if (!formData.acceptedCGV) {
       errors.push("Vous devez accepter les CGV.");
-    }
-    if (!formData.acceptedDocs) {
-      errors.push("Vous devez accepter d'envoyer les documents demandés.");
-    }
-    if (!formData.acceptedNoWithdrawal) {
-      errors.push("Vous devez reconnaître que le droit de rétractation ne s'applique pas.");
     }
     if (!formData.acceptedRGPD) {
       errors.push("Vous devez accepter la politique de confidentialité (RGPD).");
@@ -322,7 +314,7 @@ function ReservationPageContent() {
               disabled={isSubmitting}
               className="w-full font-poppins cursor-pointer md:w-auto bg-[#B8336A] text-white px-6 py-2 rounded-md hover:bg-[#A2225A] transition duration-300 text-sm md:text-base"
             >
-              {isSubmitting ? "Envoi en cours..." : "Valider la réservation"}
+              {isSubmitting ? "Envoi en cours..." : "Estimer votre tarif"}
             </button>
           </div>
         </form>

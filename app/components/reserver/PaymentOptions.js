@@ -153,12 +153,10 @@ export default function PaymentOptions({
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded shadow mb-6">
       {/* Message Klarna */}
-      <p className="text-center text-sm text-blue-700 mb-4">
-        Paiement en 3&nbsp;fois sans frais possible par carte bancaire (Klarna).
-      </p>
+
 
       <h2 className="text-2xl font-bold text-[#B8336A] mb-4">
-        Options de paiement &amp; Récapitulatif
+       Récapitulatif
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -174,7 +172,7 @@ export default function PaymentOptions({
                 { value: "CB", label: "Carte Bancaire", Icon: FaCreditCard },
                 {
                   value: "chequeVirement",
-                  label: "Chèque / Virement",
+                  label: "Virement",
                   Icon: FaMoneyCheck,
                 },
               ].map(({ value, label, Icon }) => (
@@ -190,9 +188,13 @@ export default function PaymentOptions({
                   <span className="ml-2 flex items-center">
                     <Icon className="mr-1 text-[#B8336A]" /> {label}
                   </span>
+
                 </label>
               ))}
+
             </div>
+            <span className=" text-xs ">Vous aurez la possibilité de changer le mode de réglement plus tard</span> 
+
           </div>
 
           {/* Assurance annulation */}
@@ -246,34 +248,7 @@ export default function PaymentOptions({
                 <span className="text-red-500 ml-1">*</span>
               </span>
             </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="acceptedDocs"
-                checked={formData.acceptedDocs}
-                onChange={handleChange}
-                className="form-checkbox h-4 w-4 text-[#B8336A]"
-              />
-              <span className="ml-2">
-                Je m’engage à envoyer les documents demandés
-                <span className="text-red-500 ml-1">*</span>
-              </span>
-            </div>
-            <div className="flex items-start">
-              <input
-                type="checkbox"
-                name="acceptedNoWithdrawal"
-                checked={formData.acceptedNoWithdrawal}
-                onChange={handleChange}
-                className="form-checkbox h-4 w-4 text-[#B8336A] mt-0.5"
-              />
-              <span className="ml-2 leading-snug">
-                Je reconnais que, conformément à l’article&nbsp;L221-28 du Code
-                de la consommation, le droit de rétractation ne s’applique pas
-                aux séjours de vacances.
-                <span className="text-red-500 ml-1">*</span>
-              </span>
-            </div>
+
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -291,16 +266,7 @@ export default function PaymentOptions({
               </span>
             </div>
 
-            {/* Lien aide financement */}
-            <p className="pt-4">
-              <Link
-                href="/aide-financement"
-                className="font-bold font-poppins text-[#B8336A] hover:text-[#A2225A] transition"
-              >
-                Si vous êtes éligible à une aide (Pass&nbsp;Colo, VACAF,
-                etc.), contactez-nous !
-              </Link>
-            </p>
+
           </div>
         </div>
 
@@ -347,7 +313,7 @@ export default function PaymentOptions({
           </div>
 
           {/* Logos Klarna / Stripe */}
-          {formData.paymentMethod === "CB" && (
+          {/* {formData.paymentMethod === "CB" && (
             <div className="border border-gray-200 p-4 rounded text-center">
               <div className="flex items-center justify-center space-x-4">
                 <Link
@@ -366,12 +332,12 @@ export default function PaymentOptions({
                 </Link>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Conditions dynamiques */}
-          <div className="border border-gray-200 p-4 rounded text-xs leading-snug whitespace-pre-line">
+          {/* <div className="border border-gray-200 p-4 rounded text-xs leading-snug whitespace-pre-line">
             {paymentConditions}
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

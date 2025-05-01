@@ -287,8 +287,8 @@ export default function ReservationCard({
           onClick={handleReservation}
           className="w-full bg-[#B8336A] cursor-pointer text-white px-6 py-2 rounded-md hover:bg-[#A2225A] transition duration-300 text-sm md:text-base"
         >
-          Réserver
-        </button>
+              Estimer votre tarif
+              </button>
       </div>
     </div>
   );

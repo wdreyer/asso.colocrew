@@ -270,8 +270,7 @@ export default function BottomReservationBar({
                          flex items-center justify-center"
             >
               <FaShoppingCart size={20} className="mr-1" />
-              Réserver
-            </button>
+              Estimer votre tarif            </button>
           </div>
         </div>
       </div>
@@ -418,7 +417,8 @@ export default function BottomReservationBar({
               className="bg-[#B8336A] text-white cursor-pointer rounded-md hover:bg-[#A2225A] transition
                          duration-300 text-sm md:text-base py-2 px-4"
             >
-              Réserver
+                            Estimer votre tarif
+
             </button>
           </div>
         </div>
