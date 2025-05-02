@@ -18,7 +18,7 @@ export default function PaymentOptions({
   /* ────────────────────────────────────────────────────────────────
      1) Code-promo fixe 75 €
   ────────────────────────────────────────────────────────────────── */
-  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75"];             // tous en MAJ
+  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75", "SKATEBORDEL"];             // tous en MAJ
   const promoInput = (formData.legal.promoCode || "").trim().toUpperCase();
   const hasPromo75 = validPromo75.includes(promoInput);
 
