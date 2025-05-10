@@ -540,6 +540,10 @@ export default function MyCreativeSurfCampPage() {
                   className="w-72" /* ~288 px, proche du 300 px souhaité */
                 />
               </a>
+              <a href="https://bafa.murathenes.org" target="_blank" rel="noopener noreferrer" title="Découvre notre partenaire Murathènes pour passer ton BAFA" className="flex flex-col items-center group">
+                <Image src="/bafa-murathenes.png" alt="Murathènes BAFA" width={266} height={60} className="object-contain" />
+              
+              </a>
             </div>
             </div>
           </div>
