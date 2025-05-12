@@ -3,7 +3,7 @@
 import { FaChild, FaUserShield } from "react-icons/fa";
 
 export default function ReservationForm({ formData, handleChange }) {
-  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75", "SKATEBORDEL"];
+  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75", "SKATEBORDEL", "CASS19"];
   const showPromo75 = validPromo75.includes(
     (formData.legal.promoCode || "").trim().toUpperCase()
    );
