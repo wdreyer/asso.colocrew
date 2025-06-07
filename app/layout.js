@@ -3,6 +3,8 @@ import "easymde/dist/easymde.min.css";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
 import Script from 'next/script';
+import { GoogleAnalytics } from '@next/third-parties/google'
+
 
 // Définition des métadonnées pour le SEO
 export const metadata = {
@@ -127,6 +129,7 @@ export default function RootLayout({ children }) {
           <Footer />
         </div>
       </body>
+      <GoogleAnalytics gaId="G-PWJ8EQLG1Z" />
     </html>
   );
 }

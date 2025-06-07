@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@next/third-parties": "^15.3.3",
     "@react-spring/web": "^9.7.4",
     "autoprefixer": "^10.4.20",
     "axios": "^1.7.9",
@@ -19,7 +20,7 @@
     "formidable": "^3.5.1",
     "framer-motion": "^11.11.1",
     "micro": "^10.0.1",
-    "next": "14.2.13",
+    "next": "^15.3.3",
     "nodemailer": "^6.9.15",
     "pdf-lib": "^1.17.1",
     "react": "^18",
