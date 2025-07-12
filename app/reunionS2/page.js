@@ -3,12 +3,11 @@ import { FaDownload } from "react-icons/fa";
 
 export default function DocumentsReunion() {
   const documents = [
-    { label: "20 au 31 juillet 2025", href: "/CR-Réunion2007/20 au 31 juillet 2025.pdf" },
+    { label: "Présentation réunion", href: "/CR-Réunion2007/20 au 31 juillet 2025.pdf" },
     { label: "Cahier centre", href: "/CR-Réunion2007/Cahier centre.pdf" },
     { label: "Cahier cuisine et HACCP", href: "/CR-Réunion2007/Cahier cuisine et HACCP.pdf" },
     { label: "Cahier projet artistique", href: "/CR-Réunion2007/Cahier projet artistique.pdf" },
     { label: "Foire à questions", href: "/CR-Réunion2007/Foire à questions.pdf" },
-    { label: "Présentation réunion", href: "/CR-Réunion2007/Presentation réunion.pdf" },
     { label: "Projet pédagogique séjour", href: "/CR-Réunion2007/Projet pédagogique séjour.pdf" },
     { label: "Trousseau MCSC", href: "/CR-Réunion2007/Trousseau MCSC.pdf" },
   ];
