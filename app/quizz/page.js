@@ -17,7 +17,8 @@ export default function QuizzPage() {
     try {
       const ref = doc(db, "polls", POLL_ID);
 
-      // ✅ Assure l'existencdeddee du doc SANS écraser les valeurs actuelles
+      // ✅ Assure l'existencdeddee du doc SANS écraser les valeurs actuelle fefefe
+      // sdefefefe
       await setDoc(
         ref,
         { A: 0, B: 0, C: 0, D: 0, total: 0 },
@@ -44,7 +45,7 @@ export default function QuizzPage() {
     <button
       onClick={() => vote(label)}
       disabled={loading}
-      className="rounded-2xl border px-6 py-4 text-lg font-semibold shadow-sm hover:shadow transition disabled:opacity-50"
+      className="rounded-2xl border px-4 py-4 text-lg font-semibold shadow-sm hover:shadow transition disabled:opacity-50"
     >
       {label}
     </button>
