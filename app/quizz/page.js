@@ -56,8 +56,6 @@ export default function QuizzPage() {
           <Btn key={opt} label={opt} />
         ))}
       </div>
-      {lastChoice && <p className="text-sm opacity-70">Merci ! Vote enregistré : {lastChoice}</p>}
-      <p className="text-sm">Va sur <code>/resultats</code> pour voir les pourcentages en temps réel.</p>
     </main>
   );
 }
