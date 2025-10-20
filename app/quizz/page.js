@@ -3,33 +3,29 @@
 
 import { useState } from "react";
 import { db } from "../firebase";
-import { doc, setDoc, updateDoc, increment, serverTimestamp } from "firebase/firestore";
+import { doc, runTransaction, increment, serverTimestamp } from "firebase/firestore";
 
-const POLL_ID = "quiz1"; // identique à app/resultats/page.js
+const POLL_ID = "quiz1"; // même ID que dans app/resultats/page.js
 
 export default function QuizzPage() {
   const [loading, setLoading] = useState(false);
   const [lastChoice, setLastChoice] = useState(null);
 
-  async function vote(option) { 
+  async function vote(option) {
     if (loading) return;
     setLoading(true);
     try {
       const ref = doc(db, "polls", POLL_ID);
 
-      // ✅ Assure l'existencdeddee du doc SANS écraser les valeurs actuelle fefefe
-      // sdefefefe
-      await setDoc(
-        ref,
-        { A: 0, B: 0, C: 0, D: 0, total: 0 },
-        { merge: true } // <- important !
-      );
-
-      // ✅ Addition atomique côté serveur (pas de "dernier qui gagne")
-      await updateDoc(ref, {
-        [option]: increment(1),
-        total: increment(1),
-        lastVoteAt: serverTimestamp(),
+      // ✅ Transaction = création si absent + increments atomiques
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) {
+          // crée le doc avec tous les compteurs à 0
+          tx.set(ref, { A: 0, B: 0, C: 0, D: 0, total: 0, createdAt: serverTimestamp() });
+        }
+        // ajoute le vote (no “remplacement”, c’est un vrai +1)
+        tx.update(ref, { [option]: increment(1), total: increment(1), lastVoteAt: serverTimestamp() });
       });
 
       setLastChoice(option);
@@ -45,7 +41,7 @@ export default function QuizzPage() {
     <button
       onClick={() => vote(label)}
       disabled={loading}
-      className="rounded-2xl border px-4 py-4 text-lg font-semibold shadow-sm hover:shadow transition disabled:opacity-50"
+      className="rounded-2xl border px-6 py-4 text-lg font-semibold shadow-sm hover:shadow transition disabled:opacity-50"
     >
       {label}
     </button>
@@ -60,10 +56,8 @@ export default function QuizzPage() {
           <Btn key={opt} label={opt} />
         ))}
       </div>
-      {lastChoice && (
-        <p className="text-sm opacity-70">Merci ! Vote enregistré : {lastChoice}</p>
-      )}
-      <p className="text-sm">Va sur <code>/resultats</code> pour les pourcentages en temps réel.</p>
+      {lastChoice && <p className="text-sm opacity-70">Merci ! Vote enregistré : {lastChoice}</p>}
+      <p className="text-sm">Va sur <code>/resultats</code> pour voir les pourcentages en temps réel.</p>
     </main>
   );
 }
