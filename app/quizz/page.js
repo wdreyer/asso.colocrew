@@ -11,13 +11,13 @@ export default function QuizzPage() {
   const [loading, setLoading] = useState(false);
   const [lastChoice, setLastChoice] = useState(null);
 
-  async function vote(option) {
+  async function vote(option) { 
     if (loading) return;
     setLoading(true);
     try {
       const ref = doc(db, "polls", POLL_ID);
 
-      // ✅ Assure l'existence du doc SANS écraser les valeurs actuelles
+      // ✅ Assure l'existencdeddee du doc SANS écraser les valeurs actuelles
       await setDoc(
         ref,
         { A: 0, B: 0, C: 0, D: 0, total: 0 },
