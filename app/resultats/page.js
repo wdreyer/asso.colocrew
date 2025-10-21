@@ -1,15 +1,17 @@
+// app/resultats/page.js
 "use client";
 
 
 import { useEffect, useMemo, useState } from "react";
-import { db } from "../firebase"; // chemin depuis app/resultat/page.js
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { db } from "../firebase"; // chemin depuis app/resultats/page.js
+import { doc, onSnapshot, setDoc, serverTimestamp, increment } from "firebase/firestore";
 
 
 const POLL_ID = "quiz1"; // doit matcher la page quizz
 
+
 export default function ResultPage() {
-const [data, setData] = useState({ A: 0, B: 0, C: 0, D: 0, total: 0 });
+const [data, setData] = useState({ A: 0, B: 0, C: 0, D: 0, total: 0, resetVersion: 0 });
 
 
 useEffect(() => {
@@ -17,9 +19,16 @@ const ref = doc(db, "polls", POLL_ID);
 const unsub = onSnapshot(ref, (snap) => {
 if (snap.exists()) {
 const d = snap.data();
-setData({ A: d.A ?? 0, B: d.B ?? 0, C: d.C ?? 0, D: d.D ?? 0, total: d.total ?? 0 });
+setData({
+A: d.A ?? 0,
+B: d.B ?? 0,
+C: d.C ?? 0,
+D: d.D ?? 0,
+total: d.total ?? 0,
+resetVersion: d.resetVersion ?? 0,
+});
 } else {
-setData({ A: 0, B: 0, C: 0, D: 0, total: 0 });
+setData({ A: 0, B: 0, C: 0, D: 0, total: 0, resetVersion: 0 });
 }
 });
 return () => unsub();
@@ -29,18 +38,17 @@ return () => unsub();
 const perc = useMemo(() => {
 const t = data.total || 0;
 const pct = (v) => (t === 0 ? 0 : Math.round((v / t) * 1000) / 10);
-return {
-A: pct(data.A),
-B: pct(data.B),
-C: pct(data.C),
-D: pct(data.D),
-};
+return { A: pct(data.A), B: pct(data.B), C: pct(data.C), D: pct(data.D) };
 }, [data]);
 
 
 async function resetAll() {
 const ref = doc(db, "polls", POLL_ID);
-await setDoc(ref, { A: 0, B: 0, C: 0, D: 0, total: 0 });
+await setDoc(
+ref,
+{ A: 0, B: 0, C: 0, D: 0, total: 0, lastResetAt: serverTimestamp(), resetVersion: increment(1) },
+{ merge: true }
+);
 }
 
 
@@ -52,10 +60,7 @@ return (
 <span className="tabular-nums">{percent}% ({value})</span>
 </div>
 <div className="h-3 w-full rounded-full bg-gray-200">
-<div
-className="h-3 rounded-full bg-gray-800"
-style={{ width: `${percent}%` }}
-/>
+<div className="h-3 rounded-full bg-gray-800" style={{ width: `${percent}%` }} />
 </div>
 </div>
 );
@@ -65,7 +70,7 @@ style={{ width: `${percent}%` }}
 return (
 <main className="mx-auto max-w-xl p-6 flex flex-col gap-6">
 <h1 className="text-2xl font-bold">Résultats</h1>
-<p className="text-sm opacity-70">Total votes : {data.total}</p>
+<p className="text-sm opacity-70">Total votes : {data.total} — Version : {data.resetVersion}</p>
 
 
 <div className="space-y-4">
@@ -76,10 +81,7 @@ return (
 </div>
 
 
-<button
-onClick={resetAll}
-className="mt-4 self-start rounded-2xl border px-4 py-2 text-sm font-medium shadow-sm hover:shadow"
->
+<button onClick={resetAll} className="mt-4 self-start rounded-2xl border px-4 py-2 text-sm font-medium shadow-sm hover:shadow">
 Réinitialiser
 </button>
 </main>
