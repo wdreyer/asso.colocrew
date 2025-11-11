@@ -106,7 +106,7 @@ export default function MyCreativeSurfCampPage() {
   useEffect(() => {
     async function fetchSejour() {
       try {
-        const docRef = doc(db, "sejours", "my-creative-surf-camp");
+        const docRef = doc(db, "sejours", "ski-and-music");
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setSejour(docSnap.data());
@@ -127,7 +127,7 @@ export default function MyCreativeSurfCampPage() {
     async function fetchOtherSejours() {
       try {
         // Chargement des séjours "cantal-decouverte" et "escapade-parisienne"
-        const sejourIds = ["cantal-decouverte", "escapade-parisienne"];
+        const sejourIds = ["my-creative-surf-camp", "escapade-parisienne"];
         const fetchedSejours = [];
         for (const id of sejourIds) {
           const docRef = doc(db, "sejours", id);
@@ -207,7 +207,7 @@ export default function MyCreativeSurfCampPage() {
           className="absolute inset-0 w-full h-full object-cover"
           ref={videoRefDesktop}
         >
-          <source src="/video.mp4" type="video/mp4" />
+          <source src="/videoski.mp4" type="video/mp4" />
         </video>
         <div className="relative z-10 text-center text-white space-y-6">
           <h1 className="text-4xl sm:text-6xl font-extrabold">
@@ -224,13 +224,13 @@ export default function MyCreativeSurfCampPage() {
         <div className="mx-auto flex flex-col lg:flex-row gap-8 px-4 items-start">
           {/* Colonne gauche : Carte du séjour phare */}
           <Link
-            href="/sejours/my-creative-surf-camp"
+            href="/sejours/ski-and-music"
             className="m-4 font-inter cursor-pointer bg-white rounded shadow-lg overflow-hidden transform transition duration-300 hover:scale-105 hover:shadow-2xl lg:w-3/5"
           >
             <div className="relative">
               <img
                 src={sejour.heroImage || "/surf-camp.jpg"}
-                alt={sejour.name || "My Creative Surf Camp"}
+                alt={sejour.name || "Ski and Music"}
                 className="w-full h-64 object-cover"
               />
 
@@ -257,27 +257,27 @@ export default function MyCreativeSurfCampPage() {
               </div>
 
               <h2 className="font-poppins text-3xl absolute inset-0 flex items-center justify-center font-extrabold text-white text-center px-4">
-                {sejour.name || "My Creative Surf Camp"}
+                {sejour.name || "Ski N Music"}
               </h2>
             </div>
             <div className="p-5">
               {/* Sur petits écrans, les icônes se placent sur deux lignes grâce à flex-wrap */}
-              <div className="flex flex-wrap lg:flex-nowrap gap-4 text-sm font-medium mb-4">
+              <div className="flex flex-col sm:flex-row md:flex-nowrap gap-4 text-sm font-medium mb-4">
                 <div className="flex items-center space-x-2 basis-1/2">
                   <FaCalendarAlt className="text-[#B8336A]" />
-                  <span>Juillet - Août 2025</span>
+                  <span>Février 2026</span>
                 </div>
                 <div className="flex items-center space-x-2 basis-1/2">
                   <FaUserFriends className="text-[#B8336A]" />
-                  <span>{sejour.ageGroup || "11 - 17 ans"}</span>
+                  <span>{sejour.ageGroup || "13 - 17 ans"}</span>
                 </div>
                 <div className="flex items-center space-x-2 basis-1/2">
                   <FaClock className="text-[#B8336A]" />
-                  <span>{sejour.duration || "12 jours"}</span>
+                  <span>{sejour.duration || "7 jours"}</span>
                 </div>
                 <div className="flex items-center space-x-2 basis-1/2">
                   <GiWaveSurfer className="text-[#B8336A]" />
-                  <span>{sejour.extra || "Surf"}</span>
+                  <span>{sejour.extra || "Ski & Musique"}</span>
                 </div>
               </div>
             </div>
@@ -285,7 +285,7 @@ export default function MyCreativeSurfCampPage() {
 
           {/* Colonne droite : Atouts et lien vers la réservation */}
           <div className="space-y-6 pt-4 lg:w-2/5">
-            <h2 className="text-3xl font-black font-poppins text-gray-800">
+            <h2 className="text-2xl font-black font-poppins text-gray-800">
               ColoCrew, bien + que des colos🔥
             </h2>
             <ul className="space-y-4">
@@ -294,7 +294,7 @@ export default function MyCreativeSurfCampPage() {
                   👥
                 </span>
                 <span className="ml-3 text-lg text-gray-700">
-                  Des effectifs réduits (40 max)
+                  Des effectifs réduits (50 max)
                 </span>
               </li>
               <li className="flex items-start">
@@ -302,7 +302,7 @@ export default function MyCreativeSurfCampPage() {
                   🏄
                 </span>
                 <span className="ml-3 text-lg text-gray-700">
-                  Une pratique sportive approfondie (entre 6 et 8 séances)
+                  Une pratique sportive approfondie (entre 3 et 5 séances)
                 </span>
               </li>
               <li className="flex items-start">
@@ -321,7 +321,8 @@ export default function MyCreativeSurfCampPage() {
                   Une pédagogie autour de l'émancipation
                   <br />
                   <span className="text-sm">
-                    🍽️ Choix et élaboration des repas, des activités et des projets !
+                    🍽️ Choix et élaboration des repas, des activités et des
+                    projets !
                   </span>
                 </span>
               </li>
@@ -357,7 +358,8 @@ export default function MyCreativeSurfCampPage() {
                   </h3>
                 </header>
                 <p className="text-gray-700 mb-2">
-                  Faites votre demande de réservation en ligne et nous vous envoyons un devis personnalisé dans les <strong>24h</strong>.
+                  Faites votre demande de réservation en ligne et nous vous
+                  envoyons un devis personnalisé dans les <strong>24h</strong>.
                 </p>
               </article>
             </Link>
@@ -527,24 +529,35 @@ export default function MyCreativeSurfCampPage() {
               })}
             </div>
             <div className="flex flex-row justify-center items-center">
-            <div className="my-4 ">
-              <a
-                href="https://juvigo.fr"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Nos séjours de surf sont aussi disponibles chez Juvigo !"
-              >
-                <img
-                  src="https://juvigo.fr/assets/img/logo.png"
-                  alt="Juvigo Logo"
-                  className="w-72" /* ~288 px, proche du 300 px souhaité */
-                />
-              </a>
-              <a href="https://bafa.murathenes.org" target="_blank" rel="noopener noreferrer" title="Découvre notre partenaire Murathènes pour passer ton BAFA" className="flex flex-col items-center group">
-                <Image src="/bafa-murathenes.png" alt="Murathènes BAFA" width={266} height={60} className="object-contain" />
-              
-              </a>
-            </div>
+              <div className="my-4 ">
+                <a
+                  href="https://juvigo.fr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Nos séjours de surf sont aussi disponibles chez Juvigo !"
+                >
+                  <img
+                    src="https://juvigo.fr/assets/img/logo.png"
+                    alt="Juvigo Logo"
+                    className="w-72" /* ~288 px, proche du 300 px souhaité */
+                  />
+                </a>
+                <a
+                  href="https://bafa.murathenes.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Découvre notre partenaire Murathènes pour passer ton BAFA"
+                  className="flex flex-col items-center group"
+                >
+                  <Image
+                    src="/bafa-murathenes.png"
+                    alt="Murathènes BAFA"
+                    width={266}
+                    height={60}
+                    className="object-contain"
+                  />
+                </a>
+              </div>
             </div>
           </div>
         </div>
