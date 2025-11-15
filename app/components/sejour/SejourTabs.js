@@ -78,41 +78,29 @@ export default function SejourTabs({
   };
 
   // Fonction pour rendre une sous-section
-  const renderSubSection = (sub, idx) => {
-    const isOdd = idx % 2 === 1;
-    const processedText = sub.text
-      ? sub.text.replace(/\/p\s*(.*?)\s*\/p/g, "\n\n$1\n\n")
-      : "";
+const renderSubSection = (sub, idx) => {
+  const isOdd = idx % 2 === 1;
+  const processedText = sub.text
+    ? sub.text.replace(/\/p\s*(.*?)\s*\/p/g, "\n\n$1\n\n")
+    : "";
 
-    return (
-      <div
-        key={idx}
-        className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start"
-      >
-        <div className={`lg:col-span-2 ${isOdd ? "md:order-2" : "md:order-1"}`}>
-          <h2 className="text-2xl font-bold mb-2 text-black">{sub.title}</h2>
-          <ReactMarkdown
-            className="text-base text-black"
-            components={{
-              p: ({ node, children, ...props }) => (
-                <>
-                  <p {...props}>{children}</p>
-                  <br />
-                </>
-              ),
-            }}
-          >
-            {processedText}
-          </ReactMarkdown>
-        </div>
+  return (
+    <div key={idx} className="p-4">
+      <div className="relative">
         {sub.imageSrc && (
           <div
-            className={`relative w-full h-64 lg:col-span-1 ${
-              isOdd ? "md:order-1" : "md:order-2"
-            }`}
+            className={`
+              relative
+              w-full max-w-sm
+              h-56 md:h-64
+              mb-2
+              float-none
+              ${isOdd
+                ? "lg:float-right lg:ml-4"
+                : "lg:float-left lg:mr-4"}
+            `}
           >
             <Image
-              key={sub.imageSrc} // Ajout de la clé dynamique basée sur la source
               src={sub.imageSrc}
               alt={sub.title}
               fill
@@ -120,13 +108,34 @@ export default function SejourTabs({
                 objectFit: "cover",
                 objectPosition: "center",
               }}
-              className="rounded-lg shadow-lg"
+              className="rounded-sm shadow-lg"
             />
           </div>
         )}
+
+        <h2 className="text-2xl font-bold mb-2 text-black">{sub.title}</h2>
+
+        <ReactMarkdown
+          className="text-base text-black"
+          components={{
+            p: ({ node, children, ...props }) => (
+              <>
+                <p {...props}>{children}</p>
+                <br />
+              </>
+            ),
+          }}
+        >
+          {processedText}
+        </ReactMarkdown>
+
+        {/* Empêche la section suivante de remonter à côté de l'image flottante */}
+        <div className="clear-both" />
       </div>
-    );
-  };
+    </div>
+  );
+};
+
 
   const renderContent = () => {
     if (activeTab === 0) {
