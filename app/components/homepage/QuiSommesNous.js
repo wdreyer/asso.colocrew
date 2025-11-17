@@ -531,6 +531,18 @@ export default function MyCreativeSurfCampPage() {
             <div className="flex flex-row justify-center items-center">
               <div className="my-4 ">
                 <a
+                  href="https://totemia.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Nos séjours de surf sont aussi disponibles chez Totemia !"
+                >
+                  <img
+                    src="https://login.totemia.com/resources/ytrmc/login/totemia/img/logo.png"
+                    alt="Totemia Logo"
+                    className="w-72 mb-2" // même largeur pour garder le style cohérent
+                  />
+                </a>
+                <a
                   href="https://juvigo.fr"
                   target="_blank"
                   rel="noopener noreferrer"
