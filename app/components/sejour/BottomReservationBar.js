@@ -126,49 +126,30 @@ export default function BottomReservationBar({
 
   return (
     <>
-      {/* Version Mobile */}
-      <div className="fixed inset-x-0 z-10 bottom-0 bg-gray-100 dark:bg-gray-800 p-2 shadow-lg md:hidden">
-        <div className="flex flex-col space-y-4 items-center">
-          {/* Ligne 1 : Date, A/R diff, Age */}
-          <div className="flex flex-wrap items-center justify-between w-full space-y-2">
+      {/* Version Mobile : barre compacte (~20% hauteur) */}
+      <div className="fixed inset-x-0 bottom-0 z-10 bg-gray-100 dark:bg-gray-900 px-2 py-2 shadow-lg md:hidden">
+        <div className="flex flex-col space-y-1 text-xs text-gray-800 dark:text-gray-100">
+          {/* Ligne 1 : Date + Âge */}
+          <div className="flex items-center justify-between space-x-2">
             {/* Date */}
-            <div className="flex items-center space-x-1">
-              <FaCalendar className="text-[#B8336A] text-sm" />
+            <div className="flex items-center flex-1 min-w-0 space-x-1">
+              <FaCalendar className="text-[#B8336A] text-sm flex-shrink-0" />
               <select
                 value={selectedDate}
                 onChange={handleDateChange}
-                className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100
-                           border border-gray-300 rounded-md p-1 text-sm w-18"
+                className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 px-1 py-1 text-[11px] leading-tight"
               >
                 {mobileDateOptions}
               </select>
             </div>
 
-            {/* A/R différents */}
-            <div className="flex items-center space-x-1">
-              <input
-                type="checkbox"
-                id="roundtrip-toggle-mobile"
-                className="h-4 w-4 text-[#B8336A] border-gray-300 rounded"
-                checked={isRoundTrip}
-                onChange={(e) => handleRoundTripToggle(e.target.checked)}
-              />
-              <label
-                htmlFor="roundtrip-toggle-mobile"
-                className="text-xs text-gray-700 dark:text-gray-300"
-              >
-                A/R diff
-              </label>
-            </div>
-
-            {/* Tranche d'âge */}
-            <div className="flex items-center space-x-1">
-              <FaChild className="text-[#B8336A] text-sm" />
+            {/* Âge */}
+            <div className="flex items-center flex-[0.7] min-w-[90px] space-x-1">
+              <FaChild className="text-[#B8336A] text-sm flex-shrink-0" />
               <select
                 value={selectedAgeGroup}
                 onChange={handleAgeGroupChange}
-                className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100
-                           border border-gray-300 rounded-md p-1 text-sm w-20"
+                className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 px-1 py-1 text-[11px] leading-tight"
               >
                 {sejour.ageGroups?.map((ageGroup, idx) => (
                   <option key={idx} value={ageGroup}>
@@ -179,103 +160,131 @@ export default function BottomReservationBar({
             </div>
           </div>
 
-          {/* Ligne 2 : ville unique OU aller/retour */}
-          {!isRoundTrip ? (
-            // Ville unique
-            <div className="flex items-center space-x-1 w-full justify-center">
-              <FaCity className="text-[#B8336A] text-sm" />
-              <select
-                value={selectedDepartureCity}
-                onChange={(e) => handleDepartureCityChangeLocal(e.target.value)}
-                className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100
-                           border border-gray-300 rounded-md p-1 text-sm w-32"
-              >
-                {sejour.stations?.map((station) => (
-                  <option key={station.name} value={station.name}>
-                    {station.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            // 2 selects : aller + retour
-            <div className="flex flex-col space-y-1 w-full">
-              {/* Aller */}
-              <div className="flex items-center space-x-1">
-                <FaCity className="text-[#B8336A] text-sm" />
+          {/* Ligne 2 : A/R + villes */}
+          <div className="flex items-center justify-between space-x-2">
+            {/* Toggle A/R différents */}
+            <label className="flex items-center space-x-1 flex-[0.9]">
+              <input
+                type="checkbox"
+                checked={isRoundTrip}
+                onChange={(e) => handleRoundTripToggle(e.target.checked)}
+                className="h-3 w-3 text-[#B8336A] border-gray-300 rounded"
+              />
+              <span className="text-[11px] leading-tight">
+                A/R différents
+              </span>
+            </label>
+
+            {/* Villes */}
+            {!isRoundTrip ? (
+              // Ville unique
+              <div className="flex items-center flex-[1.6] space-x-1">
+                <FaCity className="text-[#B8336A] text-sm flex-shrink-0" />
                 <select
                   value={selectedDepartureCity}
                   onChange={(e) =>
                     handleDepartureCityChangeLocal(e.target.value)
                   }
-                  className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100
-                             border border-gray-300 rounded-md p-1 text-sm w-32"
+                  className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 px-1 py-1 text-[11px] leading-tight"
                 >
-                  {sejour.stations?.map((station) => {
-                    const half = (station.priceExtra || 0) / 2;
-                    return (
-                      <option key={station.name} value={station.name}>
-                        {station.name} ({half}€)
-                      </option>
-                    );
-                  })}
+                  {sejour.stations?.map((station) => (
+                    <option key={station.name} value={station.name}>
+                      {station.name}
+                    </option>
+                  ))}
                 </select>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  Aller
-                </span>
               </div>
-              {/* Retour */}
-              <div className="flex items-center space-x-1">
-                <FaCity className="text-[#B8336A] text-sm" />
-                <select
-                  value={selectedReturnCity}
-                  onChange={(e) => onReturnCityChange(e.target.value)}
-                  className="bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100
-                             border border-gray-300 rounded-md p-1 text-sm w-32"
-                >
-                  {sejour.stations?.map((station) => {
-                    const half = (station.priceExtra || 0) / 2;
-                    return (
-                      <option key={station.name} value={station.name}>
-                        {station.name} ({half}€)
-                      </option>
-                    );
-                  })}
-                </select>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  Retour
-                </span>
-              </div>
-            </div>
-          )}
+            ) : (
+              // Aller + retour
+              <div className="flex items-center flex-[1.6] space-x-1">
+                {/* Aller */}
+                <div className="flex items-center flex-1 space-x-1">
+                  <span className="text-[10px]">Aller</span>
+                  <FaCity className="text-[#B8336A] text-xs flex-shrink-0" />
+                  <select
+                    value={selectedDepartureCity}
+                    onChange={(e) =>
+                      handleDepartureCityChangeLocal(e.target.value)
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 px-1 py-1 text-[10px] leading-tight"
+                  >
+                    {sejour.stations?.map((station) => {
+                      const half = (station.priceExtra || 0) / 2;
+                      return (
+                        <option key={station.name} value={station.name}>
+                          {station.name} ({half}€)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
 
-          {/* Ligne 3 : tarif + transport + bouton Réserver */}
-          <div className="flex flex-col items-center space-y-1 w-full">
-            <div className="flex items-center space-x-2">
-              <FaMoneyBillWave className="text-[#B8336A] text-sm" />
-              <span className="text-base font-semibold text-[#B8336A] dark:text-gray-200">
-                {reservationPrice} €
+                {/* Retour */}
+                <div className="flex items-center flex-1 space-x-1">
+                  <span className="text-[10px]">Retour</span>
+                  <FaCity className="text-[#B8336A] text-xs flex-shrink-0" />
+                  <select
+                    value={selectedReturnCity}
+                    onChange={(e) => onReturnCityChange(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 px-1 py-1 text-[10px] leading-tight"
+                  >
+                    {sejour.stations?.map((station) => {
+                      const half = (station.priceExtra || 0) / 2;
+                      return (
+                        <option key={station.name} value={station.name}>
+                          {station.name} ({half}€)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Ligne 3 : tarifs + bouton */}
+          <div className="flex items-center justify-between space-x-2 pt-1">
+            {/* Prix */}
+            <div className="flex flex-col flex-1 space-y-[2px]">
+              <div className="flex items-center space-x-1">
+                <FaTrain className="text-[#B8336A] text-xs" />
+                <span className="text-[11px] leading-tight">
+                  Transport :{" "}
+                  <span className="font-semibold text-[#B8336A]">
+                    {transportPrice} €
+                  </span>
+                </span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <FaMoneyBillWave className="text-[#B8336A] text-xs" />
+                <span className="text-[11px] leading-tight">
+                  Tarif :{" "}
+                  <span className="font-semibold text-[#B8336A]">
+                    {reservationPrice} €*
+                  </span>
+                </span>
+              </div>
+              <span className="text-[9px] text-gray-600 dark:text-gray-300">
+                *Chez Colocrew, les prix tiennent compte des aides, QF, etc.
               </span>
             </div>
-            <div className="flex items-center space-x-2">
-              <FaTrain className="text-[#B8336A] text-sm" />
-              <span className="text-sm md:text-base text-gray-500 dark:text-gray-400">
-                Transport : {transportPrice} €
-              </span>
-            </div>
+
+            {/* Bouton */}
             <button
               onClick={handleReservation}
-              className="w-full px-4 cursor-pointer py-1 bg-[#B8336A] text-white rounded-md
-                         hover:bg-[#A2225A] transition duration-300 text-sm md:text-base
-                         flex items-center justify-center"
+              className="flex items-center justify-center flex-[0.9]
+                         bg-[#B8336A] text-white rounded-md px-3 py-2
+                         text-[11px] font-medium cursor-pointer
+                         hover:bg-[#A2225A] transition duration-300"
             >
-              <FaShoppingCart size={20} className="mr-1" />
-              Estimer votre tarif            </button>
+              <FaShoppingCart size={14} className="mr-1" />
+              Estimer
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Version Web */}
+      {/* Version Web (inchangée) */}
       <div className="fixed inset-x-0 z-10 bottom-0 bg-gray-100 dark:bg-gray-800 p-2 shadow-lg hidden md:block">
         <div className="flex items-center justify-between mx-4">
           {/* Bloc de gauche : Date, case A/R, villes, âge */}
@@ -417,8 +426,7 @@ export default function BottomReservationBar({
               className="bg-[#B8336A] text-white cursor-pointer rounded-md hover:bg-[#A2225A] transition
                          duration-300 text-sm md:text-base py-2 px-4"
             >
-                            Estimer votre tarif
-
+              Estimer votre tarif
             </button>
           </div>
         </div>
