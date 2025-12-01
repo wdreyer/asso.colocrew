@@ -203,7 +203,7 @@ export default function MyCreativeSurfCampPage() {
           loop
           muted
           playsInline
-          poster="/load.jpg"
+          poster="/load.png"
           className="absolute inset-0 w-full h-full object-cover"
           ref={videoRefDesktop}
         >
