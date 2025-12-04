@@ -70,7 +70,7 @@ export default function SejoursList() {
           let environment = "inconnu";
           const idLower = docSnap.id.toLowerCase();
           if (idLower.includes("surf")) environment = "mer";
-          else if (idLower.includes("mountain")) environment = "montagne";
+          else if (idLower.includes("ski")) environment = "montagne";
           else if (idLower.includes("parisienne")) environment = "ville";
           else if (idLower.includes("cantal")) environment = "campagne";
           data.environment = environment;
