@@ -16,13 +16,13 @@ export default function PaymentOptions({
   onEstimatedPriceChange, // callback fourni par le parent
 }) {
   /* ────────────────────────────────────────────────────────────────
-     1) Code-promo fixe 75 €
+     1) Code-promo fixe 50 €
   ────────────────────────────────────────────────────────────────── */
-  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75", "SKATEBORDEL","CASS19" ];             // tous en MAJ
+  const validPromo50 = ["NOEL" ];             // tous en MAJ
   const promoInput = (formData.legal.promoCode || "").trim().toUpperCase();
-  const hasPromo75 = validPromo75.includes(promoInput);
+  const hasPromo50 = validPromo50.includes(promoInput);
 
-  const flatDiscount = hasPromo75 ? 75 : 0;
+  const flatDiscount = hasPromo50 ? 50 : 0;
 
   /* ────────────────────────────────────────────────────────────────
      2) Parsing du basePrice (ex : "590-1200")
@@ -80,14 +80,14 @@ export default function PaymentOptions({
       </div>
     );
   }
-  if (hasPromo75) {
+  if (hasPromo50) {
     discountLines.push(
       <div
-        key="promo75"
+        key="promo50"
         className="border-b border-gray-200 py-2 flex justify-between text-green-600 font-semibold"
       >
         <span>Code&nbsp;promo&nbsp;({formData.legal.promoCode.trim()})</span>
-        <span>-75&nbsp;€</span>
+        <span>-50&nbsp;€</span>
       </div>
     );
   }

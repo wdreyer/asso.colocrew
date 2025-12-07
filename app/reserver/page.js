@@ -98,6 +98,7 @@ function ReservationPageContent() {
       postalCode: "",
       promoCode: "",
       cafOrSecu: "",
+      qf: "",
       justificatif: null, // Aucun fichier
       message: "",
     },

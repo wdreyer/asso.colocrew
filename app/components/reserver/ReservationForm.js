@@ -3,8 +3,8 @@
 import { FaChild, FaUserShield } from "react-icons/fa";
 
 export default function ReservationForm({ formData, handleChange }) {
-  const validPromo75 = ["INESS25", "JADOUBICYCLETTE75", "SKATEBORDEL", "CASS19"];
-  const showPromo75 = validPromo75.includes(
+  const validPromo50 = ["NOEL"];
+  const showPromo50 = validPromo50.includes(
     (formData.legal.promoCode || "").trim().toUpperCase()
    );
 
@@ -200,7 +200,7 @@ export default function ReservationForm({ formData, handleChange }) {
                       handleChildChange(index, "postalCode", e.target.value)
                     }
                     className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
-                    placeholder="Ex: 75001"
+                    placeholder="Ex: 50001"
                     required
                   />
                 </div>
@@ -324,9 +324,9 @@ export default function ReservationForm({ formData, handleChange }) {
                 className="border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
                 placeholder="Ex: PROMO2025"
               />
-              {showPromo75 && (
+              {showPromo50 && (
                 <span className="text-sm text-green-600 font-semibold">
-                  🎉 Réduction de 75 €
+                  🎉 Réduction de 50 €
                 </span>
               )}
             </div>
@@ -343,6 +343,20 @@ export default function ReservationForm({ formData, handleChange }) {
               onChange={handleChange}
               className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
               placeholder="(pour le calcul des aides)"
+            />
+          </div>
+            <div className="flex items-center">
+            <label className="w-1/3 text-sm font-medium text-gray-700">
+              Quotient familial (QF)
+            </label>
+            <input
+              type="number"
+              name="legal.qf"
+              value={formData.legal.qf}
+              onChange={handleChange}
+              className="w-2/3 border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-[#B8336A]"
+              placeholder="Ex : 750"
+              min={0}
             />
           </div>
           {/* Nouveau champ : Upload justificatif avec design amélioré */}

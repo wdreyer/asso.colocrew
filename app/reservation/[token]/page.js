@@ -140,6 +140,8 @@ export default function ReservationPage({ params }) {
   // => Si payment?.totalPrice > 0 => prix calculé, sinon => en cours
   const isPriceCalculated = payment?.totalPrice && payment.totalPrice > 0;
 
+  console.log(legal.qf)
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* Bannière si réservation fraîchement créée */}
@@ -298,6 +300,7 @@ export default function ReservationPage({ params }) {
           </div>
 
           {/* Responsable légal */}
+                   {/* Responsable légal */}
           <div className="shadow p-4 space-y-2">
             <h2 className="font-semibold text-lg" style={{ color: colorPrimary }}>
               <FaHome className="inline mr-2" /> Responsable légal
@@ -317,31 +320,39 @@ export default function ReservationPage({ params }) {
                   <strong>Email :</strong> {legal.email}
                 </p>
                 <p>
-                  <strong>Relation :</strong>{" "}
-                  {legal.relation || ""}
+                  <strong>Relation :</strong> {legal.relation || ""}
                 </p>
-                {/* Code promo */}
+
                 {legal.cafOrSecu && (
                   <p>
-                    <strong>Caf ou Secu :</strong> {legal.cafOrSecu}
+                    <strong>Numéro CAF ou Sécu :</strong> {legal.cafOrSecu}
                   </p>
                 )}
+
+            
+                  <p>
+                    <strong>Quotient familial (QF) :</strong> {legal.qf}
+                  </p>
+              
+
                 {legal.promoCode && (
                   <p>
                     <strong>Code promo :</strong> {legal.promoCode}
                   </p>
                 )}
+
                 {legal.addressDifferent && (
                   <p>
                     <strong>Adresse différente :</strong> {legal.address}, {legal.city} {legal.postalCode}
                   </p>
                 )}
+
                 {legal.message && (
                   <p>
                     <strong>Message :</strong> {legal.message}
                   </p>
                 )}
-                {/* Lien PDF */}
+
                 {legal.justificatifUrl && (
                   <p>
                     <strong>Justificatif PDF :</strong>{" "}
@@ -355,12 +366,12 @@ export default function ReservationPage({ params }) {
                     </a>
                   </p>
                 )}
-               
               </>
             ) : (
               <p>Aucune information sur le responsable légal.</p>
             )}
           </div>
+
         </div>
 
         {/* Cadre Informations financières */}

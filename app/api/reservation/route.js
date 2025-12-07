@@ -93,6 +93,7 @@ export async function POST(request) {
       cafOrSecu: legal.cafOrSecu || "",
       justificatifUrl: pdfUrl,
       message: legal.message || "",
+      qf: legal.qf || "",   
     };
 
     // C) Options et consentements
