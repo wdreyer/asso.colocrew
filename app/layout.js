@@ -40,7 +40,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="fr">
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
         {/* Google Tag Manager */}
         <Script
           id="gtm-base"
