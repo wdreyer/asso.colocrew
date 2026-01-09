@@ -8,6 +8,9 @@ import { GoogleAnalytics } from '@next/third-parties/google'
 
 // Définition des métadonnées pour le SEO
 export const metadata = {
+   icons: {
+    icon: '/favicon.ico',
+  },
   title: 'ColoCrew - Séjours de vacances',
   description:
     "ColoCrew propose des colonies de vacances sportives et artistiques pour les jeunes, favorisant l'inclusivité et l'autonomie.",
