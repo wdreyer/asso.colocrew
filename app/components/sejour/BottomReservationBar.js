@@ -270,16 +270,21 @@ export default function BottomReservationBar({
             </div>
 
             {/* Bouton */}
-            <button
-              onClick={handleReservation}
-              className="flex items-center justify-center flex-[0.9]
-                         bg-[#B8336A] text-white rounded-md px-3 py-2
-                         text-[11px] font-medium cursor-pointer
-                         hover:bg-[#A2225A] transition duration-300"
-            >
-              <FaShoppingCart size={14} className="mr-1" />
-              Estimer
-            </button>
+            <div className="flex flex-col items-center flex-[0.9]">
+              <button
+                onClick={handleReservation}
+                className="w-full flex items-center justify-center
+                           bg-[#B8336A] text-white rounded-md px-3 py-2
+                           text-[11px] font-medium cursor-pointer
+                           hover:bg-[#A2225A] transition duration-300"
+              >
+                <FaShoppingCart size={14} className="mr-1" />
+                Estimer
+              </button>
+              <span className="mt-1 text-[9px] text-gray-600 dark:text-gray-300">
+                2 min chrono • réponse rapide
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -421,13 +426,18 @@ export default function BottomReservationBar({
                 {reservationPrice} €
               </span>
             </div>
-            <button
-              onClick={handleReservation}
-              className="bg-[#B8336A] text-white cursor-pointer rounded-md hover:bg-[#A2225A] transition
-                         duration-300 text-sm md:text-base py-2 px-4"
-            >
-              Estimer votre tarif
-            </button>
+            <div className="flex flex-col items-center">
+              <button
+                onClick={handleReservation}
+                className="bg-[#B8336A] text-white cursor-pointer rounded-md hover:bg-[#A2225A] transition
+                           duration-300 text-sm md:text-base py-2 px-4"
+              >
+                Estimer votre tarif
+              </button>
+              <span className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                2 min chrono • réponse rapide
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -153,6 +153,9 @@ export default function SejoursList() {
       <h1 className="text-4xl font-extrabold text-center text-gray-800 mb-8">
         Nos Séjours Inoubliables
       </h1>
+      <p className="text-center text-gray-600 mb-8">
+        Les places partent vite—mieux vaut réserver dès maintenant.
+      </p>
 
       <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
         <select
@@ -199,41 +202,61 @@ export default function SejoursList() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSejours.map((sejour) => (
-          <Link key={sejour.id} href={`/sejours/${sejour.id}`} className="group block">
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden relative transform transition duration-300 hover:scale-105 hover:shadow-2xl">
-              <div className="relative">
-                <img src={sejour.image} alt={sejour.name} className="w-full h-56 object-cover" />
-                <div className="absolute inset-0 bg-black opacity-40 group-hover:opacity-50 transition"></div>
-                <h2 className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white px-4 text-center">
-                  {sejour.name}
-                </h2>
-                <div className="absolute top-4 right-4 bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
-                  {sejour.basePrice} €
-                </div>
-              </div>
+        {filteredSejours.map((sejour) => {
+          const sejourId = (sejour.id || "").toString().toLowerCase();
+          const isSkiAndMusic =
+            sejourId.includes("ski") &&
+            (sejourId.includes("music") || sejourId.includes("musique"));
+          const spotsRaw =
+            sejour?.spotsLeft ?? sejour?.placesLeft ?? sejour?.remainingSpots;
+          const spotsNumber =
+            typeof spotsRaw === "number" ? spotsRaw : Number(spotsRaw);
+          const spotsText =
+            Number.isFinite(spotsNumber) && spotsNumber > 0
+              ? `${spotsNumber} place${spotsNumber > 1 ? "s" : ""}`
+              : "quelques places";
 
-              <div className="p-5">
-                <p className="text-gray-600 mb-4 line-clamp-2">{sejour.description}</p>
-                <div className="grid grid-cols-2 gap-2 text-gray-800 text-sm font-medium">
-                  <div className="flex items-center space-x-2">
-                    <FaCalendarAlt className="text-pink-500" /> <span>{sejour.period}</span>
+          return (
+            <Link key={sejour.id} href={`/sejours/${sejour.id}`} className="group block">
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden relative transform transition duration-300 hover:scale-105 hover:shadow-2xl">
+                <div className="relative">
+                  <img src={sejour.image} alt={sejour.name} className="w-full h-56 object-cover" />
+                  <div className="absolute inset-0 bg-black opacity-40 group-hover:opacity-50 transition"></div>
+                  <h2 className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white px-4 text-center">
+                    {sejour.name}
+                  </h2>
+                  {isSkiAndMusic && (
+                    <div className="absolute top-4 left-4 bg-white/90 text-[#B8336A] font-bold py-1 px-3 rounded-full text-xs md:text-sm shadow">
+                      Plus que {spotsText}
+                    </div>
+                  )}
+                  <div className="absolute top-4 right-4 bg-[#281C47] text-white font-bold py-1 px-3 rounded-md">
+                    {sejour.basePrice} €
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <FaUserFriends className="text-blue-500" /> <span>{sejour.ageGroup} ans</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <FaClock className="text-green-500" /> <span>{getDuration(sejour.dates)}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getEnvironmentIcon(sejour.environment)}
-                    <span className="capitalize">{sejour.environment}</span>
+                </div>
+
+                <div className="p-5">
+                  <p className="text-gray-600 mb-4 line-clamp-2">{sejour.description}</p>
+                  <div className="grid grid-cols-2 gap-2 text-gray-800 text-sm font-medium">
+                    <div className="flex items-center space-x-2">
+                      <FaCalendarAlt className="text-pink-500" /> <span>{sejour.period}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <FaUserFriends className="text-blue-500" /> <span>{sejour.ageGroup} ans</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <FaClock className="text-green-500" /> <span>{getDuration(sejour.dates)}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {getEnvironmentIcon(sejour.environment)}
+                      <span className="capitalize">{sejour.environment}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

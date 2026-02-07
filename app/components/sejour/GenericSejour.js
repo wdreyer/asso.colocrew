@@ -49,12 +49,33 @@ const InfoBadge = ({ icon: Icon, text }) => (
   </div>
 );
 
-export default function GenericSejour({ sejourData }) {
+export default function GenericSejour({ sejourData, sejourSlug }) {
   if (!sejourData) {
     return <div className="text-center p-8">Aucune donnée de séjour disponible.</div>;
   }
 
   const { basePrice, name, heroImage, heroSubtitle, icons, dates, ageGroups } = sejourData;
+  const sejourId = (
+    sejourSlug ||
+    sejourData?.urlSejour ||
+    sejourData?.slug ||
+    sejourData?.id ||
+    sejourData?.name ||
+    ""
+  )
+    .toString()
+    .toLowerCase();
+  const isSkiAndMusic =
+    sejourId.includes("ski") &&
+    (sejourId.includes("music") || sejourId.includes("musique"));
+  const spotsRaw =
+    sejourData?.spotsLeft ?? sejourData?.placesLeft ?? sejourData?.remainingSpots;
+  const spotsNumber =
+    typeof spotsRaw === "number" ? spotsRaw : Number(spotsRaw);
+  const spotsText =
+    Number.isFinite(spotsNumber) && spotsNumber > 0
+      ? `${spotsNumber} place${spotsNumber > 1 ? "s" : ""}`
+      : "quelques places";
 
   // Fonction pour extraire tous les mois uniques des dates
   const getFormattedMonthRange = () => {
@@ -114,6 +135,12 @@ export default function GenericSejour({ sejourData }) {
 
         {/* Titre et sous-titre en bas à gauche */}
         <div className="absolute bottom-4 left-4">
+          {isSkiAndMusic && (
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/90 text-[#B8336A] px-3 py-1 text-base md:text-lg font-extrabold shadow">
+              <span className="inline-flex h-2 w-2 rounded-full bg-[#B8336A] animate-pulse"></span>
+              Plus que {spotsText}
+            </div>
+          )}
           <h1 className="text-3xl md:text-5xl font-black text-white">{name}</h1>
           {heroSubtitle && (
             <p className="mt-1 text-white text-sm md:text-lg font-bold">{heroSubtitle}</p>

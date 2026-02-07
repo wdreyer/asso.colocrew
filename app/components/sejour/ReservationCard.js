@@ -289,6 +289,9 @@ export default function ReservationCard({
         >
               Estimer votre tarif
               </button>
+        <p className="mt-2 text-xs text-gray-600 text-center">
+          Ça prend 2 min, on revient très vite vers toi.
+        </p>
       </div>
     </div>
   );

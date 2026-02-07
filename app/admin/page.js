@@ -70,6 +70,7 @@ export default function AdminReservations() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" });
+  const [sejourFilter, setSejourFilter] = useState("all");
 
   // Vérification de l'authentification via localStorage
   useEffect(() => {
@@ -178,7 +179,13 @@ export default function AdminReservations() {
   };
 
   const sortedReservations = useMemo(() => {
-    let sortable = [...reservations];
+    let sortable =
+      sejourFilter === "all"
+        ? [...reservations]
+        : reservations.filter((res) => {
+            const name = res.sejour?.name || res.sejour?.urlSejour || "";
+            return name === sejourFilter;
+          });
     if (sortConfig.key) {
       sortable.sort((a, b) => {
         const aValue = getSortValue(a, sortConfig.key);
@@ -194,7 +201,27 @@ export default function AdminReservations() {
       });
     }
     return sortable;
-  }, [reservations, sortConfig]);
+  }, [reservations, sortConfig, sejourFilter]);
+
+  const sejourOptions = useMemo(() => {
+    const names = new Set();
+    reservations.forEach((res) => {
+      const name = res.sejour?.name || res.sejour?.urlSejour;
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, "fr"));
+  }, [reservations]);
+
+  const sejourSummary = useMemo(() => {
+    const counts = new Map();
+    reservations.forEach((res) => {
+      const name = res.sejour?.name || res.sejour?.urlSejour || "Sans sejour";
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0], "fr")
+    );
+  }, [reservations]);
 
   // Si l'utilisateur n'est pas authentifié, afficher le formulaire de connexion
   if (!isAuthenticated) {
@@ -226,6 +253,41 @@ export default function AdminReservations() {
   return (
     <div className="max-w-7xl mx-auto p-4">
       <h1 className="text-xl font-bold mb-4">Gestion des Réservations</h1>
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="bg-white shadow rounded p-3">
+          <div className="text-sm font-semibold mb-2">
+            Recap inscriptions par sejour
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sejourSummary.map(([name, count]) => (
+              <span
+                key={name}
+                className="text-xs bg-gray-100 border rounded-full px-3 py-1"
+              >
+                {name} : {count}
+              </span>
+            ))}
+            {sejourSummary.length === 0 && (
+              <span className="text-xs text-gray-500">Aucune reservation</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Filtrer par sejour :</label>
+          <select
+            className="border rounded p-2 text-sm"
+            value={sejourFilter}
+            onChange={(e) => setSejourFilter(e.target.value)}
+          >
+            <option value="all">Tous</option>
+            {sejourOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full bg-white shadow-lg rounded">
           <thead className="bg-[#B8336A] text-white">

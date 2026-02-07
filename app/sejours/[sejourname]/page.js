@@ -177,7 +177,11 @@ export default function SejourDetail() {
 
   return (
     <section className="relative">
-      <GenericSejour sejourData={sejour} reservationPrice={basePrice} />
+      <GenericSejour
+        sejourData={sejour}
+        reservationPrice={basePrice}
+        sejourSlug={sejourname}
+      />
 
       {/* Onglets + ReservationCard */}
       <SejourTabs

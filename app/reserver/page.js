@@ -317,6 +317,9 @@ function ReservationPageContent() {
             >
               {isSubmitting ? "Envoi en cours..." : "Estimer votre tarif"}
             </button>
+            <p className="mt-2 text-sm text-gray-600">
+              Ça prend 2 min, on revient très vite vers toi.
+            </p>
           </div>
         </form>
       </div>
