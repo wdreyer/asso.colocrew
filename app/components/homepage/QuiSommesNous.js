@@ -102,12 +102,12 @@ export default function MyCreativeSurfCampPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
-  const [showPromo, setShowPromo] = useState(false);
+  
 
   useEffect(() => {
     async function fetchSejour() {
       try {
-        const docRef = doc(db, "sejours", "ski-and-music");
+        const docRef = doc(db, "sejours", "my-creative-surf-camp");
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setSejour(docSnap.data());
@@ -128,7 +128,7 @@ export default function MyCreativeSurfCampPage() {
     async function fetchOtherSejours() {
       try {
         // Chargement des séjours "cantal-decouverte" et "escapade-parisienne"
-        const sejourIds = ["my-creative-surf-camp", "escapade-parisienne"];
+        const sejourIds = ["ski-and-music", "escapade-parisienne"];
         const fetchedSejours = [];
         for (const id of sejourIds) {
           const docRef = doc(db, "sejours", id);
@@ -149,31 +149,7 @@ export default function MyCreativeSurfCampPage() {
     fetchOtherSejours();
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const dismissed = sessionStorage.getItem("cc_promo_dismissed_v2") === "1";
-    if (dismissed) return;
-    const timer = setTimeout(() => setShowPromo(true), 700);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const dismissPromo = () => {
-    setShowPromo(false);
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("cc_promo_dismissed_v2", "1");
-    }
-  };
-
   if (!sejour) return <Spinner />;
-
-  const spotsRaw =
-    sejour?.spotsLeft ?? sejour?.placesLeft ?? sejour?.remainingSpots;
-  const spotsNumber =
-    typeof spotsRaw === "number" ? spotsRaw : Number(spotsRaw);
-  const spotsText =
-    Number.isFinite(spotsNumber) && spotsNumber > 0
-      ? `${spotsNumber} place${spotsNumber > 1 ? "s" : ""}`
-      : "quelques places";
 
   // Fonctions d'aide pour formater les dates et la durée
   const getPeriod = (dates) => {
@@ -217,6 +193,16 @@ export default function MyCreativeSurfCampPage() {
     }
   };
 
+  const heroPeriod = sejour?.dates
+    ? getPeriod(sejour.dates)
+    : sejour?.months || "Dates à venir";
+  const heroDuration = sejour?.dates
+    ? getDuration(sejour.dates, sejour.duration)
+    : sejour?.duration || "Durée inconnue";
+  const heroAgeGroup =
+    sejour?.ageGroup ||
+    (sejour?.ageGroups ? sejour.ageGroups.join(" / ") : "11-17 ans");
+
   return (
     <div className="min-h-screen font-inter">
       {/* ==================================== */}
@@ -228,65 +214,12 @@ export default function MyCreativeSurfCampPage() {
           loop
           muted
           playsInline
-          poster="/load.png"
+          poster="/surf.jpg"
           className="absolute inset-0 w-full h-full object-cover"
           ref={videoRefDesktop}
         >
-          <source src="/videoski.mp4" type="video/mp4" />
+          <source src="/video.mp4" type="video/mp4" />
         </video>
-        {showPromo && (
-          <div className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[560px]">
-            <div
-              className="relative bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-[#F0D5E2] overflow-hidden"
-              style={{ animation: "promoIn 450ms ease-out" }}
-            >
-              <div className="absolute left-0 top-0 h-full w-2 bg-[#B8336A]"></div>
-              <button
-                onClick={dismissPromo}
-                aria-label="Fermer"
-                className="absolute top-3 right-3 h-8 w-8 rounded-full bg-white text-gray-600 shadow flex items-center justify-center hover:text-[#B8336A] cursor-pointer"
-              >
-                ×
-              </button>
-              <div className="p-4 sm:p-5 pl-6 flex items-center gap-4">
-                <img
-                  src={sejour.heroImage || "/load.png"}
-                  alt="Séjour ski"
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-[#F0D5E2] shadow-sm"
-                />
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[#B8336A] text-white text-[10px] font-bold uppercase tracking-wide px-2 py-1">
-                    Dernières places
-                  </div>
-                  <Link
-                    href="/sejours/ski-and-music"
-                    className="mt-2 inline-block text-lg sm:text-xl font-extrabold text-gray-900 hover:text-[#B8336A] transition cursor-pointer"
-                  >
-                    Ski & Music — 22 au 28 février 2026
-                  </Link>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-[#F8E7EF] text-[#B8336A] px-3 py-1 text-xs font-bold">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-[#B8336A] animate-pulse"></span>
-                      Plus que {spotsText}
-                    </div>
-                    <Link
-                      href="/sejours/ski-and-music"
-                      className="text-xs font-bold text-white bg-[#B8336A] px-3 py-2 rounded-md hover:bg-[#A2225A] transition cursor-pointer"
-                    >
-                      Je veux ma place
-                    </Link>
-                    <button
-                      onClick={dismissPromo}
-                      className="text-[11px] text-gray-600 hover:text-[#B8336A] cursor-pointer"
-                    >
-                      Plus tard
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
         <div className="relative z-10 text-center text-white space-y-6">
           <h1 className="text-4xl sm:text-6xl font-extrabold">
             Réinventons les colos
@@ -302,13 +235,13 @@ export default function MyCreativeSurfCampPage() {
         <div className="mx-auto flex flex-col lg:flex-row gap-8 px-4 items-start">
           {/* Colonne gauche : Carte du séjour phare */}
           <Link
-            href="/sejours/ski-and-music"
+            href="/sejours/my-creative-surf-camp"
             className="m-4 font-inter cursor-pointer bg-white rounded shadow-lg overflow-hidden transform transition duration-300 hover:scale-105 hover:shadow-2xl lg:w-3/5"
           >
             <div className="relative">
               <img
                 src={sejour.heroImage || "/surf-camp.jpg"}
-                alt={sejour.name || "Ski and Music"}
+                alt={sejour.name || "My Creative Surf Camp"}
                 className="w-full h-64 object-cover"
               />
 
@@ -334,25 +267,8 @@ export default function MyCreativeSurfCampPage() {
                 </div>
               </div>
 
-              <div className="absolute bottom-4 right-4">
-                <div className="relative rounded-2xl bg-white/90 px-4 py-3 shadow-lg ring-1 ring-[#B8336A]/20 backdrop-blur-sm">
-                  <div className="absolute -top-2 -right-2 rotate-6 bg-[#B8336A] text-white text-[10px] font-bold px-2 py-1 rounded-full shadow">
-                    Dernières places
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#B8336A] animate-pulse"></span>
-                    <span className="text-[#B8336A] text-base md:text-lg font-extrabold">
-                      Plus que {spotsText}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-gray-600">
-                    Ski + musique • février 2026
-                  </p>
-                </div>
-              </div>
-
               <h2 className="font-poppins text-3xl absolute inset-0 flex items-center justify-center font-extrabold text-white text-center px-4">
-                {sejour.name || "Ski N Music"}
+                {sejour.name || "My Creative Surf Camp"}
               </h2>
             </div>
             <div className="p-5">
@@ -360,19 +276,19 @@ export default function MyCreativeSurfCampPage() {
               <div className="flex flex-col sm:flex-row md:flex-nowrap gap-4 text-sm font-medium mb-4">
                 <div className="flex items-center space-x-2 basis-1/2">
                   <FaCalendarAlt className="text-[#B8336A]" />
-                  <span>Février 2026</span>
+                  <span>{heroPeriod}</span>
                 </div>
                 <div className="flex items-center space-x-2 basis-1/2">
                   <FaUserFriends className="text-[#B8336A]" />
-                  <span>{sejour.ageGroup || "13 - 17 ans"}</span>
+                  <span>{heroAgeGroup}</span>
                 </div>
                 <div className="flex items-center space-x-2 basis-1/2">
                   <FaClock className="text-[#B8336A]" />
-                  <span>{sejour.duration || "7 jours"}</span>
+                  <span>{heroDuration}</span>
                 </div>
                 <div className="flex items-center space-x-2 basis-1/2">
                   <GiWaveSurfer className="text-[#B8336A]" />
-                  <span>{sejour.extra || "Ski & Musique"}</span>
+                  <span>{sejour.extra || "Surf & Créa"}</span>
                 </div>
               </div>
             </div>
@@ -428,11 +344,8 @@ export default function MyCreativeSurfCampPage() {
                 href="/sejours"
                 className="text-m font-extrabold font-poppins cursor-pointer md:w-auto text-[#B8336A] hover:text-[#A2225A] transition duration-300"
               >
-                Nos séjours sont ouverts à la réservation, faites-vite ! 📅
+                Nos séjours sont ouverts à la réservation.
               </Link>
-              <p className="mt-2 text-sm text-gray-600">
-                Les places partent vite—mieux vaut réserver maintenant.
-              </p>
             </div>
           </div>
         </div>
@@ -673,18 +586,6 @@ export default function MyCreativeSurfCampPage() {
         </div>
       </section>
 
-      <style jsx>{`
-        @keyframes promoIn {
-          0% {
-            opacity: 0;
-            transform: translateY(12px) scale(0.98);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-      `}</style>
     </div>
   );
 }
