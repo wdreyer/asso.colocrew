@@ -1,11 +1,16 @@
 import Link from "next/link";
+import StaticPageFirebase from "../components/layout/StaticPageFirebase";
 
 export default function Page() {
   return (
-    <main className="mx-auto max-w-3xl p-6 md:p-8 text-gray-800 leading-relaxed">
-      <h1 className="text-2xl font-bold mb-4">
-        Conditions Générales de Vente – Association ColoCrew
-      </h1>
+    <StaticPageFirebase
+      path="/conditions-generales-de-ventes"
+      fallbackTitle="Conditions générales de vente"
+      fallbackSubtitle="Règles de réservation, paiement, annulation et cadre contractuel des séjours ColoCrew."
+      fallbackHeroImage=""
+      eyebrow="Légal"
+    >
+      <div className="mx-auto max-w-3xl text-gray-800 leading-relaxed">
 
       <p>
         Ces conditions générales de vente sont susceptibles d’évoluer. Le client en sera notifié via e-mail et sur le site internet. En cas de modifications, le client devra à nouveau signer les nouvelles Conditions Générales de Vente.
@@ -48,7 +53,7 @@ export default function Page() {
               href="https://stripe.com/fr/docs/security"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 underline"
+              className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               la page de sécurité de Stripe
             </a>
@@ -57,7 +62,7 @@ export default function Page() {
               href="https://www.klarna.com/fr/politique-de-protection-de-lacheteur-klarna/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 underline"
+              className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               de Klarna
             </a>
@@ -252,6 +257,8 @@ export default function Page() {
           </li>
         </ul>
       </section>
-    </main>
+      </div>
+    </StaticPageFirebase>
   );
 }
+

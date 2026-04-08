@@ -53,6 +53,10 @@ export async function POST(request) {
       paymentMethod = "CB",
       paymentStatus = "not_paid",
       computedTotalPrice = 0,
+      computedTotalPriceMin = 0,
+      computedTotalPriceMax = 0,
+      basePriceMin = 0,
+      basePriceMax = 0,
       insuranceFee = 0,
       transportFee = 0,
       estimatedPriceString = "",
@@ -107,10 +111,20 @@ export async function POST(request) {
     };
 
     // D) Informations de paiement
+    const numericEstimatedMin = Number(computedTotalPriceMin) || 0;
+    const numericEstimatedMax = Number(computedTotalPriceMax) || 0;
+    const numericBaseMin = Number(basePriceMin) || 0;
+    const numericBaseMax = Number(basePriceMax) || 0;
+
     const safePayment = {
-      totalPrice: Number(computedTotalPrice) || 0,
+      totalPrice:
+        Number(computedTotalPrice) || numericEstimatedMax || numericEstimatedMin || 0,
       estimatedPriceString,
-      basePrice: Number(computedTotalPrice) || 0,
+      estimatedPriceMin: numericEstimatedMin,
+      estimatedPriceMax: numericEstimatedMax,
+      basePrice: Number(computedTotalPrice) || numericBaseMax || numericBaseMin || 0,
+      basePriceMin: numericBaseMin,
+      basePriceMax: numericBaseMax,
       transportFee: Number(transportFee) || 0,
       insuranceFee: insuranceOpted ? Number(insuranceFee) : 0,
       paymentStatus,

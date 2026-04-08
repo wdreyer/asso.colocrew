@@ -1,33 +1,27 @@
-/* Importation des polices depuis Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&family=Raleway:wght@400;500;700&family=Roboto:wght@400;700&family=Open+Sans:wght@300;600&family=Montserrat:wght@400;700&display=swap');
-
-
-
-
+﻿@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 .test-inter {
-  font-family: 'Inter', sans-serif !important;
+  font-family: "Manrope", sans-serif !important;
 }
 
 .test-poppins {
-  font-family: 'Poppins', sans-serif !important;
+  font-family: "Baloo 2", cursive !important;
 }
 
 .test-montserrat {
-  font-family: 'Montserrat', sans-serif !important;
+  font-family: "Montserrat", sans-serif !important;
 }
-.font-inter {
-  font-family: 'Inter', sans-serif !important;
+
+.font-inter,
+.font-body {
+  font-family: "Manrope", sans-serif !important;
 }
 
 .font-montserrat {
-  font-family: 'Montserrat', sans-serif !important;
+  font-family: "Montserrat", sans-serif !important;
 }
 
-
-
-/* Variables CSS pour les couleurs */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -40,27 +34,38 @@
   }
 }
 
-/* Style global pour le body */
-/* Par défaut, nous utilisons la police Inter */
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: "Manrope", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  color: #24173d;
+  background: #ffffff;
+  overflow-x: clip;
 }
 
-
-/* Exemple d'utilisation de la police Poppins pour certains titres ou éléments */
 h1,
-.font-poppins {
-  font-family: 'Poppins', sans-serif;
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title,
+.font-poppins,
+.font-display {
+  font-family: "Baloo 2", cursive;
 }
 
-/* Utilitaires personnalisés */
+a,
+button,
+.font-inter,
+.font-body {
+  font-family: "Manrope", sans-serif !important;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
 }
 
-/* Animation fadeIn */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -76,7 +81,6 @@ h1,
   animation: fadeIn 1s ease-out;
 }
 
-/* Animations de fade-in et fade-out */
 .fade-in {
   opacity: 1;
   transition: opacity 1s ease-in-out, transform 2s ease-in-out;
@@ -92,24 +96,209 @@ h1,
   transition: transform 2s ease-in-out;
 }
 
-/* Positionnement personnalisé (exemple pour une bannière) */
 .tarteaucitronAlertBig {
   bottom: 50px !important;
 }
 
 .no-scrollbar {
-  -ms-overflow-style: none; /* IE et Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .no-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
 }
+
 .gradient-fade {
-  /* Utilisation d'un masque dégradé qui part d'une opacité totale (opaque) en bas à gauche 
-     et devient transparent vers le haut droit */
   -webkit-mask-image: linear-gradient(to top right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
   mask-image: linear-gradient(to top right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+.static-content .financement-article,
+.static-content .article-body {
+  max-width: var(--article-max-width, 860px);
+  margin: 0 auto;
+  color: #2e2e50;
+  font-size: 17px;
+  line-height: 1.85;
+}
+
+.static-content .financement-article::after,
+.static-content .article-body::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.static-content .financement-article p,
+.static-content .article-body p {
+  margin: 0 0 22px;
+}
+
+.static-content .financement-article h2,
+.static-content .article-body h2 {
+  margin: 48px 0 14px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a4e;
+  clear: both;
+}
+
+.static-content .financement-article strong,
+.static-content .article-body strong {
+  color: #1a1a4e;
+  font-weight: 700;
+}
+
+.static-content .financement-photo,
+.static-content .article-image {
+  margin: 24px 0 30px;
+}
+
+.static-content .article-image {
+  width: min(42%, 320px);
+  float: right;
+  margin: 6px 0 18px 22px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(26, 26, 78, 0.14);
+  transform: rotate(1.4deg);
+}
+
+.article-image.is-left {
+  float: left !important;
+  display: block !important;
+  width: min(42%, 300px) !important;
+  margin: 6px 22px 18px 0 !important;
+  transform: rotate(-1.3deg);
+}
+
+.article-image.is-right {
+  float: right !important;
+  display: block !important;
+  width: min(42%, 300px) !important;
+  margin: 6px 0 18px 22px !important;
+}
+
+.static-content .financement-photo img,
+.static-content .article-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.static-content .article-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.static-content .article-body figure {
+  margin: 20px 0 26px;
+}
+
+.static-content .article-body figure:not(.article-image) {
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(26, 26, 78, 0.12);
+}
+
+.static-content .article-body figure:not(.article-image) img {
+  width: 100%;
+  display: block;
+}
+
+.static-content .article-body figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6d6487;
+  font-style: italic;
+}
+
+.static-content .article-body > p > img:only-child {
+  display: block;
+  width: min(100%, 760px);
+  margin: 8px auto 18px;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(26, 26, 78, 0.12);
+}
+
+.static-content .article-body img.is-left,
+.static-content .article-body figure.is-left {
+  float: left;
+  width: min(42%, 320px);
+  margin: 6px 22px 18px 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(26, 26, 78, 0.14);
+  transform: rotate(-1.3deg);
+}
+
+.static-content .article-body img.is-right,
+.static-content .article-body figure.is-right {
+  float: right;
+  width: min(42%, 320px);
+  margin: 6px 0 18px 22px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(26, 26, 78, 0.14);
+  transform: rotate(1.3deg);
+}
+
+.static-content .financement-sep {
+  margin: 48px 0 34px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.static-content .financement-sep::before,
+.static-content .financement-sep::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: rgba(26, 26, 78, 0.12);
+}
+
+.static-content .financement-signature {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1a4e;
+}
+
+@media (max-width: 920px) {
+  .static-content .article-image,
+  .static-content .article-image.is-left,
+  .static-content .article-image.is-right {
+    float: none;
+    width: 100%;
+    margin: 12px 0 18px;
+    transform: none;
+  }
+
+  .static-content .article-body img.is-left,
+  .static-content .article-body img.is-right,
+  .static-content .article-body figure.is-left,
+  .static-content .article-body figure.is-right {
+    float: none;
+    width: 100%;
+    margin: 12px 0 18px;
+    transform: none;
+  }
 }

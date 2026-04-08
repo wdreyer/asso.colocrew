@@ -1,8 +1,15 @@
 import Link from "next/link";
+import StaticPageFirebase from "../components/layout/StaticPageFirebase";
 export default function Page() {
   return (
-    <main className="mx-auto max-w-3xl p-6 md:p-8 text-gray-800 leading-relaxed">
-      <h1 className="text-2xl font-bold mb-4">Mentions Légales</h1>
+    <StaticPageFirebase
+      path="/mentions-legales"
+      fallbackTitle="Mentions légales"
+      fallbackSubtitle="Informations légales et de conformité de l'association ColoCrew."
+      fallbackHeroImage=""
+      eyebrow="Légal"
+    >
+      <div className="mx-auto max-w-3xl text-gray-800 leading-relaxed">
 
       {/* 1. IDENTITÉ DE L’ÉDITEUR */}
       <section className="mt-6">
@@ -22,7 +29,7 @@ export default function Page() {
             E-mail :{" "}
             <a
               href="mailto:info@colocrew.com"
-              className="text-blue-600 hover:underline"
+              className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               info@colocrew.com
             </a>
@@ -42,7 +49,7 @@ export default function Page() {
         </p>
         <a
           href="mailto: w.dreyer@colocrew.com"
-          className="text-blue-600 hover:underline"
+          className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
         >
           w.dreyer@colocrew.com
         </a>
@@ -60,7 +67,7 @@ export default function Page() {
             Site Web :{" "}
             <a
               href="https://www.ovh.com"
-              className="text-blue-600 hover:underline"
+              className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               www.ovh.com
             </a>
@@ -116,7 +123,7 @@ export default function Page() {
           l’exercer, il suffit d’envoyer une demande écrite à l’adresse e-mail :{" "}
           <a
             href="mailto:info@colocrew.com"
-            className="text-blue-600 hover:underline"
+            className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
           >
             info@colocrew.com
           </a>
@@ -191,19 +198,21 @@ export default function Page() {
             Par e-mail :{" "}
             <a
               href="mailto:info@colocrew.com"
-              className="text-blue-600 hover:underline"
+              className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               info@colocrew.com
             </a>
           </li>
           <li>
             Par téléphone :{" "}
-            <a href="tel:0184210230" className="text-blue-600 hover:underline">
+            <a href="tel:0184210230" className="text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]">
               01 84 21 02 30
             </a>
           </li>
         </ul>
       </section>
-    </main>
+      </div>
+    </StaticPageFirebase>
   );
 }
+

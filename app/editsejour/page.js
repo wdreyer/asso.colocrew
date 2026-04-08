@@ -129,10 +129,43 @@ function EditSejourContent() {
     setSejourData((prev) => ({ ...prev, [key]: value }));
   };
 
+  const getImageDimensions = (file) =>
+    new Promise((resolve, reject) => {
+      const imageUrl = URL.createObjectURL(file);
+      const image = new window.Image();
+
+      image.onload = () => {
+        resolve({ width: image.width, height: image.height });
+        URL.revokeObjectURL(imageUrl);
+      };
+
+      image.onerror = () => {
+        reject(new Error("Impossible de lire les dimensions de l'image."));
+        URL.revokeObjectURL(imageUrl);
+      };
+
+      image.src = imageUrl;
+    });
+
   // Upload d'image (hero ou autre)
   const handleImageUpload = async (event, key) => {
     const file = event.target.files[0];
     if (!file) return;
+
+    if (key === "heroImage") {
+      try {
+        const { width, height } = await getImageDimensions(file);
+        const ratio = width / height;
+        if (width < 1600 || ratio < 1.4) {
+          alert(
+            "Image hero potentiellement trop petite pour un affichage plein écran. Recommandé : 1920x1080 minimum."
+          );
+        }
+      } catch (error) {
+        console.warn("Vérification dimensions image impossible", error);
+      }
+    }
+
     const storageRef = ref(storage, `sejours/${selectedSejour}/${file.name}`);
     await uploadBytes(storageRef, file);
     const downloadURL = await getDownloadURL(storageRef);

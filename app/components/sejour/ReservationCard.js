@@ -1,18 +1,69 @@
 "use client";
 
 import React from "react";
-import {
-  FaCalendar,
-  FaCity,
-  FaChild,
-  FaMoneyBillWave,
-  FaTrain,
-} from "react-icons/fa";
+import { FaCalendarAlt, FaChild, FaCity, FaMoneyBillWave, FaTrain } from "react-icons/fa";
+import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
 
-// Petit util pour afficher des prix propres
-function formatPrice(value) {
-  const rounded = Math.round(value * 100) / 100;
-  return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(2);
+const SUR_PLACE_LABEL = "Sur place";
+
+function normalizeCityName(value) {
+  return String(value || "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function isSurPlace(value) {
+  return normalizeCityName(value) === "sur place";
+}
+
+function getStationOptions(stations = []) {
+  const rows = Array.isArray(stations) ? stations : [];
+  const normalized = rows
+    .filter((station) => station && typeof station === "object" && station.name)
+    .map((station) => ({
+      ...station,
+      name: isSurPlace(station.name) ? SUR_PLACE_LABEL : String(station.name).trim(),
+      priceExtra: isSurPlace(station.name) ? 0 : Number(station.priceExtra) || 0,
+    }));
+
+  const hasSurPlace = normalized.some((station) => isSurPlace(station.name));
+  if (!hasSurPlace) {
+    normalized.unshift({
+      name: SUR_PLACE_LABEL,
+      priceExtra: 0,
+    });
+  }
+
+  return normalized;
+}
+
+function toDateLabel(option) {
+  if (typeof option === "object") {
+    const start = new Date(option.startDate);
+    const end = new Date(option.endDate);
+    return `${start.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })} au ${end.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })}`;
+  }
+
+  const asDate = new Date(option);
+  if (!Number.isNaN(asDate.getTime())) {
+    return asDate.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  return option;
 }
 
 export default function ReservationCard({
@@ -23,8 +74,6 @@ export default function ReservationCard({
   handleDateChange,
   handleAgeGroupChange,
   handleReservation,
-
-  // Transport
   isRoundTrip,
   handleRoundTripChange,
   selectedDepartureCity,
@@ -32,266 +81,176 @@ export default function ReservationCard({
   handleDepartureCityChange,
   handleReturnCityChange,
 }) {
-  // Calcul local du transport, si on veut l'afficher ici (optionnel).
-  // Sinon, on peut l'omettre si tu n'en as pas besoin.
+  const stationOptions = getStationOptions(sejour?.stations);
+
   const computeTransportPrice = () => {
-    if (!sejour || !sejour.stations) return 0;
+    if (isSurPlace(selectedDepartureCity) && (!isRoundTrip || isSurPlace(selectedReturnCity))) {
+      return 0;
+    }
+
+    const stationByName = (name) =>
+      stationOptions.find((station) => normalizeCityName(station?.name) === normalizeCityName(name));
 
     if (!isRoundTrip) {
-      // Aller simple
-      const station = sejour.stations.find(
-        (s) => s.name === selectedDepartureCity
-      );
-      return station ? station.priceExtra : 0;
-    } else {
-      // Aller-retour
-      if (selectedDepartureCity === selectedReturnCity) {
-        const station = sejour.stations.find(
-          (s) => s.name === selectedDepartureCity
-        );
-        return station ? station.priceExtra : 0;
-      } else {
-        const dep = sejour.stations.find(
-          (s) => s.name === selectedDepartureCity
-        );
-        const ret = sejour.stations.find(
-          (s) => s.name === selectedReturnCity
-        );
-        const depPrice = dep ? dep.priceExtra : 0;
-        const retPrice = ret ? ret.priceExtra : 0;
-        return depPrice / 2 + retPrice / 2;
-      }
+      return stationByName(selectedDepartureCity)?.priceExtra || 0;
     }
+
+    if (selectedDepartureCity === selectedReturnCity) {
+      return stationByName(selectedDepartureCity)?.priceExtra || 0;
+    }
+
+    const dep = stationByName(selectedDepartureCity)?.priceExtra || 0;
+    const ret = stationByName(selectedReturnCity)?.priceExtra || 0;
+    return dep / 2 + ret / 2;
   };
-  const computedTransportPrice = computeTransportPrice();
+
+  const transportPrice = computeTransportPrice();
+  const parsedBasePrice = extractPriceRange(reservationPrice);
+  const totalMin = parsedBasePrice.min + (Number(transportPrice) || 0);
+  const totalMax = parsedBasePrice.max + (Number(transportPrice) || 0);
+
+  const baseDisplay =
+    parsedBasePrice.min === parsedBasePrice.max
+      ? `${formatPriceNumber(parsedBasePrice.min)} €`
+      : `${formatPriceNumber(parsedBasePrice.min)} - ${formatPriceNumber(parsedBasePrice.max)} €`;
+
+  const totalDisplay =
+    totalMin === totalMax
+      ? `${formatPriceNumber(totalMin)} €`
+      : `${formatPriceNumber(totalMin)} - ${formatPriceNumber(totalMax)} €`;
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-md shadow space-y-4">
-      <div className="space-y-3">
-        {/* Date */}
-        <div className="flex items-center">
-          <div className="w-1/3 flex items-center">
-            <FaCalendar className="mr-2 text-[#B8336A] text-lg" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Date
-            </span>
-          </div>
-          <div className="w-2/3">
-            <select
-              value={selectedDate}
-              onChange={handleDateChange}
-              className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 p-2 text-sm"
-            >
-              {sejour.dates.map((dateOption, idx) => {
-                if (typeof dateOption === "object") {
-                  const { startDate, endDate } = dateOption;
-                  const start = new Date(startDate);
-                  const end = new Date(endDate);
-                  const label = `${start.toLocaleDateString("fr-FR", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })} au ${end.toLocaleDateString("fr-FR", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}`;
-                  return (
-                    <option key={idx} value={startDate}>
-                      {label}
-                    </option>
-                  );
-                } else {
-                  const asDate = new Date(dateOption);
-                  let label = dateOption;
-                  if (!isNaN(asDate.getTime())) {
-                    label = asDate.toLocaleDateString("fr-FR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    });
-                  }
-                  return (
-                    <option key={idx} value={dateOption}>
-                      {label}
-                    </option>
-                  );
-                }
-              })}
-            </select>
-          </div>
+    <div className="rounded-[22px] border border-[#eadfce] bg-[linear-gradient(180deg,#ffffff_0%,#fff8fc_100%)] p-5 shadow-[0_16px_36px_rgba(33,21,55,0.14)] md:p-6">
+      <div className="mb-4">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#B8336A]">Tarif personnalisé</p>
+        <h3 className="mt-1 font-display text-3xl font-bold leading-tight text-[#24173d]">Estimer votre tarif</h3>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1.5 inline-flex items-center gap-2 text-sm font-semibold text-[#40365f]">
+            <FaCalendarAlt className="text-[#B8336A]" /> Date du séjour
+          </label>
+          <select
+            value={selectedDate}
+            onChange={handleDateChange}
+            className="w-full rounded-xl border border-[#dfd3e8] bg-white px-3 py-2.5 text-sm text-[#2f254b] outline-none transition focus:border-[#B8336A]"
+          >
+            {sejour?.dates?.map((dateOption, idx) => {
+              const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
+              return (
+                <option key={`date-${idx}`} value={value}>
+                  {toDateLabel(dateOption)}
+                </option>
+              );
+            })}
+          </select>
         </div>
 
-        {/* Toggle Aller/Retour */}
-        <div className="w-full">
-          <label htmlFor="roundTripToggle" className="flex items-center space-x-2">
+        <div>
+          <label className="mb-1.5 inline-flex items-center gap-2 text-sm font-semibold text-[#40365f]">
+            <FaChild className="text-[#B8336A]" /> Tranche d’âge
+          </label>
+          <select
+            value={selectedAgeGroup}
+            onChange={handleAgeGroupChange}
+            className="w-full rounded-xl border border-[#dfd3e8] bg-white px-3 py-2.5 text-sm text-[#2f254b] outline-none transition focus:border-[#B8336A]"
+          >
+            {sejour?.ageGroups?.map((ageGroup, idx) => (
+              <option key={`age-${idx}`} value={ageGroup}>
+                {ageGroup} ans
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rounded-xl border border-[#eadfce] bg-white p-3">
+          <label className="inline-flex items-center gap-2 text-sm font-semibold text-[#40365f]">
             <input
               type="checkbox"
-              id="roundTripToggle"
               checked={isRoundTrip}
               onChange={(e) => handleRoundTripChange(e.target.checked)}
-              className="h-4 w-4 text-[#B8336A] border-gray-300 rounded"
+              className="h-4 w-4 rounded border-[#d8c8e6] text-[#B8336A]"
             />
-            <span className="text-xs text-gray-700 dark:text-gray-300 w-full">
-              Aller et Retour différents
-            </span>
+            Aller et retour différents
           </label>
-        </div>
 
-        {/* Ville(s) */}
-        {isRoundTrip ? (
-          <>
-            {/* Ville Aller */}
-            <div className="flex items-center">
-              <div className="w-1/3 flex items-center">
-                <FaCity className="mr-2 text-[#B8336A] text-lg" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Aller
-                </span>
-              </div>
-              <div className="w-2/3">
-                <select
-                  value={selectedDepartureCity}
-                  onChange={(e) => handleDepartureCityChange(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 p-2 text-sm"
-                >
-                  {sejour.stations?.map((station) => {
-                    const halfPrice = (station.priceExtra || 0) / 2;
-                    return (
-                      <option key={station.name} value={station.name}>
-                        {station.name} ({formatPrice(halfPrice)} €)
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-
-            {/* Ville Retour */}
-            <div className="flex items-center">
-              <div className="w-1/3 flex items-center">
-                <FaCity className="mr-2 text-[#B8336A] text-lg" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Retour
-                </span>
-              </div>
-              <div className="w-2/3">
-                <select
-                  value={selectedReturnCity}
-                  onChange={(e) => handleReturnCityChange(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 p-2 text-sm"
-                >
-                  {sejour.stations?.map((station) => {
-                    const halfPrice = (station.priceExtra || 0) / 2;
-                    return (
-                      <option key={station.name} value={station.name}>
-                        {station.name} ({formatPrice(halfPrice)} €)
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-          </>
-        ) : (
-          // Ville unique
-          <div className="flex items-center">
-            <div className="w-1/3 flex items-center">
-              <FaCity className="mr-2 text-[#B8336A] text-lg" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Ville
-              </span>
-            </div>
-            <div className="w-2/3">
+          <div className={`mt-3 grid gap-3 ${isRoundTrip ? "md:grid-cols-2" : "grid-cols-1"}`}>
+            <div>
+              <label className="mb-1.5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#6a5f86]">
+                <FaCity className="text-[#B8336A]" /> {isRoundTrip ? "Aller" : "Ville"}
+              </label>
               <select
                 value={selectedDepartureCity}
-                onChange={(e) => handleDepartureCityChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 p-2 text-sm"
+                onChange={(e) => {
+                  const city = e.target.value;
+                  handleDepartureCityChange(city);
+                  if (!isRoundTrip) {
+                    handleReturnCityChange(city);
+                  }
+                }}
+                className="w-full rounded-xl border border-[#dfd3e8] bg-white px-3 py-2.5 text-sm text-[#2f254b] outline-none transition focus:border-[#B8336A]"
               >
-                {sejour.stations?.map((station) => {
-                  const fullPrice = station.priceExtra || 0;
+                {stationOptions.map((station) => {
+                  const full = Number(station.priceExtra) || 0;
+                  const half = full / 2;
+                  const shownPrice = isRoundTrip ? half : full;
                   return (
-                    <option key={station.name} value={station.name}>
-                      {station.name} ({formatPrice(fullPrice)} €)
+                    <option key={`dep-${station.name}`} value={station.name}>
+                      {station.name} (+{formatPriceNumber(shownPrice)} €)
                     </option>
                   );
                 })}
               </select>
             </div>
-          </div>
-        )}
 
-        {/* Age */}
-        <div className="flex items-center">
-          <div className="w-1/3 flex items-center">
-            <FaChild className="mr-2 text-[#B8336A] text-lg" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Age
-            </span>
-          </div>
-          <div className="w-2/3">
-            <select
-              value={selectedAgeGroup}
-              onChange={handleAgeGroupChange}
-              className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:text-gray-100 p-2 text-sm"
-            >
-              {sejour.ageGroups?.map((ageGroup, idx) => (
-                <option key={idx} value={ageGroup}>
-                  {ageGroup} ans
-                </option>
-              ))}
-            </select>
+            {isRoundTrip ? (
+              <div>
+                <label className="mb-1.5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#6a5f86]">
+                  <FaCity className="text-[#B8336A]" /> Retour
+                </label>
+                <select
+                  value={selectedReturnCity}
+                  onChange={(e) => handleReturnCityChange(e.target.value)}
+                  className="w-full rounded-xl border border-[#dfd3e8] bg-white px-3 py-2.5 text-sm text-[#2f254b] outline-none transition focus:border-[#B8336A]"
+                >
+                  {stationOptions.map((station) => {
+                    const half = (Number(station.priceExtra) || 0) / 2;
+                    return (
+                      <option key={`ret-${station.name}`} value={station.name}>
+                        {station.name} (+{formatPriceNumber(half)} €)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            ) : null}
           </div>
         </div>
 
-        {/* Transport (facultatif) */}
-        <div className="flex items-center">
-          <div className="w-1/3 flex items-center">
-            <FaTrain className="mr-2 text-[#B8336A] text-lg" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Transport
-            </span>
+        <div className="rounded-xl border border-[#e8d6e2] bg-[#fff3f8] p-4">
+          <div className="flex items-center justify-between text-sm font-semibold text-[#4f4567]">
+            <span className="inline-flex items-center gap-2"><FaMoneyBillWave className="text-[#B8336A]" /> Séjour</span>
+            <span>{baseDisplay}</span>
           </div>
-          <div className="w-2/3 text-right">
-            <p className="text-xs text-gray-700 dark:text-gray-200">
-              <span className="text-base font-semibold text-[#B8336A] dark:text-gray-200">
-                {formatPrice(computedTransportPrice)} €
-              </span>
-            </p>
+          <div className="mt-2 flex items-center justify-between text-sm font-semibold text-[#4f4567]">
+            <span className="inline-flex items-center gap-2"><FaTrain className="text-[#B8336A]" /> Transport</span>
+            <span>{formatPriceNumber(transportPrice)} €</span>
           </div>
-        </div>
-
-        {/* Tarif */}
-        <div className="flex items-center">
-          <div className="w-1/3 flex items-center">
-            <FaMoneyBillWave className="mr-2 text-[#B8336A] text-lg" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Tarif
-            </span>
-          </div>
-          <div className="w-2/3 text-right">
-            <p className="text-xs text-gray-700 dark:text-gray-200">
-              <span className="text-base font-semibold text-[#B8336A] dark:text-gray-200">
-                {reservationPrice} €*
-              </span>
-            </p>
+          <div className="mt-3 border-t border-[#e3c6d8] pt-3 text-base font-bold text-[#24173d]">
+            <div className="flex items-center justify-between">
+              <span>Total estimé</span>
+              <span className="text-[#B8336A]">{totalDisplay}</span>
+            </div>
           </div>
         </div>
-        <span className="text-xs text-gray-700 dark:text-gray-300 w-full">*Chez Colocrew les prix sont calculés suivant les différentes aides, QF, et autres ... </span>
 
-      </div>
-
-      {/* Bouton Réserver */}
-      <div className="mt-4">
         <button
           onClick={handleReservation}
-          className="w-full bg-[#B8336A] cursor-pointer text-white px-6 py-2 rounded-md hover:bg-[#A2225A] transition duration-300 text-sm md:text-base"
+          className="w-full cursor-pointer rounded-full bg-[#B8336A] px-5 py-3 text-sm font-bold uppercase tracking-[0.08em] text-white transition hover:bg-[#982a57]"
         >
-              Estimer votre tarif
-              </button>
-        <p className="mt-2 text-xs text-gray-600 text-center">
-          Ça prend 2 min, on revient très vite vers toi.
-        </p>
+          Estimer votre tarif
+        </button>
       </div>
     </div>
   );

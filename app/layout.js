@@ -2,6 +2,7 @@ import './globals.css';
 import "easymde/dist/easymde.min.css";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
+import ScrollToTop from "./components/layout/ScrollToTop";
 import Script from 'next/script';
 import { GoogleAnalytics } from '@next/third-parties/google'
 
@@ -118,16 +119,17 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className="font-inter">
+      <body className="font-body overflow-x-hidden">
         {/* Google Tag Manager (noscript) */}
         <noscript
           dangerouslySetInnerHTML={{
             __html: '<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PZ8WBFJ7" height="0" width="0" style="display:none;visibility:hidden"></iframe>'
           }}
         />
+        <ScrollToTop />
         <div className="flex flex-col min-h-screen">
           <Header />
-          <main className="pt-18 flex-grow">{children}</main>
+          <main className="pt-[110px] flex-grow">{children}</main>
           <Footer />
         </div>
       </body>

@@ -1,9 +1,14 @@
+import StaticPageFirebase from "../components/layout/StaticPageFirebase";
 export default function Page() {
     return (
-      <main className="mx-auto max-w-3xl p-6 md:p-8 text-gray-800 leading-relaxed">
-        <h1 className="text-2xl font-bold mb-4">
-          Politique de Confidentialité – RGPD
-        </h1>
+      <StaticPageFirebase
+      path="/rgpd"
+      fallbackTitle="Politique de confidentialité"
+      fallbackSubtitle="Protection des données personnelles et droits des utilisateurs chez ColoCrew."
+      fallbackHeroImage=""
+      eyebrow="Confidentialité"
+    >
+      <div className="mx-auto max-w-3xl text-gray-800 leading-relaxed">
   
         <p className="mb-4">
           La présente Politique de Confidentialité décrit la manière dont l’Association&nbsp;
@@ -141,7 +146,7 @@ export default function Page() {
             Pour exercer ces droits, vous pouvez nous contacter par e-mail à l’adresse&nbsp;:
             <a 
               href="mailto:info@colocrew.com" 
-              className="text-blue-600 hover:underline ml-1"
+              className="ml-1 text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               info@colocrew.com
             </a>
@@ -180,20 +185,22 @@ export default function Page() {
             vous pouvez nous contacter à l’adresse : 
             <a 
               href="mailto:info@colocrew.com" 
-              className="text-blue-600 hover:underline ml-1"
+              className="ml-1 text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               info@colocrew.com
             </a> 
             ou par téléphone au&nbsp;:
             <a 
               href="tel:0184210230" 
-              className="text-blue-600 hover:underline ml-1"
+              className="ml-1 text-[#A45A86] underline underline-offset-2 transition hover:text-[#8F4F76]"
             >
               01 84 21 02 30
             </a>.
           </p>
         </section>
-      </main>
+      </div>
+    </StaticPageFirebase>
     );
   }
   
+

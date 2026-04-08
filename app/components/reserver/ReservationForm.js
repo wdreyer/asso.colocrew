@@ -331,10 +331,10 @@ export default function ReservationForm({ formData, handleChange }) {
               )}
             </div>
           </div>
-          {/* Nouveau champ : Numéro CAF ou Sécu */}
+          {/* Nouveau champ : Numéro Allocataire CAF */}
           <div className="flex items-center">
             <label className="w-1/3 text-sm font-medium text-gray-700">
-              Numéro CAF ou Sécu
+              Numéro Allocataire CAF
             </label>
             <input
               type="text"

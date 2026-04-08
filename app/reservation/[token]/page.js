@@ -148,14 +148,14 @@ export default function ReservationPage({ params }) {
       {justCreated && (
         <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4">
           <p className="font-bold">Votre réservation a bien été enregistrée !</p>
-          <p>Vous allez recevoir une confirmation par mail.</p>
+          <p>Vous allez recevoir une estimation de tarif par mail. Notre équipe vous contactera dans les 24h.</p>
         </div>
       )}
 
       {/* Cadre général */}
       <div className="bg-white p-6">
         <h1 className="text-2xl font-bold mb-4" style={{ color: colorPrimary }}>
-          Détails de la réservation
+          Détail de ma demande
         </h1>
 
         {/* Infos générales */}
@@ -325,7 +325,7 @@ export default function ReservationPage({ params }) {
 
                 {legal.cafOrSecu && (
                   <p>
-                    <strong>Numéro CAF ou Sécu :</strong> {legal.cafOrSecu}
+                    <strong>Numéro Allocataire CAF :</strong> {legal.cafOrSecu}
                   </p>
                 )}
 
