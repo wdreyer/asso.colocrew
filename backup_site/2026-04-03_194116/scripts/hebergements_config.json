@@ -1,0 +1,100 @@
+﻿{
+  "min_capacity": 25,
+  "include_unknown": false,
+  "require_coast_keyword": false,
+  "allow_unknown_dept": true,
+  "dept_whitelist": ["33", "40", "64"],
+  "coast_keywords": [
+    "ocean",
+    "oc\u00e9an",
+    "plage",
+    "c\u00f4te",
+    "littoral",
+    "bord de mer",
+    "front de mer"
+  ],
+  "sources": [
+    {
+      "name": "GrandsGites - Landes",
+      "start_urls": [
+        "https://www.grandsgites.com/gite-groupe-landes.htm"
+      ],
+      "allow_domains": ["grandsgites.com"],
+      "url_allow_regex": "grandsgites\\.com/gite-40-|grandsgites\\.com/gite-groupe-landes",
+      "detail_url_regex": "grandsgites\\.com/gite-40-"
+    },
+    {
+      "name": "GrandsGites - Pyrenees-Atlantiques",
+      "start_urls": [
+        "https://www.grandsgites.com/gite-groupe-pyrenees-atlantiques.htm"
+      ],
+      "allow_domains": ["grandsgites.com"],
+      "url_allow_regex": "grandsgites\\.com/gite-64-|grandsgites\\.com/gite-groupe-pyrenees-atlantiques",
+      "detail_url_regex": "grandsgites\\.com/gite-64-"
+    },
+    {
+      "name": "GrandsGites - Gironde",
+      "start_urls": [
+        "https://www.grandsgites.com/gite-groupe-gironde.htm"
+      ],
+      "allow_domains": ["grandsgites.com"],
+      "url_allow_regex": "grandsgites\\.com/gite-33-|grandsgites\\.com/gite-groupe-gironde",
+      "detail_url_regex": "grandsgites\\.com/gite-33-"
+    },
+    {
+      "name": "GiteDeGroupe - Aquitaine 25+",
+      "start_urls": [
+        "https://www.gitedegroupe.fr/gitesdegroupe-25-personnes-aquitaine.html"
+      ],
+      "allow_domains": ["gitedegroupe.fr"],
+      "url_allow_regex": "gitedegroupe\\.fr/(gitesdegroupe-|gite-)",
+      "detail_url_regex": "gitedegroupe\\.fr/gite-"
+    },
+    {
+      "name": "GiteDeGroupe - Mer",
+      "start_urls": [
+        "https://www.gitedegroupe.fr/grands-gites-mer.html"
+      ],
+      "allow_domains": ["gitedegroupe.fr"],
+      "url_allow_regex": "gitedegroupe\\.fr/(grands-gites-mer|gitesdegroupe-|gite-)",
+      "detail_url_regex": "gitedegroupe\\.fr/gite-"
+    },
+    {
+      "name": "Tourisme Landes - Hebergements collectifs",
+      "start_urls": [
+        "https://www.tourismelandes.com/preparer-mon-sejour/trouver-dautres-hebergements/hebergements-collectifs/"
+      ],
+      "allow_domains": ["tourismelandes.com"],
+      "url_allow_regex": "tourismelandes\\.com/hebergement-collectif/",
+      "detail_url_regex": "tourismelandes\\.com/hebergement-collectif/",
+      "use_sitemap": true,
+      "sitemap_filter_regex": "tourismelandes\\.com/hebergement-collectif/"
+    },
+    {
+      "name": "Hendaye Tourisme - Hebergements collectifs",
+      "start_urls": [
+        "https://www.hendaye-tourisme.fr/hebergements/hebergement-collectif/"
+      ],
+      "allow_domains": ["hendaye-tourisme.fr"],
+      "url_allow_regex": "hendaye-tourisme\\.fr/hebergements/hebergement-collectif/",
+      "detail_url_regex": "hendaye-tourisme\\.fr/hebergements/hebergement-collectif/"
+    },
+    {
+      "name": "Seignosse Tourisme - Groupes",
+      "start_urls": [
+        "https://www.seignosse-tourisme.com/hebergements/pour-les-groupes/"
+      ],
+      "allow_domains": ["seignosse-tourisme.com"],
+      "url_allow_regex": "seignosse-tourisme\\.com/(hebergements/pour-les-groupes|fiche/)",
+      "detail_url_regex": "seignosse-tourisme\\.com/fiche/"
+    }
+  ],
+  "crawl": {
+    "max_depth": 2,
+    "max_pages_per_domain": 1200,
+    "delay_seconds": 1.0,
+    "timeout_seconds": 15,
+    "user_agent": "ColoCrewCrawler/1.0",
+    "respect_robots": true
+  }
+}

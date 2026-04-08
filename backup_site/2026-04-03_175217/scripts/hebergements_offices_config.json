@@ -1,0 +1,546 @@
+{
+  "min_capacity": 25,
+  "include_unknown": true,
+  "require_coast_keyword": false,
+  "allow_unknown_dept": true,
+  "dept_whitelist": [
+    "33",
+    "40",
+    "64"
+  ],
+  "coast_keywords": [
+    "ocean",
+    "plage",
+    "cote",
+    "littoral",
+    "bord de mer",
+    "front de mer"
+  ],
+  "sources": [
+    {
+      "name": "Seed www.bera.eus",
+      "start_urls": [
+        "http://www.bera.eus"
+      ],
+      "allow_domains": [
+        "www.bera.eus"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.cotelandesnaturetourisme.com",
+      "start_urls": [
+        "http://www.cotelandesnaturetourisme.com/"
+      ],
+      "allow_domains": [
+        "www.cotelandesnaturetourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.littoral33.com",
+      "start_urls": [
+        "http://www.littoral33.com/Ares.htm"
+      ],
+      "allow_domains": [
+        "www.littoral33.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.saint-seurin-de-cadourne.fr",
+      "start_urls": [
+        "http://www.saint-seurin-de-cadourne.fr"
+      ],
+      "allow_domains": [
+        "www.saint-seurin-de-cadourne.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.tourisme-bearn-gaves.com",
+      "start_urls": [
+        "http://www.tourisme-bearn-gaves.com/"
+      ],
+      "allow_domains": [
+        "www.tourisme-bearn-gaves.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed chalosse.fr",
+      "start_urls": [
+        "https://chalosse.fr"
+      ],
+      "allow_domains": [
+        "chalosse.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed rtourisme.com",
+      "start_urls": [
+        "https://rtourisme.com/4615-office-de-tourisme.html"
+      ],
+      "allow_domains": [
+        "rtourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed seignosse-tourisme.com",
+      "start_urls": [
+        "https://seignosse-tourisme.com/"
+      ],
+      "allow_domains": [
+        "seignosse-tourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed tourisme.biarritz.fr",
+      "start_urls": [
+        "https://tourisme.biarritz.fr/"
+      ],
+      "allow_domains": [
+        "tourisme.biarritz.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.andernos-tourisme.fr",
+      "start_urls": [
+        "https://www.andernos-tourisme.fr"
+      ],
+      "allow_domains": [
+        "www.andernos-tourisme.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.anglet-cotebasque.com",
+      "start_urls": [
+        "https://www.anglet-cotebasque.com"
+      ],
+      "allow_domains": [
+        "www.anglet-cotebasque.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.anglet-cotebasque.com",
+      "start_urls": [
+        "https://www.anglet-cotebasque.com/"
+      ],
+      "allow_domains": [
+        "www.anglet-cotebasque.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.bayonne-tourisme.com",
+      "start_urls": [
+        "https://www.bayonne-tourisme.com/"
+      ],
+      "allow_domains": [
+        "www.bayonne-tourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.bidarttourisme.com",
+      "start_urls": [
+        "https://www.bidarttourisme.com"
+      ],
+      "allow_domains": [
+        "www.bidarttourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.bidasoaturismo.com",
+      "start_urls": [
+        "https://www.bidasoaturismo.com/"
+      ],
+      "allow_domains": [
+        "www.bidasoaturismo.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.biscagrandslacs.com",
+      "start_urls": [
+        "https://www.biscagrandslacs.com"
+      ],
+      "allow_domains": [
+        "www.biscagrandslacs.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.cambolesbains.com",
+      "start_urls": [
+        "https://www.cambolesbains.com/"
+      ],
+      "allow_domains": [
+        "www.cambolesbains.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.chalosse.fr",
+      "start_urls": [
+        "https://www.chalosse.fr/"
+      ],
+      "allow_domains": [
+        "www.chalosse.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.coeurdebearn.com",
+      "start_urls": [
+        "https://www.coeurdebearn.com"
+      ],
+      "allow_domains": [
+        "www.coeurdebearn.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.cotelandesnaturetourisme.com",
+      "start_urls": [
+        "https://www.cotelandesnaturetourisme.com"
+      ],
+      "allow_domains": [
+        "www.cotelandesnaturetourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.dax-tourisme.com",
+      "start_urls": [
+        "https://www.dax-tourisme.com/"
+      ],
+      "allow_domains": [
+        "www.dax-tourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.en-pays-basque.fr",
+      "start_urls": [
+        "https://www.en-pays-basque.fr/"
+      ],
+      "allow_domains": [
+        "www.en-pays-basque.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.gujanmestras.com",
+      "start_urls": [
+        "https://www.gujanmestras.com/"
+      ],
+      "allow_domains": [
+        "www.gujanmestras.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.hossegor.fr",
+      "start_urls": [
+        "https://www.hossegor.fr"
+      ],
+      "allow_domains": [
+        "www.hossegor.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.irun.org",
+      "start_urls": [
+        "https://www.irun.org/turismo/oficina_turismo.asp"
+      ],
+      "allow_domains": [
+        "www.irun.org"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.ladunedupilat.com",
+      "start_urls": [
+        "https://www.ladunedupilat.com/"
+      ],
+      "allow_domains": [
+        "www.ladunedupilat.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.landes-chalosse.com",
+      "start_urls": [
+        "https://www.landes-chalosse.com/"
+      ],
+      "allow_domains": [
+        "www.landes-chalosse.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.landesatlantiquesud.com",
+      "start_urls": [
+        "https://www.landesatlantiquesud.com"
+      ],
+      "allow_domains": [
+        "www.landesatlantiquesud.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.landesatlantiquesud.com",
+      "start_urls": [
+        "https://www.landesatlantiquesud.com/"
+      ],
+      "allow_domains": [
+        "www.landesatlantiquesud.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.lavalleedukiwi.com",
+      "start_urls": [
+        "https://www.lavalleedukiwi.com/"
+      ],
+      "allow_domains": [
+        "www.lavalleedukiwi.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.lecoeurdeslandes.com",
+      "start_urls": [
+        "https://www.lecoeurdeslandes.com/"
+      ],
+      "allow_domains": [
+        "www.lecoeurdeslandes.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.medococean.com",
+      "start_urls": [
+        "https://www.medococean.com"
+      ],
+      "allow_domains": [
+        "www.medococean.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.medocpleinsud.com",
+      "start_urls": [
+        "https://www.medocpleinsud.com/"
+      ],
+      "allow_domains": [
+        "www.medocpleinsud.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.mimizan-tourisme.com",
+      "start_urls": [
+        "https://www.mimizan-tourisme.com/"
+      ],
+      "allow_domains": [
+        "www.mimizan-tourisme.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.mortagne-sur-gironde.fr",
+      "start_urls": [
+        "https://www.mortagne-sur-gironde.fr/loffice-de-tourisme/"
+      ],
+      "allow_domains": [
+        "www.mortagne-sur-gironde.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.ot-messanges.fr",
+      "start_urls": [
+        "https://www.ot-messanges.fr/"
+      ],
+      "allow_domains": [
+        "www.ot-messanges.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.royanatlantique.fr",
+      "start_urls": [
+        "https://www.royanatlantique.fr/"
+      ],
+      "allow_domains": [
+        "www.royanatlantique.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.royanatlantique.fr",
+      "start_urls": [
+        "https://www.royanatlantique.fr/offices-tourisme/office-de-tourisme-la-palmyre-les-mathes-destination-royan-atlantique-les-mathes/"
+      ],
+      "allow_domains": [
+        "www.royanatlantique.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.seignanx.com",
+      "start_urls": [
+        "https://www.seignanx.com"
+      ],
+      "allow_domains": [
+        "www.seignanx.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.seignanx.com",
+      "start_urls": [
+        "https://www.seignanx.com/"
+      ],
+      "allow_domains": [
+        "www.seignanx.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.tourisme-bearn-gaves.com",
+      "start_urls": [
+        "https://www.tourisme-bearn-gaves.com"
+      ],
+      "allow_domains": [
+        "www.tourisme-bearn-gaves.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.tourisme-bearn-gaves.com",
+      "start_urls": [
+        "https://www.tourisme-bearn-gaves.com/"
+      ],
+      "allow_domains": [
+        "www.tourisme-bearn-gaves.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.tourisme-labenne.com",
+      "start_urls": [
+        "https://www.tourisme-labenne.com/"
+      ],
+      "allow_domains": [
+        "www.tourisme-labenne.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.tourisme-latestedebuch.fr",
+      "start_urls": [
+        "https://www.tourisme-latestedebuch.fr"
+      ],
+      "allow_domains": [
+        "www.tourisme-latestedebuch.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.tourisme-leverdon.com",
+      "start_urls": [
+        "https://www.tourisme-leverdon.com"
+      ],
+      "allow_domains": [
+        "www.tourisme-leverdon.com"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.vendays-montalivet-tourisme.fr",
+      "start_urls": [
+        "https://www.vendays-montalivet-tourisme.fr/"
+      ],
+      "allow_domains": [
+        "www.vendays-montalivet-tourisme.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    },
+    {
+      "name": "Seed www.ville-arcachon.fr",
+      "start_urls": [
+        "https://www.ville-arcachon.fr/maat/"
+      ],
+      "allow_domains": [
+        "www.ville-arcachon.fr"
+      ],
+      "url_allow_regex": "(heberg|h[ee]bergement|g[ii]te|groupe|groupes|collectif|camping|hotel|h[oo]tel|seminaire|village|centre)",
+      "detail_url_regex": "(heberg|h[ee]bergement|g[ii]te|camping|hotel|h[oo]tel|centre|groupe|groupes|collectif)"
+    }
+  ],
+  "crawl": {
+    "max_depth": 2,
+    "max_pages_per_domain": 800,
+    "delay_seconds": 0.4,
+    "timeout_seconds": 15,
+    "user_agent": "ColoCrewCrawler/1.0",
+    "respect_robots": true
+  }
+}

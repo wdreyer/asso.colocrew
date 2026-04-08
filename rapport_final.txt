@@ -1,0 +1,37 @@
+=== Rapport final banqueimage ===
+Date: 2026-04-03T19:43:07
+
+Images avant: 603
+Images après: 603
+Doublons supprimés (exacts): 0
+Doublons supprimés (quasi): 0
+Total doublons supprimés: 0
+
+Fichiers source mis à jour: 0
+Lignes/références modifiées: 0
+
+Répartition par catégorie:
+- ski: 0 (0.0%)
+- surf: 9 (1.5%)
+- plage: 5 (0.8%)
+- portraits: 65 (10.8%)
+- groupes: 524 (86.9%)
+- animation: 0 (0.0%)
+- nature: 0 (0.0%)
+- sport_nautique: 0 (0.0%)
+- architecture: 0 (0.0%)
+- divers: 0 (0.0%)
+
+⚠️ Images dans divers/ (à vérifier manuellement):
+- Aucune
+
+⚠️ Références introuvables dans la MAP:
+- banqueimage/$
+- banqueimage/*
+- banqueimage/**
+- banqueimage/...
+- banqueimage/...jpg
+- banqueimage/ski/ski_001.jpg
+
+Backup: C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\backup_site\2026-04-03_194116
+DRY_RUN: False

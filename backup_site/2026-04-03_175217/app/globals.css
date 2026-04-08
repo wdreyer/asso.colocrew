@@ -1,0 +1,129 @@
+﻿@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+.test-inter {
+  font-family: "Manrope", sans-serif !important;
+}
+
+.test-poppins {
+  font-family: "Baloo 2", cursive !important;
+}
+
+.test-montserrat {
+  font-family: "Montserrat", sans-serif !important;
+}
+
+.font-inter,
+.font-body {
+  font-family: "Manrope", sans-serif !important;
+}
+
+.font-montserrat {
+  font-family: "Montserrat", sans-serif !important;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  font-family: "Manrope", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  color: #24173d;
+  background: #ffffff;
+  overflow-x: clip;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title,
+.font-poppins,
+.font-display {
+  font-family: "Baloo 2", cursive;
+}
+
+a,
+button,
+.font-inter,
+.font-body {
+  font-family: "Manrope", sans-serif !important;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 1s ease-out;
+}
+
+.fade-in {
+  opacity: 1;
+  transition: opacity 1s ease-in-out, transform 2s ease-in-out;
+}
+
+.fade-out {
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}
+
+.scale-up {
+  transform: scale(1.3);
+  transition: transform 2s ease-in-out;
+}
+
+.tarteaucitronAlertBig {
+  bottom: 50px !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.gradient-fade {
+  -webkit-mask-image: linear-gradient(to top right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to top right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}

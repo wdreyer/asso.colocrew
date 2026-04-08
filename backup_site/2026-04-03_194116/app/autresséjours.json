@@ -1,0 +1,369 @@
+{
+  "escapade-parisienne": {
+    "id": "escapade-parisienne",
+    "name": "Escapade Parisienne",
+    "heroImage": "/paris.jpg",
+    "heroSubtitle": "Un séjour inoubliable à Paris pour découvrir ses monuments emblématiques, ses attractions et son ambiance unique.",
+    "summarySubsections": [
+      {
+        "title": "Le séjour en bref",
+        "text": "Une immersion au cœur de Paris pour découvrir la capitale autrement ! Entre monuments iconiques, croisière sur la Seine et sensations fortes au Parc Astérix, ce séjour est conçu pour émerveiller et créer des souvenirs mémorables. Idéal pour les jeunes curieux et aventuriers, avec des groupes adaptés par tranche d'âge (11-13 ans et 14-17 ans).",
+        "imageSrc": ""
+      }
+    ],
+    "sections": [
+      {
+        "subSections": [
+          {
+            "title": "Découverte des monuments",
+            "text": "Explorez la capitale en visitant ses incontournables : la Tour Eiffel, Montmartre et son Sacré-Cœur, la Pyramide du Louvre et l'Arc de Triomphe. Une plongée dans l’histoire et la culture parisienne.",
+            "imageSrc": "/eiffel.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Balade en bateau-mouche",
+            "text": "Découvrez Paris sous un nouvel angle en naviguant sur la Seine. Une croisière en bateau-mouche pour admirer les plus beaux ponts et monuments illuminés.",
+            "imageSrc": "/seine.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Journée au Parc Astérix",
+            "text": "Sensations garanties avec une journée entière au Parc Astérix. Des attractions pour tous les goûts, entre montagnes russes et spectacles mythiques.",
+            "imageSrc": "/asterix.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Hébergement en auberge de jeunesse",
+            "text": "Séjournez dans une auberge moderne et sécurisée en plein cœur de Paris, avec des chambres confortables et des espaces communs chaleureux.",
+            "imageSrc": "/hostel.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Repas et vie collective",
+            "text": "Des repas équilibrés et variés, dans des restaurants typiques et en auberge, avec des menus adaptés à tous les régimes alimentaires.",
+            "imageSrc": "/food.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Transport inclus",
+            "text": "Le transport aller-retour en train est inclus depuis plusieurs grandes villes, avec des accompagnateurs tout au long du trajet. Sur place, les jeunes utiliseront le métro et le bus pour une immersion complète.",
+            "imageSrc": "/metro.jpg"
+          }
+        ]
+      }
+    ],
+    "dates": [
+      {
+        "startDate": "2025-10-19T00:00:00Z",
+        "endDate": "2025-10-25T00:00:00Z"
+      },
+      {
+        "startDate": "2025-10-26T00:00:00Z",
+        "endDate": "2025-11-01T00:00:00Z"
+      }
+    ],
+    "basePrice": 990,
+    "transportMode": "Train",
+    "ageGroups": [
+      "11-13",
+      "14-17"
+    ],
+    "stations": [
+      {
+        "name": "Lyon",
+        "priceExtra": 100
+      },
+      {
+        "name": "Marseille",
+        "priceExtra": 120
+      },
+      {
+        "name": "Toulouse",
+        "priceExtra": 110
+      },
+      {
+        "name": "Bordeaux",
+        "priceExtra": 90
+      },
+      {
+        "name": "Nantes",
+        "priceExtra": 100
+      },
+      {
+        "name": "Rennes",
+        "priceExtra": 90
+      },
+      {
+        "name": "Strasbourg",
+        "priceExtra": 130
+      },
+      {
+        "name": "Lille",
+        "priceExtra": 70
+      }
+    ]
+  },
+  "cantal-decouverte": {
+    "id": "cantal-decouverte",
+    "name": "Cantal Découverte",
+    "heroImage": "/cantal-nature.jpg",
+    "heroSubtitle": "Une semaine d’aventure en pleine nature au cœur des volcans d’Auvergne pour les 6-11 ans.",
+    "summarySubsections": [
+      {
+        "title": "Le séjour en bref",
+        "text": "Cantal Découverte, c’est une semaine au grand air pour les 6-11 ans, avec un programme riche en activités nature, en découvertes et en jeux collectifs. Basé au **Domaine de Gravières**, un centre chaleureux et adapté aux groupes, ce séjour est pensé comme une colo authentique : de la simplicité, du partage et du fun !",
+        "imageSrc": ""
+      }
+    ],
+    "sections": [
+      {
+        "subSections": [
+          {
+            "title": "Randonnées et exploration",
+            "text": "Les enfants partiront à la découverte des sentiers d’Auvergne, exploreront la forêt environnante et apprendront à reconnaître les plantes et les traces d’animaux.",
+            "imageSrc": "/rando.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Baignade et jeux d’eau",
+            "text": "Au lac de Bort-les-Orgues, ils profiteront d’un après-midi baignade, avec jeux aquatiques et construction de barrages dans la rivière.",
+            "imageSrc": "/lac.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Excursion au château de Val",
+            "text": "Une sortie dans l’un des plus beaux châteaux du Cantal, où ils découvriront son histoire fascinante et participeront à un jeu de piste.",
+            "imageSrc": "/chateau.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Vie collective et veillées",
+            "text": "Les enfants apprendront la vie en collectivité : cuisine, mise en place des repas, rangement, et bien sûr… les grandes veillées avec contes et chansons au coin du feu !",
+            "imageSrc": "/veillee.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Ateliers nature",
+            "text": "Fabrication de cabanes, land art, reconnaissance des oiseaux et initiation aux premiers gestes de survie en pleine nature.",
+            "imageSrc": "/nature.jpg"
+          }
+        ]
+      }
+    ],
+    "dates": [
+      {
+        "startDate": "2025-07-06T00:00:00Z",
+        "endDate": "2025-07-11T00:00:00Z"
+      },
+      {
+        "startDate": "2025-07-13T00:00:00Z",
+        "endDate": "2025-07-18T00:00:00Z"
+      },
+      {
+        "startDate": "2025-07-20T00:00:00Z",
+        "endDate": "2025-07-25T00:00:00Z"
+      },
+      {
+        "startDate": "2025-07-27T00:00:00Z",
+        "endDate": "2025-08-01T00:00:00Z"
+      },
+      {
+        "startDate": "2025-08-03T00:00:00Z",
+        "endDate": "2025-08-08T00:00:00Z"
+      },
+      {
+        "startDate": "2025-08-10T00:00:00Z",
+        "endDate": "2025-08-15T00:00:00Z"
+      },
+      {
+        "startDate": "2025-08-17T00:00:00Z",
+        "endDate": "2025-08-22T00:00:00Z"
+      },
+      {
+        "startDate": "2025-08-24T00:00:00Z",
+        "endDate": "2025-08-29T00:00:00Z"
+      }
+    ],
+    "basePrice": 450,
+    "transportMode": "Bus",
+    "ageGroups": [
+      "6-10"
+    ],
+    "stations": [
+      {
+        "name": "Clermont-Ferrand",
+        "priceExtra": 50
+      },
+      {
+        "name": "Lyon",
+        "priceExtra": 90
+      },
+      {
+        "name": "Bordeaux",
+        "priceExtra": 110
+      },
+      {
+        "name": "Paris",
+        "priceExtra": 130
+      },
+      {
+        "name": "Toulouse",
+        "priceExtra": 110
+      }
+    ]
+  },
+  "my-creative-surf-camp": {
+    "id": "my-creative-surf-camp",
+    "name": "My creative surf camp",
+    "heroImage": "/beach-surf.jpg",
+    "heroSubtitle": "Éveillez vos passions, gagnez en autonomie, et vivez une expérience inoubliable à Montalivet, sur les plus belles vagues de la côte.",
+    "summarySubsections": [
+      {
+        "title": "Le séjour en bref",
+        "text": "Un séjour de 12 jours unique combinant surf, art et convivialité à Montalivet. Rejoignez-nous pour une aventure inoubliable sur les plus belles vagues de la côte atlantique, tout en développant votre créativité et en partageant des moments forts avec de nouveaux amis. Les séjours sont organisés pour deux tranches d'âge distinctes : les 11-13 ans et les 14-17 ans, avec des programmes séparés mais sur le même centre.",
+        "imageSrc": ""
+      }
+    ],
+    "sections": [
+      {
+        "subSections": [
+          {
+            "title": "Le Surf",
+            "text": "Découvrez la liberté des vagues avec 6 sessions de surf encadrées par des moniteur·ices qualifié·es. Que vous soyez débutant ou expérimenté, vous progresserez à votre rythme.",
+            "imageSrc": "/surflesson.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Nourriture",
+            "text": "Savourez des repas équilibrés et variés, avec des options pour tous (végétarien, allergies). Les participants participent à l’élaboration des menus, apprenant ainsi à organiser la vie collective.",
+            "imageSrc": "/food.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Hébergement",
+            "text": "Vous serez logés dans un camping tout confort à quelques minutes de la plage. Chambres de 4 lits et atmosphère conviviale au rendez-vous. Montalivet, célèbre pour ses plages de sable fin et son ambiance chaleureuse, est un cadre exceptionnel pour profiter pleinement de votre séjour.",
+            "imageSrc": "/host.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Projet Artistique",
+            "text": "En parallèle du surf, exprimez votre créativité à travers un projet artistique : vlog, podcasts, clip vidéo... Encadrés par nos animateur·ices, vous repartirez avec un souvenir unique.",
+            "imageSrc": "/art.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Encadrement",
+            "text": "Une équipe qualifiée et passionnée, formée aux valeurs de bienveillance et d’inclusion, veillera à votre sécurité et à votre épanouissement. Nos animateur·ices sont expérimenté·es et attentif·ves à chaque jeune.",
+            "imageSrc": "/staff.jpg"
+          }
+        ]
+      },
+      {
+        "subSections": [
+          {
+            "title": "Transport",
+            "text": "Le transport est inclus depuis plusieurs villes (Paris, Bordeaux, Lyon, Toulouse). Nous privilégions le train pour l'écologie et la sécurité. Vous serez accompagnés tout au long du trajet pour une arrivée sereine.",
+            "imageSrc": "/transport.jpg"
+          }
+        ]
+      }
+    ],
+    "dates": [
+      {
+        "startDate": "2025-07-06T00:00:00Z",
+        "endDate": "2025-07-17T00:00:00Z"
+      },
+      {
+        "startDate": "2025-07-20T00:00:00Z",
+        "endDate": "2025-07-31T00:00:00Z"
+      },
+      {
+        "startDate": "2025-08-03T00:00:00Z",
+        "endDate": "2025-08-14T00:00:00Z"
+      },
+      {
+        "startDate": "2025-08-17T00:00:00Z",
+        "endDate": "2025-08-28T00:00:00Z"
+      }
+    ],
+    "basePrice": 1200,
+    "transportMode": "Train",
+    "ageGroups": [
+      "11-13",
+      "14-17"
+    ],
+    "stations": [
+      {
+        "name": "Paris",
+        "priceExtra": 130
+      },
+      {
+        "name": "Bordeaux",
+        "priceExtra": 40
+      },
+      {
+        "name": "Lyon",
+        "priceExtra": 130
+      },
+      {
+        "name": "Montpellier",
+        "priceExtra": 110
+      },
+      {
+        "name": "Toulouse",
+        "priceExtra": 90
+      },
+      {
+        "name": "Marseille",
+        "priceExtra": 130
+      },
+      {
+        "name": "Nantes",
+        "priceExtra": 120
+      },
+      {
+        "name": "Rennes",
+        "priceExtra": 120
+      }
+    ]
+  }
+}
