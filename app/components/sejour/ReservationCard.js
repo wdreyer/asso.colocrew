@@ -120,7 +120,7 @@ export default function ReservationCard({
       : `${formatPriceNumber(totalMin)} - ${formatPriceNumber(totalMax)} €`;
 
   return (
-    <div className="rounded-[22px] border border-[#eadfce] bg-[linear-gradient(180deg,#ffffff_0%,#fff8fc_100%)] p-5 shadow-[0_16px_36px_rgba(33,21,55,0.14)] md:p-6">
+    <div id="reservation-card" className="rounded-[22px] border border-[#eadfce] bg-[linear-gradient(180deg,#ffffff_0%,#fff8fc_100%)] p-5 shadow-[0_16px_36px_rgba(33,21,55,0.14)] md:p-6">
       <div className="mb-4">
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#B8336A]">Tarif personnalisé</p>
         <h3 className="mt-1 font-display text-3xl font-bold leading-tight text-[#24173d]">Estimer votre tarif</h3>

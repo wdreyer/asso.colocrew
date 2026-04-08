@@ -528,8 +528,46 @@ function MobileMenu({ isOpen, closeMenu }) {
 
 /* ─── CONTACT WIDGET ───────────────────────── */
 
+const INPUT_STYLE = {
+  width: "100%", border: "1px solid #e4d8f0", borderRadius: 8,
+  padding: "9px 12px", fontSize: "0.82rem", fontWeight: 500,
+  color: "#24173d", outline: "none", background: "#fdfaff",
+  boxSizing: "border-box",
+};
+
 function ContactWidget() {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState("form"); // "form" | "coords"
+  const [form, setForm] = useState({ telephone: "", email: "", message: "" });
+  const [status, setStatus] = useState("idle"); // "idle" | "sending" | "sent" | "error"
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.email || !form.message) return;
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formType: "contact",
+          nom: "",
+          prenom: "",
+          email: form.email,
+          telephone: form.telephone,
+          message: form.message,
+        }),
+      });
+      setStatus(res.ok ? "sent" : "error");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const reset = () => {
+    setForm({ telephone: "", email: "", message: "" });
+    setStatus("idle");
+  };
 
   return (
     <div className="fixed bottom-6 right-5 z-[65]">
@@ -539,25 +577,109 @@ function ContactWidget() {
           onClick={() => setOpen(true)}
           style={{ background: "#B8336A", borderRadius: "50%", padding: 16, color: "#fff", boxShadow: "0 10px 28px rgba(184,51,106,0.38)", border: "none", cursor: "pointer", transition: "transform 0.18s, background 0.18s" }}
           className="hover:-translate-y-1 hover:bg-[#982a57]"
-          aria-label="Contact rapide"
+          aria-label="Nous contacter"
         >
           <FaComments size={20} />
         </button>
       ) : (
-        <div style={{ width: 300, border: "1px solid #eadfce", background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 48px rgba(25,17,44,0.22)" }}>
+        <div style={{ width: 320, border: "1px solid #eadfce", background: "#fff", borderRadius: 14, overflow: "hidden", boxShadow: "0 20px 48px rgba(25,17,44,0.22)" }}>
+
+          {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#21153c", padding: "12px 16px", color: "#fff" }}>
-            <p style={{ margin: 0, fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.08em" }}>CONTACT RAPIDE</p>
-            <button type="button" onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer" }}><FaTimes /></button>
+            <p style={{ margin: 0, fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.08em" }}>NOUS CONTACTER</p>
+            <button type="button" onClick={() => { setOpen(false); reset(); }} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer" }}><FaTimes /></button>
           </div>
-          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-            <a href="tel:0184210230" style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #eadfce", borderRadius: 8, padding: "10px 14px", fontSize: "0.875rem", fontWeight: 600, color: "#24173d", textDecoration: "none", transition: "border-color 0.15s" }} className="hover:border-[#B8336A]">
-              <FaPhone style={{ color: "#B8336A" }} /> 01 84 21 02 30
-            </a>
-            <a href="mailto:info@colocrew.com" style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #eadfce", borderRadius: 8, padding: "10px 14px", fontSize: "0.875rem", fontWeight: 600, color: "#24173d", textDecoration: "none", transition: "border-color 0.15s" }} className="hover:border-[#B8336A]">
-              <FaEnvelope style={{ color: "#B8336A" }} /> info@colocrew.com
-            </a>
-            <p style={{ margin: 0, fontSize: "0.75rem", color: "#645c79" }}>On vous répond rapidement, en général sous 24h.</p>
+
+          {/* Onglets */}
+          <div style={{ display: "flex", borderBottom: "1px solid #f0e8f5" }}>
+            {[{ key: "form", label: "Message" }, { key: "coords", label: "Coordonnées" }].map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                style={{
+                  flex: 1, padding: "10px 0", fontSize: "0.78rem", fontWeight: 700,
+                  border: "none", cursor: "pointer", background: tab === key ? "#fff" : "#fdf8fc",
+                  color: tab === key ? "#B8336A" : "#9b8db0",
+                  borderBottom: tab === key ? "2px solid #B8336A" : "2px solid transparent",
+                  transition: "all 0.15s",
+                }}
+              >{label}</button>
+            ))}
           </div>
+
+          {/* Onglet formulaire */}
+          {tab === "form" && (
+            <div style={{ padding: 16 }}>
+              {status === "sent" ? (
+                <div style={{ textAlign: "center", padding: "20px 0" }}>
+                  <p style={{ fontSize: "1.5rem", marginBottom: 8 }}>✅</p>
+                  <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e1040", marginBottom: 4 }}>Message envoyé !</p>
+                  <p style={{ fontSize: "0.75rem", color: "#7a6f90", marginBottom: 16 }}>On vous répond sous 24h.</p>
+                  <button type="button" onClick={reset} style={{ fontSize: "0.78rem", color: "#B8336A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Envoyer un autre message</button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7a6f90", display: "block", marginBottom: 4 }}>Téléphone</label>
+                    <input
+                      type="tel"
+                      placeholder="06 00 00 00 00"
+                      value={form.telephone}
+                      onChange={(e) => setForm((p) => ({ ...p, telephone: e.target.value }))}
+                      style={INPUT_STYLE}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7a6f90", display: "block", marginBottom: 4 }}>Email *</label>
+                    <input
+                      type="email"
+                      placeholder="vous@email.com"
+                      required
+                      value={form.email}
+                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                      style={INPUT_STYLE}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, color: "#7a6f90", display: "block", marginBottom: 4 }}>Message *</label>
+                    <textarea
+                      placeholder="Votre question ou message…"
+                      required
+                      rows={4}
+                      value={form.message}
+                      onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
+                      style={{ ...INPUT_STYLE, resize: "none", lineHeight: 1.5 }}
+                    />
+                  </div>
+                  {status === "error" && (
+                    <p style={{ fontSize: "0.72rem", color: "#e11d48", margin: 0 }}>Une erreur est survenue. Réessayez.</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={status === "sending"}
+                    style={{ background: "#B8336A", color: "#fff", border: "none", borderRadius: 100, padding: "10px 0", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer", transition: "background 0.18s", opacity: status === "sending" ? 0.7 : 1 }}
+                  >
+                    {status === "sending" ? "Envoi…" : "Envoyer →"}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* Onglet coordonnées */}
+          {tab === "coords" && (
+            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <a href="tel:0184210230" style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #eadfce", borderRadius: 8, padding: "10px 14px", fontSize: "0.875rem", fontWeight: 600, color: "#24173d", textDecoration: "none", transition: "border-color 0.15s" }} className="hover:border-[#B8336A]">
+                <FaPhone style={{ color: "#B8336A", flexShrink: 0 }} /> 01 84 21 02 30
+              </a>
+              <a href="mailto:info@colocrew.com" style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #eadfce", borderRadius: 8, padding: "10px 14px", fontSize: "0.875rem", fontWeight: 600, color: "#24173d", textDecoration: "none", transition: "border-color 0.15s" }} className="hover:border-[#B8336A]">
+                <FaEnvelope style={{ color: "#B8336A", flexShrink: 0 }} /> info@colocrew.com
+              </a>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "#645c79" }}>On vous répond rapidement, en général sous 24h.</p>
+            </div>
+          )}
+
         </div>
       )}
     </div>

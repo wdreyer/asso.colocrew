@@ -101,9 +101,30 @@ export default function BottomReservationBar({
 
   const stationOptions = getStationOptions(sejour?.stations);
 
+  const scrollToCard = () => {
+    const el = document.getElementById("reservation-card");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e6d8e3] bg-[linear-gradient(180deg,rgba(255,255,255,0.97)_0%,rgba(255,246,251,0.97)_100%)] shadow-[0_-8px_24px_rgba(33,21,55,0.14)] backdrop-blur-md">
-      <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-3 py-2 pr-[92px] md:px-5 md:pr-[108px] lg:justify-center">
+
+      {/* ── Mobile : bouton simple ── */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3 md:hidden">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#B8336A]">Tarif estimé</p>
+          <p className="text-sm font-bold text-[#24173d]">{totalDisplay}</p>
+        </div>
+        <button
+          onClick={scrollToCard}
+          className="shrink-0 cursor-pointer rounded-full bg-[#B8336A] px-5 py-2.5 text-sm font-bold uppercase tracking-[0.06em] text-white transition hover:bg-[#982a57]"
+        >
+          Estimer mon tarif →
+        </button>
+      </div>
+
+      {/* ── Desktop : barre complète ── */}
+      <div className="no-scrollbar hidden items-center gap-2 overflow-x-auto px-3 py-2 pr-[92px] md:flex md:px-5 md:pr-[108px] lg:justify-center">
         <span className="shrink-0 rounded-full border border-[#eadfce] bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#B8336A]">
           Tarif
         </span>
