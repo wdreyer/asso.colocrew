@@ -102,8 +102,10 @@ export default function BottomReservationBar({
   const stationOptions = getStationOptions(sejour?.stations);
 
   const scrollToCard = () => {
-    const el = document.getElementById("reservation-card");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const el =
+      document.getElementById("reservation-card-mobile") ||
+      document.getElementById("reservation-card");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (

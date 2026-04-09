@@ -570,7 +570,7 @@ function ContactWidget() {
   };
 
   return (
-    <div className="fixed bottom-6 right-5 z-[65]">
+    <div className="fixed bottom-20 right-5 z-[65] md:bottom-6">
       {!open ? (
         <button
           type="button"

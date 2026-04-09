@@ -1381,15 +1381,16 @@ function TestimonialsSection({ content }) {
             className="absolute inset-0 bg-[#120b23]/45"
             onClick={() => setActiveReview(null)}
           />
-          <div className="relative z-[91] w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl md:p-8">
+          <div className="relative z-[91] w-full max-w-2xl rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "calc(100vh - 2rem)", display: "flex", flexDirection: "column" }}>
             <button
               type="button"
               onClick={() => setActiveReview(null)}
-              className="absolute right-3 top-3 rounded-full px-2 py-1 text-sm text-[#4d3f74] hover:bg-[#f6effa]"
+              className="absolute right-3 top-3 z-10 rounded-full px-2 py-1 text-sm text-[#4d3f74] hover:bg-[#f6effa]"
               aria-label="Fermer"
             >
               ✕
             </button>
+            <div className="overflow-y-auto p-6 md:p-8">
 
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ width: 80, height: 80, borderRadius: "50%", overflow: "hidden", flexShrink: 0, position: "relative", boxShadow: "0 4px 16px rgba(184,51,106,0.18)" }}>
@@ -1427,6 +1428,7 @@ function TestimonialsSection({ content }) {
                 __html: formatTestimonialHtml(activeReview.fullText || activeReview.excerpt),
               }}
             />
+            </div>
           </div>
         </div>
       ) : null}

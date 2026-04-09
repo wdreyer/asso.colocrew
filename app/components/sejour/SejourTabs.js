@@ -380,7 +380,7 @@ export default function SejourTabs({
 
       <SectionWave color="#fff8ef" />
 
-      <div className="bg-[#fff8ef] lg:hidden">
+      <div id="reservation-card-mobile" className="bg-[#fff8ef] lg:hidden">
         <div className="mx-auto w-full max-w-[1480px] px-4 pb-8 pt-2 md:px-8 md:pb-12">
           <div className="mx-auto max-w-3xl">
             <ReservationCard

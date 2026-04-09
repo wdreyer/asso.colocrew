@@ -129,7 +129,7 @@ export default function RootLayout({ children }) {
         <ScrollToTop />
         <div className="flex flex-col min-h-screen">
           <Header />
-          <main className="pt-[110px] flex-grow">{children}</main>
+          <main className="pt-[100px] md:pt-[108px] lg:pt-[114px] flex-grow">{children}</main>
           <Footer />
         </div>
       </body>
