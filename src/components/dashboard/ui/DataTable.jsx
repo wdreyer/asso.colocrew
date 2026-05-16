@@ -28,7 +28,8 @@ export default function DataTable({
   defaultSortKey,
   defaultSortDirection = "asc",
   onRowClick,
-  emptyLabel = "Aucune donn?e.",
+  selectedRowId,
+  emptyLabel = "Aucune donnée.",
   toolsInline = false,
 }) {
   const columnsByKey = useMemo(
@@ -153,7 +154,10 @@ export default function DataTable({
             processedData.map((row, rowIndex) => (
               <tr
                 key={row.id || rowIndex}
-                className={onRowClick ? "dash-row-clickable" : ""}
+                className={[
+                  onRowClick ? "dash-row-clickable" : "",
+                  selectedRowId && row.id === selectedRowId ? "dash-row-selected" : "",
+                ].filter(Boolean).join(" ")}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((col) => (
