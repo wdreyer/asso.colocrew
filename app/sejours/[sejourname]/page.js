@@ -227,16 +227,23 @@ export default function SejourDetail() {
         setSejour(data);
 
         if (Array.isArray(data.dates) && data.dates.length > 0) {
-          const firstDateOption = data.dates[0];
+          let defaultDateOption = data.dates[0];
+          if (data?.promotion?.active && data.promotion.startDate) {
+            const promoStart = String(data.promotion.startDate).slice(0, 10);
+            const promoEntry = data.dates.find(
+              (d) => typeof d === "object" && String(d.startDate || "").slice(0, 10) === promoStart
+            );
+            if (promoEntry) defaultDateOption = promoEntry;
+          }
 
-          if (typeof firstDateOption === "object") {
-            setSelectedStartDate(firstDateOption.startDate || "");
-            setSelectedEndDate(firstDateOption.endDate || "");
-            setBasePriceRange(resolveSejourPriceRange(data, firstDateOption.startDate));
+          if (typeof defaultDateOption === "object") {
+            setSelectedStartDate(defaultDateOption.startDate || "");
+            setSelectedEndDate(defaultDateOption.endDate || "");
+            setBasePriceRange(resolveSejourPriceRange(data, defaultDateOption.startDate));
           } else {
-            setSelectedStartDate(firstDateOption);
+            setSelectedStartDate(defaultDateOption);
             setSelectedEndDate("");
-            setBasePriceRange(resolveSejourPriceRange(data, firstDateOption));
+            setBasePriceRange(resolveSejourPriceRange(data, defaultDateOption));
           }
         } else {
           setBasePriceRange(resolveSejourPriceRange(data));

@@ -63,22 +63,34 @@ const trips = [
   {
     href: "/sejours/my-creative-surf-camp",
     image: "/mcsc2026.jpg",
-    badge: "Séjour phare",
+    badge: "Offre juillet",
     title: "My Creative Surf Camp",
     age: "11-13 / 14-17 ans",
-    dates: "Juillet - Août 2026",
+    dates: "6 - 17 juillet 2026",
+    promo: "350 - 950 €",
     cta: "Découvrir le séjour",
   },
   {
     href: "/sejours/eaux-vives-creative-camp",
     image: "/ovive.png",
-    badge: "Nouveauté 2026",
+    badge: "Offre juillet",
     title: "Eaux Vives Creative Camp",
     age: "11-13 / 14-17 ans",
-    dates: "Juillet - Août 2026",
+    dates: "20 - 31 juillet 2026",
+    promo: "350 - 950 €",
     cta: "Découvrir le séjour",
   },
 ];
+
+const julyOffer = {
+  label: "Places disponibles en juillet",
+  title: "Offre exceptionnelle sur deux départs 2026",
+  body:
+    "Pour faciliter les départs, nous ouvrons un tarif ajusté sur My Creative Surf Camp du 6 au 17 juillet et Eaux Vives Creative Camp du 20 au 31 juillet.",
+  price: "350 - 950 €",
+  cta: "Voir les places concernées",
+  href: "/sejours",
+};
 
 const homepageTestimonialsManual = [
   {
@@ -456,6 +468,22 @@ function FeaturesAndTrips({ content }) {
 
         {/* Droite — 2 cartes image-fond */}
         <div className="flex flex-col gap-5">
+          <Reveal>
+            <Link
+              href={julyOffer.href}
+              className="group flex items-center gap-3 rounded-xl border border-[#d8bde8]/50 bg-white/50 px-4 py-3 backdrop-blur-sm transition hover:bg-white/70"
+              style={{ textDecoration: "none" }}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[#A45A86]" />
+              <p className="flex-1 text-sm font-semibold text-[#5B4B6F]">
+                <span className="font-black text-[#A45A86]">Offre juillet —</span>{" "}
+                2 départs disponibles · dès {julyOffer.price}
+              </p>
+              <span className="shrink-0 text-xs font-bold text-[#A45A86] opacity-50 transition group-hover:opacity-100">
+                Voir →
+              </span>
+            </Link>
+          </Reveal>
           {tripsData.map((trip, i) => (
             <Reveal key={trip.title} delay={i * 0.1}>
               <Link href={trip.href || "/sejours"} className="block cursor-pointer" aria-label={trip.title}>
@@ -476,6 +504,9 @@ function FeaturesAndTrips({ content }) {
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                       <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 8px", lineHeight: 1.7 }}>📅 {trip.dates}</span>
                       <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 8px", lineHeight: 1.7 }}>👦 {trip.age}</span>
+                      {trip.promo ? (
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff", background: "rgba(164,90,134,0.75)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 8px", lineHeight: 1.7 }}>dès {trip.promo.split(" - ")[0]}</span>
+                      ) : null}
                     </div>
                     <span className="mt-3 inline-flex items-center rounded bg-[#A45A86] px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-white transition group-hover:bg-[#8F4F76]">
                       {trip.cta}
@@ -667,6 +698,19 @@ function formatSejourAgesForTrip(sejour) {
   return "";
 }
 
+function formatPromoDateForTrip(sejour, fallback = "") {
+  if (!sejour?.promotion?.active) return "";
+  const targetStart = String(sejour.promotion.startDate || "");
+  const promoDate = (Array.isArray(sejour.dates) ? sejour.dates : []).find((item) =>
+    String(item?.startDate || "").startsWith(targetStart.slice(0, 10)),
+  );
+  if (!promoDate?.startDate || !promoDate?.endDate) return fallback;
+  const start = new Date(promoDate.startDate);
+  const end = new Date(promoDate.endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return fallback;
+  return `${start.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} - ${end.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`;
+}
+
 function mergeTripsWithSejours(sourceTrips, sejoursById) {
   const baseTrips = Array.isArray(sourceTrips) ? sourceTrips : [];
   return baseTrips.map((trip) => {
@@ -681,7 +725,9 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
       title: liveSejour.name || trip.title,
       image: liveSejour.heroImage || trip.image,
       age: formatSejourAgesForTrip(liveSejour) || trip.age,
-      dates: formatSejourDatesForTrip(liveSejour) || trip.dates,
+      dates: formatPromoDateForTrip(liveSejour, trip.dates) || formatSejourDatesForTrip(liveSejour) || trip.dates,
+      promo: liveSejour?.promotion?.active ? (liveSejour.promotion.priceLabel || trip.promo) : trip.promo,
+      badge: liveSejour?.promotion?.active ? "Offre juillet" : trip.badge,
     };
   });
 }

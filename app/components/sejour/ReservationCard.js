@@ -128,23 +128,54 @@ export default function ReservationCard({
 
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 inline-flex items-center gap-2 text-sm font-semibold text-[#40365f]">
+          <label className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-[#40365f]">
             <FaCalendarAlt className="text-[#B8336A]" /> Date du séjour
           </label>
-          <select
-            value={selectedDate}
-            onChange={handleDateChange}
-            className="w-full rounded-xl border border-[#dfd3e8] bg-white px-3 py-2.5 text-sm text-[#2f254b] outline-none transition focus:border-[#B8336A]"
-          >
+          <div className="flex flex-col gap-2">
             {sejour?.dates?.map((dateOption, idx) => {
               const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
+              const isSelected = selectedDate === value;
+              const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
+              const isPromo = Boolean(sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
               return (
-                <option key={`date-${idx}`} value={value}>
-                  {toDateLabel(dateOption)}
-                </option>
+                <button
+                  key={`date-${idx}`}
+                  type="button"
+                  onClick={() => handleDateChange({ target: { value } })}
+                  className={`relative flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                    isSelected
+                      ? "border-[#B8336A] bg-[#fef1f6] shadow-[0_0_0_2px_rgba(184,51,106,0.15)]"
+                      : isPromo
+                      ? "border-[#f5c0d5] bg-[#fff8fb] hover:border-[#B8336A]"
+                      : "border-[#dfd3e8] bg-white hover:border-[#B8336A]"
+                  }`}
+                >
+                  <div className="flex-1">
+                    {isPromo && (
+                      <span className="mb-1.5 inline-block rounded-full bg-[#B8336A] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-white">
+                        ✦ Offre juillet
+                      </span>
+                    )}
+                    <p className="text-sm font-semibold leading-snug text-[#24173d]">{toDateLabel(dateOption)}</p>
+                    {isPromo && sejour?.promotion?.priceLabel ? (
+                      <p className="mt-0.5 text-xs font-black text-[#B8336A]">
+                        dès {sejour.promotion.priceLabel}
+                      </p>
+                    ) : null}
+                  </div>
+                  {isSelected ? (
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#B8336A]">
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-[#dfd3e8]" />
+                  )}
+                </button>
               );
             })}
-          </select>
+          </div>
         </div>
 
         <div>

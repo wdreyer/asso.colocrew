@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { FaCalendarAlt, FaChild, FaMapMarkerAlt, FaMoneyBillWave, FaRegStar, FaStar, FaStarHalfAlt } from "react-icons/fa";
-import { formatPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
 
 function InfoPill({ icon: Icon, text }) {
   if (!text) return null;
@@ -62,6 +62,12 @@ export default function GenericSejour({ sejourData, feedback }) {
   const months = formatMonthRange(dates);
   const duration = formatDuration(dates);
   const priceRange = resolveSejourPriceRange(sejourData);
+  const promo = sejourData.promotion && typeof sejourData.promotion === "object" ? sejourData.promotion : null;
+  const promoPriceRange = promo?.active ? resolveLowestSejourPriceRange(sejourData) : null;
+  const promoPriceLabel =
+    promoPriceRange && (promoPriceRange.min > 0 || promoPriceRange.max > 0)
+      ? formatPriceRange(promoPriceRange)
+      : "";
   const priceLabel =
     priceRange.min > 0 || priceRange.max > 0 ? formatPriceRange(priceRange) : "";
   const ages = ageGroups?.length
@@ -106,6 +112,11 @@ export default function GenericSejour({ sejourData, feedback }) {
         <div className="absolute inset-x-0 bottom-0">
           <div className="mx-auto w-full max-w-[1240px] px-5 pb-14 md:px-8 md:pb-20">
             <div className="mb-5 flex flex-wrap gap-2">
+              {promo?.active && promoPriceLabel ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd7e8]/45 bg-[#ffd7e8]/12 px-3 py-1.5 text-xs font-bold text-[#ffd7e8] backdrop-blur-sm md:text-sm">
+                  ✦ Offre juillet · {promoPriceLabel}
+                </span>
+              ) : null}
               <InfoPill icon={FaCalendarAlt} text={months} />
               <InfoPill icon={FaChild} text={ages} />
               <InfoPill icon={FaCalendarAlt} text={duration} />
@@ -134,6 +145,14 @@ export default function GenericSejour({ sejourData, feedback }) {
             <h1 className="font-display text-4xl font-bold leading-[1.02] text-white md:text-7xl">{name}</h1>
             {heroSubtitle ? (
               <p className="mt-4 max-w-3xl text-base font-semibold leading-relaxed text-white/95 md:text-xl">{heroSubtitle}</p>
+            ) : null}
+            {promo?.active && (promo?.headline || promo?.body) ? (
+              <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-white/65 md:text-[15px]">
+                <span className="mr-1.5 font-black uppercase tracking-[0.1em] text-[#ffd7e8]/80">
+                  Offre juillet —
+                </span>
+                {promo.headline || promo.body}
+              </p>
             ) : null}
             {featuredQuote ? (
               <blockquote className="mt-5 max-w-3xl border-l-2 border-[#ffd7e8] pl-3">

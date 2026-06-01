@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { FaArrowRight, FaCalendarAlt, FaClock, FaFilePdf, FaUserFriends } from "react-icons/fa";
 import { db } from "@/app/firebase";
-import { formatPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
 import Spinner from "../components/layout/Spinner";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
@@ -90,7 +90,7 @@ function normalizeSejour(docSnap) {
     ageGroup: Array.isArray(data.ageGroups) ? data.ageGroups.join(" / ") : "",
     image: data.heroImage || "/load.png",
     description: data.heroSubtitle || "",
-    priceRange: resolveSejourPriceRange(data),
+    priceRange: data?.promotion?.active ? resolveLowestSejourPriceRange(data) : resolveSejourPriceRange(data),
     isOnline: isSejourOnline(data),
   };
 }
@@ -98,6 +98,7 @@ function normalizeSejour(docSnap) {
 function getPriceBadgeLabel(sejour) {
   const range = sejour?.priceRange || { min: 0, max: 0 };
   if (!(range.min > 0 || range.max > 0)) return "Tarif sur demande";
+  if (sejour?.promotion?.active) return `✦ Offre juillet`;
   if (range.min === range.max) return `Dès ${formatPriceRange(range)}`;
   return formatPriceRange(range);
 }
@@ -272,7 +273,7 @@ export default function SejoursList() {
                       <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-[#8e3f6e]">
                         Ouvert à la réservation
                       </div>
-                      <div className="absolute right-4 top-4 rounded-full bg-[#25173e] px-3 py-1 text-sm font-bold text-white">
+                      <div className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-bold tracking-wide ${sejour?.promotion?.active ? "bg-[#A45A86]/90 text-white backdrop-blur-sm" : "bg-[#25173e] text-white"}`}>
                         {getPriceBadgeLabel(sejour)}
                       </div>
                       <div className="absolute inset-x-0 bottom-0 p-5">

@@ -138,9 +138,11 @@ export default function BottomReservationBar({
         >
           {sejour?.dates?.map((dateOption, idx) => {
             const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
+            const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
+            const isPromo = Boolean(sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
             return (
               <option key={`bottom-date-${idx}`} value={value}>
-                {dateOptionLabel(dateOption)}
+                {isPromo ? "✦ Offre · " : ""}{dateOptionLabel(dateOption)}
               </option>
             );
           })}

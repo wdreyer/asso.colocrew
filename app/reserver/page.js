@@ -14,6 +14,8 @@ import PaymentOptions from "../components/reserver/PaymentOptions";
 import Spinner from "../components/layout/Spinner";
 import {
   applyPriceRangeAdjustments,
+  extractPriceRange,
+  formatPriceRange,
   resolveSejourPriceRange,
 } from "@/src/lib/pricing";
 
@@ -26,7 +28,7 @@ const SEJOURS_META = [
     name: "My Creative Surf Camp",
     sub: "Vieux Boucau · Surf & Projet Artistique",
     image: "/mcsc2026.jpg",
-    badge: "Séjour phare",
+    badge: "Offre juillet",
     badgeColor: "#B8336A",
   },
   {
@@ -34,8 +36,8 @@ const SEJOURS_META = [
     name: "Eaux Vives Creative Camp",
     sub: "Pays Basque · Eaux vives & Projet Artistique",
     image: "/ovive.png",
-    badge: "Nouveauté 2026",
-    badgeColor: "#7c3aed",
+    badge: "Offre juillet",
+    badgeColor: "#B8336A",
   },
 ];
 
@@ -113,6 +115,12 @@ function formatDateFR(isoString) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
+function formatDateOptionPrice(dateEntry) {
+  const range = extractPriceRange(dateEntry);
+  if (!(range.min > 0 || range.max > 0)) return "";
+  return ` - Offre ${formatPriceRange(range)}`;
+}
+
 function CatalogNotice({ compact = false }) {
   return (
     <a
@@ -180,7 +188,17 @@ function LandingSelector() {
     setReturnCity("");
     setDiffReturn(false);
     getDoc(doc(db, "sejours", selectedSlug)).then((snap) => {
-      if (snap.exists()) setSejour(snap.data());
+      if (snap.exists()) {
+        const data = snap.data();
+        setSejour(data);
+        if (data?.promotion?.active && data.promotion.startDate) {
+          const promoStart = String(data.promotion.startDate).slice(0, 10);
+          const promoEntry = (data.dates || []).find(
+            (d) => String(d.startDate || "").slice(0, 10) === promoStart
+          );
+          if (promoEntry) setSelectedDateKey(`${promoEntry.startDate}|${promoEntry.endDate}`);
+        }
+      }
       setLoadingSejour(false);
     });
   }, [selectedSlug]);
@@ -287,19 +305,84 @@ function LandingSelector() {
                       <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: "50%", background: "#B8336A", color: "#fff", fontSize: "0.8rem", fontWeight: 800, flexShrink: 0 }}>2</span>
                       Quelle session vous intéresse ?
                     </p>
-                    <select
-                      className="landing-select"
-                      value={selectedDateKey}
-                      onChange={(e) => setSelectedDateKey(e.target.value)}
-                    >
-                      <option value="">— Choisissez une période —</option>
-                      {(sejour.dates || []).map((d, i) => (
-                        <option key={i} value={`${d.startDate}|${d.endDate}`}>
-                          {formatDateFR(d.startDate)} → {formatDateFR(d.endDate)}
-                          {d.label ? ` · ${d.label}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {(sejour.dates || []).map((d, i) => {
+                        const key = `${d.startDate}|${d.endDate}`;
+                        const isSelected = selectedDateKey === key;
+                        const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
+                        const isPromo = Boolean(sejour?.promotion?.active && promoStart && String(d.startDate || "").slice(0, 10) === promoStart);
+                        const promoRange = isPromo ? extractPriceRange(d) : null;
+                        const promoPrice = promoRange?.min > 0 ? `dès ${formatPriceRange({ min: promoRange.min, max: promoRange.min })}` : "";
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSelectedDateKey(key)}
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              padding: "14px 18px",
+                              borderRadius: 14,
+                              border: isSelected ? "2px solid #B8336A" : isPromo ? "2px solid #f5c0d5" : "2px solid #e9ddd0",
+                              background: isSelected ? "#fff3f8" : isPromo ? "#fffafc" : "#fff",
+                              cursor: "pointer",
+                              textAlign: "left",
+                              transition: "border-color 0.18s, box-shadow 0.18s",
+                              boxShadow: isSelected ? "0 0 0 3px rgba(184,51,106,0.15)" : "none",
+                              outline: "none",
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              {isPromo && (
+                                <span style={{
+                                  display: "inline-block",
+                                  marginBottom: 7,
+                                  background: "#B8336A",
+                                  color: "#fff",
+                                  fontSize: "0.62rem",
+                                  fontWeight: 800,
+                                  letterSpacing: "0.1em",
+                                  padding: "3px 10px",
+                                  borderRadius: 100,
+                                  textTransform: "uppercase",
+                                }}>✦ Offre juillet</span>
+                              )}
+                              <p style={{ margin: 0, fontSize: "0.92rem", fontWeight: 700, color: "#1f1640", lineHeight: 1.3 }}>
+                                {formatDateFR(d.startDate)} → {formatDateFR(d.endDate)}
+                              </p>
+                              {d.label ? (
+                                <p style={{ margin: "3px 0 0", fontSize: "0.78rem", color: "#7d748f", fontWeight: 500 }}>{d.label}</p>
+                              ) : null}
+                              {isPromo && promoPrice ? (
+                                <p style={{ margin: "5px 0 0", fontSize: "0.82rem", fontWeight: 800, color: "#B8336A" }}>
+                                  {promoPrice}
+                                </p>
+                              ) : null}
+                            </div>
+                            <span style={{
+                              flexShrink: 0,
+                              marginTop: 3,
+                              width: 22,
+                              height: 22,
+                              borderRadius: "50%",
+                              background: isSelected ? "#B8336A" : "transparent",
+                              border: isSelected ? "none" : "2px solid #dfd3e8",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}>
+                              {isSelected && (
+                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                  <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Tranche d'âge */}
