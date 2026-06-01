@@ -91,6 +91,22 @@ export function resolveSejourPriceRange(sejour, selectedStartDate = "") {
   return entryRange;
 }
 
+export function resolveLowestSejourPriceRange(sejour) {
+  const fallback = extractPriceRange(sejour);
+  const ranges = Array.isArray(sejour?.dates)
+    ? sejour.dates
+        .map((entry) => extractPriceRange(entry))
+        .filter((range) => range.min > 0 || range.max > 0)
+    : [];
+
+  if (!ranges.length) return fallback;
+
+  return ranges.reduce((lowest, current) => {
+    if (!lowest) return current;
+    return current.min < lowest.min ? current : lowest;
+  }, null);
+}
+
 export function applyPriceRangeAdjustments(
   range,
   { discountFactor = 1, transportFee = 0, insuranceFee = 0, flatDiscount = 0 } = {},
