@@ -24,6 +24,14 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+next-dev*.log
+
+# local data exports / temporary collection files
+/data_collect/
+/tmp_*
+
+# local heavy media not intended for git
+/public/HomePage/Video1Murathenes bafa/
 
 # local env files
 .env*.local

@@ -131,13 +131,37 @@ export default function AdminReservations() {
   // Gestion de la mise à jour du paiement
   const handleUpdatePayment = async (id, amount) => {
     setUpdatingId(id);
+    const reservation = reservations.find((r) => r.id === id);
+    const finalAmount = Number(amount) || 0;
+    const alreadyPaid = Number(reservation?.payment?.alreadyPaid || 0);
+    const remainingValue = Math.max(Number((finalAmount - alreadyPaid).toFixed(2)), 0);
+    const paymentStatus =
+      finalAmount > 0 && remainingValue === 0
+        ? "paid"
+        : alreadyPaid > 0
+        ? "in_progress"
+        : "not_paid";
     await updateDoc(doc(db, "reservations", id), {
-      "payment.totalPrice": Number(amount)
+      "payment.totalPrice": finalAmount,
+      "payment.validatedPrice": finalAmount,
+      "payment.priceStatus": finalAmount > 0 ? "validated" : "estimated",
+      "payment.remainingValue": finalAmount > 0 ? remainingValue : null,
+      "payment.paymentStatus": paymentStatus,
     });
     setReservations(
       reservations.map((r) =>
         r.id === id
-          ? { ...r, payment: { ...r.payment, totalPrice: Number(amount) } }
+          ? {
+              ...r,
+              payment: {
+                ...r.payment,
+                totalPrice: finalAmount,
+                validatedPrice: finalAmount,
+                priceStatus: finalAmount > 0 ? "validated" : "estimated",
+                remainingValue: finalAmount > 0 ? remainingValue : null,
+                paymentStatus,
+              },
+            }
           : r
       )
     );
@@ -401,10 +425,8 @@ export default function AdminReservations() {
           </thead>
           <tbody>
             {sortedReservations.map((res) => {
-              const montantPaye =
-                res.payment?.paymentStatus === "paid"
-                  ? res.payment?.totalPrice
-                  : 0;
+              const montantPaye = Number(res.payment?.alreadyPaid || 0);
+              const totalValide = Number(res.payment?.validatedPrice || res.payment?.totalPrice || 0);
               return (
                 <tr key={res.id} className="border-b hover:bg-gray-50">
                   <td className="p-2 text-xs">
@@ -435,12 +457,12 @@ export default function AdminReservations() {
                       : "N/A"}
                   </td>
                   <td className="p-2 text-xs">
-                    {montantPaye} / {res.payment?.totalPrice}
+                    {montantPaye} / {totalValide || "Prix à valider"}
                   </td>
                   <td className="p-2 text-xs">
                     <input
                       type="number"
-                      defaultValue={res.payment?.totalPrice - montantPaye}
+                      defaultValue={totalValide || ""}
                       className="border rounded p-1 w-20 text-xs"
                       disabled={updatingId === res.id}
                       onBlur={(e) =>

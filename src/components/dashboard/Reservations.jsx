@@ -168,10 +168,10 @@ function mapReservation(snap) {
     alreadyPaid:   toAmount(pricing.alreadyPaid ?? null),
     remainingValue: toAmount(pricing.remainingValue ?? null),
     requestedPrice: toAmount(
-      pricing.total ?? pricing.requested ?? pricing.estimatedPriceMax ??
+      pricing.requested ?? pricing.estimatedPriceMax ??
       pricing.basePriceMax ?? sejour.priceMax ?? sejour.basePrice ?? d.basePrice ?? null,
     ),
-    finalPrice: toAmount(d.finalPrice ?? pricing.validatedPrice ?? null),
+    finalPrice: toAmount(d.finalPrice ?? pricing.validatedPrice ?? (pricing.priceStatus === "validated" ? pricing.totalPrice : null)),
     notes:     d.notes || "",
     dateMs:    tsToMs(d.createdAt),
     dateUpdatedMs: tsToMs(d.updatedAt),
@@ -755,8 +755,7 @@ function EditTab({ item, onSave }) {
     departureCity:   item.departureCity   || "",
     returnCity:      item.returnCity      || "",
     transportFee:    item.transportFee    !== null ? String(item.transportFee) : "",
-    finalPrice:      item.finalPrice      !== null
-      ? String(item.finalPrice) : item.requestedPrice !== null ? String(item.requestedPrice) : "",
+    finalPrice:      item.finalPrice      !== null ? String(item.finalPrice) : "",
     cafOrSecu: item.cafOrSecu || "",
     qf:        item.qf ? String(item.qf) : "",
   });
@@ -769,10 +768,26 @@ function EditTab({ item, onSave }) {
       const finalPrice   = Number(String(form.finalPrice).replace(",", "."));
       const transportFee = Number(String(form.transportFee).replace(",", "."));
       const qf = Number(String(form.qf).replace(",", "."));
+      const hasFinalPrice = Number.isFinite(finalPrice) && form.finalPrice !== "";
+      const alreadyPaid = Number(item.alreadyPaid || 0);
+      const remainingValue = hasFinalPrice ? Math.max(Number((finalPrice - alreadyPaid).toFixed(2)), 0) : null;
+      const nextPaymentStatus = !hasFinalPrice
+        ? (item.paymentStatus || "not_paid")
+        : remainingValue === 0
+          ? "paid"
+          : alreadyPaid > 0
+            ? "in_progress"
+            : "not_paid";
 
       await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
         status: form.status,
-        finalPrice: Number.isFinite(finalPrice) && form.finalPrice !== "" ? finalPrice : null,
+        finalPrice: hasFinalPrice ? finalPrice : null,
+        "payment.totalPrice": hasFinalPrice ? finalPrice : 0,
+        "payment.validatedPrice": hasFinalPrice ? finalPrice : 0,
+        "payment.priceStatus": hasFinalPrice ? "validated" : "estimated",
+        "payment.remainingValue": remainingValue,
+        "payment.paymentStatus": nextPaymentStatus,
+        "payment.basePrice": hasFinalPrice ? finalPrice : (item.raw?.payment?.basePrice || 0),
         "legal.firstName": form.nom.split(" ")[0] || form.nom,
         "legal.lastName":  form.nom.split(" ").slice(1).join(" ") || "",
         "legal.email": form.email,
@@ -789,7 +804,14 @@ function EditTab({ item, onSave }) {
         updatedAt: serverTimestamp(),
         ...(form.status === "validated" ? { validatedAt: serverTimestamp() } : {}),
       });
-      onSave({ ...item, ...form, finalPrice: Number.isFinite(finalPrice) ? finalPrice : item.finalPrice });
+      onSave({
+        ...item,
+        ...form,
+        finalPrice: hasFinalPrice ? finalPrice : null,
+        totalPrice: hasFinalPrice ? finalPrice : 0,
+        remainingValue,
+        paymentStatus: nextPaymentStatus,
+      });
       showToast("Modifications enregistrées", "success");
     } catch (err) {
       console.error(err);

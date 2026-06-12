@@ -18,8 +18,10 @@ export async function POST(request) {
       customer_email,
     } = await request.json();
 
+    const isDeposit = paymentOption === "deposit" || metadata?.paymentType === "deposit";
+
     // 🔄 Validation du montant
-    const finalAmount = Number(amount);
+    const finalAmount = isDeposit ? 100 : Number(amount);
     if (isNaN(finalAmount) || finalAmount <= 0) {
       throw new Error("Montant invalide");
     }
@@ -48,15 +50,15 @@ export async function POST(request) {
     // 🔄 Gestion du mode de paiement
     const paymentOptions = {
       oneTime: "Paiement en une fois",
-      deposit: "Acompte (2 fois)",
-      rest: "Solde (2 fois)",
+      deposit: "Acompte de réservation",
+      rest: "Solde restant",
     };
 
     description += ` **Option de règlement** : ${
       paymentOptions[paymentOption] || "Paiement en une fois (défaut)"
     }\n\n`;
     description += `---\n\n`;
-    description += ` **Montant total** : **${finalAmount}€**`;
+    description += ` **Montant à payer** : **${finalAmount}€**`;
 
     // 🎯 Création de la session Stripe (sans paramètre de 3DS forcé)
     const session = await stripe.checkout.sessions.create({
@@ -66,7 +68,7 @@ payment_method_types: ["card"],
           price_data: {
             currency,
             product_data: {
-              name: sejourTitle,
+              name: isDeposit ? `Acompte - ${sejourTitle}` : sejourTitle,
               description,
               images: [process.env.NEXT_PUBLIC_LOGO_URL],
             },
@@ -80,6 +82,7 @@ payment_method_types: ["card"],
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/`,
       metadata: {
         tokenUnique,
+        ...(isDeposit ? { paymentType: "deposit" } : {}),
         ...metadata, // fusion des metadata
       },
       allow_promotion_codes: true,

@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import crypto from "crypto";
 
@@ -117,8 +117,9 @@ export async function POST(request) {
     const numericBaseMax = Number(basePriceMax) || 0;
 
     const safePayment = {
-      totalPrice:
-        Number(computedTotalPrice) || numericEstimatedMax || numericEstimatedMin || 0,
+      totalPrice: 0,
+      validatedPrice: 0,
+      priceStatus: "estimated",
       estimatedPriceString,
       estimatedPriceMin: numericEstimatedMin,
       estimatedPriceMax: numericEstimatedMax,
@@ -129,6 +130,9 @@ export async function POST(request) {
       insuranceFee: insuranceOpted ? Number(insuranceFee) : 0,
       paymentStatus,
       alreadyPaid: 0,
+      remainingValue: null,
+      depositAmount: 100,
+      depositStatus: "pending",
     };
 
     // E) Informations sur le séjour
@@ -183,13 +187,48 @@ export async function POST(request) {
     const docRef = await addDoc(collection(db, "reservations"), newReservation);
 
     // ───────────────────────────────────────────────
-    // 7) ENVOYER UN EMAIL DE CONFIRMATION
+    // 7) CRÉER LA SESSION STRIPE ACOMPTE (100€)
     // ───────────────────────────────────────────────
-    // On construit l'URL d'accès à la réservation (baseUrl défini dans l'environnement)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
 
-    // Appel de l'API d'envoi d'email (vous pouvez adapter l'URL ou le endpoint)
+    let stripeDepositUrl = null;
+    try {
+      const stripeRes = await fetch(`${baseUrl}/api/create-stripe-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenUnique,
+          amount: 100,
+          currency: "eur",
+          sejourTitle: urlSejour,
+          ageGroup: urlAgeGroup,
+          startDate: urlStartDate,
+          endDate: urlEndDate,
+          transportFee: Number(transportFee) || 0,
+          insuranceOpted,
+          paymentOption: "deposit",
+          customer_email: safeLegal.email,
+          metadata: {
+            paymentType: "deposit",
+            numeroDeReservation,
+          },
+        }),
+      });
+      if (stripeRes.ok) {
+        const stripeData = await stripeRes.json();
+        stripeDepositUrl = stripeData.url || null;
+        if (stripeDepositUrl) {
+          await updateDoc(doc(db, "reservations", docRef.id), { stripeDepositUrl });
+        }
+      }
+    } catch (err) {
+      console.error("Erreur création session Stripe acompte:", err);
+    }
+
+    // ───────────────────────────────────────────────
+    // 8) ENVOYER UN EMAIL DE CONFIRMATION
+    // ───────────────────────────────────────────────
     const sendMailRes = await fetch(`${baseUrl}/api/mail-resa`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -201,10 +240,11 @@ export async function POST(request) {
         minor: newReservation.minor,
         legal: newReservation.legal,
         options: newReservation.options,
-        payment: newReservation.payment, // contient basePrice, depositValue, insuranceFee, totalPrice, transportFee, etc.
+        payment: newReservation.payment,
         sejour: newReservation.sejour,
         transport: newReservation.transport,
-        estimatedPriceString: newReservation.payment.estimatedPriceString // estimation du prix (texte)
+        estimatedPriceString: newReservation.payment.estimatedPriceString,
+        stripeDepositUrl,
       }),
     });
 
@@ -213,7 +253,7 @@ export async function POST(request) {
     }
 
     // ───────────────────────────────────────────────
-    // 8) RÉPONDRE
+    // 9) RÉPONDRE
     // ───────────────────────────────────────────────
     return NextResponse.json({
       message: "Réservation créée avec succès",

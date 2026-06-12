@@ -33,6 +33,7 @@ export async function POST(request) {
       sejour,
       transport, // { departureCity, returnCity, fee }
       estimatedPriceString, // Estimation du paiement (texte)
+      stripeDepositUrl, // URL de paiement acompte Stripe
     } = data;
 
     if (formType !== "reservation") {
@@ -69,6 +70,7 @@ export async function POST(request) {
       sejour,
       transport,
       estimatedPriceString,
+      stripeDepositUrl,
     });
 
     // Options d'email pour admin et utilisateur (même contenu)
@@ -124,6 +126,7 @@ function buildReservationEmail({
   sejour = {},
   transport = {},
   estimatedPriceString = "",
+  stripeDepositUrl = null,
 }) {
   const colorPrimary = "#B8336A";
   const colorSecondary = "#A2225A";
@@ -175,44 +178,34 @@ function buildReservationEmail({
     `
       : "";
 
-  // Message de paiement selon le mode choisi
-  let paymentMsg = "";
-  if (options.paymentMethod === "CB") {
-    paymentMsg = `
-      <p style="color:${colorPrimary}; font-weight:bold;">
-        Vous avez choisi le paiement par <u>carte bancaire</u>.<br/>
-        Un lien de paiement vous sera envoyé dans les 24H
+  // Bloc acompte : Stripe + virement RIB
+  const depositBlock = `
+    <div style="margin:24px 0; padding:22px 24px; background:#fff3f8; border:2px solid ${colorPrimary}; border-radius:12px; text-align:center;">
+      <p style="margin:0 0 4px; font-size:17px; font-weight:800; color:${colorPrimary};">⚡ Il nous reste quelques places pour ce séjour !</p>
+      <p style="margin:0 0 18px; font-size:13px; color:#555; line-height:1.6;">
+        Bloquez votre place dès maintenant avec un acompte de <strong>100€</strong>.<br/>
+        Le prix exact vous sera confirmé dans les 24h — l'acompte sera déduit du montant total.
       </p>
-    `;
-  } else {
-    paymentMsg = `
-      <p style="color:${colorPrimary}; font-weight:bold;">
-        Vous avez choisi le paiement par <u>chèque ou virement</u>.<br/>
-        Le prix exact vous sera communiqué dans les 24H.<br/>
-        Vous disposez de 15 jours pour nous faire parvenir votre règlement.
-      </p>
-      <div style="margin:10px 0; padding:10px; border:1px dashed ${colorPrimary};">
-        <p style="margin:0 0 5px 0;">
-          <strong>Pour un paiement par chèque :</strong><br/>
-          Libellez le chèque à l'ordre de <em>“Colocrew”</em> et envoyez-le à :
-        </p>
-        <pre style="margin:0; padding:0; font-family:inherit; font-size:14px;">
-Colocrew
-1 rue Magenta
-93500 Pantin
-        </pre>
+
+      ${stripeDepositUrl ? `
+      <a href="${stripeDepositUrl}"
+         style="display:inline-block; background:${colorPrimary}; color:#fff; padding:14px 32px;
+                text-decoration:none; border-radius:100px; font-weight:700; font-size:15px;
+                letter-spacing:0.02em; box-shadow:0 4px 14px rgba(184,51,106,0.35);">
+        💳&nbsp; Payer l'acompte de 100€
+      </a>` : ""}
+
+      <p style="margin:18px 0 14px; font-size:11px; color:#aaa; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;">— ou par virement bancaire —</p>
+
+      <div style="text-align:left; background:#fafafa; border:1px dashed #e0ccd5; border-radius:8px; padding:14px 18px; font-size:13px; line-height:2;">
+        <p style="margin:0;"><strong>Titulaire :</strong> COLOCREW</p>
+        <p style="margin:0;"><strong>IBAN :</strong> FR76 1695 8000 0158 6780 6033 040</p>
+        <p style="margin:0;"><strong>BIC/SWIFT :</strong> QNTOFRP1XXX</p>
+        <p style="margin:0;"><strong>Montant :</strong> 100€</p>
+        <p style="margin:0;"><strong>Référence :</strong> ${numeroDeReservation}</p>
       </div>
-      <div style="margin:10px 0; padding:10px; border:1px dashed ${colorPrimary};">
-        <p style="margin:0 0 5px 0;">
-          <strong>Pour un paiement par virement :</strong><br/>
-          IBAN :
-        </p>
-        <pre style="margin:0; padding:0; font-family:inherit; font-size:14px;">
-FR7616958000015867806033040
-        </pre>
-      </div>
-    `;
-  }
+    </div>
+  `;
 
   // Helper : génère une ligne label/valeur avec fond alterné
   const r = (label, value, idx = 0) => `
@@ -234,15 +227,13 @@ FR7616958000015867806033040
       <p style="color:rgba(255,255,255,0.85); margin:0; font-size:14px; font-weight:600;">N° ${numeroDeReservation || "???"}</p>
     </div>
 
-    <!-- Bandeau info -->
-    <div style="background:#fdf3f7; border-bottom:1px solid #f3e6ef; padding:14px 32px; text-align:center;">
-      <p style="margin:0; font-size:13px; color:#9b4c6e; font-weight:600;">
-        ✉️ Notre équipe vous contacte dans les <strong>24h</strong> pour finaliser votre inscription.
-      </p>
-    </div>
-
     <!-- Corps -->
     <div style="padding:8px 24px 32px;">
+
+      <!-- Bloc acompte (action principale) -->
+      ${depositBlock}
+
+      <!-- Tableau récapitulatif -->
       <table style="width:100%; border-collapse:collapse;">
 
         ${section("Séjour")}
@@ -290,15 +281,13 @@ FR7616958000015867806033040
 
       </table>
 
-      ${paymentMsg ? `<div style="margin:20px 0; padding:16px; background:#fdf3f7; border-radius:8px; border-left:3px solid ${colorPrimary}; font-size:13px;">${paymentMsg}</div>` : ""}
-
       <p style="margin:20px 0 0; color:#666; font-size:13px; line-height:1.7; background:#f9f9f9; padding:14px 16px; border-radius:8px;">
-        Cette estimation est <strong>indicative</strong>. Notre équipe vous contactera dans les <strong>24h</strong> pour confirmer les détails et vous accompagner dans la suite de votre inscription.
+        Cette estimation est <strong>indicative</strong>. Notre équipe vous contactera dans les <strong>24h</strong> pour confirmer le prix exact et vous accompagner dans la suite de votre inscription.
       </p>
 
       ${lienAcces ? `
       <div style="text-align:center; margin:28px 0 12px;">
-        <a href="${lienAcces}?justCreated=true"
+        <a href="${lienAcces}"
            style="display:inline-block; background:${colorPrimary}; color:#fff; padding:14px 32px;
                   text-decoration:none; border-radius:100px; font-weight:700; font-size:14px;
                   letter-spacing:0.02em; box-shadow:0 4px 14px rgba(184,51,106,0.35);">

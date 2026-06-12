@@ -1,5 +1,6 @@
 import SejourDetail from "@/src/components/dashboard/SejourDetail";
 
-export default function SejourDetailPage({ params }) {
-  return <SejourDetail sejourId={params.sejourId} />;
+export default async function SejourDetailPage({ params }) {
+  const resolved = await params;
+  return <SejourDetail sejourId={resolved?.sejourId} />;
 }

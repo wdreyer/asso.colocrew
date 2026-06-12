@@ -9,6 +9,7 @@ import {
   getDocs,
   doc,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 // On force l'exécution en runtime Node.js
@@ -55,10 +56,10 @@ export async function POST(request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const tokenUnique = session.metadata.tokenUnique;
+    const paymentType = session.metadata.paymentType; // "deposit" ou undefined
     const amountPaid = Number((session.amount_total / 100).toFixed(2));
 
     try {
-      // Rechercher la réservation dans Firestore
       const reservationsRef = collection(db, "reservations");
       const q = query(reservationsRef, where("tokenUnique", "==", tokenUnique));
       const snap = await getDocs(q);
@@ -66,31 +67,78 @@ export async function POST(request) {
       if (!snap.empty) {
         const reservationDoc = snap.docs[0];
         const reservationData = reservationDoc.data();
-        const payment = reservationData.payment;
-        const basePrice = Number(payment.basePrice);
-
-        const alreadyPaid = Number(payment.alreadyPaid) || 0;
-        const newAlreadyPaid = Number((alreadyPaid + amountPaid).toFixed(2));
-        const newRemainingValue = Number((basePrice - newAlreadyPaid).toFixed(2));
-
-        let newStatus;
-        if (newRemainingValue <= 0) {
-          newStatus = "paid";
-        } else if (newAlreadyPaid > 0) {
-          newStatus = "in_progress";
-        } else {
-          newStatus = "not_paid";
-        }
-
         const reservationRef = doc(db, "reservations", reservationDoc.id);
-        await updateDoc(reservationRef, {
-          "payment.paymentStatus": newStatus,
-          "payment.alreadyPaid": newAlreadyPaid,
-          "payment.remainingValue": newRemainingValue,
-        });
-        console.log(
-          `Réservation ${tokenUnique} mise à jour : statut=${newStatus}, déjà payé=${newAlreadyPaid} €, reste à payer=${newRemainingValue} €`
-        );
+
+        if (paymentType === "deposit") {
+          // ── Paiement d'acompte ──────────────────────────────────────────
+          const depositAmount = Number(reservationData.payment?.depositAmount || 100);
+          const confirmationAlreadySent = Boolean(reservationData.payment?.depositConfirmationSentAt);
+          await updateDoc(reservationRef, {
+            "payment.depositStatus": "paid",
+            "payment.alreadyPaid": amountPaid,
+            "payment.depositAmount": depositAmount,
+            status: "deposit_paid",
+          });
+          console.log(`Acompte reçu pour ${tokenUnique} : ${amountPaid}€`);
+
+          // Envoi des emails de confirmation
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
+          const { legal = {}, sejour = {}, numeroDeReservation } = reservationData;
+
+          if (!confirmationAlreadySent) {
+            const mailRes = await fetch(`${baseUrl}/api/mail-acompte`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                numeroDeReservation,
+                lienAcces,
+                clientEmail: legal.email,
+                clientFirstName: legal.firstName,
+                clientLastName: legal.lastName,
+                sejourName: sejour.name || sejour.urlSejour || "",
+                startDate: sejour.startDate,
+                endDate: sejour.endDate,
+                ageGroup: sejour.ageGroup,
+                amountPaid,
+              }),
+            });
+
+            if (!mailRes.ok) {
+              throw new Error(`Erreur envoi mail-acompte: ${await mailRes.text()}`);
+            }
+
+            await updateDoc(reservationRef, {
+              "payment.depositConfirmationSentAt": serverTimestamp(),
+            });
+          }
+
+        } else {
+          // ── Paiement normal (solde ou paiement complet) ─────────────────
+          const payment = reservationData.payment;
+          const basePrice = Number(payment.validatedPrice || payment.totalPrice || payment.basePrice);
+          const alreadyPaid = Number(payment.alreadyPaid) || 0;
+          const newAlreadyPaid = Number((alreadyPaid + amountPaid).toFixed(2));
+          const newRemainingValue = Number((basePrice - newAlreadyPaid).toFixed(2));
+
+          let newStatus;
+          if (newRemainingValue <= 0) {
+            newStatus = "paid";
+          } else if (newAlreadyPaid > 0) {
+            newStatus = "in_progress";
+          } else {
+            newStatus = "not_paid";
+          }
+
+          await updateDoc(reservationRef, {
+            "payment.paymentStatus": newStatus,
+            "payment.alreadyPaid": newAlreadyPaid,
+            "payment.remainingValue": newRemainingValue,
+          });
+          console.log(
+            `Réservation ${tokenUnique} mise à jour : statut=${newStatus}, déjà payé=${newAlreadyPaid} €, reste=${newRemainingValue} €`
+          );
+        }
       } else {
         console.error(`Aucune réservation trouvée pour tokenUnique: ${tokenUnique}`);
       }
