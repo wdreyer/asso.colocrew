@@ -239,7 +239,7 @@ export default function AdminReservations() {
   const sejourSummary = useMemo(() => {
     const counts = new Map();
     reservations.forEach((res) => {
-      const name = res.sejour?.name || res.sejour?.urlSejour || "Sans sejour";
+      const name = res.sejour?.name || res.sejour?.urlSejour || "Sans séjour";
       counts.set(name, (counts.get(name) || 0) + 1);
     });
     return Array.from(counts.entries()).sort((a, b) =>

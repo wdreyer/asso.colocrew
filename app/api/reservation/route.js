@@ -57,6 +57,9 @@ export async function POST(request) {
       computedTotalPriceMax = 0,
       basePriceMin = 0,
       basePriceMax = 0,
+      childCount = 1,
+      discountFactor = 1,
+      flatDiscount = 0,
       insuranceFee = 0,
       transportFee = 0,
       estimatedPriceString = "",
@@ -71,13 +74,17 @@ export async function POST(request) {
       // Nombre d'enfants
       numberOfChildren = "1",
     } = body;
+    const normalizedChildCount = Math.max(
+      Number.parseInt(childCount || numberOfChildren || 1, 10) || 1,
+      1,
+    );
 
     // ───────────────────────────────────────────────
     // 3) CONSTRUIRE LES OBJETS SANS undefined
     // ───────────────────────────────────────────────
     // A) Informations sur le(s) enfant(s)
     const safeMinor = {
-      numberOfChildren,
+      numberOfChildren: String(normalizedChildCount),
       children: minor.children || [],
     };
 
@@ -126,6 +133,9 @@ export async function POST(request) {
       basePrice: Number(computedTotalPrice) || numericBaseMax || numericBaseMin || 0,
       basePriceMin: numericBaseMin,
       basePriceMax: numericBaseMax,
+      childCount: normalizedChildCount,
+      discountFactor: Number(discountFactor) || 1,
+      flatDiscount: Number(flatDiscount) || 0,
       transportFee: Number(transportFee) || 0,
       insuranceFee: insuranceOpted ? Number(insuranceFee) : 0,
       paymentStatus,

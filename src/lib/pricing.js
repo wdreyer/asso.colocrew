@@ -45,6 +45,12 @@ function rangeFromPrimitive(value) {
   return null;
 }
 
+function dateKey(value) {
+  if (!value) return "";
+  const raw = typeof value === "object" ? value.startDate : value;
+  return String(raw || "").trim().slice(0, 10);
+}
+
 export function extractPriceRange(source) {
   if (source === null || source === undefined) return { min: 0, max: 0 };
 
@@ -74,14 +80,27 @@ export function extractPriceRange(source) {
 
 export function resolveSejourPriceRange(sejour, selectedStartDate = "") {
   const fallback = extractPriceRange(sejour);
+  const selectedKey = dateKey(selectedStartDate);
 
-  if (!selectedStartDate || !Array.isArray(sejour?.dates)) {
+  const promotion = sejour?.promotion && typeof sejour.promotion === "object"
+    ? sejour.promotion
+    : null;
+  const promoKey = promotion?.active ? dateKey(promotion.startDate) : "";
+
+  if (selectedKey && promoKey && selectedKey === promoKey) {
+    const promotionRange = extractPriceRange(promotion);
+    if (promotionRange.min > 0 || promotionRange.max > 0) {
+      return promotionRange;
+    }
+  }
+
+  if (!selectedKey || !Array.isArray(sejour?.dates)) {
     return fallback;
   }
 
   const entry = sejour.dates.find((item) => {
     if (!item || typeof item !== "object") return false;
-    return String(item.startDate || "").trim() === String(selectedStartDate || "").trim();
+    return dateKey(item) === selectedKey;
   });
 
   if (!entry) return fallback;
@@ -98,6 +117,12 @@ export function resolveLowestSejourPriceRange(sejour) {
         .map((entry) => extractPriceRange(entry))
         .filter((range) => range.min > 0 || range.max > 0)
     : [];
+  const promotion = sejour?.promotion && typeof sejour.promotion === "object" && sejour.promotion.active
+    ? extractPriceRange(sejour.promotion)
+    : null;
+  if (promotion && (promotion.min > 0 || promotion.max > 0)) {
+    ranges.push(promotion);
+  }
 
   if (!ranges.length) return fallback;
 
@@ -127,6 +152,44 @@ export function applyPriceRangeAdjustments(
   );
 
   return clampRange(min, max);
+}
+
+export function normalizeChildCount(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export function siblingDiscountFactor(childCount) {
+  const safeChildCount = normalizeChildCount(childCount);
+  if (safeChildCount === 2) return 0.95;
+  if (safeChildCount >= 3) return 0.9;
+  return 1;
+}
+
+export function calculateReservationPriceRange(
+  range,
+  {
+    childCount = 1,
+    discountFactor = siblingDiscountFactor(childCount),
+    transportFee = 0,
+    insuranceFee = 0,
+    flatDiscount = 0,
+  } = {},
+) {
+  const safeRange = extractPriceRange(range);
+  const safeChildCount = normalizeChildCount(childCount);
+  const safeFactor = Number.isFinite(discountFactor) ? discountFactor : 1;
+  const safeTransport = Number(transportFee) || 0;
+  const safeInsurance = Number(insuranceFee) || 0;
+  const safeFlatDiscount = Number(flatDiscount) || 0;
+
+  const perChildMin = safeRange.min * safeFactor + safeTransport + safeInsurance;
+  const perChildMax = safeRange.max * safeFactor + safeTransport + safeInsurance;
+
+  return clampRange(
+    Math.max(0, perChildMin * safeChildCount - safeFlatDiscount),
+    Math.max(0, perChildMax * safeChildCount - safeFlatDiscount),
+  );
 }
 
 export function formatPriceNumber(value) {

@@ -626,7 +626,7 @@ const DEFAULT_HOME_CONTENT = {
 function fixMojibake(value) {
   const raw = String(value || "");
   if (!raw) return "";
-  if (!/[Ãâœ™�]/.test(raw)) return raw;
+  if (!/[\u00c3\u00e2\u0153\u2122\ufffd]/.test(raw)) return raw;
   try {
     // Corrige les chaînes lues en latin1 alors qu'elles sont en UTF-8
     return decodeURIComponent(escape(raw));

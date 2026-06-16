@@ -25,6 +25,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 next-dev*.log
+.codex-dev*.log
 
 # local data exports / temporary collection files
 /data_collect/

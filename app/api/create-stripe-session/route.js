@@ -16,6 +16,7 @@ export async function POST(request) {
       paymentOption,
       metadata,
       customer_email,
+      installments,
     } = await request.json();
 
     const isDeposit = paymentOption === "deposit" || metadata?.paymentType === "deposit";
@@ -25,6 +26,9 @@ export async function POST(request) {
     if (isNaN(finalAmount) || finalAmount <= 0) {
       throw new Error("Montant invalide");
     }
+
+    const installmentsCount = Math.round(Number(installments));
+    const isInstallments = !isDeposit && Number.isFinite(installmentsCount) && installmentsCount > 1;
 
     // 🔄 Fonction de formatage des dates
     const formatDateFR = (isoString) => {
@@ -55,12 +59,60 @@ export async function POST(request) {
     };
 
     description += ` **Option de règlement** : ${
-      paymentOptions[paymentOption] || "Paiement en une fois (défaut)"
+      isInstallments ? `Paiement en ${installmentsCount} fois` : (paymentOptions[paymentOption] || "Paiement en une fois (défaut)")
     }\n\n`;
     description += `---\n\n`;
     description += ` **Montant à payer** : **${finalAmount}€**`;
 
-    // 🎯 Création de la session Stripe (sans paramètre de 3DS forcé)
+    if (isInstallments) {
+      // 🎯 Paiement en plusieurs fois : abonnement Stripe mensuel, prélevé immédiatement
+      // puis à chaque échéance, et annulé automatiquement après le nombre de fois choisi.
+      const perInstallment = Math.round((finalAmount / installmentsCount) * 100) / 100;
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const cancelAt = nowSeconds + installmentsCount * 30 * 24 * 3600 + 3 * 24 * 3600; // marge de 3 jours
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency,
+              recurring: { interval: "month" },
+              product_data: {
+                name: `${sejourTitle} — paiement en ${installmentsCount} fois`,
+                description,
+                images: [process.env.NEXT_PUBLIC_LOGO_URL],
+              },
+              unit_amount: Math.round(perInstallment * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "subscription",
+        subscription_data: {
+          cancel_at: cancelAt,
+          metadata: {
+            tokenUnique,
+            paymentType: "installments",
+            installments: String(installmentsCount),
+            ...metadata,
+          },
+        },
+        success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/reservation/${tokenUnique}?justCreated=true`,
+        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/`,
+        metadata: {
+          tokenUnique,
+          paymentType: "installments",
+          installments: String(installmentsCount),
+          ...metadata,
+        },
+        customer_email,
+      });
+
+      return new Response(JSON.stringify({ url: session.url }), { status: 200 });
+    }
+
+    // 🎯 Création de la session Stripe (paiement unique, sans paramètre de 3DS forcé)
     const session = await stripe.checkout.sessions.create({
 payment_method_types: ["card"],
       line_items: [

@@ -32,35 +32,11 @@ const STATUS_BADGE  = { pending: "warning",  validated: "success",  deleted: "ne
 
 const EMAIL_TEMPLATES = [
   {
-    key: "validation",
-    label: "Confirmation",
-    subject: (nom, sejour) =>
-      `ColoCrew — Votre réservation est confirmée ! (${sejour})`,
-    body: (nom, sejour, ref) =>
-      `Bonjour ${nom},\n\nNous avons le plaisir de vous confirmer votre réservation pour le séjour "${sejour}" (réf. ${ref}).\n\nVotre dossier a été validé par notre équipe. Vous recevrez prochainement les informations pratiques concernant le séjour.\n\nN'hésitez pas à nous contacter pour toute question.\n\nCordialement,\nL'équipe ColoCrew`,
-  },
-  {
-    key: "payment_cb",
-    label: "Lien paiement CB",
+    key: "suite_reservation",
+    label: "Suite réservation",
     subject: (_n, sejour) =>
-      `ColoCrew — Lien de paiement pour "${sejour}"`,
-    body: (nom, sejour, ref, price) =>
-      `Bonjour ${nom},\n\nSuite à votre demande pour le séjour "${sejour}" (réf. ${ref}), voici votre lien de paiement sécurisé.\n\nMontant : ${price}\n\n[LIEN DE PAIEMENT À INSÉRER ICI]\n\nCe lien est valable 48h. En cas de difficulté, contactez-nous.\n\nCordialement,\nL'équipe ColoCrew`,
-  },
-  {
-    key: "docs_missing",
-    label: "Documents manquants",
-    subject: () => `ColoCrew — Documents manquants pour votre dossier`,
-    body: (nom, sejour, ref) =>
-      `Bonjour ${nom},\n\nNous avons bien reçu votre demande pour le séjour "${sejour}" (réf. ${ref}).\n\nAfin de compléter votre dossier, merci de nous transmettre les documents suivants :\n\n- \n- \n\nVous pouvez les envoyer par réponse à cet email.\n\nCordialement,\nL'équipe ColoCrew`,
-  },
-  {
-    key: "waiting_list",
-    label: "Liste d'attente",
-    subject: (_n, sejour) =>
-      `ColoCrew — Votre demande pour "${sejour}" est sur liste d'attente`,
-    body: (nom, sejour, ref) =>
-      `Bonjour ${nom},\n\nNous avons bien reçu votre demande pour le séjour "${sejour}" (réf. ${ref}).\n\nCe séjour est actuellement complet. Votre demande a été placée sur liste d'attente et nous vous contacterons dès qu'une place se libère.\n\nCordialement,\nL'équipe ColoCrew`,
+      `ColoCrew — Suite à donner pour votre réservation "${sejour}"`,
+    body: () => "",
   },
   {
     key: "custom",
@@ -102,6 +78,153 @@ function fmtCur(v) {
   const n = toAmount(v);
   if (n === null) return "—";
   return `${n.toLocaleString("fr-FR")} €`;
+}
+
+function reservationChildCount(item) {
+  const childrenCount = Array.isArray(item?.children) ? item.children.length : 0;
+  if (childrenCount > 0) return childrenCount;
+  const declaredCount = Number(item?.numberOfChildren);
+  return Number.isFinite(declaredCount) && declaredCount > 0 ? declaredCount : 1;
+}
+
+function countReservationChildren(items) {
+  return (items || []).reduce((total, item) => total + reservationChildCount(item), 0);
+}
+
+function canonicalStayName(value) {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  return normalized === "mycreativesurfcamp" ? "my-creative-surf-camp" : value;
+}
+
+function normalizePlace(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function weekFromStartDate(value) {
+  const date = String(value || "").slice(0, 10);
+  return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function wrapPdfText(text, font, size, maxWidth) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) current = candidate;
+    else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [""];
+}
+
+async function buildConvocationPdf(item, extra) {
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const pageSize = [595.28, 841.89];
+  const margin = 48;
+  const lineHeight = 15;
+  let page;
+  let y;
+
+  const newPage = () => {
+    page = pdf.addPage(pageSize);
+    y = pageSize[1] - margin;
+    page.drawText("ColoCrew", { x: margin, y, size: 22, font: bold, color: rgb(0.72, 0.2, 0.42) });
+    page.drawText(`Réservation ${item.numeroDeReservation || item.id?.slice(0, 8) || ""}`, {
+      x: 365, y: y + 3, size: 9, font: regular, color: rgb(0.4, 0.4, 0.4),
+    });
+    y -= 44;
+  };
+
+  const ensureSpace = (height = 30) => {
+    if (y - height < margin) newPage();
+  };
+
+  const drawLine = (text, options = {}) => {
+    const size = options.size || 10.5;
+    const font = options.bold ? bold : regular;
+    const indent = options.indent || 0;
+    const lines = wrapPdfText(text, font, size, pageSize[0] - (margin * 2) - indent);
+    ensureSpace(lines.length * lineHeight + 4);
+    for (const line of lines) {
+      page.drawText(line, {
+        x: margin + indent, y, size, font,
+        color: options.color || rgb(0.12, 0.08, 0.2),
+      });
+      y -= lineHeight;
+    }
+    y -= options.after ?? 3;
+  };
+
+  const section = (title) => {
+    ensureSpace(32);
+    y -= 4;
+    page.drawText(title.toUpperCase(), { x: margin, y, size: 9, font: bold, color: rgb(0.72, 0.2, 0.42) });
+    y -= 19;
+  };
+
+  newPage();
+  drawLine("CONVOCATION FAMILLE", { size: 18, bold: true, after: 14 });
+  drawLine(`Bonjour ${item.nom !== "—" ? item.nom : ""},`);
+  drawLine(`Voici les informations de convoyage pour le séjour ${item.sejourName}. Merci de vous présenter à l'heure indiquée.`, { after: 10 });
+
+  section("Participant");
+  const children = item.children?.length ? item.children : [{ firstName: item.childName, lastName: "" }];
+  children.forEach((child) => drawLine(`${child.firstName || ""} ${child.lastName || ""}`.trim(), { bold: true }));
+
+  section("Aller");
+  drawLine(`Date : ${fmtDate(item.sejourStartDate) || "À compléter"}`);
+  drawLine(`Ville : ${item.departureCity || "À compléter"}`);
+  drawLine(`Rendez-vous : ${extra.meetingPoint || "À compléter"}`);
+  drawLine(`Heure de rendez-vous : ${extra.meetingTime || extra.departureTime || "À compléter"}`);
+  drawLine(`Départ : ${extra.departureTime || "À compléter"}${extra.trainNumber ? ` - ${extra.trainType || "Train"} ${extra.trainNumber}` : ""}`);
+
+  section("Retour");
+  drawLine(`Date : ${fmtDate(item.sejourEndDate) || "À compléter"}`);
+  drawLine(`Ville : ${item.returnCity || item.departureCity || "À compléter"}`);
+  drawLine(`Rendez-vous : ${extra.returnMeetingPoint || "À compléter"}`);
+  drawLine(`Arrivée prévue : ${extra.returnTime || "À compléter"}`);
+
+  if (extra.convoyeur || extra.convoyeurPhone) {
+    section("Contact convoyage");
+    drawLine(`${extra.convoyeur || "Équipe ColoCrew"}${extra.convoyeurPhone ? ` - ${extra.convoyeurPhone}` : ""}`);
+  }
+  if (extra.toBring) {
+    section("À apporter");
+    extra.toBring.split("\n").filter(Boolean).forEach((line) => drawLine(`- ${line}`));
+  }
+  if (extra.notes) {
+    section("Informations complémentaires");
+    extra.notes.split("\n").filter(Boolean).forEach((line) => drawLine(line));
+  }
+
+  ensureSpace(45);
+  y -= 12;
+  drawLine("ColoCrew - contact@colocrew.com - 01 84 21 02 30", { size: 9, color: rgb(0.45, 0.45, 0.45) });
+  return pdf.save();
 }
 
 function normalizeStatus(v) {
@@ -152,10 +275,11 @@ function mapReservation(snap) {
     numberOfChildren: minor.numberOfChildren || "1",
     children,
     childName: `${firstChild.firstName || ""} ${firstChild.lastName || ""}`.trim() || firstChild.name || "—",
-    sejourName:      sejour.name      || d.sejourName || "—",
+    sejourName:      canonicalStayName(sejour.name || d.sejourName) || "—",
     sejourStartDate: sejour.startDate || "",
     sejourEndDate:   sejour.endDate   || "",
     sejourAgeGroup:  sejour.ageGroup  || "",
+    week:            weekFromStartDate(sejour.startDate || d.sejourStartDate || ""),
     departureCity: transport.departureCity || transport.stationName || transport.station || "",
     returnCity:    transport.returnCity || "",
     transportFee:  toAmount(transport.fee ?? d.transportFee ?? null),
@@ -167,6 +291,9 @@ function mapReservation(snap) {
     insuranceFee:  toAmount(pricing.insuranceFee ?? null),
     alreadyPaid:   toAmount(pricing.alreadyPaid ?? null),
     remainingValue: toAmount(pricing.remainingValue ?? null),
+    cafEligible: !!pricing.cafEligible,
+    cafAmount:   toAmount(pricing.cafAmount ?? null),
+    resteACharge: toAmount(pricing.resteACharge ?? null),
     requestedPrice: toAmount(
       pricing.requested ?? pricing.estimatedPriceMax ??
       pricing.basePriceMax ?? sejour.priceMax ?? sejour.basePrice ?? d.basePrice ?? null,
@@ -260,7 +387,8 @@ function buildConvocationHTML(item, extra) {
   <div class="section-title">Point de rendez-vous &amp; transport</div>
   <div class="highlight-box">
     <div>📍 <strong>Lieu de départ :</strong> ${extra.meetingPoint || item.departureCity || "À préciser"}</div>
-    ${extra.departureTime ? `<div style="margin-top:8px">🕐 <strong>Heure de départ :</strong> ${extra.departureTime}</div>` : ""}
+    ${extra.meetingTime ? `<div style="margin-top:8px">🕐 <strong>Heure de rendez-vous :</strong> ${extra.meetingTime}</div>` : ""}
+    ${extra.departureTime ? `<div style="margin-top:8px">🚆 <strong>Départ :</strong> ${extra.departureTime}${extra.trainNumber ? ` — ${extra.trainType || "Train"} ${extra.trainNumber}` : ""}</div>` : ""}
     ${extra.returnTime ? `<div style="margin-top:8px">🔄 <strong>Heure de retour :</strong> ${extra.returnTime}</div>` : ""}
     ${item.returnCity ? `<div style="margin-top:8px">🏠 <strong>Ville de retour :</strong> ${item.returnCity}</div>` : ""}
   </div>
@@ -520,13 +648,230 @@ function PanelInfoTab({ item }) {
   );
 }
 
-function EmailComposer({ item }) {
+const COLOCREW_RIB = {
+  titulaire: "COLOCREW",
+  iban: "FR76 1695 8000 0158 6780 6033 040",
+  bic: "QNTOFRP1XXX",
+};
+
+function buildSuiteReservationBody({
+  nom, sejour, ref, sejourPriceNum, transportAmountNum, totalPrice, cafEligible, cafAmountNum, resteACharge,
+  alreadyPaid = 0, amountDueNow,
+  link, linkMode, installmentsEnabled, installmentsCount, depositLink,
+  priceDefined = true,
+}) {
+  const lines = [];
+  lines.push(`Bonjour ${nom},`);
+  lines.push("");
+  if (priceDefined) {
+    lines.push(`Voici le récapitulatif financier de votre réservation pour le séjour "${sejour}" (réf. ${ref}) :`);
+    lines.push("");
+    lines.push(`- Prix du séjour : ${fmtCur(sejourPriceNum)}`);
+    lines.push(`- Transport : ${fmtCur(transportAmountNum)}`);
+    lines.push(`- Total : ${fmtCur(totalPrice)}`);
+    if (cafEligible) lines.push(`- Pris en charge par la CAF : ${fmtCur(cafAmountNum)}`);
+    lines.push(`- Reste à charge : ${fmtCur(resteACharge)}`);
+    if (alreadyPaid > 0) lines.push(`- Déjà réglé (acompte) : − ${fmtCur(alreadyPaid)}`);
+    lines.push(`- Montant à régler maintenant : ${fmtCur(amountDueNow)}`);
+  } else {
+    lines.push(`Nous revenons vers vous au sujet de votre réservation pour le séjour "${sejour}" (réf. ${ref}).`);
+  }
+  lines.push("");
+
+  if (link) {
+    if (installmentsEnabled && installmentsCount > 1) {
+      lines.push(`Vous pouvez régler ce montant en ${installmentsCount} fois par carte bancaire (prélèvement mensuel automatique) via le lien sécurisé suivant :`);
+    } else {
+      lines.push(`Vous pouvez régler ce montant en une fois par carte bancaire via le lien sécurisé suivant :`);
+    }
+    lines.push(link);
+    lines.push("");
+    lines.push("Ce lien est valable 48h.");
+  } else {
+    lines.push("[LIEN DE PAIEMENT À INSÉRER ICI]");
+  }
+
+  lines.push("");
+  lines.push("— ou par virement bancaire —");
+  lines.push(`Titulaire : ${COLOCREW_RIB.titulaire}`);
+  lines.push(`IBAN : ${COLOCREW_RIB.iban}`);
+  lines.push(`BIC : ${COLOCREW_RIB.bic}`);
+  lines.push(`Référence à indiquer : ${ref}`);
+
+  if (depositLink) {
+    lines.push("");
+    lines.push("En second choix, si vous préférez ne pas régler la totalité maintenant, vous pouvez simplement verser un acompte de 100 € pour bloquer la place via le lien suivant :");
+    lines.push(depositLink);
+    lines.push("Le solde restant sera à régler ultérieurement.");
+  }
+
+  lines.push("");
+  lines.push("N'hésitez pas à nous contacter pour toute question.");
+  lines.push("");
+  lines.push("Cordialement,\nL'équipe ColoCrew");
+  return lines.join("\n");
+}
+
+function PanelTarifTab({ item, onSave, onGoToEmail }) {
   const { showToast } = useToast();
-  const [tplKey, setTplKey] = useState("validation");
+  const [saving, setSaving] = useState(false);
+  const childCount = reservationChildCount(item);
+  const isPriceDefined = item.finalPrice > 0;
+
+  const [sejourPrice, setSejourPrice] = useState(() => {
+    if (item.finalPrice > 0) return String(Math.max(item.finalPrice - (item.transportFee || 0), 0));
+    if (item.estimatedMax != null) return String(item.estimatedMax);
+    return "";
+  });
+  const [transportAmount, setTransportAmount] = useState(item.transportFee != null ? String(item.transportFee) : "");
+  const [cafEligible, setCafEligible] = useState(!!item.cafEligible);
+  const [cafAmount, setCafAmount] = useState(item.cafAmount != null ? String(item.cafAmount) : "");
+
+  const sejourPriceNum = Number(String(sejourPrice).replace(",", ".")) || 0;
+  const transportAmountNum = Number(String(transportAmount).replace(",", ".")) || 0;
+  const totalPrice = sejourPriceNum + transportAmountNum;
+  const cafAmountNum = cafEligible ? (Number(String(cafAmount).replace(",", ".")) || 0) : 0;
+  const resteACharge = Math.max(Number((totalPrice - cafAmountNum).toFixed(2)), 0);
+
+  const save = async () => {
+    if (!sejourPrice) { showToast("Renseignez le prix du séjour", "warning"); return; }
+    setSaving(true);
+    try {
+      const alreadyPaid = Number(item.alreadyPaid || 0);
+      const remainingValue = Math.max(Number((resteACharge - alreadyPaid).toFixed(2)), 0);
+      const nextPaymentStatus = remainingValue === 0 ? "paid" : alreadyPaid > 0 ? "in_progress" : "not_paid";
+
+      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
+        finalPrice: totalPrice,
+        "transport.fee": transportAmountNum,
+        "payment.totalPrice": totalPrice,
+        "payment.validatedPrice": totalPrice,
+        "payment.priceStatus": "validated",
+        "payment.cafEligible": cafEligible,
+        "payment.cafAmount": cafEligible ? cafAmountNum : null,
+        "payment.resteACharge": resteACharge,
+        "payment.remainingValue": remainingValue,
+        "payment.paymentStatus": nextPaymentStatus,
+        updatedAt: serverTimestamp(),
+      });
+      onSave({
+        ...item,
+        finalPrice: totalPrice,
+        transportFee: transportAmountNum,
+        cafEligible,
+        cafAmount: cafEligible ? cafAmountNum : null,
+        resteACharge,
+        remainingValue,
+        paymentStatus: nextPaymentStatus,
+      });
+      showToast("Prix du séjour enregistré", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'enregistrement du prix", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rp-tarif-tab">
+      <div className="rp-price-calc">
+        <div className="rp-price-calc-summary" style={{ borderTop: "none", paddingTop: 0 }}>
+          <div className="rp-price-calc-summary-row"><span>Séjour</span><span>{item.sejourName}</span></div>
+          <div className="rp-price-calc-summary-row"><span>Dates</span><span>{fmtDate(item.sejourStartDate) || "—"} → {fmtDate(item.sejourEndDate) || "—"}</span></div>
+          <div className="rp-price-calc-summary-row"><span>Enfant{childCount > 1 ? "s" : ""}</span><span>{childCount}</span></div>
+          {(item.estimatedMin !== null || item.estimatedMax !== null) && (
+            <div className="rp-price-calc-summary-row">
+              <span>Estimation</span>
+              <span>{item.estimatedMin === item.estimatedMax ? fmtCur(item.estimatedMin) : `${fmtCur(item.estimatedMin)} – ${fmtCur(item.estimatedMax)}`}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rp-price-calc">
+        <div className="rp-price-calc-title">{isPriceDefined ? "✅ Prix défini" : "⚠️ Prix à définir"}</div>
+
+        <div className="rp-price-calc-grid">
+          <label className="rp-email-label">
+            <span>Prix du séjour (€) — fourchette haute préremplie</span>
+            <input className="dash-input" type="number" min="0" value={sejourPrice}
+              onChange={e => setSejourPrice(e.target.value)} placeholder="ex : 590" />
+          </label>
+          <label className="rp-email-label">
+            <span>Montant transport (€)</span>
+            <input className="dash-input" type="number" min="0" value={transportAmount}
+              onChange={e => setTransportAmount(e.target.value)} placeholder="ex : 60" />
+            <span style={{ fontSize: 11, fontWeight: 400, color: "var(--dash-muted)" }}>
+              {item.departureCity || "Sur place"} → {item.returnCity || (item.departureCity ? "—" : "Sur place")}
+            </span>
+          </label>
+        </div>
+
+        <label className="rp-price-calc-checkbox">
+          <input type="checkbox" checked={cafEligible} onChange={e => setCafEligible(e.target.checked)} />
+          Éligible à une prise en charge CAF
+        </label>
+
+        {cafEligible && (
+          <label className="rp-email-label">
+            <span>Montant pris en charge par la CAF (€)</span>
+            <input className="dash-input" type="number" min="0" value={cafAmount}
+              onChange={e => setCafAmount(e.target.value)} placeholder="ex : 150" />
+          </label>
+        )}
+
+        <div className="rp-price-calc-summary">
+          <div className="rp-price-calc-summary-row"><span>Prix total</span><span>{fmtCur(totalPrice)}</span></div>
+          {cafEligible && (
+            <div className="rp-price-calc-summary-row"><span>Pris en charge CAF</span><span>− {fmtCur(cafAmountNum)}</span></div>
+          )}
+          <div className="rp-price-calc-summary-row is-total"><span>Reste à charge</span><span>{fmtCur(resteACharge)}</span></div>
+        </div>
+
+        <div className="rp-price-calc-actions">
+          <button type="button" className="dash-btn dash-btn-primary" onClick={save} disabled={saving}>
+            {saving ? "Enregistrement…" : "Enregistrer le prix"}
+          </button>
+          {isPriceDefined && (
+            <button type="button" className="dash-btn" onClick={onGoToEmail}>
+              Préparer l'email →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailComposer({ item, onGoToTarif }) {
+  const { showToast } = useToast();
+  const [tplKey, setTplKey] = useState("suite_reservation");
   const [sending, setSending] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [stripeLink, setStripeLink] = useState("");
+  const [depositLink, setDepositLink] = useState("");
+  const [installmentsEnabled, setInstallmentsEnabled] = useState(false);
+  const [installmentsCount, setInstallmentsCount] = useState("3");
 
   const priceTxt = fmtCur(item.finalPrice ?? item.requestedPrice);
   const nom = item.nom !== "—" ? item.nom.split(" ")[0] : "Madame/Monsieur";
+
+  // Le prix est défini une seule fois dans l'onglet Tarif ; l'email se base uniquement sur les valeurs enregistrées.
+  const isPriceDefined = item.finalPrice > 0;
+  const transportAmountNum = item.transportFee || 0;
+  const totalPrice = item.finalPrice ?? 0;
+  const sejourPriceNum = Math.max(totalPrice - transportAmountNum, 0);
+  const cafEligible = !!item.cafEligible;
+  const cafAmountNum = item.cafAmount || 0;
+  const alreadyPaid = item.alreadyPaid || 0;
+  const resteACharge = isPriceDefined
+    ? (item.resteACharge != null ? item.resteACharge : Math.max(totalPrice - cafAmountNum, 0))
+    : 0;
+  const amountDueNow = isPriceDefined
+    ? (item.remainingValue != null ? item.remainingValue : Math.max(resteACharge - alreadyPaid, 0))
+    : 0;
+  const installmentsCountNum = Math.max(Math.round(Number(installmentsCount)) || 0, 2);
 
   const initFromTpl = (key) => {
     const t = EMAIL_TEMPLATES.find(x => x.key === key) || EMAIL_TEMPLATES[0];
@@ -536,15 +881,81 @@ function EmailComposer({ item }) {
     };
   };
 
+  const buildSuiteBody = (overrides = {}) => buildSuiteReservationBody({
+    nom, sejour: item.sejourName, ref: item.numeroDeReservation,
+    sejourPriceNum, transportAmountNum, totalPrice,
+    cafEligible, cafAmountNum, resteACharge, alreadyPaid, amountDueNow,
+    link: stripeLink, installmentsEnabled, installmentsCount: installmentsCountNum, depositLink,
+    priceDefined: isPriceDefined,
+    ...overrides,
+  });
+
   const [to, setTo]         = useState(item.email !== "—" ? item.email : "");
-  const [subject, setSubject] = useState(() => initFromTpl("validation").subject);
-  const [body, setBody]       = useState(() => initFromTpl("validation").body);
+  const [subject, setSubject] = useState(() =>
+    EMAIL_TEMPLATES.find(t => t.key === "suite_reservation").subject(nom, item.sejourName));
+  const [body, setBody]       = useState(() => buildSuiteBody());
 
   const applyTpl = (key) => {
     setTplKey(key);
+    if (key === "suite_reservation") {
+      setSubject(EMAIL_TEMPLATES.find(t => t.key === key).subject(nom, item.sejourName));
+      setBody(buildSuiteBody());
+      return;
+    }
     const { subject: s, body: b } = initFromTpl(key);
     setSubject(s);
     setBody(b);
+  };
+
+  const refreshSuiteBody = () => setBody(buildSuiteBody());
+
+  const generateStripeLink = async (mode) => {
+    const amount = mode === "deposit" ? 100 : amountDueNow;
+    if (mode !== "deposit" && (!isPriceDefined || !amount || amount <= 0)) {
+      showToast("Définissez d'abord le prix dans l'onglet Tarif", "warning");
+      return;
+    }
+    setGeneratingLink(true);
+    try {
+      const res = await fetch("/api/create-stripe-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenUnique: item.tokenUnique,
+          amount,
+          currency: "eur",
+          sejourTitle: item.sejourName,
+          ageGroup: item.sejourAgeGroup,
+          startDate: item.sejourStartDate,
+          endDate: item.sejourEndDate,
+          transportFee: transportAmountNum,
+          insuranceOpted: item.insuranceFee > 0,
+          paymentOption: mode === "deposit" ? "deposit" : "oneTime",
+          installments: mode === "full" && installmentsEnabled ? installmentsCountNum : undefined,
+          customer_email: item.email !== "—" ? item.email : undefined,
+          metadata: {
+            numeroDeReservation: item.numeroDeReservation,
+            ...(mode === "deposit" ? { paymentType: "deposit" } : {}),
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error();
+      setTplKey("suite_reservation");
+      setSubject(EMAIL_TEMPLATES.find(t => t.key === "suite_reservation").subject(nom, item.sejourName));
+      if (mode === "deposit") {
+        setDepositLink(data.url);
+        setBody(buildSuiteBody({ depositLink: data.url }));
+      } else {
+        setStripeLink(data.url);
+        setBody(buildSuiteBody({ link: data.url }));
+      }
+      showToast("Lien Stripe généré et inséré dans le message", "success");
+    } catch {
+      showToast("Erreur lors de la génération du lien Stripe", "error");
+    } finally {
+      setGeneratingLink(false);
+    }
   };
 
   const send = async () => {
@@ -574,6 +985,73 @@ function EmailComposer({ item }) {
             onClick={() => applyTpl(t.key)}>{t.label}</button>
         ))}
       </div>
+
+      {tplKey === "suite_reservation" && (
+        <div className="rp-price-calc">
+          <div className="rp-price-calc-title">Récapitulatif (défini dans l'onglet Tarif)</div>
+
+          {!isPriceDefined ? (
+            <div className="rp-price-calc-summary" style={{ borderTop: "none", paddingTop: 0 }}>
+              <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--dash-muted)" }}>
+                Le prix du séjour n'a pas encore été défini. Vous pouvez tout de même envoyer un lien d'acompte de 100€ ci-dessous.
+              </p>
+              <button type="button" className="dash-btn" onClick={onGoToTarif}>
+                Définir le prix dans l'onglet Tarif →
+              </button>
+            </div>
+          ) : (
+            <div className="rp-price-calc-summary" style={{ borderTop: "none", paddingTop: 0 }}>
+              <div className="rp-price-calc-summary-row"><span>Prix du séjour</span><span>{fmtCur(sejourPriceNum)}</span></div>
+              <div className="rp-price-calc-summary-row"><span>Transport</span><span>{fmtCur(transportAmountNum)}</span></div>
+              {cafEligible && (
+                <div className="rp-price-calc-summary-row"><span>Pris en charge CAF</span><span>− {fmtCur(cafAmountNum)}</span></div>
+              )}
+              <div className="rp-price-calc-summary-row"><span>Reste à charge</span><span>{fmtCur(resteACharge)}</span></div>
+              {alreadyPaid > 0 && (
+                <div className="rp-price-calc-summary-row"><span>Déjà réglé (acompte)</span><span>− {fmtCur(alreadyPaid)}</span></div>
+              )}
+              <div className="rp-price-calc-summary-row is-total"><span>À régler maintenant</span><span>{fmtCur(amountDueNow)}</span></div>
+            </div>
+          )}
+
+          <label className="rp-price-calc-checkbox">
+            <input type="checkbox" checked={installmentsEnabled} onChange={e => setInstallmentsEnabled(e.target.checked)} />
+            Proposer un paiement en plusieurs fois
+          </label>
+          {installmentsEnabled && (
+            <label className="rp-email-label">
+              <span>Nombre de fois</span>
+              <input className="dash-input" type="number" min="2" max="12" value={installmentsCount}
+                onChange={e => setInstallmentsCount(e.target.value)} style={{ maxWidth: 100 }} />
+              <span style={{ fontSize: 11, fontWeight: 400, color: "var(--dash-muted)" }}>
+                Soit {fmtCur(amountDueNow / installmentsCountNum)} / mois — abonnement Stripe avec prélèvement mensuel automatique
+              </span>
+            </label>
+          )}
+
+          <div className="rp-price-calc-actions">
+            <button type="button" className="dash-btn" onClick={refreshSuiteBody}>
+              Mettre à jour le message
+            </button>
+            <button type="button" className="dash-btn dash-btn-primary" onClick={() => generateStripeLink("full")} disabled={generatingLink || !isPriceDefined}>
+              {generatingLink ? "Génération…" : installmentsEnabled
+                ? `Générer lien Stripe (${installmentsCountNum} fois)`
+                : "Générer lien Stripe (à régler maintenant)"}
+            </button>
+            <button type="button" className="dash-btn" onClick={() => generateStripeLink("deposit")} disabled={generatingLink}>
+              {generatingLink ? "Génération…" : "Lien d'acompte 100€ (second choix)"}
+            </button>
+          </div>
+
+          {stripeLink && (
+            <div className="rp-stripe-link-box">🔗 {stripeLink}</div>
+          )}
+          {depositLink && (
+            <div className="rp-stripe-link-box">🔗 (acompte) {depositLink}</div>
+          )}
+        </div>
+      )}
+
       <label className="rp-email-label">
         <span>Destinataire</span>
         <input className="dash-input" type="email" value={to} onChange={e => setTo(e.target.value)} placeholder="email@exemple.com" />
@@ -598,31 +1076,150 @@ function EmailComposer({ item }) {
   );
 }
 
-function DocumentsTab({ item }) {
+function DocumentsTab({ item, onSave }) {
+  const { showToast } = useToast();
   const [docType, setDocType] = useState("convocation");
+  const saved = item.raw?.familyConvocation || {};
   const [extra, setExtra] = useState({
-    meetingPoint:        item.departureCity || "",
-    departureTime:       "",
-    returnTime:          "",
-    returnMeetingPoint:  item.returnCity || "",
-    convoyeur:           "",
-    convoyeurPhone:      "",
-    urgency:             item.phone && item.phone !== "—" ? `${item.nom} — ${item.phone}` : "",
-    toBring:             "Carte nationale d'identité ou passeport\nCarnet de santé\nOrdonances médicales (si nécessaire)\nVêtements adaptés à la météo\nMaillot de bain, crème solaire\nArgent de poche",
-    notes:               "",
+    meetingPoint:        saved.meetingPoint || item.departureCity || "",
+    meetingTime:         saved.meetingTime || "",
+    departureTime:       saved.departureTime || "",
+    trainType:           saved.trainType || "",
+    trainNumber:         saved.trainNumber || "",
+    returnTime:          saved.returnTime || "",
+    returnMeetingPoint:  saved.returnMeetingPoint || item.returnCity || "",
+    convoyeur:           saved.convoyeur || "",
+    convoyeurPhone:      saved.convoyeurPhone || "",
+    urgency:             saved.urgency || "ColoCrew — 06 87 91 68 97 / 06 11 91 37 64",
+    toBring:             "Carte nationale d'identité ou passeport\nCarnet de santé\nOrdonnances médicales (si nécessaire)\nVêtements adaptés à la météo\nMaillot de bain, crème solaire\nArgent de poche",
+    notes:               saved.notes || "",
+    ...saved,
   });
+  const [loadingTransport, setLoadingTransport] = useState(true);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const set = (k, v) => setExtra(p => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTransport = async () => {
+      setLoadingTransport(true);
+      try {
+        const snap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
+        const assigned = snap.docs
+          .map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }))
+          .filter((transport) => (transport.passengers || []).some((passenger) => passenger.reservationId === item.id));
+        const aller = assigned.find((transport) => transport.direction === "aller");
+        const retour = assigned.find((transport) => transport.direction === "retour");
+        if (cancelled || (!aller && !retour)) return;
+
+        const allerPassenger = aller?.passengers?.find((passenger) => passenger.reservationId === item.id);
+        const retourPassenger = retour?.passengers?.find((passenger) => passenger.reservationId === item.id);
+        const allerSegment = aller?.segments?.find((segment) =>
+          normalizePlace(segment.from) === normalizePlace(allerPassenger?.pickupCity || item.departureCity)
+        ) || aller?.segments?.[0];
+        const retourSegment = retour?.segments?.find((segment) =>
+          normalizePlace(segment.to) === normalizePlace(retourPassenger?.pickupCity || item.returnCity)
+        ) || retour?.segments?.at(-1);
+        const assignedStaffIds = new Set(allerSegment?.assignedStaffIds || []);
+        const convoyeur = aller?.staff?.find((member) => assignedStaffIds.has(member.id)) || aller?.staff?.[0];
+
+        setExtra((current) => ({
+          ...current,
+          meetingPoint: saved.meetingPoint || allerSegment?.meetingPoint || current.meetingPoint,
+          meetingTime: saved.meetingTime || allerSegment?.meetingTime || current.meetingTime,
+          departureTime: saved.departureTime || allerSegment?.departureTime || current.departureTime,
+          trainType: saved.trainType || allerSegment?.mode || current.trainType,
+          trainNumber: saved.trainNumber || allerSegment?.number || current.trainNumber,
+          returnMeetingPoint: saved.returnMeetingPoint || retourSegment?.meetingPoint || current.returnMeetingPoint,
+          returnTime: saved.returnTime || retourSegment?.arrivalTime || current.returnTime,
+          convoyeur: saved.convoyeur || convoyeur?.name || current.convoyeur,
+          convoyeurPhone: saved.convoyeurPhone || convoyeur?.phone || current.convoyeurPhone,
+        }));
+      } catch (error) {
+        console.error(error);
+        showToast("Impossible de récupérer automatiquement le trajet", "warning");
+      } finally {
+        if (!cancelled) setLoadingTransport(false);
+      }
+    };
+    loadTransport();
+    return () => { cancelled = true; };
+  }, [item.id]);
+
+  const saveDraft = async () => {
+    setSavingDraft(true);
+    try {
+      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
+        familyConvocation: extra,
+        updatedAt: serverTimestamp(),
+      });
+      onSave?.({ ...item, raw: { ...item.raw, familyConvocation: extra } });
+      showToast("Convocation enregistrée", "success");
+    } catch (error) {
+      console.error(error);
+      showToast("Erreur lors de l’enregistrement", "error");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
 
   const openDoc = () => {
     const html = docType === "convocation"
       ? buildConvocationHTML(item, extra)
       : buildConvoyageHTML(item, extra);
-    const win = window.open("", "_blank", "width=900,height=760");
-    win.document.write(html);
-    win.document.close();
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank", "width=900,height=760");
+    if (!win) {
+      URL.revokeObjectURL(url);
+      showToast("Le navigateur a bloqué l’ouverture du document", "warning");
+      return;
+    }
     win.focus();
-    setTimeout(() => win.print(), 600);
+    setTimeout(() => {
+      win.print();
+      URL.revokeObjectURL(url);
+    }, 800);
+  };
+
+  const sendFamilyConvocation = async () => {
+    if (!item.email || item.email === "—") {
+      showToast("Aucune adresse email famille", "warning");
+      return;
+    }
+    setSending(true);
+    try {
+      const pdfBytes = await buildConvocationPdf(item, extra);
+      const childFirstName = item.children?.[0]?.firstName || item.childName || "votre enfant";
+      const response = await fetch("/api/send-admin-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: item.email,
+          subject: `ColoCrew — Convocation transport ${item.sejourName}`,
+          body: `Bonjour ${item.nom},\n\nVous trouverez en pièce jointe la convocation de transport de ${childFirstName} pour le séjour « ${item.sejourName} ».\n\nMerci de vérifier les horaires et le point de rendez-vous. En cas de question ou d’empêchement, contactez-nous rapidement.\n\nCordialement,\nL’équipe ColoCrew`,
+          attachment: {
+            filename: `Convocation-${item.numeroDeReservation || item.id}.pdf`,
+            contentBase64: bytesToBase64(pdfBytes),
+            contentType: "application/pdf",
+          },
+        }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
+        familyConvocation: extra,
+        familyConvocationSentAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      showToast(`Convocation envoyée à ${item.email}`, "success");
+    } catch (error) {
+      console.error(error);
+      showToast("Erreur lors de l’envoi de la convocation", "error");
+    } finally {
+      setSending(false);
+    }
   };
 
   const isConvoc = docType === "convocation";
@@ -649,15 +1246,29 @@ function DocumentsTab({ item }) {
 
       {/* Common fields */}
       <div className="rp-doc-fields">
-        <div className="rp-doc-section-title">Informations de transport</div>
+        <div className="rp-doc-section-title">
+          Informations de transport {loadingTransport ? "— récupération du trajet…" : "— préremplies depuis le trajet"}
+        </div>
         <div className="rp-doc-grid">
           <label className="rp-edit-field">
             <span>Point de RDV départ</span>
             <input className="dash-input" value={extra.meetingPoint} onChange={e => set("meetingPoint", e.target.value)} placeholder="ex : Gare du Nord, voie 3" />
           </label>
           <label className="rp-edit-field">
+            <span>Heure de RDV famille</span>
+            <input className="dash-input" type="time" value={extra.meetingTime} onChange={e => set("meetingTime", e.target.value)} />
+          </label>
+          <label className="rp-edit-field">
             <span>Heure de départ</span>
             <input className="dash-input" type="time" value={extra.departureTime} onChange={e => set("departureTime", e.target.value)} />
+          </label>
+          <label className="rp-edit-field">
+            <span>Train / car</span>
+            <input className="dash-input" value={extra.trainType} onChange={e => set("trainType", e.target.value)} placeholder="TGV, TER, car…" />
+          </label>
+          <label className="rp-edit-field">
+            <span>Numéro</span>
+            <input className="dash-input" value={extra.trainNumber} onChange={e => set("trainNumber", e.target.value)} placeholder="N° train / car" />
           </label>
           {!isConvoc && (
             <label className="rp-edit-field">
@@ -718,6 +1329,14 @@ function DocumentsTab({ item }) {
         </svg>
         Générer &amp; Imprimer / PDF
       </button>
+      <div className="rp-doc-actions">
+        <button type="button" className="dash-btn" onClick={saveDraft} disabled={savingDraft}>
+          {savingDraft ? "Enregistrement…" : "Enregistrer les compléments"}
+        </button>
+        <button type="button" className="dash-btn dash-btn-primary" onClick={sendFamilyConvocation} disabled={sending || loadingTransport}>
+          {sending ? "Envoi en cours…" : `Envoyer le mail + PDF à ${item.email}`}
+        </button>
+      </div>
     </div>
   );
 }
@@ -889,6 +1508,7 @@ function EditTab({ item, onSave }) {
 /* ── Right panel ────────────────────────────────────────────────────────── */
 
 const PANEL_TABS = [
+  { key: "tarif",  label: "Tarif" },
   { key: "info",   label: "Infos" },
   { key: "docs",   label: "Documents" },
   { key: "email",  label: "Email" },
@@ -899,7 +1519,7 @@ const PANEL_TABS = [
 function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange }) {
   const { showToast } = useToast();
   const [item, setItem]         = useState(externalItem);
-  const [panelTab, setPanelTab] = useState("info");
+  const [panelTab, setPanelTab] = useState("tarif");
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -1011,9 +1631,10 @@ function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onSta
 
       {/* Body */}
       <div className="rp-body">
+        {panelTab === "tarif" && <PanelTarifTab item={item} onSave={handleSave} onGoToEmail={() => setPanelTab("email")} />}
         {panelTab === "info"  && <PanelInfoTab item={item} />}
-        {panelTab === "docs"  && <DocumentsTab item={item} />}
-        {panelTab === "email" && <EmailComposer item={item} />}
+        {panelTab === "docs"  && <DocumentsTab item={item} onSave={handleSave} />}
+        {panelTab === "email" && <EmailComposer item={item} onGoToTarif={() => setPanelTab("tarif")} />}
         {panelTab === "edit"  && <EditTab item={item} onSave={handleSave} />}
         {panelTab === "notes" && <NotesTab item={item} onSave={handleSaveNotes} saving={saving} />}
       </div>
@@ -1241,7 +1862,7 @@ function NewReservationModal({ onClose, onCreated }) {
                 <span>Notes internes</span>
                 <textarea className="dash-input" rows={3} style={{ resize: "vertical" }}
                   value={form.notes} onChange={e => set("notes", e.target.value)}
-                  placeholder="Observations, context de cette réservation manuelle…" />
+                  placeholder="Observations, contexte de cette réservation manuelle…" />
               </label>
             </div>
           )}
@@ -1272,14 +1893,100 @@ function NewReservationModal({ onClose, onCreated }) {
   );
 }
 
+/* ── Navigation drill-down components ──────────────────────────────────── */
+
+const RES_WEEK_INFO = {
+  S1: { label: "Semaine 1", dates: "6 – 17 juil." },
+  S2: { label: "Semaine 2", dates: "20 – 31 juil." },
+  S3: { label: "Semaine 3", dates: "3 – 14 août" },
+  S4: { label: "Semaine 4", dates: "17 – 28 août" },
+};
+
+function ResWeekCards({ weekCounts, onSelect }) {
+  return (
+    <div className="res-week-grid">
+      {["S1", "S2", "S3", "S4"].map(week => {
+        const count = weekCounts[week] || 0;
+        const info  = RES_WEEK_INFO[week];
+        return (
+          <button key={week} type="button" className="res-week-card" onClick={() => onSelect(week)}>
+            <span className="res-week-code">{week}</span>
+            <span className="res-week-label">{info.label}</span>
+            <span className="res-week-dates">{info.dates}</span>
+            <span className="res-week-count">{count}<small> enfant{count !== 1 ? "s" : ""}</small></span>
+            <span className="res-week-arrow">→</span>
+          </button>
+        );
+      })}
+      {(weekCounts.autre || 0) > 0 && (
+        <button type="button" className="res-week-card res-week-autre" onClick={() => onSelect("autre")}>
+          <span className="res-week-code">?</span>
+          <span className="res-week-label">Sans semaine</span>
+          <span className="res-week-count">
+            {weekCounts.autre}<small> enfant{weekCounts.autre !== 1 ? "s" : ""}</small>
+          </span>
+          <span className="res-week-arrow">→</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ResSejournCards({ sejourCounts, onSelect }) {
+  return (
+    <div className="res-sejour-grid">
+      {Object.entries(sejourCounts).map(([sejour, count]) => {
+        const label = sejour === "__sans_sejour__" ? "Sans séjour" : sejour;
+        return (
+          <button key={sejour} type="button" className="res-sejour-card" onClick={() => onSelect(sejour)}>
+            <span className="res-sejour-icon">🏕️</span>
+            <span className="res-sejour-name">{label}</span>
+            <span className="res-sejour-count">{count} enfant{count !== 1 ? "s" : ""}</span>
+            <span className="res-sejour-arrow">→</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ResBreadcrumb({ mainView, selectedWeek, selectedSejour, onReset, onResetSejour }) {
+  const viewLabel  = mainView === "validees" ? "Validées" : "Réservations en cours";
+  const weekLabel  = selectedWeek === "autre"
+    ? "Sans semaine"
+    : (RES_WEEK_INFO[selectedWeek]?.label || selectedWeek);
+
+  return (
+    <nav className="res-breadcrumb">
+      <button type="button" onClick={onReset}>{viewLabel}</button>
+      {selectedWeek && (
+        <>
+          <span className="res-bc-sep">›</span>
+          {selectedSejour
+            ? <button type="button" onClick={onResetSejour}>{weekLabel}</button>
+            : <span>{weekLabel}</span>}
+        </>
+      )}
+      {selectedSejour && (
+        <>
+          <span className="res-bc-sep">›</span>
+          <span>{selectedSejour === "__sans_sejour__" ? "Sans séjour" : selectedSejour}</span>
+        </>
+      )}
+    </nav>
+  );
+}
+
 /* ── Main export ────────────────────────────────────────────────────────── */
 
 export default function Reservations() {
-  const [items, setItems]               = useState([]);
-  const [activeTab, setActiveTab]       = useState("pending");
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [loading, setLoading]           = useState(true);
-  const [showNew, setShowNew]           = useState(false);
+  const [items, setItems]                   = useState([]);
+  const [mainView, setMainView]             = useState("reservations"); // "reservations" | "validees" | "passees"
+  const [selectedWeek, setSelectedWeek]     = useState(null);
+  const [selectedSejour, setSelectedSejour] = useState(null);
+  const [selectedItem, setSelectedItem]     = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [showNew, setShowNew]               = useState(false);
   const { showToast } = useToast();
 
   const load = async () => {
@@ -1296,13 +2003,83 @@ export default function Reservations() {
   useEffect(() => { load(); }, []);
 
   const buckets = useMemo(() => ({
-    all:       items,
     pending:   items.filter(x => x.status === "pending"),
     validated: items.filter(x => x.status === "validated"),
     deleted:   items.filter(x => x.status === "deleted"),
   }), [items]);
+  const childCounts = useMemo(() => ({
+    total: countReservationChildren(items),
+    pending: countReservationChildren(buckets.pending),
+    validated: countReservationChildren(buckets.validated),
+    deleted: countReservationChildren(buckets.deleted),
+  }), [items, buckets]);
 
-  const currentList = buckets[activeTab] || [];
+  /* Sous-filtre "Prix défini" / "À traiter" pour les réservations en cours */
+  const [priceFilter, setPriceFilter] = useState("all"); // "all" | "defined" | "todo"
+  const pricingCounts = useMemo(() => ({
+    defined: buckets.pending.filter(x => x.finalPrice > 0).length,
+    todo:    buckets.pending.filter(x => !(x.finalPrice > 0)).length,
+  }), [buckets.pending]);
+  const pendingFiltered = useMemo(() => {
+    if (priceFilter === "defined") return buckets.pending.filter(x => x.finalPrice > 0);
+    if (priceFilter === "todo")    return buckets.pending.filter(x => !(x.finalPrice > 0));
+    return buckets.pending;
+  }, [buckets.pending, priceFilter]);
+
+  /* Items de la vue courante */
+  const viewItems = useMemo(() => {
+    if (mainView === "validees") return buckets.validated;
+    if (mainView === "passees")  return buckets.deleted;
+    return pendingFiltered;
+  }, [mainView, buckets, pendingFiltered]);
+
+  /* Comptage par semaine */
+  const weekCounts = useMemo(() => {
+    const c = { S1: 0, S2: 0, S3: 0, S4: 0, autre: 0 };
+    for (const item of viewItems) {
+      const children = reservationChildCount(item);
+      if (item.week && c[item.week] !== undefined) c[item.week] += children;
+      else c.autre += children;
+    }
+    return c;
+  }, [viewItems]);
+
+  /* Comptage par séjour pour la semaine sélectionnée */
+  const sejourCounts = useMemo(() => {
+    if (!selectedWeek) return {};
+    const base = selectedWeek === "autre"
+      ? viewItems.filter(x => !x.week)
+      : viewItems.filter(x => x.week === selectedWeek);
+    const c = {};
+    for (const item of base) {
+      const s = (item.sejourName && item.sejourName !== "—") ? item.sejourName : "__sans_sejour__";
+      c[s] = (c[s] || 0) + reservationChildCount(item);
+    }
+    return c;
+  }, [viewItems, selectedWeek]);
+
+  /* Liste finale après drill-down */
+  const drillItems = useMemo(() => {
+    let r = viewItems;
+    if (selectedWeek === "autre") r = r.filter(x => !x.week);
+    else if (selectedWeek) r = r.filter(x => x.week === selectedWeek);
+    if (selectedSejour) {
+      if (selectedSejour === "__sans_sejour__") {
+        r = r.filter(x => !x.sejourName || x.sejourName === "—");
+      } else {
+        r = r.filter(x => x.sejourName === selectedSejour);
+      }
+    }
+    return r;
+  }, [viewItems, selectedWeek, selectedSejour]);
+
+  const changeView = (view) => {
+    setMainView(view);
+    setSelectedWeek(null);
+    setSelectedSejour(null);
+    setSelectedItem(null);
+    setPriceFilter("all");
+  };
 
   const handleSave = (updated) => {
     setItems(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x));
@@ -1330,7 +2107,6 @@ export default function Reservations() {
   const handleCreated = (newItem) => {
     setItems(prev => [newItem, ...prev]);
     setSelectedItem(newItem);
-    setActiveTab("all");
   };
 
   const totalRevenue = useMemo(
@@ -1339,6 +2115,17 @@ export default function Reservations() {
   );
 
   const columns = useMemo(() => [
+    {
+      key: "numeroDeReservation",
+      label: "Réservation",
+      sortValue: row => row.dateMs || 0,
+      render: row => (
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 12 }}>{row.numeroDeReservation || "Sans référence"}</div>
+          <div style={{ fontSize: 10.5, color: "var(--dash-muted)", marginTop: 1 }}>{fmt(row.dateMs)}</div>
+        </div>
+      ),
+    },
     {
       key: "nom",
       label: "Nom",
@@ -1393,7 +2180,7 @@ export default function Reservations() {
     },
     {
       key: "dateMs",
-      label: "Date",
+      label: "Date inscription",
       sortValue: row => row.dateMs || 0,
       render: row => <span style={{ fontSize: 12, color: "var(--dash-muted)" }}>{fmt(row.dateMs)}</span>,
     },
@@ -1417,16 +2204,16 @@ export default function Reservations() {
               </div>
               <div className="dash-row-actions" style={{ flexWrap: "wrap" }}>
                 <div className="res-stat-badge">
-                  <span className="res-stat-value">{items.length}</span>
-                  <span className="res-stat-label">total</span>
+                  <span className="res-stat-value">{childCounts.total}</span>
+                  <span className="res-stat-label">enfants au total</span>
                 </div>
                 <div className="res-stat-badge res-stat-green">
-                  <span className="res-stat-value">{buckets.validated.length}</span>
-                  <span className="res-stat-label">validées</span>
+                  <span className="res-stat-value">{childCounts.validated}</span>
+                  <span className="res-stat-label">enfants validés</span>
                 </div>
                 <div className="res-stat-badge res-stat-orange">
-                  <span className="res-stat-value">{buckets.pending.length}</span>
-                  <span className="res-stat-label">en attente</span>
+                  <span className="res-stat-value">{childCounts.pending}</span>
+                  <span className="res-stat-label">enfants en attente</span>
                 </div>
                 {totalRevenue > 0 && (
                   <div className="res-stat-badge res-stat-pink">
@@ -1449,32 +2236,97 @@ export default function Reservations() {
               </div>
             </header>
 
-            <div className="res-tabs">
-              {TABS.map(({ key, label, color }) => (
-                <button key={key} type="button"
-                  className={`res-tab${activeTab === key ? " is-active" : ""}`}
-                  style={{ "--tab-color": color }} onClick={() => setActiveTab(key)}>
-                  <span className="res-tab-dot" />
-                  {label}
-                  <span className="res-tab-count">{buckets[key].length}</span>
-                </button>
-              ))}
+            {/* Sélecteur de vue */}
+            <div className="res-view-selector">
+              <button type="button"
+                className={`res-view-btn${mainView === "reservations" ? " is-active" : ""}`}
+                onClick={() => changeView("reservations")}>
+                Réservations en cours
+                <span className="res-view-count">{childCounts.pending}</span>
+              </button>
+              <button type="button"
+                className={`res-view-btn${mainView === "validees" ? " is-active" : ""}`}
+                onClick={() => changeView("validees")}>
+                Validées
+                <span className="res-view-count">{childCounts.validated}</span>
+              </button>
+              <button type="button"
+                className={`res-view-btn res-view-btn-muted${mainView === "passees" ? " is-active" : ""}`}
+                onClick={() => changeView("passees")}>
+                Passées
+                <span className="res-view-count">{childCounts.deleted}</span>
+              </button>
             </div>
+
+            {/* Sous-filtre : prix défini ou à traiter */}
+            {mainView === "reservations" && (
+              <div className="res-view-selector" style={{ marginTop: 6 }}>
+                <button type="button"
+                  className={`res-view-btn${priceFilter === "all" ? " is-active" : ""}`}
+                  onClick={() => setPriceFilter("all")}>
+                  Toutes
+                  <span className="res-view-count">{buckets.pending.length}</span>
+                </button>
+                <button type="button"
+                  className={`res-view-btn${priceFilter === "todo" ? " is-active" : ""}`}
+                  onClick={() => setPriceFilter("todo")}>
+                  ⚠️ À traiter
+                  <span className="res-view-count">{pricingCounts.todo}</span>
+                </button>
+                <button type="button"
+                  className={`res-view-btn${priceFilter === "defined" ? " is-active" : ""}`}
+                  onClick={() => setPriceFilter("defined")}>
+                  ✅ Prix défini
+                  <span className="res-view-count">{pricingCounts.defined}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Fil d'Ariane */}
+            {mainView !== "reservations" && (selectedWeek || selectedSejour) && (
+              <ResBreadcrumb
+                mainView={mainView}
+                selectedWeek={selectedWeek}
+                selectedSejour={selectedSejour}
+                onReset={() => { setSelectedWeek(null); setSelectedSejour(null); setSelectedItem(null); }}
+                onResetSejour={() => { setSelectedSejour(null); setSelectedItem(null); }}
+              />
+            )}
 
             {loading ? (
               <div className="dash-section" style={{ padding: 24 }}>
                 <p className="dash-muted">Chargement…</p>
               </div>
-            ) : (
+            ) : mainView === "reservations" || mainView === "passees" ? (
+              /* Réservations en cours et passées : tableau direct */
               <DataTable
                 columns={columns}
-                data={currentList}
+                data={viewItems}
+                searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation"]}
+                defaultSortKey="numeroDeReservation"
+                defaultSortDirection="desc"
+                onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
+                selectedRowId={selectedItem?.id}
+                emptyLabel={mainView === "reservations" ? "Aucune réservation en cours." : "Aucune réservation passée."}
+                toolsInline
+              />
+            ) : !selectedWeek ? (
+              /* Niveau 1 : choix de la semaine */
+              <ResWeekCards weekCounts={weekCounts} onSelect={setSelectedWeek} />
+            ) : !selectedSejour ? (
+              /* Niveau 2 : choix du séjour */
+              <ResSejournCards sejourCounts={sejourCounts} onSelect={setSelectedSejour} />
+            ) : (
+              /* Niveau 3 : liste des enfants / dossiers */
+              <DataTable
+                columns={columns}
+                data={drillItems}
                 searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation"]}
                 defaultSortKey="dateMs"
                 defaultSortDirection="desc"
                 onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
                 selectedRowId={selectedItem?.id}
-                emptyLabel="Aucune réservation dans cet onglet."
+                emptyLabel="Aucun dossier pour cette sélection."
                 toolsInline
               />
             )}

@@ -1,0 +1,1189 @@
+{
+  "project": "colocrew-5edf9",
+  "totalDocs": 30953,
+  "totalIssues": 137,
+  "report": [
+    {
+      "collection": "reservations",
+      "id": "7lQMSqtdQlopeOxwIpWl",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "8ldIZ9LAkjbAgtpVnZ9R",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "CijZp2IeSmklNiesToE0",
+      "issues": [
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "DXNzYsVlTqClQbQlbq9w",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "Jk20HZcDFm65pvZ9Qmlm",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "Sm70CkUkzsF1nyzcXmcZ",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "XlEtZXHcdNbxbgxNqiz3",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "thWkhwylvhtyhbSYoNLy",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? et responsable ? compl?ter"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "tukeU4ErJAi59BPs9Blg",
+      "issues": [
+        {
+          "path": "finance.entries.0.childFirstName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Ala?"
+        },
+        {
+          "path": "finance.source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "importedRegistration.entries.0.childFirstName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Ala?"
+        },
+        {
+          "path": "importedRegistration.sourceFile",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        },
+        {
+          "path": "minor.children.0.firstName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Ala?"
+        },
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit?, responsable et semaine ? compl?ter"
+        }
+      ]
+    },
+    {
+      "collection": "reservations",
+      "id": "v0pX132Bp5cZTW5Rgi2K",
+      "issues": [
+        {
+          "path": "provisionalReason",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Identit? du responsable ? compl?ter"
+        },
+        {
+          "path": "legal.lastName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Nom ? compl?ter"
+        }
+      ]
+    },
+    {
+      "collection": "finance_summaries",
+      "id": "ete-2026",
+      "issues": [
+        {
+          "path": "source",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "ETE 26 - Inscriptions valid?es (1).xlsx"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "04AhMrhz1dYCHxsI7yJp",
+      "issues": [
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[1].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[2].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[4].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[5].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[9].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[10].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[13].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S2 - Convoi Nord"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "2induumArFBxjVCTLaw0",
+      "issues": [
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[1].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[4].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S2 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "2lVN1Zxd05fzbm71WzBG",
+      "issues": [
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[4].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[7].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S1 - Convoi Nord"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "E032d8KCH3OVHdgy5bA5",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S2 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[1].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[4].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "GXvhfCTPBcKdnIFHHZIe",
+      "issues": [
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S1 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "Ibr1tfH35ACGlbJbJR4B",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S4 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "MgRgEaP3Pv4riMtvpR3m",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S3 - Convoi Sud / Ouest"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "SN9Uc6i88JNkkScxLzcE",
+      "issues": [
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[2].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Rom 2000Ain?"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S4 - Convoi Nord"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "UrYWvoqOWbzNcv53DyCS",
+      "issues": [
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[1].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[2].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[4].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[5].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[9].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[10].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[13].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[14].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S2 - Convoi Nord"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "ZE9pRIszXarAjRBoQqhz",
+      "issues": [
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S3 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "a3nfZsgZQRhGxPEFvmAn",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S4 - Convoi Nord"
+        },
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[2].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Rom 2000Ain?"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "bYO5pWEIqEbFjdNGEp4b",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S4 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "gYSCIzh4y1VbVojTAEzi",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S3 - Convoi Nord"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "mqhiRrp6KjvJZF8FQhsO",
+      "issues": [
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S1 - Convoi Sud / Ouest"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "passengers[0].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "rvRWSjpmMcmht8Hka2gn",
+      "issues": [
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S3 - Convoi Nord"
+        }
+      ]
+    },
+    {
+      "collection": "transports",
+      "id": "ylEcqHnDCCneUQqejLis",
+      "issues": [
+        {
+          "path": "notes",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "R?capitulatif automatique des enfants hors ? Sur place ?. Horaires, points de rendez-vous, ?quipe et billets ? compl?ter."
+        },
+        {
+          "path": "sejourName",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026 - S1 - Convoi Nord"
+        },
+        {
+          "path": "passengers[3].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[4].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[6].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        },
+        {
+          "path": "passengers[7].nom",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Non renseign?"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "Mm6QCGr0Jw6KC1BGBJ72",
+      "issues": [
+        {
+          "path": "body",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<style>\n  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Manrope:wght@400;500;600&display=swap');\n\n  .article-body {\n    --purple:    #6B3D9A;\n    --purple-dk: #4A2470;\n    --mauve:     #C084C8;\n    --pink:      #E8509A;\n    --violet-lt: #EDE0F7;\n    --text:      #1E1226;\n    --muted:     #6B5877;\n    --border:    #DCC8E8;\n    --radius:    10px;\n\n    max-width: 760px;\n    margin: 0 auto;\n    padding: 2rem 1.5rem 4rem;\n    font-family: 'Manrope', sans-serif;\n    font-size: 16.5px;\n    line-height: 1.72;\n    color: var(--text);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .article-body > p {\n    margin-bottom: 1.2rem;\n  }\n\n  .article-body > p:first-of-type {\n    font-size: 17px;\n    font-weight: 500;\n    color: var(--purple-dk);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 1rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 1.4rem;\n  }\n\n  .article-body h2 {\n    font-family: 'Baloo 2', cursive;\n    font-size: 1.55rem;\n    font-weight: 800;\n    color: var(--purple);\n    letter-spacing: -0.01em;\n    margin: 2.8rem 0 1.1rem;\n    clear: both;\n    display: flex;\n    align-items: center;\n    gap: 0.55rem;\n  }\n\n  .article-body h2::before {\n    content: '';\n    display: inline-block;\n    width: 10px;\n    height: 10px;\n    border-radius: 50%;\n    background: var(--pink);\n    flex-shrink: 0;\n  }\n\n  .article-body strong {\n    color: var(--purple);\n    font-weight: 600;\n  }\n\n  .article-body strong[style*=\"color\"] {\n    color: var(--pink) !important;\n    font-weight: 700;\n    font-size: 1.05em;\n  }\n\n  /* Images — pleine largeur sous le titre, pas en float */\n  .article-body .article-image {\n    display: block;\n    margin: 0 0 1.6rem;\n    border-radius: var(--radius);\n    overflow: hidden;\n    box-shadow: 0 4px 18px rgba(107, 61, 154, 0.14);\n  }\n\n  .article-body .article-image img {\n    display: block;\n    width: 100%;\n    object-fit: cover;\n    border-radius: var(--radius);\n  }\n\n  /* Hauteurs différentes selon l'image pour casser la monotonie */\n  .article-body .article-image.is-right img,\n  .article-body .article-image.is-left img {\n    height: 260px;\n  }\n\n  /* Listes */\n  .article-body ul {\n    list-style: none;\n    display: flex;\n    flex-direction: column;\n    gap: 0.55rem;\n    margin-bottom: 1.5rem;\n    padding: 0;\n  }\n\n  .article-body ul li {\n    padding: 0.8rem 1.1rem 0.8rem 1.5rem;\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    font-size: 15.5px;\n    line-height: 1.55;\n    position: relative;\n  }\n\n  .article-body ul li::before {\n    content: '';\n    position: absolute;\n    left: 0;\n    top: 0;\n    bottom: 0;\n    width: 4px;\n    background: linear-gradient(180deg, var(--mauve), var(--pink));\n    border-radius: var(--radius) 0 0 var(--radius);\n  }\n\n  .article-body ul li strong {\n    color: var(--purple);\n    font-weight: 600;\n  }\n\n  /* Note en italique */\n  .article-body p[style*=\"italic\"] {\n    font-style: italic !important;\n    color: var(--muted) !important;\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 0.9rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 1rem;\n  }\n\n  /* Séparateur */\n  .article-body .financement-sep {\n    text-align: center;\n    margin: 2.5rem 0 1.5rem;\n    font-size: 1.4rem;\n    opacity: 0.6;\n  }\n\n  /* Signature */\n  .article-body .financement-signature {\n    font-family: 'Baloo 2', cursive;\n    font-weight: 600;\n    color: var(--purple);\n    font-size: 1rem;\n    margin-top: 0.2rem;\n  }\n</style>\n\n<div class=\"article-body\">\n\n  <p>Dès la création de Colocrew, nous avons à cœur de proposer des séjours <strong>accessibles à tous et à toutes</strong>, peu importe leurs moyens. Nous avons donc choisi que le tarif dépendrait du quotient familial et que nous ferions notre maximum pour accompagner les familles dans la recherche d'aides et subventions.</p>\n  <p>Il existe encore différents leviers pour financer son séjour — et ce malgré la fin des Colos Apprenantes en 2026, dispositif qui avait permis à <strong>près de 50 jeunes de partir gratuitement</strong> avec Colocrew en 2025. Ces aides existent, mais leur communication et leur accessibilité ne sont pas toujours faciles.</p>\n\n  <h2>L'aide CAF nationale</h2>\n\n  <p>C'est la plus accessible. Nouvelle aide depuis 2026 : chaque enfant dont les parents sont allocataires de la CAF peut toucher <strong>50 € par jour de séjour</strong>, si leur quotient familial est inférieur à 950. Pour nos séjours de 12 jours, cela représente <strong style=\"color:#B8336A\">600 € par enfant</strong>.</p>\n\n  <h2>Les autres aides à mobiliser</h2>\n\n  <p>En complément, nous essayons de mobiliser d'autres pistes selon la situation de chaque famille.</p>\n\n  <ul>\n    <li><strong>JPA départemental :</strong> propose par moments des « bourses au départ » selon les départements.</li>\n    <li><strong>Collectivités (mairies, métropoles…) :</strong> peuvent également financer une partie du séjour.</li>\n    <li><strong>CSE de votre entreprise :</strong> (ancien CE, obligatoire à partir d'une certaine taille) peut lui aussi participer.</li>\n  </ul>\n\n  <p>Ces aides ne sont pas toujours faciles à trouver. Nous faisons le maximum pour vous les montrer et vous accompagner dans les démarches.</p>\n\n  <h2>De notre côté</h2>\n\n  <figure class=\"article-image is-right\">\n    <img src=\"https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/banqueimage%2Fgroupes%2Fgroupes_319.jpg?alt=media&amp;token=8070c17b-7296-49bb-958d-995a95b10274\" alt=\"Temps d'accompagnement\" loading=\"lazy\">\n  </figure>\n\n  <p>Nous adaptons le reste à charge en fonction du <strong>quotient familial</strong>, du nombre d'inscrits dans la fratrie, et nous proposons des <strong>réductions pour les enfants ayant déjà participé</strong> à un séjour.</p>\n\n  <p>Pour le paiement, nous acceptons les chèques, virement, espèces et CB. Le <strong>paiement en 2 ou 3 fois</strong> est possible, tout comme les <strong>chèques vacances</strong> Connect et papier.</p>\n\n  <figure class=\"article-image is-left\">\n    <img src=\"https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/Ski%2F1775477639569-whatsapp_image_2026-02-19_at_20.56.58.jpeg?alt=media&amp;token=e56e094a-666e-4313-8e55-ce1a20362e49\" alt=\"Photo de fin de séjour\" loading=\"lazy\">\n  </figure>\n\n  <div class=\"financement-sep\"><span>🌿</span></div>\n\n  <p style=\"color:#5a5a7a;font-style:italic\">N'hésitez pas à nous contacter pour la moindre question concernant un séjour, un tarif, ou la mobilisation d'une aide.</p>\n  <p class=\"financement-signature\">William de Colocrew</p>\n\n</div>"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "VhGWl5DZEmRVVHiqIyjj",
+      "issues": [
+        {
+          "path": "body",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<style>\n  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Manrope:wght@400;500;600&display=swap');\n\n  .article-body {\n    --purple:    #6B3D9A;\n    --purple-dk: #4A2470;\n    --mauve:     #C084C8;\n    --pink:      #E8509A;\n    --violet-lt: #EDE0F7;\n    --text:      #1E1226;\n    --muted:     #6B5877;\n    --border:    #DCC8E8;\n    --radius:    10px;\n\n    max-width: 760px;\n    margin: 0 auto;\n    padding: 2rem 1.5rem 4rem;\n    font-family: 'Manrope', sans-serif;\n    font-size: 16.5px;\n    line-height: 1.72;\n    color: var(--text);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .article-body > p {\n    margin-bottom: 1.2rem;\n  }\n\n  .article-body > p:first-of-type {\n    font-size: 17px;\n    font-weight: 500;\n    color: var(--purple-dk);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 1rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 1.4rem;\n  }\n\n  .article-body h2 {\n    font-family: 'Baloo 2', cursive;\n    font-size: 1.55rem;\n    font-weight: 800;\n    color: var(--purple);\n    letter-spacing: -0.01em;\n    margin: 2.8rem 0 1.1rem;\n    clear: both;\n    display: flex;\n    align-items: center;\n    gap: 0.55rem;\n  }\n\n  .article-body h2::before {\n    content: '';\n    display: inline-block;\n    width: 10px;\n    height: 10px;\n    border-radius: 50%;\n    background: var(--pink);\n    flex-shrink: 0;\n  }\n\n  .article-body strong {\n    color: var(--purple);\n    font-weight: 600;\n  }\n\n  .article-body ul {\n    list-style: none;\n    display: flex;\n    flex-direction: column;\n    gap: 0.55rem;\n    margin-bottom: 1.5rem;\n    padding: 0;\n  }\n\n  .article-body ul li {\n    padding: 0.8rem 1.1rem 0.8rem 1.5rem;\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    font-size: 15.5px;\n    line-height: 1.55;\n    position: relative;\n  }\n\n  .article-body ul li::before {\n    content: '';\n    position: absolute;\n    left: 0;\n    top: 0;\n    bottom: 0;\n    width: 4px;\n    background: linear-gradient(180deg, var(--mauve), var(--pink));\n    border-radius: var(--radius) 0 0 var(--radius);\n  }\n\n  .article-body ul li strong {\n    color: var(--purple);\n    font-weight: 600;\n  }\n\n  /* Images pleine largeur */\n  .article-body .article-image {\n    display: block;\n    margin: 0 0 1.6rem;\n    border-radius: var(--radius);\n    overflow: hidden;\n    box-shadow: 0 4px 18px rgba(107, 61, 154, 0.14);\n  }\n\n  .article-body .article-image img {\n    display: block;\n    width: 100%;\n    object-fit: cover;\n    height: 260px;\n    border-radius: var(--radius);\n  }\n\n  /* Grille de salaires */\n  .salary-table-wrap {\n    margin: 1.5rem 0 0.5rem;\n    border-radius: var(--radius);\n    overflow: hidden;\n    border: 1.5px solid var(--border);\n  }\n\n  .salary-table-wrap table {\n    width: 100%;\n    border-collapse: collapse;\n    font-size: 15px;\n    background: #fff;\n  }\n\n  .salary-table-wrap thead tr {\n    background: var(--purple);\n    color: #fff;\n  }\n\n  .salary-table-wrap thead th {\n    padding: 0.7rem 1rem;\n    font-family: 'Baloo 2', cursive;\n    font-weight: 600;\n    font-size: 0.9rem;\n    text-align: left;\n    letter-spacing: 0.01em;\n  }\n\n  .salary-table-wrap thead th:not(:first-child) {\n    text-align: right;\n  }\n\n  .salary-table-wrap tbody tr {\n    border-top: 1px solid var(--border);\n  }\n\n  .salary-table-wrap tbody tr:nth-child(even) {\n    background: var(--violet-lt);\n  }\n\n  .salary-table-wrap tbody td {\n    padding: 0.65rem 1rem;\n    color: var(--text);\n  }\n\n  .salary-table-wrap tbody td:not(:first-child) {\n    text-align: right;\n    font-weight: 500;\n    color: var(--purple-dk);\n  }\n\n  /* Ligne prime d'ancienneté */\n  .salary-table-wrap tbody tr.prime td {\n    font-size: 14px;\n    color: var(--muted);\n    font-style: italic;\n    border-top: 2px dashed var(--border);\n  }\n\n  .salary-table-wrap tbody tr.prime td:not(:first-child) {\n    color: var(--muted);\n  }\n\n  .salary-note {\n    margin-top: 0.7rem;\n    font-size: 13.5px;\n    color: var(--muted);\n    font-style: italic;\n    padding-left: 0.2rem;\n  }\n\n  /* Bouton postuler */\n  .article-body a.btn-postuler {\n    display: inline-flex;\n    align-items: center;\n    gap: 0.55rem;\n    margin-top: 0.5rem;\n    padding: 0.7rem 1.5rem;\n    background: var(--purple);\n    color: #fff;\n    text-decoration: none;\n    font-family: 'Baloo 2', cursive;\n    font-size: 0.95rem;\n    font-weight: 600;\n    border-radius: 50px;\n    transition: background 0.18s, transform 0.12s;\n  }\n\n  .article-body a.btn-postuler:hover {\n    background: var(--purple-dk);\n    transform: translateY(-1px);\n  }\n\n  .article-body a.btn-postuler::after {\n    content: '→';\n    font-size: 1rem;\n  }\n</style>\n\n<div class=\"article-body\">\n\n  <figure class=\"article-image is-right\">\n    <img src=\"https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/Ski%2F1775477498044-pxl_20260224_145026573.jpg?alt=media&amp;token=25ae5cff-7b98-49af-8b61-eef5e73da04e\" alt=\"Portrait d'animateur\" loading=\"lazy\">\n  </figure>\n\n  <p>Nous croyons fermement que le <strong>bien-être des animateur·rices</strong> est la clé du succès de nos séjours. Chez ColoCrew, nous nous battons pour améliorer les conditions de travail et garantir un environnement <strong>sain, respectueux et engagé</strong>.</p>\n\n  <h2>Nos conditions de travail</h2><ul>\n    <li><strong>Temps de préparation :</strong> des moments de préparation conséquents avant et entre chaque séjour, avec <strong>2 jours</strong> organisés en équipe sur le lieu du séjour.</li>\n    <li><strong>Temps de repos :</strong> des temps de pause adaptés, en respect des exigences légales et des besoins individuels.</li>\n    <li><strong>Formations :</strong> des formations émancipatrices adaptées à notre pédagogie et nos valeurs : inclusivité, lutte contre la maltraitance, féminisme, anti-racisme.</li>\n  </ul>\n\n  <h2>Grille de salaires</h2>\n\n  <div class=\"salary-table-wrap\">\n    <table>\n      <thead>\n        <tr>\n          <th>Poste</th>\n          <th>Par jour</th>\n          <th>1 séjour (12 j.)</th>\n          <th>2 séjours</th>\n          <th>Équiv. / mois</th>\n        </tr>\n      </thead>\n      <tbody>\n        <tr>\n          <td>Stagiaire</td>\n          <td>50 €</td>\n          <td>600 €</td>\n          <td>1 200 €</td>\n          <td>1 500 €</td>\n        </tr>\n        <tr>\n          <td>Anim</td>\n          <td>55 €</td>\n          <td>660 €</td>\n          <td>1 320 €</td>\n          <td>1 650 €</td>\n        </tr>\n        <tr>\n          <td>SB ou AS</td>\n          <td>60 €</td>\n          <td>720 €</td>\n          <td>1 440 €</td>\n          <td>1 800 €</td>\n        </tr>\n        <tr>\n          <td>Adjoint·e</td>\n          <td>70 €</td>\n          <td>840 €</td>\n          <td>1 680 €</td>\n          <td>2 100 €</td>\n        </tr>\n        <tr>\n          <td>Directeurice séjour</td>\n          <td>90 €</td>\n          <td>1 080 €</td>\n          <td>2 160 €</td>\n          <td>2 700 €</td>\n        </tr>\n        <tr class=\"prime\">\n          <td>Prime d'ancienneté (1 par saison)</td>\n          <td>+ 5 €</td>\n          <td>+ 60 €</td>\n          <td>+ 120 €</td>\n          <td>+ 150 €</td>\n        </tr>\n      </tbody>\n    </table>\n  </div>\n  <p class=\"salary-note\">Par souci de transparence, tous nos salaires sont en <strong>NET</strong>. Tous les jours de congés sont payés. Vous avez 2 jours de congés pour un séjour de 12 jours.</p>\n\n  <h2>Rejoignez-nous</h2>\n\n  <p>Vous souhaitez rejoindre une équipe dynamique et engagée ? Postulez dès maintenant pour travailler avec ColoCrew. Nous recherchons des animateur·rices.ices motivé·es et passionné·es.</p>\n\n  <p><a href=\"https://forms.gle/4KtAmx9UT1ULa7ea9\" target=\"_blank\" rel=\"noopener\" class=\"btn-postuler\">Postuler</a></p>\n\n</div>"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "bfNXn2wx3p3pRLyIt57V",
+      "issues": [
+        {
+          "path": "body",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<style>\n  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Manrope:wght@400;500;600&display=swap');\n\n  .article-body {\n    --purple:    #6B3D9A;\n    --purple-dk: #4A2470;\n    --mauve:     #C084C8;\n    --pink:      #E8509A;\n    --violet-lt: #EDE0F7;\n    --text:      #1E1226;\n    --muted:     #6B5877;\n    --border:    #DCC8E8;\n    --radius:    10px;\n\n    max-width: 760px;\n    margin: 0 auto;\n    padding: 2rem 1.5rem 4rem;\n    font-family: 'Manrope', sans-serif;\n    font-size: 16.5px;\n    line-height: 1.72;\n    color: var(--text);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .article-body > p {\n    margin-bottom: 1.2rem;\n  }\n\n  .article-body > p:first-of-type {\n    font-size: 17px;\n    font-weight: 500;\n    color: var(--purple-dk);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 1rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 1.4rem;\n  }\n\n  .article-body h2 {\n    font-family: 'Baloo 2', cursive;\n    font-size: 1.55rem;\n    font-weight: 800;\n    color: var(--purple);\n    letter-spacing: -0.01em;\n    margin: 2.8rem 0 1.1rem;\n    display: flex;\n    align-items: center;\n    gap: 0.55rem;\n  }\n\n  .article-body h2::before {\n    content: '';\n    display: inline-block;\n    width: 10px; height: 10px;\n    border-radius: 50%;\n    background: var(--pink);\n    flex-shrink: 0;\n  }\n\n  .article-body strong { color: var(--purple); font-weight: 600; }\n\n  /* Séparateur */\n  .article-body .sep {\n    border: none;\n    border-top: 1.5px solid var(--border);\n    margin: 2.5rem 0;\n  }\n\n  /* Bouton principal */\n  .article-body .btn {\n    display: inline-flex;\n    align-items: center;\n    gap: 0.55rem;\n    margin-top: 0.6rem;\n    padding: 0.75rem 1.6rem;\n    background: var(--purple);\n    color: #fff;\n    text-decoration: none;\n    font-family: 'Baloo 2', cursive;\n    font-size: 0.95rem;\n    font-weight: 600;\n    border-radius: 50px;\n    transition: background 0.18s, transform 0.12s;\n    border: none;\n    cursor: pointer;\n  }\n\n  .article-body .btn:hover {\n    background: var(--purple-dk);\n    transform: translateY(-1px);\n  }\n\n  /* Bloc de section avec carte */\n  .article-body .support-block {\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    padding: 1.6rem 1.5rem;\n    margin-bottom: 1.4rem;\n  }\n\n  .article-body .support-block p {\n    margin: 0 0 1.2rem;\n    font-size: 15.5px;\n    color: var(--muted);\n    line-height: 1.65;\n  }\n\n  /* Réseaux sociaux */\n  .article-body .social-links {\n    display: flex;\n    gap: 1rem;\n    flex-wrap: wrap;\n    margin-top: 0.4rem;\n  }\n\n  .article-body .social-link {\n    display: inline-flex;\n    align-items: center;\n    gap: 0.5rem;\n    padding: 0.55rem 1.1rem;\n    background: var(--violet-lt);\n    border: 1.5px solid var(--border);\n    border-radius: 50px;\n    color: var(--purple);\n    text-decoration: none;\n    font-size: 14px;\n    font-weight: 600;\n    font-family: 'Manrope', sans-serif;\n    transition: background 0.15s, border-color 0.15s;\n  }\n\n  .article-body .social-link:hover {\n    background: var(--border);\n    border-color: var(--mauve);\n  }\n\n  .article-body .social-link svg {\n    width: 18px; height: 18px;\n    flex-shrink: 0;\n  }\n</style>\n\n<div class=\"article-body\">\n\n  <p>Rejoignez-nous dans cette aventure et contribuez à créer des séjours inoubliables pour les jeunes. <strong>Votre soutien est essentiel</strong> pour faire la différence.</p>\n\n  <h2>Adhérer à Colocrew</h2>\n\n  <div class=\"support-block\">\n    <p>Devenir adhérent de Colocrew, c'est soutenir nos actions et participer activement au développement de nos projets. En adhérant, vous serez informé en avant-première de nos actualités et vous pourrez contribuer à l'essor de notre association.</p>\n    <a href=\"https://www.helloasso.com/associations/colocrew/adhesions/adhesion-a-colocrew-1\" target=\"_blank\" rel=\"noopener\" class=\"btn\">\n      Adhérer maintenant →\n    </a>\n  </div>\n\n  <hr class=\"sep\" />\n\n  <h2>Partagez sur les réseaux</h2>\n\n  <div class=\"support-block\">\n    <p>Votre voix compte ! En partageant sur les réseaux sociaux, vous nous aidez à toucher plus de personnes et à réaliser nos projets. Suivez-nous et partagez nos contenus pour soutenir nos actions.</p>\n    <div class=\"social-links\">\n      <a href=\"https://www.instagram.com/_colocrew/\" target=\"_blank\" rel=\"noopener\" class=\"social-link\">\n        <svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.334 3.608 1.308.975.975 1.246 2.242 1.308 3.608.058 1.266.07 1.646.07 4.851s-.012 3.584-.07 4.85c-.062 1.366-.334 2.633-1.308 3.608-.975.975-2.242 1.246-3.608 1.308-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.366-.062-2.633-.334-3.608-1.308-.975-.975-1.246-2.242-1.308-3.608C2.175 15.584 2.163 15.204 2.163 12s.012-3.584.07-4.85c.062-1.366.334-2.633 1.308-3.608.975-.975 2.242-1.246 3.608-1.308 1.266-.058 1.646-.07 4.85-.07zm0-2.163c-3.259 0-3.667.014-4.947.072-1.609.074-3.034.429-4.166 1.561C1.755 2.765 1.4 4.19 1.326 5.799 1.268 7.079 1.254 7.487 1.254 12c0 4.513.014 4.921.072 6.201.074 1.609.429 3.034 1.561 4.166 1.132 1.132 2.557 1.487 4.166 1.561C8.333 23.986 8.741 24 12 24s3.667-.014 4.947-.072c1.609-.074 3.034-.429 4.166-1.561 1.132-1.132 1.487-2.557 1.561-4.166.058-1.28.072-1.688.072-6.201 0-4.513-.014-4.921-.072-6.201-.074-1.609-.429-3.034-1.561-4.166C19.981 1.501 18.556 1.146 16.947 1.072 15.667 1.014 15.259 1 12 1zm0 5.838a5.163 5.163 0 1 0 0 10.325 5.163 5.163 0 0 0 0-10.325zm0 8.5a3.338 3.338 0 1 1 0-6.675 3.338 3.338 0 0 1 0 6.675zm5.338-9.87a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z\"/></svg>\n        Instagram\n      </a>\n      <a href=\"https://www.tiktok.com/@colocrew\" target=\"_blank\" rel=\"noopener\" class=\"social-link\">\n        <svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.75a4.85 4.85 0 0 1-1.01-.06z\"/></svg>\n        TikTok\n      </a>\n      <a href=\"https://www.linkedin.com/company/colocrew\" target=\"_blank\" rel=\"noopener\" class=\"social-link\">\n        <svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z\"/></svg>\n        LinkedIn\n      </a>\n    </div>\n  </div>\n\n  <hr class=\"sep\" />\n\n  <h2>Rejoignez notre équipe</h2>\n\n  <div class=\"support-block\">\n    <p>Vous avez des compétences en communication, en recherche de financements, en partenariat, ou simplement l'envie de vous investir dans une association dynamique ? Nous sommes à la recherche de <strong>personnes motivées</strong> pour rejoindre notre équipe et contribuer à notre succès.</p>\n    <a href=\"mailto:info@colocrew.com?subject=Rejoindre%20l%27équipe%20Colocrew\" class=\"btn\">\n      Contactez-nous →\n    </a>\n  </div>\n\n</div>"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "page-1775599696144",
+      "issues": [
+        {
+          "path": "body",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<style>\n  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Manrope:wght@400;500;600&display=swap');\n\n  .article-body {\n    --purple:    #6B3D9A;\n    --purple-dk: #4A2470;\n    --mauve:     #C084C8;\n    --pink:      #E8509A;\n    --violet-lt: #EDE0F7;\n    --text:      #1E1226;\n    --muted:     #6B5877;\n    --border:    #DCC8E8;\n    --radius:    10px;\n\n    max-width: 760px;\n    margin: 0 auto;\n    padding: 2rem 1.5rem 4rem;\n    font-family: 'Manrope', sans-serif;\n    font-size: 16.5px;\n    line-height: 1.72;\n    color: var(--text);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .article-body > p {\n    margin-bottom: 1.2rem;\n  }\n\n  .article-body > p:first-of-type {\n    font-size: 17px;\n    font-weight: 500;\n    color: var(--purple-dk);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 1rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 1.4rem;\n  }\n\n  .article-body h2 {\n    font-family: 'Baloo 2', cursive;\n    font-size: 1.55rem;\n    font-weight: 800;\n    color: var(--purple);\n    letter-spacing: -0.01em;\n    margin: 2.8rem 0 1.1rem;\n    clear: both;\n    display: flex;\n    align-items: center;\n    gap: 0.55rem;\n  }\n\n  .article-body h2::before {\n    content: '';\n    display: inline-block;\n    width: 10px;\n    height: 10px;\n    border-radius: 50%;\n    background: var(--pink);\n    flex-shrink: 0;\n  }\n\n  .article-body strong {\n    color: var(--purple);\n    font-weight: 600;\n  }\n\n  /* Images — pleine largeur, même traitement que financement */\n  .article-body .article-image {\n    display: block;\n    margin: 0 0 1.6rem;\n    border-radius: var(--radius);\n    overflow: hidden;\n    box-shadow: 0 4px 18px rgba(107, 61, 154, 0.14);\n  }\n\n  .article-body .article-image img {\n    display: block;\n    width: 100%;\n    object-fit: cover;\n    height: 260px;\n    border-radius: var(--radius);\n  }\n\n  /* Vidéo */\n  .article-body .art-video-wrap {\n    margin: 0 0 0.6rem;\n    border-radius: var(--radius);\n    overflow: hidden;\n    box-shadow: 0 4px 18px rgba(107, 61, 154, 0.14);\n    aspect-ratio: 16 / 9;\n    background: var(--purple-dk);\n  }\n\n  .article-body .art-video-wrap iframe,\n  .article-body .art-video-wrap video {\n    display: block;\n    width: 100%;\n    height: 100%;\n    border: none;\n  }\n\n  .article-body .art-video-caption {\n    margin-bottom: 1.8rem;\n    font-size: 13px;\n    color: var(--muted);\n    font-style: italic;\n    padding-left: 0.2rem;\n  }\n\n  /* Listes */\n  .article-body ul {\n    list-style: none;\n    display: flex;\n    flex-direction: column;\n    gap: 0.55rem;\n    margin-bottom: 1.5rem;\n    padding: 0;\n  }\n\n  .article-body ul li {\n    padding: 0.8rem 1.1rem 0.8rem 1.5rem;\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    font-size: 15.5px;\n    line-height: 1.55;\n    position: relative;\n  }\n\n  .article-body ul li::before {\n    content: '';\n    position: absolute;\n    left: 0; top: 0; bottom: 0;\n    width: 4px;\n    background: linear-gradient(180deg, var(--mauve), var(--pink));\n    border-radius: var(--radius) 0 0 var(--radius);\n  }\n\n  .article-body ul li strong { color: var(--purple); font-weight: 600; }\n\n  /* Note en italique — même pattern que financement */\n  .article-body .art-note {\n    font-style: italic;\n    color: var(--muted);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 0.9rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin: 1.4rem 0;\n    font-size: 14.5px;\n  }\n\n  /* Citation */\n  .article-body .art-quote {\n    margin: 1.8rem 0;\n    padding: 1.1rem 1.4rem;\n    background: #fff;\n    border-left: 4px solid var(--pink);\n    border-radius: 0 var(--radius) var(--radius) 0;\n    font-style: italic;\n    font-size: 16px;\n    color: var(--muted);\n    box-shadow: 0 2px 10px rgba(107,61,154,0.07);\n  }\n\n  /* Pills */\n  .article-body .art-pills {\n    display: flex;\n    flex-wrap: wrap;\n    gap: 0.5rem;\n    margin: 1rem 0 1.8rem;\n  }\n\n  .article-body .art-pill {\n    padding: 0.35rem 0.9rem;\n    background: var(--violet-lt);\n    border: 1.5px solid var(--border);\n    border-radius: 50px;\n    font-size: 14px;\n    font-weight: 600;\n    color: var(--purple);\n    font-family: 'Manrope', sans-serif;\n  }\n\n  /* Timeline */\n  .article-body .art-timeline {\n    margin: 1.5rem 0 2rem;\n    display: flex;\n    flex-direction: column;\n  }\n\n  .article-body .art-timeline-item {\n    display: flex;\n    gap: 1.2rem;\n  }\n\n  .article-body .art-timeline-left {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    flex-shrink: 0;\n    width: 36px;\n  }\n\n  .article-body .art-timeline-dot {\n    width: 36px; height: 36px;\n    border-radius: 50%;\n    background: var(--purple);\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    color: #fff;\n    font-family: 'Baloo 2', cursive;\n    font-size: 13px;\n    font-weight: 800;\n    flex-shrink: 0;\n  }\n\n  .article-body .art-timeline-line {\n    width: 2px;\n    flex: 1;\n    background: var(--border);\n    margin: 2px 0;\n    min-height: 20px;\n  }\n\n  .article-body .art-timeline-item:last-child .art-timeline-line { display: none; }\n\n  .article-body .art-timeline-content {\n    padding: 0 0 1.6rem;\n    flex: 1;\n  }\n\n  .article-body .art-timeline-label {\n    font-family: 'Baloo 2', cursive;\n    font-weight: 700;\n    font-size: 1rem;\n    color: var(--purple);\n    margin-bottom: 0.2rem;\n  }\n\n  .article-body .art-timeline-sub {\n    font-size: 14.5px;\n    color: var(--muted);\n    line-height: 1.55;\n  }\n\n  /* Grille rôles */\n  .article-body .art-roles {\n    display: grid;\n    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));\n    gap: 0.8rem;\n    margin: 1.2rem 0 2rem;\n  }\n\n  .article-body .art-role-card {\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    padding: 1rem;\n  }\n\n  .article-body .art-role-card .role-title {\n    font-family: 'Baloo 2', cursive;\n    font-weight: 700;\n    font-size: 0.95rem;\n    color: var(--purple);\n    margin-bottom: 0.4rem;\n  }\n\n  .article-body .art-role-card .role-desc {\n    font-size: 13.5px;\n    color: var(--muted);\n    line-height: 1.5;\n  }\n\n  .article-body .art-role-card .role-tag {\n    display: inline-block;\n    margin-top: 0.6rem;\n    padding: 0.2rem 0.6rem;\n    background: var(--violet-lt);\n    border-radius: 50px;\n    font-size: 12px;\n    font-weight: 600;\n    color: var(--purple);\n  }\n\n  /* Séparateur — même que financement */\n  .article-body .art-sep {\n    text-align: center;\n    margin: 2.5rem 0 1.5rem;\n    font-size: 1.4rem;\n    opacity: 0.6;\n  }\n</style>\n\n<div class=\"article-body\">\n\n  <p>Le « Projet artistique », c'est l'un de nos concept phare. Concrètement : les jeunes créent, coopèrent, et repartent avec <strong>quelque chose de concret dont ils sont fiers</strong>. On vous explique ici comment ça se déroule</p>\n\n  <h2>Le principe</h2>\n\n  <p>Dès le début du séjour, les jeunes choisissent ce qu'ils ont envie de faire. Un ou deux animateurs.ices référents — avec de vraies compétences dans leurs domaines — sont là pour les accompagner, pas pour décider à leur place.</p>\n\n  <p>Quelques exemples de ce qui peut émerger :</p>\n\n  <div class=\"art-pills\">\n    <span class=\"art-pill\">Vlog du séjour</span>\n    <span class=\"art-pill\">Clip vidéo</span>\n    <span class=\"art-pill\">Chorégraphie</span>\n    <span class=\"art-pill\">Slam / rap</span>\n    <span class=\"art-pill\">Podcast</span>\n    <span class=\"art-pill\">Sketch / théâtre</span>\n    <span class=\"art-pill\">Street-art / fresque</span>\n    <span class=\"art-pill\">Performance</span>\n  </div>\n\n  <p>Selon le groupe, plusieurs projets peuvent coexister en parallèle. Et à la fin du séjour, les jeunes repartent avec leur création — pour la montrer à qui ils veulent.</p>\n\n  <div class=\"art-quote\">\n    « On ne saurait faire boire un âne qui n'a pas soif. » Notre philosophie : on ne force pas. On donne envie.\n  </div>\n\n  <h2>Comment ça se déroule</h2>\n\n  <div class=\"art-timeline\">\n    <div class=\"art-timeline-item\">\n      <div class=\"art-timeline-left\">\n        <div class=\"art-timeline-dot\">J2</div>\n        <div class=\"art-timeline-line\"></div>\n      </div>\n      <div class=\"art-timeline-content\">\n        <div class=\"art-timeline-label\">Présentation</div>\n        <div class=\"art-timeline-sub\">Les référents se présentent, montrent du matériel, projettent des exemples de projets passés. Puis temps libre : les jeunes réfléchissent, échangent, jouent. Rien d'obligatoire.</div>\n      </div>\n    </div>\n    <div class=\"art-timeline-item\">\n      <div class=\"art-timeline-left\">\n        <div class=\"art-timeline-dot\">J3</div>\n        <div class=\"art-timeline-line\"></div>\n      </div>\n      <div class=\"art-timeline-content\">\n        <div class=\"art-timeline-label\">Émergence des projets</div>\n        <div class=\"art-timeline-sub\">Les groupes se forment, les idées germent. Les jeunes vont voir les référents. Le soir, les animateurs relancent lors du tour des chambres.</div>\n      </div>\n    </div>\n    <div class=\"art-timeline-item\">\n      <div class=\"art-timeline-left\">\n        <div class=\"art-timeline-dot\" style=\"font-size:11px\">Séjour</div>\n        <div class=\"art-timeline-line\"></div>\n      </div>\n      <div class=\"art-timeline-content\">\n        <div class=\"art-timeline-label\">Construction</div>\n        <div class=\"art-timeline-sub\">Des temps dédiés sont prévus dans le planning, mais les jeunes s'organisent aussi selon leurs envies. Des activités alternatives existent toujours pour ceux qui préfèrent autre chose.</div>\n      </div>\n    </div>\n    <div class=\"art-timeline-item\">\n      <div class=\"art-timeline-left\">\n        <div class=\"art-timeline-dot\" style=\"font-size:11px\">Fin</div>\n        <div class=\"art-timeline-line\"></div>\n      </div>\n      <div class=\"art-timeline-content\">\n        <div class=\"art-timeline-label\">Finalisation</div>\n        <div class=\"art-timeline-sub\">On recadre les ambitions si besoin pour aboutir à quelque chose de présentable. Les animateurs sont plus présents, rassurants. L'objectif : que chaque projet débuté soit finalisé.</div>\n      </div>\n    </div>\n    <div class=\"art-timeline-item\">\n      <div class=\"art-timeline-left\">\n        <div class=\"art-timeline-dot\">🎭</div>\n        <div class=\"art-timeline-line\"></div>\n      </div>\n      <div class=\"art-timeline-content\">\n        <div class=\"art-timeline-label\">La soirée finale</div>\n        <div class=\"art-timeline-sub\">Les groupes présentent leur création lors d'une veillée façon « Incroyable Talent ». La représentation est filmée. Les jeunes repartent avec leur création.</div></div></div></div>\n\n  <h2>Le rôle des animateurs</h2>\n\n  <p>Chacun a un rôle précis — et complémentaire.</p>\n\n  <div class=\"art-roles\">\n    <div class=\"art-role-card\">\n      <div class=\"role-title\">Référent coordinateur</div>\n      <div class=\"role-desc\">Fait le tour de tous les projets, veille à leur faisabilité, organise et anime la représentation finale.</div>\n      <span class=\"role-tag\">Multi-artistique</span>\n    </div>\n    <div class=\"art-role-card\">\n      <div class=\"role-title\">Référent projet</div>\n      <div class=\"role-desc\">Accompagne un projet de A à Z, soutient les jeunes dans la réalisation concrète.</div>\n      <span class=\"role-tag\">Compétence spécifique</span>\n    </div>\n    <div class=\"art-role-card\">\n      <div class=\"role-title\">Animateurs chambres</div>\n      <div class=\"role-desc\">Posent des questions, donnent envie lors du tour des chambres. Soutien au quotidien.</div>\n      <span class=\"role-tag\">Dynamisme</span>\n    </div>\n    <div class=\"art-role-card\">\n      <div class=\"role-title\">Direction</div>\n      <div class=\"role-desc\">Coordonne avec les référents, gère le budget et filme la représentation.</div>\n      <span class=\"role-tag\">Coordination</span>\n    </div>\n  </div>\n\n  <div class=\"art-note\">\n    Le projet reste celui des jeunes. L'animateur.ice suggère, questionne, apporte son expertise — mais ne prend pas les commandes.\n  </div>\n\n  <h2>Ce qu'on vise</h2>\n\n  <ul>\n    <li><strong>Créativité :</strong> imaginer, créer, s'exprimer librement — sans sujet imposé, sans forme imposée.</li>\n    <li><strong>Coopération :</strong> monter quelque chose ensemble, écouter les idées des autres, faire mûrir les siennes.</li>\n    <li><strong>Émancipation :</strong> les jeunes ont carte blanche. Les adultes accompagnent, pas dirigent.</li>\n    <li><strong>Complémentarité :</strong> pour ceux que le surf ne passionne pas, le projet artistique est leur terrain d'épanouissement.</li></ul>\n\n</div>"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "page-1775611400188",
+      "issues": [
+        {
+          "path": "body",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<style>\n  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Manrope:wght@400;500;600&display=swap');\n\n  .article-body {\n    --purple:    #6B3D9A;\n    --purple-dk: #4A2470;\n    --mauve:     #C084C8;\n    --pink:      #E8509A;\n    --violet-lt: #EDE0F7;\n    --text:      #1E1226;\n    --muted:     #6B5877;\n    --border:    #DCC8E8;\n    --radius:    10px;\n\n    max-width: 760px;\n    margin: 0 auto;\n    padding: 2rem 1.5rem 4rem;\n    font-family: 'Manrope', sans-serif;\n    font-size: 16.5px;\n    line-height: 1.72;\n    color: var(--text);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .article-body > p {\n    margin-bottom: 1.2rem;\n  }\n\n  .article-body > p:first-of-type {\n    font-size: 17px;\n    font-weight: 500;\n    color: var(--purple-dk);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 1rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 2rem;\n  }\n\n  .article-body strong { color: var(--purple); font-weight: 600; }\n\n  /* FAQ items */\n  .faq-list {\n    display: flex;\n    flex-direction: column;\n    gap: 0.8rem;\n    margin: 0;\n    padding: 0;\n  }\n\n  .faq-item {\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    overflow: hidden;\n  }\n\n  .faq-question {\n    display: flex;\n    align-items: center;\n    justify-content: space-between;\n    gap: 1rem;\n    padding: 1rem 1.2rem;\n    cursor: pointer;\n    list-style: none;\n    font-family: 'Baloo 2', cursive;\n    font-weight: 700;\n    font-size: 1.05rem;\n    color: var(--purple);\n    user-select: none;\n  }\n\n  .faq-question::-webkit-details-marker { display: none; }\n\n  .faq-question::after {\n    content: '';\n    display: inline-block;\n    width: 18px;\n    height: 18px;\n    flex-shrink: 0;\n    background: var(--violet-lt);\n    border-radius: 50%;\n    background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B3D9A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\");\n    background-size: 14px;\n    background-repeat: no-repeat;\n    background-position: center;\n    transition: transform 0.2s;\n  }\n\n  details[open] > .faq-question::after {\n    transform: rotate(180deg);\n  }\n\n  details[open] > .faq-question {\n    border-bottom: 1.5px solid var(--border);\n  }\n\n  .faq-answer {\n    padding: 1rem 1.2rem;\n    font-size: 15.5px;\n    color: var(--muted);\n    line-height: 1.65;\n  }\n\n  .faq-answer strong { color: var(--purple); font-weight: 600; }\n\n  /* Numéro de question */\n  .faq-num {\n    display: inline-flex;\n    align-items: center;\n    justify-content: center;\n    width: 24px;\n    height: 24px;\n    border-radius: 50%;\n    background: var(--pink);\n    color: #fff;\n    font-size: 12px;\n    font-family: 'Baloo 2', cursive;\n    font-weight: 800;\n    flex-shrink: 0;\n  }\n\n  .faq-question-text {\n    flex: 1;\n  }\n\n  /* Note contact en bas */\n  .faq-contact {\n    margin-top: 2rem;\n    padding: 1rem 1.2rem;\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    border-radius: 0 var(--radius) var(--radius) 0;\n    font-size: 15px;\n    color: var(--muted);\n    font-style: italic;\n  }\n\n  .faq-contact a {\n    color: var(--purple);\n    font-weight: 600;\n    text-decoration: none;\n  }\n\n  .faq-contact a:hover { text-decoration: underline; }\n</style>\n\n<div class=\"article-body\">\n\n  <div class=\"faq-list\"><details open=\"\"><summary class=\"faq-question\"><span class=\"faq-num\">1</span>\n        <span class=\"faq-question-text\">Est-ce qu'on peut avoir des nouvelles de son enfant ?</span>\n      </summary>\n      <div class=\"faq-answer\">\n        Oui. On publie des <strong>photos régulièrement</strong> sur un espace dédié aux familles, et vous pouvez joindre la direction à tout moment. Votre enfant garde son téléphone — on encadre juste son usage pour qu'il ne nuise pas à la vie de groupe.\n      </div>\n    </details>\n\n    <details open=\"\">\n      <summary class=\"faq-question\">\n        <span class=\"faq-num\">2</span>\n        <span class=\"faq-question-text\">Et si mon enfant ne s'intègre pas ou se retrouve seul·e ?</span>\n      </summary>\n      <div class=\"faq-answer\">\n        C'est la question qu'on nous pose le plus. Le séjour est construit pour que <strong>chacun·e trouve sa place</strong> : activités variées, jeux coopératifs, veillées, temps libres… Les animateur·ices parlent avec tous les enfants et sont attentifs·ves à chaque jeune.&nbsp;</div>\n    </details>\n\n    <details open=\"\">\n      <summary class=\"faq-question\">\n        <span class=\"faq-num\">3</span>\n        <span class=\"faq-question-text\">Mon enfant prend des médicaments, comment ça se passe ?</span>\n      </summary>\n      <div class=\"faq-answer\">\n        Vous renseignez tout dans la <strong>fiche sanitaire</strong> avant le départ. Les traitements sont gérés par l'assistant.e sanitaire&nbsp; — rien n'est laissé dans les chambres.&nbsp;</div>\n    </details>\n\n    <details open=\"\">\n      <summary class=\"faq-question\">\n        <span class=\"faq-num\">4</span>\n        <span class=\"faq-question-text\">Qu'est-ce qu'on met dans la valise ?</span>\n      </summary>\n      <div class=\"faq-answer\">\n        On vous envoie une <strong>liste de trousseau complète</strong> avant le départ selon le séjour. Des vêtements chauds même en été, et de la crème solaire.\n      </div>\n    </details>\n\n    <details open=\"\">\n      <summary class=\"faq-question\">\n        <span class=\"faq-num\">5</span>\n        <span class=\"faq-question-text\">Mon enfant est débutant dans le sport du séjour, c'est un problème ?</span>\n      </summary>\n      <div class=\"faq-answer\">\n        Pas du tout. Les séances sont encadrées par des professionnel·les et <strong>adaptées à tous les niveaux</strong>, débutant·es compris·es. L'objectif n'est pas la performance — c'est de se dépasser à son propre rythme et de prendre du plaisir.\n      </div>\n    </details>\n\n  </div>\n\n  <p class=\"faq-contact\">Une question qui n'est pas là ? <a href=\"mailto:info@colocrew.com\">Écrivez-nous</a>, on répond vite.</p>\n\n</div>"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "qui-sommes-nous",
+      "issues": [
+        {
+          "path": "body",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<style>\n  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Manrope:wght@400;500;600&display=swap');\n\n  .article-body {\n    --purple:    #6B3D9A;\n    --purple-dk: #4A2470;\n    --mauve:     #C084C8;\n    --pink:      #E8509A;\n    --violet-lt: #EDE0F7;\n    --text:      #1E1226;\n    --border:    #DCC8E8;\n    --radius:    10px;\n\n    max-width: 760px;\n    margin: 0 auto;\n    padding: 2rem 1.5rem 4rem;\n    font-family: 'Manrope', sans-serif;\n    font-size: 16.5px;\n    line-height: 1.72;\n    color: var(--text);\n    -webkit-font-smoothing: antialiased;\n  }\n\n  .article-body > p {\n    margin-bottom: 1.2rem;\n  }\n\n  .article-body > p:first-of-type {\n    font-size: 17px;\n    font-weight: 500;\n    color: var(--purple-dk);\n    background: var(--violet-lt);\n    border-left: 4px solid var(--mauve);\n    padding: 1rem 1.2rem;\n    border-radius: 0 var(--radius) var(--radius) 0;\n    margin-bottom: 1.4rem;\n  }\n\n  .article-body h2 {\n    font-family: 'Baloo 2', cursive;\n    font-size: 1.55rem;\n    font-weight: 800;\n    color: var(--purple);\n    letter-spacing: -0.01em;\n    margin: 2.8rem 0 1.1rem;\n    clear: both;\n    display: flex;\n    align-items: center;\n    gap: 0.55rem;\n  }\n\n  .article-body h2::before {\n    content: '';\n    display: inline-block;\n    width: 10px;\n    height: 10px;\n    border-radius: 50%;\n    background: var(--pink);\n    flex-shrink: 0;\n  }\n\n  .article-body ul {\n    list-style: none;\n    display: flex;\n    flex-direction: column;\n    gap: 0.55rem;\n    margin-bottom: 1.5rem;\n    padding: 0;\n  }\n\n  .article-body ul li {\n    padding: 0.8rem 1.1rem 0.8rem 1.5rem;\n    background: #fff;\n    border: 1.5px solid var(--border);\n    border-radius: var(--radius);\n    font-size: 15.5px;\n    line-height: 1.55;\n    position: relative;\n  }\n\n  .article-body ul li::before {\n    content: '';\n    position: absolute;\n    left: 0;\n    top: 0;\n    bottom: 0;\n    width: 4px;\n    background: linear-gradient(180deg, var(--mauve), var(--pink));\n    border-radius: var(--radius) 0 0 var(--radius);\n  }\n\n  .article-body ul li strong {\n    color: var(--purple);\n    font-weight: 600;\n  }\n\n  .article-body .article-image { margin: 0; display: block; }\n\n  .article-body .article-image img {\n    display: block;\n    width: 100%;\n    height: 100%;\n    object-fit: cover;\n    border-radius: var(--radius);\n  }\n\n  .article-body .article-image.is-right {\n    float: right;\n    width: 42%;\n    max-width: 270px;\n    aspect-ratio: 3/4;\n    margin: 0 0 1.8rem 2rem;\n    box-shadow: 0 6px 22px rgba(107, 61, 154, 0.18);\n    border-radius: var(--radius);\n    overflow: hidden;\n  }\n\n  .article-body .article-image.is-left {\n    float: left;\n    width: 40%;\n    max-width: 255px;\n    aspect-ratio: 4/3;\n    margin: 0 2rem 1.8rem 0;\n    box-shadow: 0 6px 22px rgba(107, 61, 154, 0.18);\n    border-radius: var(--radius);\n    overflow: hidden;\n  }\n\n  .article-body a[href$=\".pdf\"] {\n    display: inline-flex;\n    align-items: center;\n    gap: 0.55rem;\n    margin-top: 0.5rem;\n    padding: 0.7rem 1.4rem;\n    background: var(--purple);\n    color: #fff;\n    text-decoration: none;\n    font-family: 'Baloo 2', cursive;\n    font-size: 0.95rem;\n    font-weight: 600;\n    border-radius: 50px;\n    transition: background 0.18s, transform 0.12s;\n  }\n\n  .article-body a[href$=\".pdf\"]:hover {\n    background: var(--purple-dk);\n    transform: translateY(-1px);\n  }\n\n  .article-body a[href$=\".pdf\"]::before {\n    content: '';\n    display: inline-block;\n    width: 16px;\n    height: 16px;\n    background: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E\") center/contain no-repeat;\n    flex-shrink: 0;\n  }\n\n  @media (max-width: 580px) {\n    .article-body .article-image.is-right,\n    .article-body .article-image.is-left {\n      float: none;\n      width: 100%;\n      max-width: 100%;\n      margin: 0 0 1.5rem;\n      aspect-ratio: 16/9;\n    }\n  }\n</style>\n\n<div class=\"article-body\">\n\n  <figure class=\"article-image is-right\">\n    <img src=\"https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/banqueimage%2Fgroupes%2Fgroupes_498.jpg?alt=media&token=72c46ec7-d504-4da0-9d29-3b598f8891df\" alt=\"Portrait d'une jeune participante\" loading=\"lazy\" />\n  </figure>\n\n  <p>Colocrew est une <strong>association d'éducation populaire</strong> à but non lucratif. Nous organisons des <strong>colonies de vacances pour les 11-17 ans</strong> où le sport, l'art et l'émancipation sont au cœur de notre démarche. Nos séjours durent <strong>12 jours</strong>, ce qui permet de créer une vraie dynamique de groupe, de favoriser l'épanouissement de chacun et de promouvoir la mixité sociale.</p>\n\n  <p>Nos équipes sont composées d'<strong>animateur·rices et de formateur·rices passionné·es</strong> qui partagent les mêmes convictions : bienveillance, inclusion et respect de l'environnement. Nous collaborons avec différents partenaires <strong>(mairies, ASE, CE...)</strong> pour rendre nos séjours accessibles au plus grand nombre.</p>\n\n  <h2>Nos valeurs</h2>\n\n  <figure class=\"article-image is-left\">\n    <img src=\"https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/banqueimage%2Fgroupes%2Fgroupes_401.jpg?alt=media&amp;token=cd96dbad-9fe0-42c0-befc-a327d284695a\" alt=\"Jeunes en groupe\" loading=\"lazy\" />\n  </figure>\n\n  <ul>\n    <li><strong>Inclusivité :</strong> on accueille tout le monde, on lutte contre les discriminations et on mise sur la mixité sociale.</li>\n    <li><strong>Écologie :</strong> on sensibilise aux enjeux environnementaux en privilégiant les activités de pleine nature et les partenariats locaux.</li>\n    <li><strong>Émancipation :</strong> on encourage les jeunes à prendre des initiatives et des responsabilités.</li>\n    <li><strong>Coopération :</strong> on mise sur une vie de groupe où l'entraide et le respect passent avant la compétition.</li>\n  </ul>\n\n  <h2>Nos activités</h2>\n\n  <p>Nos séjours mêlent <strong>sport, créativité</strong> et moments d'autonomie.</p>\n\n  <ul>\n    <li><strong>Sport :</strong> surf, escalade, ski, voile... avec des professionnel·les pour apprendre à se dépasser et faire équipe.</li>\n    <li><strong>Art :</strong> théâtre, musique, danse, arts plastiques, vidéo... pour libérer sa créativité.</li>\n    <li><strong>Vie quotidienne :</strong> les jeunes préparent les repas, gèrent un budget et organisent certaines activités.</li>\n    <li><strong>Moments de partage :</strong> veillées, jeux coopératifs, débats... pour renforcer les liens dans le groupe.</li>\n  </ul>\n\n  <h2>Notre engagement</h2>\n\n  <figure class=\"article-image is-right\">\n    <img src=\"https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/Ski%2F1775477635330-whatsapp_image_2026-02-19_at_20.42.39.jpeg?alt=media&amp;token=3f06cac6-88ba-4c0d-82d9-e365b88d36e3\" alt=\"Ambiance de séjour\" loading=\"lazy\" />\n  </figure>\n\n  <p>Après <strong>12 jours chez nous</strong>, on veut que chaque jeune reparte avec de <strong>nouvelles compétences sociales</strong>, plus de confiance en soi et l'envie d'agir en tant que citoyen. La durée des séjours permet de créer des liens solides, d'approfondir les apprentissages et de développer une <strong>vraie cohésion de groupe</strong>.</p>\n\n  <p>On prend aussi soin de nos équipes : <strong>salaires corrects, temps de repos et de préparation garantis</strong>.</p>\n\n  <h2>Projet éducatif</h2>\n\n  <p>Envie de connaître tous les détails de notre démarche et de nos objectifs ?</p>\n\n  <p><a href=\"/projet-educatif.pdf\" download>Télécharger le projet éducatif</a></p>\n\n</div>"
+        }
+      ]
+    },
+    {
+      "collection": "pages",
+      "id": "rgpd",
+      "issues": [
+        {
+          "path": "subtitle",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Protection des donn?es personnelles et droits des utilisateurs chez ColoCrew."
+        }
+      ]
+    },
+    {
+      "collection": "draft_blog",
+      "id": "home-blog-1",
+      "issues": [
+        {
+          "path": "statut",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Publi?"
+        },
+        {
+          "path": "excerptHtml",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<p>Entre technique, confiance et oc?an, le surf transforme les ados autrement qu'aucun autre sport.</p>"
+        },
+        {
+          "path": "saison",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026"
+        },
+        {
+          "path": "contentHtml",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<p>Article ?ditable depuis le dashboard. Ajoute ici ton contenu long format.</p>"
+        }
+      ]
+    },
+    {
+      "collection": "draft_blog",
+      "id": "home-blog-2",
+      "issues": [
+        {
+          "path": "excerptHtml",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<p>Choisir ses repas, organiser sa journ?e, proposer des activit?s : chez ColoCrew, les ados d?cident.</p>"
+        },
+        {
+          "path": "titre",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Ce qu'on entend par p?dagogie de l'?mancipation"
+        },
+        {
+          "path": "statut",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Publi?"
+        },
+        {
+          "path": "saison",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026"
+        },
+        {
+          "path": "contentHtml",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<p>Article ?ditable depuis le dashboard. Ajoute ici ton contenu long format.</p>"
+        }
+      ]
+    },
+    {
+      "collection": "draft_blog",
+      "id": "home-blog-3",
+      "issues": [
+        {
+          "path": "excerptHtml",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<p>Budget, encadrement, programme : tout ce qu'il faut v?rifier pour un ?t? r?ussi.</p>"
+        },
+        {
+          "path": "titre",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "5 questions avant d'inscrire son ado en s?jour sportif"
+        },
+        {
+          "path": "statut",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "Publi?"
+        },
+        {
+          "path": "saison",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "?t? 2026"
+        },
+        {
+          "path": "contentHtml",
+          "reasons": [
+            "question-mark"
+          ],
+          "value": "<p>Article ?ditable depuis le dashboard. Ajoute ici ton contenu long format.</p>"
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

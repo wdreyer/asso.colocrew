@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { FaShieldAlt, FaCreditCard, FaMoneyCheck } from "react-icons/fa";
+import { FaCreditCard, FaMoneyCheck, FaShieldAlt } from "react-icons/fa";
 import {
-  applyPriceRangeAdjustments,
+  calculateReservationPriceRange,
   formatPriceNumber,
   formatPriceRange,
+  normalizeChildCount,
   resolveSejourPriceRange,
+  siblingDiscountFactor,
 } from "@/src/lib/pricing";
 
 export default function PaymentOptions({
@@ -24,12 +26,9 @@ export default function PaymentOptions({
   const promoInput = (formData?.legal?.promoCode || "").trim().toUpperCase();
   const hasPromo50 = validPromo50.includes(promoInput);
   const flatDiscount = hasPromo50 ? 50 : 0;
-
-  const discountFactor = useMemo(() => {
-    if (numberOfChildren === 2) return 0.95;
-    if (numberOfChildren >= 3) return 0.9;
-    return 1;
-  }, [numberOfChildren]);
+  const childCount = normalizeChildCount(numberOfChildren);
+  const discountFactor = siblingDiscountFactor(childCount);
+  const activeInsuranceFee = formData?.insuranceOpted ? insuranceFee : 0;
 
   const baseRange = useMemo(
     () => resolveSejourPriceRange(sejour, selectedStartDate),
@@ -40,13 +39,14 @@ export default function PaymentOptions({
 
   const estimatedRange = useMemo(
     () =>
-      applyPriceRangeAdjustments(baseRange, {
+      calculateReservationPriceRange(baseRange, {
+        childCount,
         discountFactor,
         transportFee,
-        insuranceFee: formData?.insuranceOpted ? insuranceFee : 0,
+        insuranceFee: activeInsuranceFee,
         flatDiscount,
       }),
-    [baseRange, discountFactor, transportFee, formData?.insuranceOpted, insuranceFee, flatDiscount],
+    [baseRange, childCount, discountFactor, transportFee, activeInsuranceFee, flatDiscount],
   );
 
   const calculatedPriceString = hasBaseRange
@@ -61,14 +61,14 @@ export default function PaymentOptions({
   }, [calculatedPriceString, onEstimatedPriceChange]);
 
   const discountLines = [];
-  if (numberOfChildren === 2) {
+  if (childCount === 2) {
     discountLines.push(
       <div key="kids2" className="border-b border-gray-200 py-2 flex justify-between text-green-600">
         <span>Réduction 2 enfants</span>
         <span>-5 %</span>
       </div>,
     );
-  } else if (numberOfChildren >= 3) {
+  } else if (childCount >= 3) {
     discountLines.push(
       <div key="kids3" className="border-b border-gray-200 py-2 flex justify-between text-green-600">
         <span>Réduction 3 enfants et +</span>
@@ -131,10 +131,10 @@ export default function PaymentOptions({
             <label className="ml-2 text-sm leading-snug">
               <span className="font-semibold inline-flex items-center mb-1">
                 <FaShieldAlt className="mr-1 text-[#B8336A]" />
-                Souscrire à l’assurance annulation
+                Souscrire à l'assurance annulation
               </span>
               <span className="block">
-                Montant : {formatPriceNumber(insuranceFee)} € (
+                Montant par enfant : {formatPriceNumber(insuranceFee)} € (
                 <Link
                   href="/AssuranceAnnulationMaif.pdf"
                   target="_blank"
@@ -158,7 +158,7 @@ export default function PaymentOptions({
                 className="form-checkbox h-4 w-4 text-[#B8336A]"
               />
               <span className="ml-2">
-                J’accepte les{" "}
+                J'accepte les{" "}
                 <Link
                   href="/conditions-generales-de-ventes"
                   target="_blank"
@@ -179,7 +179,7 @@ export default function PaymentOptions({
                 className="form-checkbox h-4 w-4 text-[#B8336A]"
               />
               <span className="ml-2">
-                J’accepte la{" "}
+                J'accepte la{" "}
                 <Link href="/rgpd" target="_blank" className="text-[#B8336A] underline">
                   politique de confidentialité (RGPD)
                 </Link>
@@ -194,27 +194,29 @@ export default function PaymentOptions({
             <h3 className="text-lg font-bold mb-3">Détail du prix</h3>
 
             <div className="border-b border-gray-200 py-2 flex justify-between">
-              <span>Prix de base</span>
+              <span>Prix de base x {childCount}</span>
               <span>{hasBaseRange ? formatPriceRange(baseRange) : "En cours de calcul"}</span>
             </div>
 
             {discountLines}
 
             <div className="border-b border-gray-200 py-2 flex justify-between">
-              <span>Transport</span>
-              <span>{formatPriceNumber(transportFee)} €</span>
+              <span>Transport x {childCount}</span>
+              <span>{formatPriceNumber(transportFee * childCount)} €</span>
             </div>
 
             <div className="border-b border-gray-200 py-2 flex justify-between">
-              <span>Assurance annulation</span>
-              <span>{formData.insuranceOpted ? formatPriceNumber(insuranceFee) : "0"} €</span>
+              <span>Assurance annulation x {childCount}</span>
+              <span>{formData.insuranceOpted ? formatPriceNumber(insuranceFee * childCount) : "0"} €</span>
             </div>
 
             <div className="pt-3 flex justify-end">
               <div className="text-right">
                 <p className="text-sm uppercase font-light">Total estimé</p>
                 <p className="text-xl font-extrabold text-[#B8336A]">{priceString}</p>
-                <span className="text-xs mt-1 text-gray-600">Par enfant</span>
+                <span className="text-xs mt-1 text-gray-600">
+                  Pour {childCount} enfant{childCount > 1 ? "s" : ""}
+                </span>
                 <p className="text-xs mt-1 text-gray-600">
                   Le total définitif sera calculé sous 24 h ; un lien de paiement vous sera ensuite envoyé.
                 </p>
@@ -226,4 +228,3 @@ export default function PaymentOptions({
     </div>
   );
 }
-

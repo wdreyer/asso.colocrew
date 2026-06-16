@@ -2,13 +2,26 @@ import nodemailer from "nodemailer";
 
 export async function POST(request) {
   try {
-    const { to, subject, body } = await request.json();
+    const { to, subject, body, attachment } = await request.json();
 
     if (!to || !subject || !body) {
       return new Response(
         JSON.stringify({ error: "Champs manquants : to, subject, body requis" }),
         { status: 400 },
       );
+    }
+
+    let attachments;
+    if (attachment?.contentBase64) {
+      const content = Buffer.from(attachment.contentBase64, "base64");
+      if (content.length > 8 * 1024 * 1024) {
+        return new Response(JSON.stringify({ error: "Pièce jointe trop volumineuse (8 Mo maximum)" }), { status: 413 });
+      }
+      attachments = [{
+        filename: String(attachment.filename || "document.pdf").replace(/[^\w.\-À-ÿ]/g, "-"),
+        content,
+        contentType: attachment.contentType || "application/pdf",
+      }];
     }
 
     const transporter = nodemailer.createTransport({
@@ -21,6 +34,8 @@ export async function POST(request) {
       },
     });
 
+    const urlLineRegex = /^https?:\/\/\S+$/;
+
     const htmlBody = `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:620px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
   <div style="background:#B8336A;padding:24px 32px;text-align:center;">
@@ -30,11 +45,17 @@ export async function POST(request) {
   <div style="padding:28px 32px;">
     ${body
       .split("\n")
-      .map(line =>
-        line.trim() === ""
+      .map(line => {
+        const trimmed = line.trim();
+        if (urlLineRegex.test(trimmed)) {
+          return `<div style="text-align:center;margin:8px 0 18px;">
+            <a href="${trimmed}" style="display:inline-block;background:#B8336A;color:#fff;padding:14px 32px;text-decoration:none;border-radius:100px;font-weight:700;font-size:14px;letter-spacing:0.02em;box-shadow:0 4px 14px rgba(184,51,106,0.35);">Procéder au paiement →</a>
+          </div>`;
+        }
+        return trimmed === ""
           ? `<p style="margin:0 0 10px;">&nbsp;</p>`
-          : `<p style="margin:0 0 10px;font-size:14px;color:#1e1535;line-height:1.7;">${line}</p>`,
-      )
+          : `<p style="margin:0 0 10px;font-size:14px;color:#1e1535;line-height:1.7;">${line}</p>`;
+      })
       .join("")}
   </div>
   <div style="border-top:1px solid #f0e8f5;padding:20px 32px;text-align:center;background:#fdf8fc;">
@@ -49,6 +70,7 @@ export async function POST(request) {
       subject,
       html: htmlBody,
       replyTo: "contact@colocrew.com",
+      attachments,
     });
 
     // Copie admin
@@ -57,6 +79,7 @@ export async function POST(request) {
       to: "contact@colocrew.com",
       subject: `[COPIE ADMIN] ${subject} → ${to}`,
       html: htmlBody,
+      attachments,
     });
 
     return new Response(JSON.stringify({ message: "Email envoyé avec succès" }), { status: 200 });

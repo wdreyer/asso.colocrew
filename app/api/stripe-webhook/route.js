@@ -68,16 +68,33 @@ export async function POST(request) {
         const reservationDoc = snap.docs[0];
         const reservationData = reservationDoc.data();
         const reservationRef = doc(db, "reservations", reservationDoc.id);
+        const finance = reservationData.finance || null;
+        const currentFinancePaid = Number(finance?.paidAmount || 0);
+        const nextFinancePaid = Number((currentFinancePaid + amountPaid).toFixed(2));
+        const financeNetAmount = Number(finance?.netAmount || 0);
+        const financePatch = finance
+          ? {
+              "finance.paidAmount": nextFinancePaid,
+              "finance.remainingAmount": Number(
+                Math.max(financeNetAmount - nextFinancePaid, 0).toFixed(2),
+              ),
+              financeUpdatedAt: serverTimestamp(),
+            }
+          : {};
 
         if (paymentType === "deposit") {
           // ── Paiement d'acompte ──────────────────────────────────────────
           const depositAmount = Number(reservationData.payment?.depositAmount || 100);
+          const alreadyPaid = Number(reservationData.payment?.alreadyPaid || 0);
+          const newAlreadyPaid = Number((alreadyPaid + amountPaid).toFixed(2));
           const confirmationAlreadySent = Boolean(reservationData.payment?.depositConfirmationSentAt);
           await updateDoc(reservationRef, {
             "payment.depositStatus": "paid",
-            "payment.alreadyPaid": amountPaid,
+            "payment.alreadyPaid": newAlreadyPaid,
             "payment.depositAmount": depositAmount,
             status: "deposit_paid",
+            updatedAt: serverTimestamp(),
+            ...financePatch,
           });
           console.log(`Acompte reçu pour ${tokenUnique} : ${amountPaid}€`);
 
@@ -134,6 +151,8 @@ export async function POST(request) {
             "payment.paymentStatus": newStatus,
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.remainingValue": newRemainingValue,
+            updatedAt: serverTimestamp(),
+            ...financePatch,
           });
           console.log(
             `Réservation ${tokenUnique} mise à jour : statut=${newStatus}, déjà payé=${newAlreadyPaid} €, reste=${newRemainingValue} €`

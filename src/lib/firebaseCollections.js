@@ -1,7 +1,10 @@
 ﻿export const COLLECTIONS = {
   SEJOURS: "sejours",
   RESERVATIONS: "reservations",
+  FINANCE_SUMMARIES: "finance_summaries",
   TRANSPORTS: "transports",
+  STAFF_MEMBERS: "staff_members",
+  STAFF_CONTRACTS: "staff_contracts",
   PAGES: "pages",
   BLOG: "blog",
   TEMOIGNAGES: "temoignages",

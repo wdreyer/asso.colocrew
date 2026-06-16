@@ -36,7 +36,7 @@ function getFirebaseConfig() {
 
 function fixMojibake(value) {
   let output = String(value || "");
-  const badPattern = /[Ãâœ™�]/;
+  const badPattern = /[\u00c3\u00e2\u0153\u2122\ufffd]/;
   if (!badPattern.test(output)) return output;
 
   for (let i = 0; i < 2; i += 1) {

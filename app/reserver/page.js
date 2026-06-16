@@ -13,10 +13,12 @@ import ReservationFormFields from "../components/reserver/ReservationForm";
 import PaymentOptions from "../components/reserver/PaymentOptions";
 import Spinner from "../components/layout/Spinner";
 import {
-  applyPriceRangeAdjustments,
+  calculateReservationPriceRange,
   extractPriceRange,
   formatPriceRange,
+  normalizeChildCount,
   resolveSejourPriceRange,
+  siblingDiscountFactor,
 } from "@/src/lib/pricing";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
@@ -695,12 +697,11 @@ function ReservationForm({
     }
   }
 
-  const nbChildren = parseInt(formData.numberOfChildren, 10);
-  let discountFactor = 1;
-  if (nbChildren === 2) discountFactor = 0.95;
-  else if (nbChildren >= 3) discountFactor = 0.9;
+  const nbChildren = normalizeChildCount(formData.numberOfChildren);
+  const discountFactor = siblingDiscountFactor(nbChildren);
 
-  const computedRange = applyPriceRangeAdjustments(selectedPriceRange, {
+  const computedRange = calculateReservationPriceRange(selectedPriceRange, {
+    childCount: nbChildren,
     discountFactor,
     transportFee: effectiveTransportFee,
     insuranceFee: formData.insuranceOpted ? insuranceFee : 0,
@@ -742,6 +743,9 @@ function ReservationForm({
         computedTotalPriceMin, computedTotalPriceMax,
         basePriceMin: selectedPriceRange.min,
         basePriceMax: selectedPriceRange.max,
+        childCount: nbChildren,
+        discountFactor,
+        flatDiscount: String(formData?.legal?.promoCode || "").trim().toUpperCase() === "NOEL" ? 50 : 0,
         urlSejour, urlStartDate, urlEndDate, urlAgeGroup,
         departureCity: urlDepartureCity, returnCity: urlReturnCity,
         insuranceFee, transportFee: effectiveTransportFee,
