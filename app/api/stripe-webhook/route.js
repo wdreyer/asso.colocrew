@@ -141,6 +141,35 @@ export async function POST(request) {
             });
           }
 
+        } else if (paymentType === "installments") {
+          // ── Paiement en plusieurs fois (abonnement Stripe) ──────────────
+          const installmentsCount = Number(session.metadata.installments) || 0;
+          if (session.subscription && installmentsCount > 1) {
+            const cancelAt = Math.floor(Date.now() / 1000) + installmentsCount * 30 * 24 * 3600 + 3 * 24 * 3600;
+            await stripe.subscriptions.update(session.subscription, { cancel_at: cancelAt });
+          }
+
+          const payment = reservationData.payment;
+          const alreadyPaid = Number(payment?.alreadyPaid) || 0;
+          const newAlreadyPaid = Number((alreadyPaid + amountPaid).toFixed(2));
+          const knownTotalDue = Number(
+            payment?.resteACharge ?? payment?.validatedPrice ?? payment?.totalPrice ?? 0,
+          );
+          const newRemainingValue = knownTotalDue > 0
+            ? Number(Math.max(knownTotalDue - newAlreadyPaid, 0).toFixed(2))
+            : payment?.remainingValue ?? null;
+          const newStatus = newRemainingValue === 0 ? "paid" : "in_progress";
+
+          await updateDoc(reservationRef, {
+            "payment.paymentStatus": newStatus,
+            "payment.alreadyPaid": newAlreadyPaid,
+            "payment.remainingValue": newRemainingValue,
+            "payment.installmentsSubscriptionId": session.subscription || null,
+            updatedAt: serverTimestamp(),
+            ...financePatch,
+          });
+          console.log(`Abonnement (${installmentsCount}x) confirmé pour ${tokenUnique} : ${amountPaid}€ prélevés`);
+
         } else {
           // ── Paiement normal (solde ou paiement complet) ─────────────────
           const payment = reservationData.payment;

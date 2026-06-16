@@ -681,7 +681,7 @@ function suiteEmailButton(href, label) {
 function buildSuiteEmailHtml({
   nom, sejour, ref, introText,
   sejourPriceNum, transportAmountNum, cafEligible, cafAmountNum, resteACharge,
-  alreadyPaid = 0, amountDueNow,
+  alreadyPaid = 0, amountDueNow, discountPercent = 0, childCount = 1,
   link, installmentsEnabled, installmentsCount, depositLink,
   priceDefined = true,
 }) {
@@ -694,6 +694,7 @@ function buildSuiteEmailHtml({
   if (priceDefined) {
     const rows = [
       suiteEmailRow("Prix du séjour", fmtCur(sejourPriceNum)),
+      discountPercent > 0 ? suiteEmailRow(`Réduction groupe (${childCount} enfants)`, `−${discountPercent}%`) : "",
       suiteEmailRow("Transport", fmtCur(transportAmountNum)),
       cafEligible ? suiteEmailRow("Pris en charge CAF", `− ${fmtCur(cafAmountNum)}`) : "",
       suiteEmailRow("Reste à charge", fmtCur(resteACharge)),
@@ -948,6 +949,8 @@ function EmailComposer({ item, onGoToTarif }) {
   // après un paiement d'acompte, voir app/api/stripe-webhook/route.js).
   const amountDueNow = isPriceDefined ? Math.max(Number((resteACharge - alreadyPaid).toFixed(2)), 0) : 0;
   const installmentsCountNum = Math.max(Math.round(Number(installmentsCount)) || 0, 2);
+  const childCount = reservationChildCount(item);
+  const discountPercent = Math.round((1 - siblingDiscountFactor(childCount)) * 100);
 
   const initFromTpl = (key) => {
     const t = EMAIL_TEMPLATES.find(x => x.key === key) || EMAIL_TEMPLATES[0];
@@ -971,7 +974,7 @@ function EmailComposer({ item, onGoToTarif }) {
   const previewHtml = buildSuiteEmailHtml({
     nom, sejour: item.sejourName, ref: item.numeroDeReservation, introText,
     sejourPriceNum, transportAmountNum, cafEligible, cafAmountNum, resteACharge,
-    alreadyPaid, amountDueNow,
+    alreadyPaid, amountDueNow, discountPercent, childCount,
     link: stripeLink, installmentsEnabled, installmentsCount: installmentsCountNum, depositLink,
     priceDefined: isPriceDefined,
   });

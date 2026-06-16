@@ -66,10 +66,10 @@ export async function POST(request) {
 
     if (isInstallments) {
       // 🎯 Paiement en plusieurs fois : abonnement Stripe mensuel, prélevé immédiatement
-      // puis à chaque échéance, et annulé automatiquement après le nombre de fois choisi.
+      // puis à chaque échéance. `cancel_at` n'est pas un paramètre valide à la création
+      // d'une session Checkout (il n'existe qu'une fois l'abonnement créé) : on le pose
+      // depuis le webhook (checkout.session.completed) une fois la session confirmée.
       const perInstallment = Math.round((finalAmount / installmentsCount) * 100) / 100;
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      const cancelAt = nowSeconds + installmentsCount * 30 * 24 * 3600 + 3 * 24 * 3600; // marge de 3 jours
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
@@ -90,7 +90,6 @@ export async function POST(request) {
         ],
         mode: "subscription",
         subscription_data: {
-          cancel_at: cancelAt,
           metadata: {
             tokenUnique,
             paymentType: "installments",
