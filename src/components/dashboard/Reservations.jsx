@@ -17,6 +17,7 @@ import DataTable from "@/src/components/dashboard/ui/DataTable";
 import { useToast } from "@/src/contexts/ToastContext";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { siblingDiscountFactor } from "@/src/lib/pricing";
 
 /* ── Constants ─────────────────────────────────────────────────────────── */
 
@@ -288,6 +289,8 @@ function mapReservation(snap) {
     totalPrice:    toAmount(pricing.totalPrice ?? pricing.total ?? null),
     estimatedMin:  toAmount(pricing.estimatedPriceMin ?? pricing.basePriceMin ?? null),
     estimatedMax:  toAmount(pricing.estimatedPriceMax ?? pricing.basePriceMax ?? null),
+    basePricePerChildMin: toAmount(pricing.basePriceMin ?? null),
+    basePricePerChildMax: toAmount(pricing.basePriceMax ?? null),
     insuranceFee:  toAmount(pricing.insuranceFee ?? null),
     alreadyPaid:   toAmount(pricing.alreadyPaid ?? null),
     remainingValue: toAmount(pricing.remainingValue ?? null),
@@ -654,62 +657,86 @@ const COLOCREW_RIB = {
   bic: "QNTOFRP1XXX",
 };
 
-function buildSuiteReservationBody({
-  nom, sejour, ref, sejourPriceNum, transportAmountNum, totalPrice, cafEligible, cafAmountNum, resteACharge,
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function suiteEmailRow(label, value, opts = {}) {
+  return `
+    <tr>
+      <td style="padding:7px 14px;font-size:13px;color:#5a4f6b;border-bottom:1px solid #f0e3ee;">${label}</td>
+      <td style="padding:7px 14px;font-size:13px;text-align:right;font-weight:700;color:${opts.accent ? "#B8336A" : "#1e1535"};border-bottom:1px solid #f0e3ee;white-space:nowrap;">${value}</td>
+    </tr>`;
+}
+
+function suiteEmailButton(href, label) {
+  return `
+    <div style="text-align:center;margin:14px 0;">
+      <a href="${href}" style="display:inline-block;background:#B8336A;color:#fff;padding:13px 30px;text-decoration:none;border-radius:100px;font-weight:700;font-size:14px;box-shadow:0 4px 14px rgba(184,51,106,0.3);">${label}</a>
+    </div>`;
+}
+
+function buildSuiteEmailHtml({
+  nom, sejour, ref, introText,
+  sejourPriceNum, transportAmountNum, cafEligible, cafAmountNum, resteACharge,
   alreadyPaid = 0, amountDueNow,
-  link, linkMode, installmentsEnabled, installmentsCount, depositLink,
+  link, installmentsEnabled, installmentsCount, depositLink,
   priceDefined = true,
 }) {
-  const lines = [];
-  lines.push(`Bonjour ${nom},`);
-  lines.push("");
-  if (priceDefined) {
-    lines.push(`Voici le récapitulatif financier de votre réservation pour le séjour "${sejour}" (réf. ${ref}) :`);
-    lines.push("");
-    lines.push(`- Prix du séjour : ${fmtCur(sejourPriceNum)}`);
-    lines.push(`- Transport : ${fmtCur(transportAmountNum)}`);
-    lines.push(`- Total : ${fmtCur(totalPrice)}`);
-    if (cafEligible) lines.push(`- Pris en charge par la CAF : ${fmtCur(cafAmountNum)}`);
-    lines.push(`- Reste à charge : ${fmtCur(resteACharge)}`);
-    if (alreadyPaid > 0) lines.push(`- Déjà réglé (acompte) : − ${fmtCur(alreadyPaid)}`);
-    lines.push(`- Montant à régler maintenant : ${fmtCur(amountDueNow)}`);
-  } else {
-    lines.push(`Nous revenons vers vous au sujet de votre réservation pour le séjour "${sejour}" (réf. ${ref}).`);
+  const parts = [];
+  parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">Bonjour ${escapeHtml(nom)},</p>`);
+  if (introText.trim()) {
+    parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">${escapeHtml(introText).replace(/\n/g, "<br>")}</p>`);
   }
-  lines.push("");
+
+  if (priceDefined) {
+    const rows = [
+      suiteEmailRow("Prix du séjour", fmtCur(sejourPriceNum)),
+      suiteEmailRow("Transport", fmtCur(transportAmountNum)),
+      cafEligible ? suiteEmailRow("Pris en charge CAF", `− ${fmtCur(cafAmountNum)}`) : "",
+      suiteEmailRow("Reste à charge", fmtCur(resteACharge)),
+      alreadyPaid > 0 ? suiteEmailRow("Déjà réglé (acompte)", `− ${fmtCur(alreadyPaid)}`) : "",
+      suiteEmailRow("À régler maintenant", fmtCur(amountDueNow), { accent: true }),
+    ].join("");
+    parts.push(`
+      <div style="border:1px solid #f0e3ee;border-radius:10px;overflow:hidden;margin:6px 0 14px;">
+        <div style="background:#B8336A;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:9px 14px;">Devis — ${escapeHtml(sejour)} (réf. ${escapeHtml(ref)})</div>
+        <table style="width:100%;border-collapse:collapse;">${rows}</table>
+      </div>`);
+  } else {
+    parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">Nous revenons vers vous au sujet de votre réservation pour le séjour "${escapeHtml(sejour)}" (réf. ${escapeHtml(ref)}).</p>`);
+  }
 
   if (link) {
-    if (installmentsEnabled && installmentsCount > 1) {
-      lines.push(`Vous pouvez régler ce montant en ${installmentsCount} fois par carte bancaire (prélèvement mensuel automatique) via le lien sécurisé suivant :`);
-    } else {
-      lines.push(`Vous pouvez régler ce montant en une fois par carte bancaire via le lien sécurisé suivant :`);
-    }
-    lines.push(link);
-    lines.push("");
-    lines.push("Ce lien est valable 48h.");
-  } else {
-    lines.push("[LIEN DE PAIEMENT À INSÉRER ICI]");
+    const label = installmentsEnabled && installmentsCount > 1
+      ? `Payer en ${installmentsCount} fois →`
+      : "Payer en ligne par carte →";
+    parts.push(suiteEmailButton(link, label));
+    parts.push(`<p style="font-size:11.5px;color:#aaa;text-align:center;margin:-6px 0 14px;">Lien valable 48h</p>`);
   }
 
-  lines.push("");
-  lines.push("— ou par virement bancaire —");
-  lines.push(`Titulaire : ${COLOCREW_RIB.titulaire}`);
-  lines.push(`IBAN : ${COLOCREW_RIB.iban}`);
-  lines.push(`BIC : ${COLOCREW_RIB.bic}`);
-  lines.push(`Référence à indiquer : ${ref}`);
+  if (priceDefined) {
+    parts.push(`
+      <div style="border:1px dashed #d8b9c8;border-radius:10px;padding:13px 16px;margin:0 0 14px;background:#fdf8fc;">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#7c3a6a;text-transform:uppercase;letter-spacing:0.04em;">— ou par virement bancaire —</p>
+        <table style="width:100%;font-size:12.5px;color:#1e1535;border-collapse:collapse;">
+          <tr><td style="padding:2px 0;color:#998aa8;width:80px;">Titulaire</td><td style="font-weight:600;">${COLOCREW_RIB.titulaire}</td></tr>
+          <tr><td style="padding:2px 0;color:#998aa8;">IBAN</td><td style="font-weight:600;">${COLOCREW_RIB.iban}</td></tr>
+          <tr><td style="padding:2px 0;color:#998aa8;">BIC</td><td style="font-weight:600;">${COLOCREW_RIB.bic}</td></tr>
+          <tr><td style="padding:2px 0;color:#998aa8;">Référence</td><td style="font-weight:600;">${escapeHtml(ref)}</td></tr>
+        </table>
+      </div>`);
+  }
 
   if (depositLink) {
-    lines.push("");
-    lines.push("En second choix, si vous préférez ne pas régler la totalité maintenant, vous pouvez simplement verser un acompte de 100 € pour bloquer la place via le lien suivant :");
-    lines.push(depositLink);
-    lines.push("Le solde restant sera à régler ultérieurement.");
+    parts.push(`<p style="font-size:13px;color:#5a4f6b;margin:0 0 4px;">En second choix, vous pouvez simplement verser un acompte de 100 € pour bloquer la place :</p>`);
+    parts.push(suiteEmailButton(depositLink, "Verser un acompte de 100€ →"));
   }
 
-  lines.push("");
-  lines.push("N'hésitez pas à nous contacter pour toute question.");
-  lines.push("");
-  lines.push("Cordialement,\nL'équipe ColoCrew");
-  return lines.join("\n");
+  parts.push(`<p style="font-size:12.5px;color:#999;margin:14px 0 0;">N'hésitez pas à nous contacter pour toute question.</p>`);
+  return parts.join("");
 }
 
 function PanelTarifTab({ item, onSave, onGoToEmail }) {
@@ -732,13 +759,24 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
   const totalPrice = sejourPriceNum + transportAmountNum;
   const cafAmountNum = cafEligible ? (Number(String(cafAmount).replace(",", ".")) || 0) : 0;
   const resteACharge = Math.max(Number((totalPrice - cafAmountNum).toFixed(2)), 0);
+  const alreadyPaid = Number(item.alreadyPaid || 0);
+  const amountDueNow = Math.max(Number((resteACharge - alreadyPaid).toFixed(2)), 0);
+
+  // Réduction groupe (-5% à partir de 2 enfants, -10% à partir de 3) — appliquée sur le
+  // prix de base par enfant tel que défini sur le séjour au moment de la réservation.
+  const discountFactor = siblingDiscountFactor(childCount);
+  const discountPercent = Math.round((1 - discountFactor) * 100);
+  const basePerChildMax = item.basePricePerChildMax ?? item.basePricePerChildMin ?? null;
+  const basePerChildMin = item.basePricePerChildMin ?? item.basePricePerChildMax ?? null;
+  const hasBasePrice = basePerChildMax != null;
+  const baseTotalBeforeDiscount = hasBasePrice ? Number((basePerChildMax * childCount).toFixed(2)) : null;
+  const suggestedSejourPrice = hasBasePrice ? Number((baseTotalBeforeDiscount * discountFactor).toFixed(2)) : null;
 
   const save = async () => {
     if (!sejourPrice) { showToast("Renseignez le prix du séjour", "warning"); return; }
     setSaving(true);
     try {
-      const alreadyPaid = Number(item.alreadyPaid || 0);
-      const remainingValue = Math.max(Number((resteACharge - alreadyPaid).toFixed(2)), 0);
+      const remainingValue = amountDueNow;
       const nextPaymentStatus = remainingValue === 0 ? "paid" : alreadyPaid > 0 ? "in_progress" : "not_paid";
 
       await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
@@ -789,6 +827,37 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
         </div>
       </div>
 
+      {hasBasePrice && (
+        <div className="rp-price-calc">
+          <div className="rp-price-calc-title">Réduction groupe</div>
+          <div className="rp-price-calc-summary" style={{ borderTop: "none", paddingTop: 0 }}>
+            <div className="rp-price-calc-summary-row">
+              <span>Prix de base / enfant</span>
+              <span>{basePerChildMin === basePerChildMax ? fmtCur(basePerChildMax) : `${fmtCur(basePerChildMin)} – ${fmtCur(basePerChildMax)}`}</span>
+            </div>
+            <div className="rp-price-calc-summary-row">
+              <span>{childCount} enfant{childCount > 1 ? "s" : ""} × prix de base</span>
+              <span>{fmtCur(baseTotalBeforeDiscount)}</span>
+            </div>
+            <div className="rp-price-calc-summary-row">
+              <span>Réduction groupe</span>
+              <span>
+                {discountPercent > 0
+                  ? <span className="dash-occ-badge dash-occ-badge-green">−{discountPercent}%</span>
+                  : "Aucune (1 enfant)"}
+              </span>
+            </div>
+            <div className="rp-price-calc-summary-row is-total">
+              <span>Prix séjour suggéré</span>
+              <span>{fmtCur(suggestedSejourPrice)}</span>
+            </div>
+          </div>
+          <button type="button" className="dash-btn" onClick={() => setSejourPrice(String(suggestedSejourPrice))}>
+            Utiliser ce montant →
+          </button>
+        </div>
+      )}
+
       <div className="rp-price-calc">
         <div className="rp-price-calc-title">{isPriceDefined ? "✅ Prix défini" : "⚠️ Prix à définir"}</div>
 
@@ -826,7 +895,11 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
           {cafEligible && (
             <div className="rp-price-calc-summary-row"><span>Pris en charge CAF</span><span>− {fmtCur(cafAmountNum)}</span></div>
           )}
-          <div className="rp-price-calc-summary-row is-total"><span>Reste à charge</span><span>{fmtCur(resteACharge)}</span></div>
+          <div className="rp-price-calc-summary-row"><span>Reste à charge</span><span>{fmtCur(resteACharge)}</span></div>
+          {alreadyPaid > 0 && (
+            <div className="rp-price-calc-summary-row"><span>Déjà réglé (acompte)</span><span>− {fmtCur(alreadyPaid)}</span></div>
+          )}
+          <div className="rp-price-calc-summary-row is-total"><span>À régler maintenant</span><span>{fmtCur(amountDueNow)}</span></div>
         </div>
 
         <div className="rp-price-calc-actions">
@@ -851,7 +924,9 @@ function EmailComposer({ item, onGoToTarif }) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [stripeLink, setStripeLink] = useState("");
   const [depositLink, setDepositLink] = useState("");
+  const [payOnceEnabled, setPayOnceEnabled] = useState(false);
   const [installmentsEnabled, setInstallmentsEnabled] = useState(false);
+  const [depositEnabled, setDepositEnabled] = useState(false);
   const [installmentsCount, setInstallmentsCount] = useState("3");
 
   const priceTxt = fmtCur(item.finalPrice ?? item.requestedPrice);
@@ -868,9 +943,10 @@ function EmailComposer({ item, onGoToTarif }) {
   const resteACharge = isPriceDefined
     ? (item.resteACharge != null ? item.resteACharge : Math.max(totalPrice - cafAmountNum, 0))
     : 0;
-  const amountDueNow = isPriceDefined
-    ? (item.remainingValue != null ? item.remainingValue : Math.max(resteACharge - alreadyPaid, 0))
-    : 0;
+  // On recalcule toujours à partir de l'acompte réellement payé (alreadyPaid) : le champ
+  // remainingValue stocké peut être obsolète (le webhook Stripe ne le met pas à jour
+  // après un paiement d'acompte, voir app/api/stripe-webhook/route.js).
+  const amountDueNow = isPriceDefined ? Math.max(Number((resteACharge - alreadyPaid).toFixed(2)), 0) : 0;
   const installmentsCountNum = Math.max(Math.round(Number(installmentsCount)) || 0, 2);
 
   const initFromTpl = (key) => {
@@ -881,25 +957,29 @@ function EmailComposer({ item, onGoToTarif }) {
     };
   };
 
-  const buildSuiteBody = (overrides = {}) => buildSuiteReservationBody({
-    nom, sejour: item.sejourName, ref: item.numeroDeReservation,
-    sejourPriceNum, transportAmountNum, totalPrice,
-    cafEligible, cafAmountNum, resteACharge, alreadyPaid, amountDueNow,
-    link: stripeLink, installmentsEnabled, installmentsCount: installmentsCountNum, depositLink,
-    priceDefined: isPriceDefined,
-    ...overrides,
-  });
-
   const [to, setTo]         = useState(item.email !== "—" ? item.email : "");
   const [subject, setSubject] = useState(() =>
     EMAIL_TEMPLATES.find(t => t.key === "suite_reservation").subject(nom, item.sejourName));
-  const [body, setBody]       = useState(() => buildSuiteBody());
+  const [body, setBody]       = useState("");
+  const [introText, setIntroText] = useState(
+    `Voici le récapitulatif financier de votre réservation pour le séjour "${item.sejourName}".`
+  );
+
+  // L'email "Suite réservation" est rendu en HTML (devis + RIB + boutons) : le texte
+  // libre (introText) et les valeurs chiffrées sont combinés à la volée, pas de snapshot
+  // à rafraîchir manuellement — l'aperçu reflète toujours l'état courant.
+  const previewHtml = buildSuiteEmailHtml({
+    nom, sejour: item.sejourName, ref: item.numeroDeReservation, introText,
+    sejourPriceNum, transportAmountNum, cafEligible, cafAmountNum, resteACharge,
+    alreadyPaid, amountDueNow,
+    link: stripeLink, installmentsEnabled, installmentsCount: installmentsCountNum, depositLink,
+    priceDefined: isPriceDefined,
+  });
 
   const applyTpl = (key) => {
     setTplKey(key);
     if (key === "suite_reservation") {
       setSubject(EMAIL_TEMPLATES.find(t => t.key === key).subject(nom, item.sejourName));
-      setBody(buildSuiteBody());
       return;
     }
     const { subject: s, body: b } = initFromTpl(key);
@@ -907,13 +987,12 @@ function EmailComposer({ item, onGoToTarif }) {
     setBody(b);
   };
 
-  const refreshSuiteBody = () => setBody(buildSuiteBody());
-
-  const generateStripeLink = async (mode) => {
+  const generateStripeLink = async (mode, opts = {}) => {
+    const installmentsOn = opts.installmentsOn ?? installmentsEnabled;
     const amount = mode === "deposit" ? 100 : amountDueNow;
     if (mode !== "deposit" && (!isPriceDefined || !amount || amount <= 0)) {
       showToast("Définissez d'abord le prix dans l'onglet Tarif", "warning");
-      return;
+      return false;
     }
     setGeneratingLink(true);
     try {
@@ -931,7 +1010,7 @@ function EmailComposer({ item, onGoToTarif }) {
           transportFee: transportAmountNum,
           insuranceOpted: item.insuranceFee > 0,
           paymentOption: mode === "deposit" ? "deposit" : "oneTime",
-          installments: mode === "full" && installmentsEnabled ? installmentsCountNum : undefined,
+          installments: mode === "full" && installmentsOn ? installmentsCountNum : undefined,
           customer_email: item.email !== "—" ? item.email : undefined,
           metadata: {
             numeroDeReservation: item.numeroDeReservation,
@@ -943,29 +1022,64 @@ function EmailComposer({ item, onGoToTarif }) {
       if (!res.ok || !data.url) throw new Error();
       setTplKey("suite_reservation");
       setSubject(EMAIL_TEMPLATES.find(t => t.key === "suite_reservation").subject(nom, item.sejourName));
-      if (mode === "deposit") {
-        setDepositLink(data.url);
-        setBody(buildSuiteBody({ depositLink: data.url }));
-      } else {
-        setStripeLink(data.url);
-        setBody(buildSuiteBody({ link: data.url }));
-      }
-      showToast("Lien Stripe généré et inséré dans le message", "success");
+      if (mode === "deposit") setDepositLink(data.url);
+      else setStripeLink(data.url);
+      return true;
     } catch {
       showToast("Erreur lors de la génération du lien Stripe", "error");
+      return false;
     } finally {
       setGeneratingLink(false);
     }
   };
 
+  const togglePayOnce = async (checked) => {
+    setPayOnceEnabled(checked);
+    if (checked) {
+      setInstallmentsEnabled(false);
+      setStripeLink("");
+      const ok = await generateStripeLink("full", { installmentsOn: false });
+      if (!ok) setPayOnceEnabled(false);
+    } else {
+      setStripeLink("");
+    }
+  };
+
+  const toggleInstallments = async (checked) => {
+    setInstallmentsEnabled(checked);
+    if (checked) {
+      setPayOnceEnabled(false);
+      setStripeLink("");
+      const ok = await generateStripeLink("full", { installmentsOn: true });
+      if (!ok) setInstallmentsEnabled(false);
+    } else {
+      setStripeLink("");
+    }
+  };
+
+  const toggleDeposit = async (checked) => {
+    setDepositEnabled(checked);
+    if (checked) {
+      const ok = await generateStripeLink("deposit");
+      if (!ok) setDepositEnabled(false);
+    } else {
+      setDepositLink("");
+    }
+  };
+
+  const refreshInstallmentsLink = () => {
+    if (installmentsEnabled) generateStripeLink("full", { installmentsOn: true });
+  };
+
   const send = async () => {
-    if (!to || !subject || !body) { showToast("Remplissez tous les champs", "warning"); return; }
+    const isSuite = tplKey === "suite_reservation";
+    if (!to || !subject || (isSuite ? false : !body)) { showToast("Remplissez tous les champs", "warning"); return; }
     setSending(true);
     try {
       const res = await fetch("/api/send-admin-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to, subject, body }),
+        body: JSON.stringify(isSuite ? { to, subject, bodyHtml: previewHtml } : { to, subject, body }),
       });
       if (!res.ok) throw new Error();
       showToast("Email envoyé !", "success");
@@ -1014,40 +1128,46 @@ function EmailComposer({ item, onGoToTarif }) {
             </div>
           )}
 
-          <label className="rp-price-calc-checkbox">
-            <input type="checkbox" checked={installmentsEnabled} onChange={e => setInstallmentsEnabled(e.target.checked)} />
-            Proposer un paiement en plusieurs fois
-          </label>
-          {installmentsEnabled && (
-            <label className="rp-email-label">
-              <span>Nombre de fois</span>
-              <input className="dash-input" type="number" min="2" max="12" value={installmentsCount}
-                onChange={e => setInstallmentsCount(e.target.value)} style={{ maxWidth: 100 }} />
-              <span style={{ fontSize: 11, fontWeight: 400, color: "var(--dash-muted)" }}>
-                Soit {fmtCur(amountDueNow / installmentsCountNum)} / mois — abonnement Stripe avec prélèvement mensuel automatique
-              </span>
+          <div className="rp-price-calc-checkbox-group">
+            <label className="rp-price-calc-checkbox">
+              <input type="checkbox" checked={payOnceEnabled} disabled={!isPriceDefined || generatingLink}
+                onChange={e => togglePayOnce(e.target.checked)} />
+              Paiement en une fois{isPriceDefined ? ` (${fmtCur(amountDueNow)})` : ""}
             </label>
-          )}
 
-          <div className="rp-price-calc-actions">
-            <button type="button" className="dash-btn" onClick={refreshSuiteBody}>
-              Mettre à jour le message
-            </button>
-            <button type="button" className="dash-btn dash-btn-primary" onClick={() => generateStripeLink("full")} disabled={generatingLink || !isPriceDefined}>
-              {generatingLink ? "Génération…" : installmentsEnabled
-                ? `Générer lien Stripe (${installmentsCountNum} fois)`
-                : "Générer lien Stripe (à régler maintenant)"}
-            </button>
-            <button type="button" className="dash-btn" onClick={() => generateStripeLink("deposit")} disabled={generatingLink}>
-              {generatingLink ? "Génération…" : "Lien d'acompte 100€ (second choix)"}
-            </button>
+            <label className="rp-price-calc-checkbox">
+              <input type="checkbox" checked={installmentsEnabled} disabled={!isPriceDefined || generatingLink}
+                onChange={e => toggleInstallments(e.target.checked)} />
+              Paiement en plusieurs fois
+            </label>
+            {installmentsEnabled && (
+              <label className="rp-email-label" style={{ marginLeft: 26 }}>
+                <span>Nombre de fois</span>
+                <input className="dash-input" type="number" min="2" max="12" value={installmentsCount}
+                  onChange={e => setInstallmentsCount(e.target.value)}
+                  onBlur={refreshInstallmentsLink}
+                  style={{ maxWidth: 100 }} />
+                <span style={{ fontSize: 11, fontWeight: 400, color: "var(--dash-muted)" }}>
+                  Soit {fmtCur(amountDueNow / installmentsCountNum)} / mois — abonnement Stripe avec prélèvement mensuel automatique
+                </span>
+              </label>
+            )}
+
+            <label className="rp-price-calc-checkbox">
+              <input type="checkbox" checked={depositEnabled} disabled={generatingLink}
+                onChange={e => toggleDeposit(e.target.checked)} />
+              Proposer en plus un acompte de 100€ (second choix)
+            </label>
           </div>
 
-          {stripeLink && (
-            <div className="rp-stripe-link-box">🔗 {stripeLink}</div>
-          )}
-          {depositLink && (
-            <div className="rp-stripe-link-box">🔗 (acompte) {depositLink}</div>
+          {generatingLink && <p className="rp-link-status">Génération du lien…</p>}
+          {!generatingLink && (stripeLink || depositLink) && (
+            <p className="rp-link-status">
+              {stripeLink && "✅ Lien de paiement généré"}
+              {stripeLink && depositLink && " · "}
+              {depositLink && "✅ Lien d'acompte généré"}
+              {" — inséré dans l'aperçu ci-dessous."}
+            </p>
           )}
         </div>
       )}
@@ -1060,11 +1180,27 @@ function EmailComposer({ item, onGoToTarif }) {
         <span>Objet</span>
         <input className="dash-input" value={subject} onChange={e => setSubject(e.target.value)} />
       </label>
-      <label className="rp-email-label">
-        <span>Message</span>
-        <textarea className="dash-input" rows={10} style={{ resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
-          value={body} onChange={e => setBody(e.target.value)} />
-      </label>
+
+      {tplKey === "suite_reservation" ? (
+        <>
+          <label className="rp-email-label">
+            <span>Message d'introduction (optionnel)</span>
+            <textarea className="dash-input" rows={3} style={{ resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
+              value={introText} onChange={e => setIntroText(e.target.value)} />
+          </label>
+          <div className="rp-email-label">
+            <span>Aperçu de l'email</span>
+            <div className="rp-email-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          </div>
+        </>
+      ) : (
+        <label className="rp-email-label">
+          <span>Message</span>
+          <textarea className="dash-input" rows={10} style={{ resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
+            value={body} onChange={e => setBody(e.target.value)} />
+        </label>
+      )}
+
       <button type="button" className="dash-btn dash-btn-primary rp-send-btn" onClick={send} disabled={sending}>
         {sending ? "Envoi en cours…" : (
           <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">

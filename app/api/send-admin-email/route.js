@@ -2,11 +2,11 @@ import nodemailer from "nodemailer";
 
 export async function POST(request) {
   try {
-    const { to, subject, body, attachment } = await request.json();
+    const { to, subject, body, bodyHtml, attachment } = await request.json();
 
-    if (!to || !subject || !body) {
+    if (!to || !subject || (!body && !bodyHtml)) {
       return new Response(
-        JSON.stringify({ error: "Champs manquants : to, subject, body requis" }),
+        JSON.stringify({ error: "Champs manquants : to, subject, body ou bodyHtml requis" }),
         { status: 400 },
       );
     }
@@ -43,7 +43,7 @@ export async function POST(request) {
     <h1 style="color:#fff;margin:0;font-size:20px;font-weight:800;">${subject}</h1>
   </div>
   <div style="padding:28px 32px;">
-    ${body
+    ${bodyHtml || body
       .split("\n")
       .map(line => {
         const trimmed = line.trim();

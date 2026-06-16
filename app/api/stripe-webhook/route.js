@@ -88,10 +88,21 @@ export async function POST(request) {
           const alreadyPaid = Number(reservationData.payment?.alreadyPaid || 0);
           const newAlreadyPaid = Number((alreadyPaid + amountPaid).toFixed(2));
           const confirmationAlreadySent = Boolean(reservationData.payment?.depositConfirmationSentAt);
+          // Le prix n'est pas toujours connu au moment de l'acompte : on ne recalcule
+          // le reste à payer que si un montant total (resteACharge ou prix validé) existe déjà.
+          const knownTotalDue = Number(
+            reservationData.payment?.resteACharge ??
+            reservationData.payment?.validatedPrice ??
+            reservationData.payment?.totalPrice ?? 0,
+          );
+          const newRemainingValue = knownTotalDue > 0
+            ? Number(Math.max(knownTotalDue - newAlreadyPaid, 0).toFixed(2))
+            : reservationData.payment?.remainingValue ?? null;
           await updateDoc(reservationRef, {
             "payment.depositStatus": "paid",
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.depositAmount": depositAmount,
+            "payment.remainingValue": newRemainingValue,
             status: "deposit_paid",
             updatedAt: serverTimestamp(),
             ...financePatch,
