@@ -60,6 +60,16 @@ export async function POST(request) {
     const amountPaid = Number((session.amount_total / 100).toFixed(2));
 
     try {
+      if (session.metadata?.campaign === "acompte-18-juin" && session.metadata?.acompteDocId) {
+        await updateDoc(doc(db, "acompte_18_juin", session.metadata.acompteDocId), {
+          status: "deposit_paid",
+          paidAmount: amountPaid,
+          stripePaymentIntent: session.payment_intent || "",
+          paidAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
       const reservationsRef = collection(db, "reservations");
       const q = query(reservationsRef, where("tokenUnique", "==", tokenUnique));
       const snap = await getDocs(q);

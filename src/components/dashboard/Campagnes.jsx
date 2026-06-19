@@ -15,6 +15,7 @@ const SENDERS = [
 const TABS = [
   { key: "contacts",  label: "Contacts" },
   { key: "campagne",  label: "Nouvelle campagne" },
+  { key: "acompte18", label: "Acompte 18 juin" },
   { key: "historique", label: "Historique" },
 ];
 
@@ -939,6 +940,351 @@ function TabCampagne({ lists }) {
 
 // ── Tab: Historique ───────────────────────────────────────────────────────────
 
+function TabAcompte18Juin() {
+  const { showToast } = useToast();
+  const fileRef = useRef();
+  const [loading, setLoading] = useState(false);
+  const [parsed, setParsed] = useState(null);
+  const [selected, setSelected] = useState({});
+  const [senderIndex, setSenderIndex] = useState(1);
+  const [replyTo, setReplyTo] = useState("inscriptions@colocrew.com");
+  const [delayMs, setDelayMs] = useState(3000);
+  const [dispatching, setDispatching] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [activeRunId, setActiveRunId] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [controllingRun, setControllingRun] = useState(false);
+
+  const families = parsed?.families || [];
+  const selectedFamilies = families.filter((family) => selected[family.numeroDeReservation]);
+  const pct = progress?.total ? Math.round((progress.sent / progress.total) * 100) : 0;
+
+  async function parseWorkbook(mode = "default") {
+    setLoading(true);
+    try {
+      const form = new FormData();
+      if (mode === "default") {
+        form.append("useDefault", "true");
+      } else {
+        const file = fileRef.current?.files?.[0];
+        if (!file) {
+          showToast("Choisis un fichier XLSX", "error");
+          setLoading(false);
+          return;
+        }
+        form.append("file", file);
+      }
+
+      const response = await fetch("/api/acompte-18-juin/parse", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Lecture impossible");
+
+      setParsed(data);
+      setSelected(Object.fromEntries((data.families || []).map((family) => [family.numeroDeReservation, Boolean(family.valid)])));
+      showToast(`${data.summary.validFamilies}/${data.summary.families} familles prêtes`, "success");
+    } catch (err) {
+      showToast(err.message || "Erreur de lecture", "error");
+    }
+    setLoading(false);
+  }
+
+  async function loadRun(runId) {
+    if (!runId) return;
+    try {
+      const data = await fetch(`/api/brevo/runs/${runId}`).then((r) => r.json());
+      setEvents(data.events || []);
+    } catch {
+      // Le suivi Firebase est utile mais ne doit pas bloquer l'envoi.
+    }
+  }
+
+  async function controlRun(action) {
+    if (!activeRunId) return;
+    setControllingRun(true);
+    try {
+      const r = await fetch(`/api/brevo/runs/${activeRunId}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      }).then((res) => res.json());
+      showToast(r.ok ? `Demande ${action} envoyée` : (r.error || "Erreur"), r.ok ? "success" : "error");
+      await loadRun(activeRunId);
+    } catch {
+      showToast("Impossible d'envoyer la demande", "error");
+    }
+    setControllingRun(false);
+  }
+
+  async function launchDispatch() {
+    if (!selectedFamilies.length) return showToast("Sélectionne au moins une famille", "error");
+    if (!replyTo) return showToast("Reply-to obligatoire", "error");
+    if (!window.confirm(`Envoyer la relance acompte à ${selectedFamilies.length} famille(s) ?`)) return;
+
+    setDispatching(true);
+    setProgress({ sent: 0, errors: 0, total: selectedFamilies.length, current: null });
+    setEvents([]);
+
+    try {
+      const res = await fetch("/api/acompte-18-juin/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          families: selectedFamilies,
+          sender: SENDERS[senderIndex],
+          replyTo,
+          delayMs,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Envoi impossible");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value).split("\n").filter(Boolean);
+        for (const line of lines) {
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === "start") {
+              setActiveRunId(msg.runId);
+              setProgress({
+                sent: msg.sent,
+                errors: msg.errors,
+                total: msg.total,
+                selectedTotal: msg.selectedTotal,
+                skippedUnsubscribed: msg.skippedUnsubscribed,
+                skippedAlreadySent: msg.skippedAlreadySent,
+                skippedInvalid: msg.skippedInvalid,
+                current: null,
+              });
+              loadRun(msg.runId);
+            }
+            if (msg.type === "ok" || msg.type === "err") {
+              setProgress((prev) => ({
+                ...prev,
+                sent: msg.sent,
+                errors: msg.errors,
+                total: msg.total,
+                current: msg.email,
+              }));
+              if (msg.runId) loadRun(msg.runId);
+            }
+            if (msg.type === "done") {
+              setProgress((prev) => ({
+                ...prev,
+                sent: msg.sent,
+                errors: msg.errors,
+                total: msg.total,
+                selectedTotal: msg.selectedTotal ?? prev?.selectedTotal,
+                skippedUnsubscribed: msg.skippedUnsubscribed ?? prev?.skippedUnsubscribed,
+                skippedAlreadySent: msg.skippedAlreadySent ?? prev?.skippedAlreadySent,
+                skippedInvalid: msg.skippedInvalid ?? prev?.skippedInvalid,
+                current: null,
+              }));
+              if (msg.runId) loadRun(msg.runId);
+              showToast(`Terminé : ${msg.sent}/${msg.total} relances envoyées`, "success");
+            }
+            if (msg.type === "paused" || msg.type === "stopped") {
+              showToast(`Envoi ${msg.type}`, "info");
+            }
+          } catch {
+            // ligne incomplète
+          }
+        }
+      }
+    } catch (err) {
+      showToast(err.message || "Erreur pendant l'envoi", "error");
+    }
+
+    setDispatching(false);
+  }
+
+  function toggleFamily(reference) {
+    setSelected((prev) => ({ ...prev, [reference]: !prev[reference] }));
+  }
+
+  function selectAllValid() {
+    setSelected(Object.fromEntries(families.map((family) => [family.numeroDeReservation, Boolean(family.valid)])));
+  }
+
+  function clearSelection() {
+    setSelected(Object.fromEntries(families.map((family) => [family.numeroDeReservation, false])));
+  }
+
+  return (
+    <div style={{ maxWidth: 1120 }}>
+      <div style={S.card}>
+        <H2 mt={0}>Fichier acompte 18 juin</H2>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <Btn onClick={() => parseWorkbook("default")} loading={loading}>Charger le fichier Downloads</Btn>
+          <input ref={fileRef} type="file" accept=".xlsx" style={{ ...S.input, minWidth: 280 }} />
+          <Btn variant="ghost" onClick={() => parseWorkbook("upload")} loading={loading}>Importer ce fichier</Btn>
+        </div>
+        <p style={{ fontSize: 12, color: "#64748b", margin: "10px 0 0" }}>
+          Les lignes sans prix sont rattachées à la famille précédente. Les deux colonnes transport sont séparées entre montant et ville.
+        </p>
+      </div>
+
+      {parsed && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10, margin: "16px 0" }}>
+            <Stat label="Familles" value={parsed.summary.families} />
+            <Stat label="Valides" value={parsed.summary.validFamilies} />
+            <Stat label="Enfants" value={parsed.summary.children} />
+            <Stat label="Prix recalculés" value={parsed.summary.calculatedPrices} />
+            <Stat label="Total reste à charge" value={fmtMoney(parsed.summary.totalDue)} />
+          </div>
+
+          <div style={S.card}>
+            <H2 mt={0}>Paramètres d'envoi</H2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 220px", gap: 14, marginBottom: 14 }}>
+              <div>
+                <label style={S.label}>Expéditeur</label>
+                <select style={S.inputFull} value={senderIndex} onChange={(e) => setSenderIndex(Number(e.target.value))}>
+                  {SENDERS.map((sender, i) => (
+                    <option key={sender.email} value={i}>{sender.name} - {sender.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>Reply-to</label>
+                <input style={S.inputFull} value={replyTo} onChange={(e) => setReplyTo(e.target.value)} />
+              </div>
+              <div>
+                <label style={S.label}>Rythme</label>
+                <select style={S.inputFull} value={delayMs} onChange={(e) => setDelayMs(Number(e.target.value))}>
+                  <option value={10000}>Lent - 10s</option>
+                  <option value={3000}>Normal - 3s</option>
+                  <option value={1000}>Rapide - 1s</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <Btn onClick={launchDispatch} loading={dispatching} disabled={!selectedFamilies.length}>
+                Envoyer {selectedFamilies.length} relance(s) acompte
+              </Btn>
+              <Btn variant="ghost" onClick={selectAllValid}>Tout cocher valide</Btn>
+              <Btn variant="ghost" onClick={clearSelection}>Tout décocher</Btn>
+              {dispatching && activeRunId && (
+                <>
+                  <Btn variant="ghost" onClick={() => controlRun("pause")} loading={controllingRun}>Pause</Btn>
+                  <Btn variant="danger" onClick={() => controlRun("stop")} loading={controllingRun}>Stop</Btn>
+                </>
+              )}
+            </div>
+
+            {progress && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748b", marginBottom: 6 }}>
+                  <span>
+                    {progress.sent}/{progress.total} envoyés - {progress.errors} erreur(s)
+                    {progress.selectedTotal > progress.total && ` - ${progress.selectedTotal - progress.total} ignoré(s)`}
+                  </span>
+                  <span>{pct}%</span>
+                </div>
+                <div style={{ height: 10, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: progress.errors ? "#ef4444" : "#10b981", transition: "width .3s ease" }} />
+                </div>
+                {progress.current && <p style={{ fontSize: 12, color: "#64748b", marginTop: 8 }}>En cours : <strong>{progress.current}</strong></p>}
+                {progress.selectedTotal > progress.total && (
+                  <p style={{ fontSize: 12, color: "#92400e", marginTop: 8 }}>
+                    {progress.selectedTotal} familles sélectionnées, {progress.total} envoyables.
+                    {progress.skippedUnsubscribed ? ` ${progress.skippedUnsubscribed} email(s) ignoré(s), car déjà dans la liste des désinscriptions.` : ""}
+                    {progress.skippedAlreadySent ? ` ${progress.skippedAlreadySent} email(s) déjà envoyé(s).` : ""}
+                    {progress.skippedInvalid ? ` ${progress.skippedInvalid} fiche(s) invalide(s).` : ""}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <H2 mt={18}>Familles à relancer</H2>
+          <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "42px 170px minmax(180px, 1fr) 170px 110px 120px 180px", gap: 8, padding: "10px 12px", background: "#f8fafc", fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+              <span />
+              <span>Responsable</span>
+              <span>Email / enfants</span>
+              <span>Séjour</span>
+              <span>CAF</span>
+              <span>Reste</span>
+              <span>Statut</span>
+            </div>
+            <div style={{ maxHeight: 540, overflowY: "auto" }}>
+              {families.map((family) => (
+                <div key={family.numeroDeReservation} style={{ display: "grid", gridTemplateColumns: "42px 170px minmax(180px, 1fr) 170px 110px 120px 180px", gap: 8, alignItems: "center", padding: "10px 12px", borderTop: "1px solid #f1f5f9", fontSize: 12 }}>
+                  <input type="checkbox" checked={Boolean(selected[family.numeroDeReservation])} disabled={!family.valid} onChange={() => toggleFamily(family.numeroDeReservation)} />
+                  <div>
+                    <strong style={{ color: "#1e293b" }}>{family.responsible?.fullName || "Sans nom"}</strong>
+                    <div style={{ color: "#94a3b8" }}>{family.numeroDeReservation}</div>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: family.email ? "#1e293b" : "#dc2626", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{family.email || "Email manquant"}</div>
+                    <div style={{ color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {(family.children || []).map((child) => `${child.firstName} ${child.lastName}`.trim()).filter(Boolean).join(", ")}
+                    </div>
+                  </div>
+                  <div>
+                    <strong>{family.stayName || family.stayCode || "-"}</strong>
+                    <div style={{ color: "#64748b" }}>{family.week} {family.transportCity ? `- ${family.transportCity}` : ""}</div>
+                  </div>
+                  <div>{fmtMoney(family.pricing?.cafAid)}</div>
+                  <div>
+                    <strong style={{ color: "#B8336A" }}>{fmtMoney(family.pricing?.totalDue)}</strong>
+                    <div style={{ color: "#64748b" }}>après acompte {fmtMoney(family.pricing?.remainingAfterDeposit)}</div>
+                  </div>
+                  <div>
+                    {family.valid ? (
+                      <span style={{ color: "#15803d", fontWeight: 700 }}>Prêt</span>
+                    ) : (
+                      <span style={{ color: "#dc2626", fontWeight: 700 }}>{family.warnings?.join(", ") || "À vérifier"}</span>
+                    )}
+                    {family.pricing?.priceWasCalculated && <div style={{ color: "#7c3aed" }}>Prix calculé</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {events.length > 0 && (
+            <>
+              <H2 mt={18}>Derniers envois</H2>
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+                {events.slice(0, 20).map((event) => (
+                  <div key={event.id} style={{ display: "grid", gridTemplateColumns: "80px minmax(0, 1fr) 120px", gap: 10, padding: "9px 12px", borderTop: "1px solid #f1f5f9", fontSize: 12 }}>
+                    <strong style={{ color: event.type === "error" ? "#dc2626" : "#15803d" }}>{event.type}</strong>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.email || event.message}</span>
+                    <span style={{ color: "#64748b" }}>{event.reference || ""}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
+      <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 800, color: "#1e293b" }}>{value}</div>
+    </div>
+  );
+}
+
+function fmtMoney(value) {
+  const n = Number(value || 0);
+  return `${n.toLocaleString("fr-FR", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })} €`;
+}
+
 function TabHistoriqueFirebase() {
   const { showToast } = useToast();
   const [runs, setRuns] = useState([]);
@@ -1228,6 +1574,7 @@ export default function Campagnes() {
           <>
             {tab === "contacts"   && <TabContacts lists={lists} setLists={setLists} />}
             {tab === "campagne"   && <TabCampagne lists={lists} />}
+            {tab === "acompte18"  && <TabAcompte18Juin />}
             {tab === "historique" && <TabHistoriqueFirebase />}
           </>
         )}

@@ -243,7 +243,7 @@ function generateRef() {
   return `RES-${dd}${mm}${rnd}`;
 }
 
-function mapReservation(snap) {
+export function mapReservation(snap) {
   const d = snap.data() || {};
   const legal     = d.legal     || {};
   const minor     = d.minor     || {};
@@ -1655,7 +1655,7 @@ const PANEL_TABS = [
   { key: "notes",  label: "Notes" },
 ];
 
-function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange }) {
+export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange }) {
   const { showToast } = useToast();
   const [item, setItem]         = useState(externalItem);
   const [panelTab, setPanelTab] = useState("tarif");
@@ -2032,7 +2032,7 @@ function NewReservationModal({ onClose, onCreated }) {
   );
 }
 
-/* ── Navigation drill-down components ──────────────────────────────────── */
+/* ── Validated view helpers ─────────────────────────────────────────────── */
 
 const RES_WEEK_INFO = {
   S1: { label: "Semaine 1", dates: "6 – 17 juil." },
@@ -2041,78 +2041,101 @@ const RES_WEEK_INFO = {
   S4: { label: "Semaine 4", dates: "17 – 28 août" },
 };
 
-function ResWeekCards({ weekCounts, onSelect }) {
-  return (
-    <div className="res-week-grid">
-      {["S1", "S2", "S3", "S4"].map(week => {
-        const count = weekCounts[week] || 0;
-        const info  = RES_WEEK_INFO[week];
-        return (
-          <button key={week} type="button" className="res-week-card" onClick={() => onSelect(week)}>
-            <span className="res-week-code">{week}</span>
-            <span className="res-week-label">{info.label}</span>
-            <span className="res-week-dates">{info.dates}</span>
-            <span className="res-week-count">{count}<small> enfant{count !== 1 ? "s" : ""}</small></span>
-            <span className="res-week-arrow">→</span>
-          </button>
-        );
-      })}
-      {(weekCounts.autre || 0) > 0 && (
-        <button type="button" className="res-week-card res-week-autre" onClick={() => onSelect("autre")}>
-          <span className="res-week-code">?</span>
-          <span className="res-week-label">Sans semaine</span>
-          <span className="res-week-count">
-            {weekCounts.autre}<small> enfant{weekCounts.autre !== 1 ? "s" : ""}</small>
-          </span>
-          <span className="res-week-arrow">→</span>
-        </button>
-      )}
-    </div>
+function validSelectValue(value, fallback = "__empty__") {
+  return value && value !== "—" ? value : fallback;
+}
+
+function validSelectLabel(value) {
+  if (value === "__empty__") return "Non renseigné";
+  if (value === "__transport__") return "Avec transport";
+  if (value === "__sur_place__") return "Sur place";
+  return value;
+}
+
+function uniqueOptions(items, getter) {
+  return Array.from(new Set((items || []).map(getter).filter(Boolean))).sort((a, b) =>
+    validSelectLabel(a).localeCompare(validSelectLabel(b), "fr", { sensitivity: "base" }),
   );
 }
 
-function ResSejournCards({ sejourCounts, onSelect }) {
-  return (
-    <div className="res-sejour-grid">
-      {Object.entries(sejourCounts).map(([sejour, count]) => {
-        const label = sejour === "__sans_sejour__" ? "Sans séjour" : sejour;
-        return (
-          <button key={sejour} type="button" className="res-sejour-card" onClick={() => onSelect(sejour)}>
-            <span className="res-sejour-icon">🏕️</span>
-            <span className="res-sejour-name">{label}</span>
-            <span className="res-sejour-count">{count} enfant{count !== 1 ? "s" : ""}</span>
-            <span className="res-sejour-arrow">→</span>
-          </button>
-        );
-      })}
-    </div>
+function ValidatedOverview({ items, filters, onFilterChange, onReset }) {
+  const weekCounts = useMemo(() => {
+    const result = { all: countReservationChildren(items), S1: 0, S2: 0, S3: 0, S4: 0, autre: 0 };
+    for (const item of items) {
+      const count = reservationChildCount(item);
+      if (item.week && result[item.week] !== undefined) result[item.week] += count;
+      else result.autre += count;
+    }
+    return result;
+  }, [items]);
+
+  const sejourOptions = useMemo(
+    () => uniqueOptions(items, (item) => validSelectValue(item.sejourName)),
+    [items],
   );
-}
-
-function ResBreadcrumb({ mainView, selectedWeek, selectedSejour, onReset, onResetSejour }) {
-  const viewLabel  = mainView === "validees" ? "Validées" : "Réservations en cours";
-  const weekLabel  = selectedWeek === "autre"
-    ? "Sans semaine"
-    : (RES_WEEK_INFO[selectedWeek]?.label || selectedWeek);
+  const transportOptions = useMemo(
+    () => uniqueOptions(items, (item) => item.departureCity ? "__transport__" : "__sur_place__"),
+    [items],
+  );
 
   return (
-    <nav className="res-breadcrumb">
-      <button type="button" onClick={onReset}>{viewLabel}</button>
-      {selectedWeek && (
-        <>
-          <span className="res-bc-sep">›</span>
-          {selectedSejour
-            ? <button type="button" onClick={onResetSejour}>{weekLabel}</button>
-            : <span>{weekLabel}</span>}
-        </>
-      )}
-      {selectedSejour && (
-        <>
-          <span className="res-bc-sep">›</span>
-          <span>{selectedSejour === "__sans_sejour__" ? "Sans séjour" : selectedSejour}</span>
-        </>
-      )}
-    </nav>
+    <section className="res-valid-panel">
+      <div className="res-valid-summary">
+        <div className="res-valid-total">
+          <span>{weekCounts.all}</span>
+          <small>enfants validés</small>
+        </div>
+        <div className="res-valid-week-strip">
+          {["S1", "S2", "S3", "S4"].map((week) => (
+            <button
+              key={week}
+              type="button"
+              className={`res-valid-week${filters.week === week ? " is-active" : ""}`}
+              onClick={() => onFilterChange("week", filters.week === week ? "all" : week)}
+            >
+              <strong>{week}</strong>
+              <span>{weekCounts[week] || 0}</span>
+              <small>{RES_WEEK_INFO[week]?.dates}</small>
+            </button>
+          ))}
+          {(weekCounts.autre || 0) > 0 && (
+            <button
+              type="button"
+              className={`res-valid-week${filters.week === "autre" ? " is-active" : ""}`}
+              onClick={() => onFilterChange("week", filters.week === "autre" ? "all" : "autre")}
+            >
+              <strong>?</strong>
+              <span>{weekCounts.autre}</span>
+              <small>Sans semaine</small>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="res-valid-filters">
+        <select
+          className="dash-input"
+          value={filters.sejour}
+          onChange={(event) => onFilterChange("sejour", event.target.value)}
+        >
+          <option value="all">Tous les séjours</option>
+          {sejourOptions.map((option) => (
+            <option key={option} value={option}>{validSelectLabel(option)}</option>
+          ))}
+        </select>
+        <select
+          className="dash-input"
+          value={filters.transport}
+          onChange={(event) => onFilterChange("transport", event.target.value)}
+        >
+          <option value="all">Tous les transports</option>
+          {transportOptions.map((option) => (
+            <option key={option} value={option}>{validSelectLabel(option)}</option>
+          ))}
+        </select>
+        <button type="button" className="dash-btn" onClick={onReset}>Réinitialiser</button>
+      </div>
+    </section>
   );
 }
 
@@ -2121,8 +2144,7 @@ function ResBreadcrumb({ mainView, selectedWeek, selectedSejour, onReset, onRese
 export default function Reservations() {
   const [items, setItems]                   = useState([]);
   const [mainView, setMainView]             = useState("reservations"); // "reservations" | "validees" | "passees"
-  const [selectedWeek, setSelectedWeek]     = useState(null);
-  const [selectedSejour, setSelectedSejour] = useState(null);
+  const [validatedFilters, setValidatedFilters] = useState({ week: "all", sejour: "all", transport: "all" });
   const [selectedItem, setSelectedItem]     = useState(null);
   const [loading, setLoading]               = useState(true);
   const [showNew, setShowNew]               = useState(false);
@@ -2172,50 +2194,29 @@ export default function Reservations() {
     return pendingFiltered;
   }, [mainView, buckets, pendingFiltered]);
 
-  /* Comptage par semaine */
-  const weekCounts = useMemo(() => {
-    const c = { S1: 0, S2: 0, S3: 0, S4: 0, autre: 0 };
-    for (const item of viewItems) {
-      const children = reservationChildCount(item);
-      if (item.week && c[item.week] !== undefined) c[item.week] += children;
-      else c.autre += children;
-    }
-    return c;
-  }, [viewItems]);
-
-  /* Comptage par séjour pour la semaine sélectionnée */
-  const sejourCounts = useMemo(() => {
-    if (!selectedWeek) return {};
-    const base = selectedWeek === "autre"
-      ? viewItems.filter(x => !x.week)
-      : viewItems.filter(x => x.week === selectedWeek);
-    const c = {};
-    for (const item of base) {
-      const s = (item.sejourName && item.sejourName !== "—") ? item.sejourName : "__sans_sejour__";
-      c[s] = (c[s] || 0) + reservationChildCount(item);
-    }
-    return c;
-  }, [viewItems, selectedWeek]);
-
-  /* Liste finale après drill-down */
-  const drillItems = useMemo(() => {
-    let r = viewItems;
-    if (selectedWeek === "autre") r = r.filter(x => !x.week);
-    else if (selectedWeek) r = r.filter(x => x.week === selectedWeek);
-    if (selectedSejour) {
-      if (selectedSejour === "__sans_sejour__") {
-        r = r.filter(x => !x.sejourName || x.sejourName === "—");
-      } else {
-        r = r.filter(x => x.sejourName === selectedSejour);
+  const validatedFiltered = useMemo(() => {
+    return buckets.validated.filter((item) => {
+      if (validatedFilters.week !== "all") {
+        if (validatedFilters.week === "autre") {
+          if (item.week) return false;
+        } else if (item.week !== validatedFilters.week) return false;
       }
-    }
-    return r;
-  }, [viewItems, selectedWeek, selectedSejour]);
+      if (validatedFilters.sejour !== "all" && validSelectValue(item.sejourName) !== validatedFilters.sejour) return false;
+      if (validatedFilters.transport !== "all") {
+        const transportValue = item.departureCity ? "__transport__" : "__sur_place__";
+        if (transportValue !== validatedFilters.transport) return false;
+      }
+      return true;
+    });
+  }, [buckets.validated, validatedFilters]);
+
+  const handleValidatedFilterChange = (key, value) => {
+    setValidatedFilters((prev) => ({ ...prev, [key]: value }));
+    setSelectedItem(null);
+  };
 
   const changeView = (view) => {
     setMainView(view);
-    setSelectedWeek(null);
-    setSelectedSejour(null);
     setSelectedItem(null);
     setPriceFilter("all");
   };
@@ -2331,6 +2332,22 @@ export default function Reservations() {
     },
   ], []);
 
+  const validatedColumns = useMemo(() => [
+    ...columns.slice(0, 3),
+    {
+      key: "week",
+      label: "Semaine",
+      sortValue: row => row.week || "ZZ",
+      render: row => (
+        <div className="res-week-cell">
+          <strong>{row.week || "?"}</strong>
+          <span>{row.week ? RES_WEEK_INFO[row.week]?.dates : "Sans semaine"}</span>
+        </div>
+      ),
+    },
+    ...columns.slice(3),
+  ], [columns]);
+
   return (
     <>
       <div className={`res-page-layout${selectedItem ? " has-panel" : ""}`}>
@@ -2421,17 +2438,6 @@ export default function Reservations() {
               </div>
             )}
 
-            {/* Fil d'Ariane */}
-            {mainView !== "reservations" && (selectedWeek || selectedSejour) && (
-              <ResBreadcrumb
-                mainView={mainView}
-                selectedWeek={selectedWeek}
-                selectedSejour={selectedSejour}
-                onReset={() => { setSelectedWeek(null); setSelectedSejour(null); setSelectedItem(null); }}
-                onResetSejour={() => { setSelectedSejour(null); setSelectedItem(null); }}
-              />
-            )}
-
             {loading ? (
               <div className="dash-section" style={{ padding: 24 }}>
                 <p className="dash-muted">Chargement…</p>
@@ -2449,25 +2455,26 @@ export default function Reservations() {
                 emptyLabel={mainView === "reservations" ? "Aucune réservation en cours." : "Aucune réservation passée."}
                 toolsInline
               />
-            ) : !selectedWeek ? (
-              /* Niveau 1 : choix de la semaine */
-              <ResWeekCards weekCounts={weekCounts} onSelect={setSelectedWeek} />
-            ) : !selectedSejour ? (
-              /* Niveau 2 : choix du séjour */
-              <ResSejournCards sejourCounts={sejourCounts} onSelect={setSelectedSejour} />
             ) : (
-              /* Niveau 3 : liste des enfants / dossiers */
-              <DataTable
-                columns={columns}
-                data={drillItems}
-                searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation"]}
-                defaultSortKey="dateMs"
-                defaultSortDirection="desc"
-                onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
-                selectedRowId={selectedItem?.id}
-                emptyLabel="Aucun dossier pour cette sélection."
-                toolsInline
-              />
+              <>
+                <ValidatedOverview
+                  items={buckets.validated}
+                  filters={validatedFilters}
+                  onFilterChange={handleValidatedFilterChange}
+                  onReset={() => setValidatedFilters({ week: "all", sejour: "all", transport: "all" })}
+                />
+                <DataTable
+                  columns={validatedColumns}
+                  data={validatedFiltered}
+                  searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation","week"]}
+                  defaultSortKey="week"
+                  defaultSortDirection="asc"
+                  onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
+                  selectedRowId={selectedItem?.id}
+                  emptyLabel="Aucune inscription validée pour ces filtres."
+                  toolsInline
+                />
+              </>
             )}
           </div>
         </div>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  addDoc, collection, deleteDoc, doc,
+  addDoc, collection, deleteDoc, doc, getDoc,
   getDocs, orderBy, query, serverTimestamp, updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -11,6 +11,7 @@ import Badge from "@/src/components/dashboard/ui/Badge";
 import { useToast } from "@/src/contexts/ToastContext";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { ReservationPanel, mapReservation } from "@/src/components/dashboard/Reservations";
 
 /* ── Constants ─────────────────────────────────────────────────────────── */
 
@@ -208,6 +209,7 @@ function mapReservationForTransport(snap) {
   const minor   = d.minor   || {};
   const sejour  = d.sejour  || {};
   const transport = d.transport || {};
+  const finance = d.finance || {};
   const children = minor.children || [];
   const first   = children[0] || {};
   return {
@@ -223,6 +225,9 @@ function mapReservationForTransport(snap) {
     week: weekFromStartDate(sejour.startDate),
     departureCity: transport.departureCity || "",
     returnCity:    transport.returnCity    || "",
+    transportAmount: Number(finance.transportAmount ?? transport.fee ?? 0) || 0,
+    financeNetAmount: Number(finance.netAmount || 0) || 0,
+    financeStayAmount: Number(finance.stayAmount || 0) || 0,
     status: d.status || "pending",
     isImported2026: d.validationSource === "ete26_validated_workbook",
     childCount: Math.max(children.length, 1),
@@ -236,6 +241,7 @@ function mapStaffMember(snap) {
     name: data.name || `${data.firstName || ""} ${data.lastName || ""}`.trim(),
     phone: data.phone || "",
     email: data.email || "",
+    birthDate: data.birthDate || "",
     active: data.active !== false,
   };
 }
@@ -697,6 +703,202 @@ function AllTransportsList({ transports, selectedId, onSelectTrip }) {
   );
 }
 
+/* ── WeeksOverview ────────────────────────────────────────────────────────── */
+
+function WeeksOverview({ transports, selectedId, onSelectTrip }) {
+  return (
+    <div className="wo-root">
+      {WEEKS.map((week) => {
+        const info = WEEK_INFO[week];
+        return (
+          <section key={week} className="wo-week">
+            <div className="wo-week-head">
+              <span className="wo-badge">{week}</span>
+              <div className="wo-week-meta">
+                <strong>{info.label}</strong>
+                <span>{info.dates}</span>
+              </div>
+            </div>
+            <div className="wo-week-body">
+              {[
+                { dir: "aller",  date: info.aller,  label: "Aller",  icon: "↑" },
+                { dir: "retour", date: info.retour, label: "Retour", icon: "↓" },
+              ].map(({ dir, date, label, icon }) => {
+                const trips = transports.filter((t) => t.date === date);
+                const totalChildren = trips.reduce((s, t) => s + countChildren(t.passengers), 0);
+                const totalSegs = trips.reduce((s, t) => s + (t.segments || []).length, 0);
+                const boughtTickets = trips.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
+                const totalTickets = trips.reduce((s, t) => s + (t.tickets || []).length, 0);
+                const missingSegs = trips.reduce((s, t) =>
+                  s + (t.segments || []).filter((seg) =>
+                    !(t.tickets || []).some((tk) => tk.segmentId === seg.id),
+                  ).length, 0,
+                );
+                const tickPct = totalTickets > 0 ? Math.round((boughtTickets / totalTickets) * 100) : 0;
+                const allOk = missingSegs === 0 && totalTickets > 0 && boughtTickets === totalTickets;
+
+                return (
+                  <div key={dir} className={`wo-dir wo-dir-${dir}`}>
+                    <div className="wo-dir-head">
+                      <span className={`wo-dir-arrow wo-dir-arrow-${dir}`}>{icon}</span>
+                      <div className="wo-dir-info">
+                        <strong>{label}</strong>
+                        <time>{fmtDateLong(date)}</time>
+                      </div>
+                      {totalChildren > 0 && (
+                        <span className="wo-chip-children">{totalChildren} enfants</span>
+                      )}
+                      {missingSegs > 0 && (
+                        <span className="wo-chip-alert">
+                          {missingSegs} billet{missingSegs > 1 ? "s" : ""} manquant{missingSegs > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+
+                    {totalSegs > 0 && (
+                      <div className="wo-tix-row">
+                        <div className="wo-tix-track">
+                          <div
+                            className={`wo-tix-fill${allOk ? " is-ok" : " is-partial"}`}
+                            style={{ width: `${tickPct}%` }}
+                          />
+                        </div>
+                        <span className={`wo-tix-count${allOk ? " is-ok" : " is-warn"}`}>
+                          {boughtTickets}/{totalTickets} billets
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="wo-trips">
+                      {trips.length === 0 ? (
+                        <div className="wo-trip-empty">Aucun trajet configuré</div>
+                      ) : trips.map((trip) => {
+                        const segs = trip.segments || [];
+                        const tix = trip.tickets || [];
+                        const tripBought = tix.filter((tk) => tk.purchased).length;
+                        const tripMissing = segs.filter((seg) => !tix.some((tk) => tk.segmentId === seg.id)).length;
+                        const tripPending = tix.filter((tk) => !tk.purchased).length;
+                        const isOk = tripMissing === 0 && tripPending === 0 && tix.length > 0;
+                        const isActive = selectedId === trip.id;
+                        const mod = isOk ? "ok" : tripMissing > 0 ? "missing" : tripPending > 0 ? "pending" : "none";
+
+                        return (
+                          <button
+                            key={trip.id}
+                            type="button"
+                            className={`wo-trip wo-trip-${mod}${isActive ? " is-active" : ""}`}
+                            onClick={() => onSelectTrip(trip)}
+                          >
+                            <div className="wo-trip-left">
+                              <span className="wo-trip-zone">
+                                {ROUTE_GROUPS.find((g) => g.value === trip.routeGroup)?.label || trip.routeGroup || "Zone"}
+                              </span>
+                              <span className="wo-trip-route">
+                                {trip.departureCity || "?"} → {trip.arrivalCity || "?"}
+                              </span>
+                              <div className="wo-trip-sub">
+                                {trip.departureTime && <span>{trip.departureTime}</span>}
+                                {countChildren(trip.passengers) > 0 && <span>{countChildren(trip.passengers)} enf.</span>}
+                                {segs.length > 1 && <span>{segs.length} étapes</span>}
+                              </div>
+                            </div>
+                            <div className="wo-trip-right">
+                              <span className={`wo-tix-badge wo-tix-${mod}`}>
+                                {isOk && "✓ Billets OK"}
+                                {!isOk && tripMissing > 0 && `✗ ${tripMissing} manquant${tripMissing > 1 ? "s" : ""}`}
+                                {!isOk && tripMissing === 0 && tripPending > 0 && `⏳ ${tripPending} non acheté${tripPending > 1 ? "s" : ""}`}
+                                {!isOk && tripMissing === 0 && tripPending === 0 && "Aucun billet"}
+                              </span>
+                              <Badge
+                                label={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).label}
+                                variant={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).variant}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── TripTimeline ─────────────────────────────────────────────────────────── */
+
+function TripTimeline({ transport, onToggleStaff }) {
+  const segments  = transport.segments || [];
+  const staffPool = transport.staff    || [];
+  if (segments.length === 0) return null;
+
+  const last = segments[segments.length - 1];
+
+  return (
+    <div className="tl-wrap">
+      <div className="tl-track">
+        {segments.flatMap((seg, i) => {
+          const assignedIds = seg.assignedStaffIds || [];
+
+          return [
+            /* ── Stop node ── */
+            <div key={`stop-${seg.id}`} className="tl-stop" style={{ "--i": i }}>
+              <div className="tl-dot" />
+              <div className="tl-stop-info">
+                <span className="tl-city">{seg.from}</span>
+                {seg.meetingTime && <span className="tl-rdv">RDV {seg.meetingTime}</span>}
+                <span className="tl-time">{seg.departureTime || "—"}</span>
+              </div>
+            </div>,
+
+            /* ── Leg ── */
+            <div key={`leg-${seg.id}`} className="tl-leg" style={{ "--i": i }}>
+              <div className="tl-leg-line" />
+              {seg.mode && (
+                <span className="tl-train">{seg.mode}{seg.number ? ` ${seg.number}` : ""}</span>
+              )}
+              {staffPool.length > 0 && (
+                <div className="tl-leg-anims">
+                  {staffPool.map((member) => {
+                    const on = assignedIds.includes(member.id);
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        className={`tl-anim-chip${on ? " is-on" : ""}`}
+                        onClick={() => onToggleStaff && onToggleStaff(seg.id, member.id)}
+                        title={member.role || ""}
+                        disabled={!onToggleStaff}
+                      >
+                        {on && <span className="tl-anim-check">✓</span>}
+                        {member.name || "Anim."}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>,
+          ];
+        })}
+
+        {/* Arrival node */}
+        <div className="tl-stop tl-stop-arr" style={{ "--i": segments.length }}>
+          <div className="tl-dot tl-dot-arrival" />
+          <div className="tl-stop-info">
+            <span className="tl-city">{last?.to}</span>
+            <span className="tl-time">{last?.arrivalTime || "—"}</span>
+            <span className="tl-arr-tag">Arrivée</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DaySummary({ transports, date }) {
   const totalChildren = transports.reduce((s, t) => s + countChildren(t.passengers), 0);
   const totalStaff    = transports.reduce((s, t) => s + (t.staff || []).length, 0);
@@ -723,12 +925,153 @@ function DaySummary({ transports, date }) {
   );
 }
 
+function TransportBudgetOverview({ reservations, transports }) {
+  const rows = useMemo(() => {
+    const byWeek = new Map();
+    const ensure = (week) => {
+      const label = week || "Sans semaine";
+      if (!byWeek.has(label)) {
+        byWeek.set(label, {
+          week: label,
+          children: 0,
+          allerChildren: 0,
+          retourChildren: 0,
+          onSiteChildren: 0,
+          transportRevenue: 0,
+          ticketCost: 0,
+          tickets: 0,
+          purchasedTickets: 0,
+          allerCities: new Map(),
+          retourCities: new Map(),
+        });
+      }
+      return byWeek.get(label);
+    };
+    const addCity = (map, city, count) => {
+      const clean = city || "Non renseigné";
+      if (normalizePlace(clean) === "sur place") return;
+      map.set(clean, (map.get(clean) || 0) + count);
+    };
+
+    reservations
+      .filter((reservation) => reservation.status !== "deleted")
+      .forEach((reservation) => {
+        const row = ensure(reservation.week);
+        const count = reservation.childCount || 1;
+        row.children += count;
+        row.transportRevenue += Number(reservation.transportAmount || 0);
+        if (normalizePlace(reservation.departureCity) === "sur place" && normalizePlace(reservation.returnCity) === "sur place") {
+          row.onSiteChildren += count;
+        } else {
+          if (normalizePlace(reservation.departureCity) !== "sur place") row.allerChildren += count;
+          if (normalizePlace(reservation.returnCity) !== "sur place") row.retourChildren += count;
+          addCity(row.allerCities, reservation.departureCity, count);
+          addCity(row.retourCities, reservation.returnCity, count);
+        }
+      });
+
+    transports.forEach((transport) => {
+      const row = ensure(transport.week);
+      (transport.tickets || []).forEach((ticket) => {
+        row.tickets += 1;
+        if (ticket.purchased) row.purchasedTickets += 1;
+        row.ticketCost += Number(ticket.price || 0) || 0;
+      });
+    });
+
+    return [...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week, "fr"));
+  }, [reservations, transports]);
+
+  const totals = rows.reduce((total, row) => ({
+    children: total.children + row.children,
+    revenue: total.revenue + row.transportRevenue,
+    cost: total.cost + row.ticketCost,
+    tickets: total.tickets + row.tickets,
+    purchasedTickets: total.purchasedTickets + row.purchasedTickets,
+  }), { children: 0, revenue: 0, cost: 0, tickets: 0, purchasedTickets: 0 });
+
+  const citiesText = (map) => [...map.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fr"))
+    .map(([city, count]) => `${city} ${count}`)
+    .join(" · ") || "—";
+
+  return (
+    <section className="dash-section" style={{ display: "grid", gap: 14 }}>
+      <div className="dash-section-head">
+        <div>
+          <h2>Budget transport</h2>
+          <p className="dash-muted">CA transport séparé. Chaque billet ajouté diminue la marge transport.</p>
+        </div>
+      </div>
+      <div className="finance-metrics">
+        <article className="finance-metric finance-metric-transport">
+          <span>CA transport</span>
+          <strong>{formatMoney(totals.revenue)}</strong>
+          <small>Facturé aux familles</small>
+        </article>
+        <article className="finance-metric finance-metric-warning">
+          <span>Billets ajoutés</span>
+          <strong>{formatMoney(totals.cost)}</strong>
+          <small>{totals.purchasedTickets}/{totals.tickets} billet(s) achetés</small>
+        </article>
+        <article className={`finance-metric ${totals.revenue - totals.cost >= 0 ? "finance-metric-success" : "finance-metric-warning"}`}>
+          <span>Marge transport</span>
+          <strong>{formatMoney(totals.revenue - totals.cost)}</strong>
+          <small>CA transport - billets</small>
+        </article>
+        <article className="finance-metric finance-metric-info">
+          <span>Enfants transport</span>
+          <strong>{totals.children}</strong>
+          <small>Inscriptions validées importées</small>
+        </article>
+      </div>
+      <div className="finance-summary-scroll">
+        <table className="tr-budget-table">
+          <thead>
+            <tr>
+              <th>Semaine</th>
+              <th>Enfants</th>
+              <th>Aller</th>
+              <th>Retour</th>
+              <th>Sur place</th>
+              <th>Villes aller</th>
+              <th>Villes retour</th>
+              <th>CA transport</th>
+              <th>Billets</th>
+              <th>Marge</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const margin = row.transportRevenue - row.ticketCost;
+              return (
+                <tr key={row.week}>
+                  <td><strong>{row.week}</strong></td>
+                  <td>{row.children}</td>
+                  <td>{row.allerChildren}</td>
+                  <td>{row.retourChildren}</td>
+                  <td>{row.onSiteChildren}</td>
+                  <td>{citiesText(row.allerCities)}</td>
+                  <td>{citiesText(row.retourCities)}</td>
+                  <td><strong>{formatMoney(row.transportRevenue)}</strong></td>
+                  <td>{row.purchasedTickets}/{row.tickets} · {formatMoney(row.ticketCost)}</td>
+                  <td className={margin >= 0 ? "finance-paid" : "finance-due"}>{formatMoney(margin)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function SegmentSummaryTable({ transport, onEditSegment }) {
   const segments = transport.segments || [];
   if (!segments.length) {
     return (
       <div className="tr-segment-summary-empty">
-        Aucune étape configurée. Ouvrez l’organisation du trajet pour ajouter les étapes.
+        Aucune étape configurée. Ouvrez l'organisation du trajet pour ajouter les étapes.
       </div>
     );
   }
@@ -853,6 +1196,16 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   const [selected, setSelected] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [resModal, setResModal] = useState(null); // { item } | null
+
+  const openReservation = async (reservationId) => {
+    if (!reservationId) return;
+    try {
+      const snap = await getDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId));
+      if (snap.exists()) setResModal({ item: mapReservation(snap) });
+      else showToast("Réservation introuvable", "error");
+    } catch { showToast("Erreur de chargement", "error"); }
+  };
 
   const assignedIds = useMemo(
     () => new Set(transport.passengers.map(p => p.reservationId)),
@@ -1017,16 +1370,19 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
                 <span>{countChildren(passengers)} enfant{countChildren(passengers) !== 1 ? "s" : ""}</span>
               </div>
               {passengers.map((p, i) => {
-                const childStr = p.children?.length > 0
-                  ? p.children.map(c => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
-                  : p.childName;
+                const kids = p.children?.length > 0 ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }];
                 return (
                   <div key={p.reservationId || i} className="tr-pax-row">
                     <div className="tr-pax-num">{i + 1}</div>
                     <div className="tr-pax-info">
                       <span className="tr-pax-nom">{p.nom}</span>
-                      <span className="tr-pax-child">{childStr}</span>
                       <span className="tr-pax-contact">{p.phone}</span>
+                      {kids.map((c, ci) => (
+                        <span key={ci} className="tr-pax-child-row">
+                          <span className="tr-pax-child">{`${c.firstName || ""} ${c.lastName || ""}`.trim() || "Enfant"}</span>
+                          {c.birthDate && <span className="tr-pax-dob">{fmtBirthDate(c.birthDate)}</span>}
+                        </span>
+                      ))}
                     </div>
                     <select
                       className="dash-input tr-pax-city"
@@ -1040,6 +1396,15 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
                       ].filter(Boolean))].map((optionCity) => <option key={optionCity} value={optionCity}>{optionCity}</option>)}
                     </select>
                     <div className="tr-pax-ref">{p.numeroDeReservation}</div>
+                    {p.reservationId && (
+                      <button type="button" className="tr-pax-open-res" title="Ouvrir la réservation"
+                        onClick={() => openReservation(p.reservationId)}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                          <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                      </button>
+                    )}
                     <button type="button" className="tr-pax-remove" title="Retirer"
                       onClick={() => removePassenger(p.reservationId)}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
@@ -1051,6 +1416,21 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
               })}
             </section>
           ))}
+        </div>
+      )}
+
+      {/* Reservation modal */}
+      {resModal && (
+        <div className="tr-res-overlay" onClick={(e) => { if (e.target === e.currentTarget) setResModal(null); }}>
+          <div className="tr-res-modal">
+            <ReservationPanel
+              item={resModal.item}
+              onClose={() => setResModal(null)}
+              onSave={(updated) => setResModal({ item: updated })}
+              onDelete={() => setResModal(null)}
+              onStatusChange={(updated) => setResModal({ item: updated })}
+            />
+          </div>
         </div>
       )}
     </div>
@@ -1074,6 +1454,16 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState("");
+  const [resModal, setResModal] = useState(null);
+
+  const openReservation = async (reservationId) => {
+    if (!reservationId) return;
+    try {
+      const snap = await getDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId));
+      if (snap.exists()) setResModal({ item: mapReservation(snap) });
+      else showToast("Réservation introuvable", "error");
+    } catch { showToast("Erreur de chargement", "error"); }
+  };
 
   const availableContracts = useMemo(() => {
     const assignedMemberIds = new Set(staff.map((member) => member.memberId || member.id));
@@ -1159,11 +1549,36 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
       role: contract.role || "Animateur convoyeur",
       phone: member?.phone || "",
       email: member?.email || "",
+      birthDate: member?.birthDate || "",
       boardingCity: "",
       stayCode: contract.stayCode,
       week: contract.week,
     }]);
     setSelectedContractId("");
+  };
+
+  /* Add a staff member from a contract AND assign them to a specific segment */
+  const addStaffToSegment = (contractId, segId) => {
+    const contract = staffContracts.find((item) => item.id === contractId);
+    if (!contract) return;
+    const member = staffMembers.find((item) => item.id === contract.memberId);
+    const newEntry = {
+      id: crypto.randomUUID(),
+      memberId: contract.memberId,
+      contractId: contract.id,
+      name: member?.name || contract.memberName,
+      role: contract.role || "Animateur convoyeur",
+      phone: member?.phone || "",
+      email: member?.email || "",
+      birthDate: member?.birthDate || "",
+      boardingCity: "",
+      stayCode: contract.stayCode,
+      week: contract.week,
+    };
+    setStaff((items) => [...items, newEntry]);
+    setSegments((items) => items.map((s) =>
+      s.id !== segId ? s : { ...s, assignedStaffIds: [...(s.assignedStaffIds || []), newEntry.id] }
+    ));
   };
 
   const addPlannedTicket = () => {
@@ -1345,442 +1760,220 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
   };
 
   return (
-    <div className="tr-ops-layout">
+    <div className="tr-ops-simple">
 
-      {/* ── Left: segment navigation ── */}
-      <div className="tr-seg-nav">
-        <div className="tr-sn-list">
-          {segments.map((seg, i) => {
-            const onboard = passengersOnSegment(activeT, i);
-            const segTix = tickets.filter((t) => t.segmentId === seg.id);
-            const childCount = countChildren(onboard);
-            const staffCount = (seg.assignedStaffIds || []).length;
-            const needed = childCount + staffCount;
-            const bought = segTix.reduce((s, t) => s + Number(t.seats || 0), 0);
-            const hasPurchased = segTix.some((t) => t.purchased);
-            const seatsOk = needed === 0 || bought >= needed;
-            const isActive = editingSegmentId === seg.id;
-            return (
-              <button key={seg.id} type="button"
-                className={`tr-sn-item${isActive ? " is-active" : ""}`}
-                onClick={() => setEditingSegmentId(seg.id)}
-              >
-                <span className="tr-sn-num">{i + 1}</span>
-                <span className="tr-sn-info">
-                  <span className="tr-sn-from">{seg.from || `Étape ${i + 1}`}</span>
-                  <span className="tr-sn-to">→ {seg.to || "…"}</span>
-                </span>
-                <span className="tr-sn-dots">
-                  <span className={`tr-sn-dot ${hasPurchased ? "ok" : "warn"}`} title="Billet" />
-                  <span className={`tr-sn-dot ${staffCount > 0 ? "ok" : "warn"}`} title="Animateur" />
-                  <span className={`tr-sn-dot ${childCount === 0 ? "neutral" : seatsOk ? "ok" : "warn"}`} title="Places" />
-                </span>
+      {/* ── Segments ── */}
+      {segments.length === 0 && (
+        <div className="tr-seg-empty">Aucun segment. Cliquez sur "+ Segment" pour commencer.</div>
+      )}
+
+      {segments.map((seg, i) => {
+        const segTix = tickets.filter((t) => t.segmentId === seg.id);
+        const segPassengers = passengersOnSegment(activeT, i);
+        const segKids = segPassengers.flatMap(p =>
+          (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
+            .map(c => ({ ...c, reservationId: p.reservationId }))
+        );
+        const childCount = segKids.length;
+        const assignedStaff = staff.filter(m => (seg.assignedStaffIds || []).includes(m.id));
+        const staffCount = assignedStaff.length;
+        const needed = childCount + staffCount;
+        const bought = segTix.reduce((s, t) => s + Number(t.seats || 0), 0);
+        const seatsOk = needed === 0 || bought >= needed;
+
+        return (
+          <div key={seg.id} className="tr-ops-seg">
+            <div className="tr-ops-seg-head">
+              <span className="tr-ops-seg-num">{i + 1}</span>
+              <span className="tr-ops-seg-title">{seg.from || "Départ"} → {seg.to || "Arrivée"}</span>
+              <button type="button" className="tr-ops-seg-del"
+                onClick={() => setSegments((items) => items.filter((s) => s.id !== seg.id))}>
+                Supprimer
               </button>
-            );
-          })}
-          <button type="button" className="tr-sn-add" onClick={addSegment}>+ Segment</button>
+            </div>
+
+            {/* Train info inline */}
+            <div className="tr-ops-train-row">
+              <label className="tr-ops-field-sm">
+                <span>De</span>
+                <input className="dash-input" value={seg.from} onChange={(e) => updateItem(setSegments, seg.id, "from", e.target.value)} placeholder="Ville départ" />
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>À</span>
+                <input className="dash-input" value={seg.to} onChange={(e) => updateItem(setSegments, seg.id, "to", e.target.value)} placeholder="Ville arrivée" />
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>Mode</span>
+                <select className="dash-input" value={seg.mode} onChange={(e) => updateItem(setSegments, seg.id, "mode", e.target.value)}>
+                  {TRAIN_TYPES.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>N° train</span>
+                <input className="dash-input" value={seg.number} onChange={(e) => updateItem(setSegments, seg.id, "number", e.target.value)} placeholder="8421" />
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>RDV</span>
+                <input className="dash-input" type="time" value={seg.meetingTime || ""} onChange={(e) => updateItem(setSegments, seg.id, "meetingTime", e.target.value)} />
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>Départ</span>
+                <input className="dash-input" type="time" value={seg.departureTime} onChange={(e) => updateItem(setSegments, seg.id, "departureTime", e.target.value)} />
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>Arrivée</span>
+                <input className="dash-input" type="time" value={seg.arrivalTime} onChange={(e) => updateItem(setSegments, seg.id, "arrivalTime", e.target.value)} />
+              </label>
+              <label className="tr-ops-field-sm">
+                <span>Quai</span>
+                <input className="dash-input" value={seg.platform || ""} onChange={(e) => updateItem(setSegments, seg.id, "platform", e.target.value)} placeholder="Voie 3" />
+              </label>
+            </div>
+
+            {/* Animateurs — direct checkboxes + quick-add from contracts */}
+            <div className="tr-ops-anims">
+              <span className="tr-ops-anims-label">
+                Animateurs
+                {staffCount > 0 && <span className="tr-ops-anims-count">{staffCount}</span>}
+              </span>
+              {staff.map((member) => {
+                const checked = (seg.assignedStaffIds || []).includes(member.id);
+                return (
+                  <label key={member.id} className={`tr-ops-anim-chip${checked ? " is-on" : ""}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleSegmentStaff(seg.id, member.id)} />
+                    <span>{member.name || "Anim."}</span>
+                    {member.birthDate && <span className="tr-ops-anim-dob">{fmtBirthDate(member.birthDate)}</span>}
+                    {member.boardingCity && <span className="tr-ops-anim-city">{member.boardingCity}</span>}
+                  </label>
+                );
+              })}
+              {availableContracts.length > 0 && (
+                <select
+                  className="tr-ops-anim-quick-select"
+                  value=""
+                  onChange={(e) => { if (e.target.value) addStaffToSegment(e.target.value, seg.id); }}
+                >
+                  <option value="">+ Ajouter…</option>
+                  {availableContracts.map((c) => (
+                    <option key={c.id} value={c.id}>{c.memberName} · {c.role}</option>
+                  ))}
+                </select>
+              )}
+              {availableContracts.length === 0 && staff.length === 0 && (
+                <span className="tr-ops-anims-empty">Aucun contrat disponible pour cette semaine</span>
+              )}
+            </div>
+
+            {/* Enfants sur ce segment */}
+            {segKids.length > 0 && (
+              <div className="tr-ops-enfants">
+                <span className="tr-ops-anims-label">
+                  Enfants
+                  <span className="tr-ops-anims-count">{segKids.length}</span>
+                </span>
+                {segKids.map((c, ci) => (
+                  <button key={ci} type="button"
+                    className="tr-ops-enfant-chip"
+                    onClick={() => c.reservationId && openReservation(c.reservationId)}
+                    title="Ouvrir la réservation">
+                    {`${c.firstName || ""} ${c.lastName || ""}`.trim() || "Enfant"}
+                    {c.birthDate && <span className="tr-ops-enfant-dob">{fmtBirthDate(c.birthDate)}</span>}
+                    <svg className="tr-ops-enfant-link" width="10" height="10" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Billets */}
+            <div className="tr-ops-tix">
+              <div className="tr-ops-tix-head">
+                <span className="tr-ops-anims-label">Billets</span>
+                {needed > 0 && (
+                  <span className={`tr-seats-badge${seatsOk ? " is-ok" : " is-short"}`}>
+                    {bought}/{needed} places
+                  </span>
+                )}
+                <button type="button" className="dash-btn" onClick={() => addTicketForSegment(seg.id)}>+ Billet</button>
+              </div>
+              {segTix.length === 0 && (
+                <p className="tr-add-empty">Aucun billet pour ce segment.</p>
+              )}
+              {segTix.map((ticket) => (
+                <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
+                  <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
+                  <div className="tr-ticket-card-info">
+                    <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
+                    <div className="tr-ticket-card-meta">
+                      {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
+                      {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
+                      {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
+                    </div>
+                  </div>
+                  {ticket.url && <a href={ticket.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
+                  <button type="button" className="tr-pax-remove" title="Supprimer"
+                    onClick={(e) => { e.stopPropagation(); setTickets((items) => items.filter((it) => it.id !== ticket.id)); }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      <button type="button" className="tr-ops-add-seg" onClick={addSegment}>+ Ajouter un segment</button>
+
+      {/* ── Équipe du convoi ── */}
+      <div className="tr-ops-team">
+        <div className="tr-ops-team-head">
+          <span className="tr-ops-anims-label">Équipe du convoi</span>
+          <select className="dash-input" value={selectedContractId} onChange={(e) => setSelectedContractId(e.target.value)}>
+            <option value="">Ajouter depuis les contrats RH…</option>
+            {availableContracts.map((c) => (
+              <option key={c.id} value={c.id}>{c.memberName} · {c.role} · {c.stayCode} {c.week}</option>
+            ))}
+          </select>
+          <button type="button" className="dash-btn dash-btn-primary" onClick={addStaffFromContract} disabled={!selectedContractId}>Affecter</button>
+          <button type="button" className="dash-btn" onClick={addStaff}>+ Manuel</button>
         </div>
-        <div className="tr-sn-foot">
-          <button type="button"
-            className={`tr-sn-bilan${editingSegmentId === "__bilan__" ? " is-active" : ""}`}
-            onClick={() => setEditingSegmentId("__bilan__")}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
-            Bilan général
-          </button>
+        <div className="tr-staff-list">
+          {staff.map((member) => (
+            <article className="tr-staff-editor" key={member.id}>
+              <input className="dash-input" value={member.name} onChange={(e) => updateItem(setStaff, member.id, "name", e.target.value)} placeholder="Prénom Nom" />
+              <input className="dash-input" value={member.role} onChange={(e) => updateItem(setStaff, member.id, "role", e.target.value)} placeholder="Rôle" />
+              <input className="dash-input" value={member.phone} onChange={(e) => updateItem(setStaff, member.id, "phone", e.target.value)} placeholder="Téléphone" />
+              <input className="dash-input" value={member.boardingCity} onChange={(e) => updateItem(setStaff, member.id, "boardingCity", e.target.value)} placeholder="Prise de service" />
+              {member.contractId && <span className="tr-staff-contract">{member.week} · {member.stayCode}</span>}
+              <button type="button" className="tr-pax-remove" title="Retirer" onClick={() => setStaff((items) => items.filter((it) => it.id !== member.id))}>×</button>
+            </article>
+          ))}
+          {!staff.length && <p className="tr-add-empty">Aucun animateur affecté à ce convoi.</p>}
         </div>
       </div>
 
-      {/* ── Right: content panel ── */}
-      <div className="tr-seg-panel">
+      <div className="tr-ops-save-row">
+        <button type="button" className="dash-btn dash-btn-primary" onClick={save} disabled={saving}>
+          {saving ? "Enregistrement…" : "Enregistrer"}
+        </button>
+      </div>
 
-        {/* ── No selection ── */}
-        {!editingSegmentId && (
-          <div className="tr-seg-empty">
-            {segments.length
-              ? "Sélectionnez un segment dans le menu de gauche."
-              : "Créez votre premier segment avec le bouton “+ Segment”."}
+      {/* ── Reservation modal ── */}
+      {resModal && (
+        <div className="tr-res-overlay" onClick={(e) => { if (e.target === e.currentTarget) setResModal(null); }}>
+          <div className="tr-res-modal">
+            <ReservationPanel
+              item={resModal.item}
+              onClose={() => setResModal(null)}
+              onSave={(updated) => setResModal({ item: updated })}
+              onDelete={() => setResModal(null)}
+              onStatusChange={(updated) => setResModal({ item: updated })}
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── Segment detail ── */}
-        {activeSeg && (
-          <div className="tr-seg-detail">
-
-            <div className="tr-seg-d-header">
-              <span className="tr-seg-d-badge">{activeSegIdx + 1}</span>
-              <h2 className="tr-seg-d-title">{activeSeg.from || "Départ"} → {activeSeg.to || "Arrivée"}</h2>
-              <button type="button" className="tr-seg-d-delete"
-                onClick={() => { setSegments((items) => items.filter((s) => s.id !== activeSeg.id)); setEditingSegmentId(null); }}
-              >Supprimer</button>
-            </div>
-
-            {/* ── Infos trajet ── */}
-            <section className="tr-seg-d-section">
-              <div className="tr-seg-d-shead"><span>Trajet</span></div>
-              <div className="tr-segment-fields">
-                <label><span>De</span><input className="dash-input" value={activeSeg.from} onChange={(e) => updateItem(setSegments, activeSeg.id, "from", e.target.value)} placeholder="Ville de départ" /></label>
-                <label><span>Vers</span><input className="dash-input" value={activeSeg.to} onChange={(e) => updateItem(setSegments, activeSeg.id, "to", e.target.value)} placeholder="Ville d'arrivée" /></label>
-                <label><span>Mode</span>
-                  <select className="dash-input" value={activeSeg.mode} onChange={(e) => updateItem(setSegments, activeSeg.id, "mode", e.target.value)}>
-                    {TRAIN_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                  </select>
-                </label>
-                <label><span>N° train / car</span><input className="dash-input" value={activeSeg.number} onChange={(e) => updateItem(setSegments, activeSeg.id, "number", e.target.value)} placeholder="8421…" /></label>
-                <label><span>Heure RDV</span><input className="dash-input" type="time" value={activeSeg.meetingTime || ""} onChange={(e) => updateItem(setSegments, activeSeg.id, "meetingTime", e.target.value)} /></label>
-                <label><span>Départ</span><input className="dash-input" type="time" value={activeSeg.departureTime} onChange={(e) => updateItem(setSegments, activeSeg.id, "departureTime", e.target.value)} /></label>
-                <label><span>Arrivée</span><input className="dash-input" type="time" value={activeSeg.arrivalTime} onChange={(e) => updateItem(setSegments, activeSeg.id, "arrivalTime", e.target.value)} /></label>
-                <label><span>Quai / voie</span><input className="dash-input" value={activeSeg.platform} onChange={(e) => updateItem(setSegments, activeSeg.id, "platform", e.target.value)} placeholder="Voie 3…" /></label>
-                <label className="tr-segment-span2"><span>Point de rendez-vous</span><input className="dash-input" value={activeSeg.meetingPoint || ""} onChange={(e) => updateItem(setSegments, activeSeg.id, "meetingPoint", e.target.value)} placeholder="Hall principal, entrée nord…" /></label>
-                <label className="tr-segment-span2"><span>Consignes</span><input className="dash-input" value={activeSeg.instructions} onChange={(e) => updateItem(setSegments, activeSeg.id, "instructions", e.target.value)} placeholder="Correspondance, comptage…" /></label>
-              </div>
-            </section>
-
-            {/* ── Billet ── */}
-            {(() => {
-              const segTix = tickets.filter((t) => t.segmentId === activeSeg.id);
-              const onboard = passengersOnSegment(activeT, activeSegIdx);
-              const childCount = countChildren(onboard);
-              const staffCount = (activeSeg.assignedStaffIds || []).length;
-              const needed = childCount + staffCount;
-              const bought = segTix.reduce((s, t) => s + Number(t.seats || 0), 0);
-              const seatsOk = needed === 0 || bought >= needed;
-              return (
-                <section className="tr-seg-d-section">
-                  <div className="tr-seg-d-shead">
-                    <span>Billet</span>
-                    {needed > 0 && (
-                      <span className={`tr-seats-badge ${seatsOk ? "is-ok" : "is-short"}`}>
-                        {bought}/{needed} places
-                      </span>
-                    )}
-                    <button type="button" className="dash-btn" onClick={() => addTicketForSegment(activeSeg.id)}>+ Billet</button>
-                  </div>
-                  {segTix.length === 0 && <p className="tr-add-empty">Aucun billet pour cette portion. Cliquez sur "+ Billet" pour en ajouter un.</p>}
-                  {segTix.map((ticket) => (
-                    <div key={ticket.id} className={`tr-ticket-card ${ticket.purchased ? "is-bought" : "is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
-                      <span className={`tr-ticket-status ${ticket.purchased ? "is-bought" : "is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
-                      <div className="tr-ticket-card-info">
-                        <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
-                        <div className="tr-ticket-card-meta">
-                          {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
-                          {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
-                          {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
-                          {(ticket.departureTime || ticket.arrivalTime) && <span>{ticket.departureTime || "—"} → {ticket.arrivalTime || "—"}</span>}
-                        </div>
-                      </div>
-                      {ticket.url && <a href={ticket.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
-                      <button type="button" className="tr-pax-remove" title="Supprimer"
-                        onClick={(e) => { e.stopPropagation(); setTickets((items) => items.filter((i) => i.id !== ticket.id)); }}>×</button>
-                    </div>
-                  ))}
-                </section>
-              );
-            })()}
-
-            {/* ── Animateurs ── */}
-            <section className="tr-seg-d-section">
-              <div className="tr-seg-d-shead"><span>Animateurs</span></div>
-              {staff.length === 0 && <p className="tr-add-empty">Aucun animateur dans ce convoi. Ajoutez l'équipe depuis le Bilan.</p>}
-              <div className="tr-seg-staff-checks">
-                {staff.map((member) => {
-                  const checked = (activeSeg.assignedStaffIds || []).includes(member.id);
-                  return (
-                    <label key={member.id} className={`tr-seg-staff-check${checked ? " is-checked" : ""}`}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleSegmentStaff(activeSeg.id, member.id)} />
-                      <span className="tr-seg-staff-name">{member.name || "Animateur sans nom"}</span>
-                      {member.boardingCity && <span className="tr-seg-staff-city">{member.boardingCity}</span>}
-                      {member.role && <span className="tr-seg-staff-role">{member.role}</span>}
-                    </label>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* ── Enfants à bord ── */}
-            {(() => {
-              const onboard = passengersOnSegment(activeT, activeSegIdx);
-              const stopPax = transport.direction === "retour"
-                ? passengersAtStop(activeT, activeSeg.to)
-                : passengersAtStop(activeT, activeSeg.from);
-              const childCount = countChildren(onboard);
-              return (
-                <section className="tr-seg-d-section">
-                  <div className="tr-seg-d-shead">
-                    <span>Enfants à bord</span>
-                    <span className="tr-seg-d-count">{childCount} enfant{childCount !== 1 ? "s" : ""}</span>
-                  </div>
-                  {onboard.length === 0 && <p className="tr-add-empty">Aucun enfant assigné à cette portion.</p>}
-                  {onboard.length > 0 && (
-                    <div className="tr-onboard-list">
-                      {[...onboard]
-                        .sort((a, b) => passengerCity(activeT, a).localeCompare(passengerCity(activeT, b), "fr", { sensitivity: "base" }))
-                        .flatMap((passenger) => {
-                          const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
-                          return children.map((child, ci) => (
-                            <div className="tr-onboard-child" key={`${passenger.reservationId}-${ci}`}>
-                              <div>
-                                <strong>{child.firstName || ""} {child.lastName || ""}</strong>
-                                <span>{passengerCity(activeT, passenger)}</span>
-                              </div>
-                              <span>{transport.direction === "aller" ? `Monte à ${passengerCity(activeT, passenger)}` : `Descend à ${passengerCity(activeT, passenger)}`}</span>
-                            </div>
-                          ));
-                        })}
-                    </div>
-                  )}
-                  {stopPax.length > 0 && (
-                    <div className="tr-stop-children" style={{ marginTop: 10 }}>
-                      <div className="tr-onboard-head">
-                        <strong>{transport.direction === "retour" ? `Descendent à ${activeSeg.to}` : `Pris en charge à ${activeSeg.from}`}</strong>
-                      </div>
-                      {stopPax.flatMap((passenger) => {
-                        const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
-                        return children.map((child, ci) => (
-                          <div className="tr-stop-child" key={`${passenger.reservationId}-stop-${ci}`}>
-                            <div><strong>{child.firstName || ""} {child.lastName || ""}</strong><span>{passenger.numeroDeReservation}</span></div>
-                            <div><span>{passenger.nom}</span><a href={`tel:${passenger.phone}`}>{passenger.phone || "Téléphone manquant"}</a></div>
-                          </div>
-                        ));
-                      })}
-                    </div>
-                  )}
-                </section>
-              );
-            })()}
-
-          </div>
-        )}
-
-        {/* ── Bilan général ── */}
-        {editingSegmentId === "__bilan__" && (
-          <div className="tr-bilan">
-
-            {/* ── Vue d’ensemble : villes × animateurs (read-only) ── */}
-            {(() => {
-              const cityGroups = groupPassengersByCity(activeT);
-              const totalKids = countChildren(activeT.passengers || []);
-              const dirLabel = transport.direction === "retour" ? "Retour" : "Aller";
-              return (
-                <section className="tr-seg-d-section tr-bilan-top-section">
-                  <div className="tr-bilan-top-row">
-                    <table className="tr-bilan-table">
-                      <thead>
-                        <tr>
-                          <th>Villes</th>
-                          <th className="tr-bilan-num-h">Nbre {dirLabel}</th>
-                          <th>Anim</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cityGroups.map(({ city, passengers }) => {
-                          const childCount = countChildren(passengers);
-                          const segIdx = transport.direction === "retour"
-                            ? segments.findIndex((s) => normalizePlace(s.to) === normalizePlace(city))
-                            : segments.findIndex((s) => normalizePlace(s.from) === normalizePlace(city));
-                          const seg = segIdx >= 0 ? segments[segIdx] : null;
-                          const animNames = seg
-                            ? (seg.assignedStaffIds || []).map((id) => staff.find((m) => m.id === id)?.name || "").filter(Boolean).join(", ")
-                            : "";
-                          return (
-                            <tr key={city}>
-                              <td>{city}</td>
-                              <td className="tr-bilan-num">{childCount}</td>
-                              <td>{animNames || <span className="tr-bilan-empty-anim">—</span>}</td>
-                            </tr>
-                          );
-                        })}
-                        {cityGroups.length === 0 && (
-                          <tr><td colSpan={3} className="tr-bilan-empty-cell">Aucun passager enregistré</td></tr>
-                        )}
-                        <tr className="tr-bilan-total-row">
-                          <td><strong>Totaux</strong></td>
-                          <td className="tr-bilan-num"><strong>{totalKids}</strong></td>
-                          <td />
-                        </tr>
-                      </tbody>
-                    </table>
-
-                    {(transport.notes || transport.emergencyContact) && (
-                      <div className="tr-bilan-protocole">
-                        <strong>Protocole convoyage :</strong>
-                        {transport.notes
-                          ? transport.notes.split("\n").map((line, i) => <p key={i}>{line}</p>)
-                          : null}
-                        {transport.emergencyContact && (
-                          <p>Contact urgence : {transport.emergencyContact}{transport.emergencyPhone ? ` — ${transport.emergencyPhone}` : ""}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </section>
-              );
-            })()}
-
-            {/* ── Détail par segment (read-only, clic → édition du segment) ── */}
-            {segments.length > 0 && (() => {
-              const dirLabel = transport.direction === "retour" ? "Retour" : "Aller";
-              const dateLabel = transport.date
-                ? new Date(transport.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })
-                : null;
-              const groupLabel = transport.routeGroup ? `Trajet ${transport.routeGroup}` : null;
-              return (
-                <section className="tr-seg-d-section">
-                  <div className="tr-seg-d-shead">
-                    <span>
-                      {dirLabel}{dateLabel ? ` le ${dateLabel}` : ""}{groupLabel ? ` · ${groupLabel}` : ""}
-                    </span>
-                  </div>
-                  <table className="tr-bilan-table tr-bilan-seg-table">
-                    <thead>
-                      <tr>
-                        <th>Ville</th>
-                        <th className="tr-bilan-num-h">Nbre Récup</th>
-                        <th className="tr-bilan-num-h">Total</th>
-                        <th>Étape</th>
-                        <th>Départ</th>
-                        <th>Arrivée</th>
-                        <th>N° train</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {segments.map((segment, index) => {
-                        const boardingCity = transport.direction === "retour" ? segment.to : segment.from;
-                        const stopKids = countChildren(passengersAtStop(activeT, boardingCity));
-                        const totalOnBoard = countChildren(passengersOnSegment(activeT, index)) + (segment.assignedStaffIds || []).length;
-                        const tixRef = tickets.filter((t) => t.segmentId === segment.id).map((t) => t.name || t.bookingReference).filter(Boolean).join(", ");
-                        return (
-                          <tr key={segment.id} className="tr-bilan-seg-row" onClick={() => setEditingSegmentId(segment.id)} title="Cliquer pour modifier ce segment">
-                            <td>{boardingCity || "—"}</td>
-                            <td className="tr-bilan-num">{stopKids > 0 ? stopKids : "—"}</td>
-                            <td className="tr-bilan-num">{totalOnBoard > 0 ? totalOnBoard : "—"}</td>
-                            <td className="tr-bilan-etape">{segment.from} → {segment.to}</td>
-                            <td className="tr-bilan-time">{segment.departureTime || "—"}</td>
-                            <td className="tr-bilan-time">{segment.arrivalTime || "—"}</td>
-                            <td className="tr-bilan-trainref">{tixRef || "—"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </section>
-              );
-            })()}
-
-            {/* ── Configuration + équipe (accordéon, fermé par défaut) ── */}
-            <details className="tr-bilan-config">
-              <summary className="tr-bilan-config-summary">Configuration · Équipe · Enregistrement</summary>
-
-              <section className="tr-seg-d-section">
-                <div className="tr-seg-d-shead"><span>Organisation générale</span></div>
-                <div className="rp-edit-grid">
-                  <label className="rp-edit-field">
-                    <span>Zone de convoi</span>
-                    <select className="dash-input" value={meta.routeGroup} onChange={(e) => setMeta((v) => ({ ...v, routeGroup: e.target.value }))}>
-                      {ROUTE_GROUPS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="rp-edit-field">
-                    <span>Semaine</span>
-                    <select className="dash-input" value={meta.week} onChange={(e) => setMeta((v) => ({ ...v, week: e.target.value }))}>
-                      <option value="">À compléter</option>
-                      {WEEKS.map((w) => <option key={w} value={w}>{w}</option>)}
-                    </select>
-                  </label>
-                  <label className="rp-edit-field">
-                    <span>Contact urgence</span>
-                    <input className="dash-input" value={meta.emergencyContact} onChange={(e) => setMeta((v) => ({ ...v, emergencyContact: e.target.value }))} placeholder="Prénom Nom" />
-                  </label>
-                  <label className="rp-edit-field">
-                    <span>Téléphone urgence</span>
-                    <input className="dash-input" value={meta.emergencyPhone} onChange={(e) => setMeta((v) => ({ ...v, emergencyPhone: e.target.value }))} placeholder="06..." />
-                  </label>
-                </div>
-              </section>
-
-              <section className="tr-seg-d-section">
-                <div className="tr-seg-d-shead">
-                  <span>Équipe du convoi</span>
-                  <button type="button" className="dash-btn" onClick={addStaff}>+ Manuel</button>
-                </div>
-                <div className="tr-rh-picker">
-                  <select className="dash-input" value={selectedContractId} onChange={(e) => setSelectedContractId(e.target.value)}>
-                    <option value="">Ajouter depuis les contrats RH…</option>
-                    {availableContracts.map((c) => (
-                      <option key={c.id} value={c.id}>{c.memberName} · {c.role} · {c.stayCode} {c.week}</option>
-                    ))}
-                  </select>
-                  <button type="button" className="dash-btn dash-btn-primary" onClick={addStaffFromContract} disabled={!selectedContractId}>
-                    Affecter
-                  </button>
-                </div>
-                {!availableContracts.length && (
-                  <p className="tr-add-empty">Tous les animateurs sous contrat pour {transport.week || "cette date"} sont déjà affectés.</p>
-                )}
-                <div className="tr-staff-list">
-                  {staff.map((member) => (
-                    <article className="tr-staff-editor" key={member.id}>
-                      <input className="dash-input" value={member.name} onChange={(e) => updateItem(setStaff, member.id, "name", e.target.value)} placeholder="Prénom Nom" />
-                      <input className="dash-input" value={member.role} onChange={(e) => updateItem(setStaff, member.id, "role", e.target.value)} placeholder="Rôle" />
-                      <input className="dash-input" value={member.phone} onChange={(e) => updateItem(setStaff, member.id, "phone", e.target.value)} placeholder="Téléphone" />
-                      <input className="dash-input" value={member.boardingCity} onChange={(e) => updateItem(setStaff, member.id, "boardingCity", e.target.value)} placeholder="Prise de service" />
-                      {member.contractId && <span className="tr-staff-contract">{member.week} · {member.stayCode}</span>}
-                      <button type="button" className="tr-pax-remove" title="Retirer" onClick={() => setStaff((items) => items.filter((i) => i.id !== member.id))}>×</button>
-                    </article>
-                  ))}
-                  {!staff.length && <p className="tr-add-empty">Aucun animateur affecté à ce convoi.</p>}
-                </div>
-              </section>
-
-              {segments.length > 0 && (
-                <section className="tr-seg-d-section">
-                  <div className="tr-seg-d-shead"><span>Récap places par segment</span></div>
-                  <div className="tr-seats-overview">
-                    {segments.map((segment, index) => {
-                      const onboard = passengersOnSegment(activeT, index);
-                      const childCount = countChildren(onboard);
-                      const staffCount = (segment.assignedStaffIds || []).length;
-                      const needed = childCount + staffCount;
-                      const bought = tickets.filter((t) => t.segmentId === segment.id).reduce((s, t) => s + Number(t.seats || 0), 0);
-                      const diff = bought - needed;
-                      const ok = needed === 0 || bought >= needed;
-                      return (
-                        <div key={segment.id} className="tr-seat-row" style={{ cursor: "pointer" }} onClick={() => setEditingSegmentId(segment.id)}>
-                          <span className="tr-seat-route">{segment.from || `Étape ${index + 1}`} → {segment.to || "…"}</span>
-                          <span className="tr-seat-breakdown">
-                            {childCount} enf.{staffCount > 0 ? ` + ${staffCount} anim.` : ""} = <strong>{needed}</strong>
-                          </span>
-                          <span className={`tr-seat-status ${ok ? "is-ok" : "is-short"}`}>
-                            {bought} billet{bought !== 1 ? "s" : ""} · {needed === 0 ? "—" : ok ? (diff === 0 ? "Complet" : `+${diff}`) : `Manque ${-diff}`}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="tr-ticket-summary">
-                    <span>Achetés : <strong>{formatMoney(tickets.filter((t) => t.purchased).reduce((s, t) => s + Number(t.price || 0), 0))}</strong></span>
-                    <span>À acheter : <strong>{formatMoney(tickets.filter((t) => !t.purchased).reduce((s, t) => s + Number(t.price || 0), 0))}</strong></span>
-                  </div>
-                </section>
-              )}
-
-              <section className="tr-seg-d-section">
-                <div className="tr-seg-d-shead"><span>Infos générales du trajet</span></div>
-                <TransportEditTab transport={transport} onSave={onUpdate} />
-              </section>
-
-              <button type="button" className="dash-btn dash-btn-primary rp-send-btn" onClick={save} disabled={saving}>
-                {saving ? "Enregistrement..." : "Enregistrer l’organisation"}
-              </button>
-
-            </details>
-
-          </div>
-        )}
-
-      </div>{/* end tr-seg-panel */}
-
-      {/* ── Ticket modal (fixed overlay) ── */}
+      {/* ── Ticket detail modal ── */}
       {editingTicketId && (() => {
         const ticket = tickets.find((t) => t.id === editingTicketId);
         if (!ticket) return null;
@@ -1842,7 +2035,7 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
                     <input className="dash-input" type="time" value={ticket.departureTime || ""} onChange={(e) => updateItem(setTickets, ticket.id, "departureTime", e.target.value)} />
                   </label>
                   <label>
-                    <span>Heure d’arrivée</span>
+                    <span>Heure d'arrivée</span>
                     <input className="dash-input" type="time" value={ticket.arrivalTime || ""} onChange={(e) => updateItem(setTickets, ticket.id, "arrivalTime", e.target.value)} />
                   </label>
                   <label className="tr-tmf-span2">
@@ -2140,6 +2333,57 @@ function TransportPanel({
     onSave(updated);
   };
 
+  const quickAddTicket = async (segId, formData) => {
+    const { seats, reference, purchased, file } = formData;
+    let ticketUrl = "";
+    let storagePath = "";
+    if (file) {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const path = `transports/${transport.id}/billets/${Date.now()}-${safeName}`;
+      const snap = await uploadBytes(ref(storage, path), file);
+      ticketUrl = await getDownloadURL(snap.ref);
+      storagePath = path;
+    }
+    const seg = (transport.segments || []).find((s) => s.id === segId);
+    const newTicket = {
+      id: crypto.randomUUID(),
+      segmentId: segId,
+      name: seg ? `${seg.mode || "Train"} — ${seg.from} → ${seg.to}` : "Billet",
+      seats: seats || 1,
+      bookingReference: reference || "",
+      price: "",
+      departureTime: seg?.departureTime || "",
+      arrivalTime: seg?.arrivalTime || "",
+      purchased: purchased ?? true,
+      url: ticketUrl,
+      storagePath,
+      uploadedAt: new Date().toISOString(),
+      segmentLabel: seg ? `${seg.from} → ${seg.to}` : "",
+    };
+    const updatedTickets = [...(transport.tickets || []), newTicket];
+    await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
+      tickets: updatedTickets,
+      updatedAt: serverTimestamp(),
+    });
+    handleUpdate({ ...transport, tickets: updatedTickets });
+    showToast("Billet ajouté ✓", "success");
+  };
+
+  const quickToggleStaff = async (segId, staffId) => {
+    const updatedSegments = (transport.segments || []).map((s) => {
+      if (s.id !== segId) return s;
+      const assigned = new Set(s.assignedStaffIds || []);
+      if (assigned.has(staffId)) assigned.delete(staffId);
+      else assigned.add(staffId);
+      return { ...s, assignedStaffIds: [...assigned] };
+    });
+    await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
+      segments: updatedSegments,
+      updatedAt: serverTimestamp(),
+    });
+    handleUpdate({ ...transport, segments: updatedSegments });
+  };
+
   const handleDelete = async () => {
     if (!window.confirm("Supprimer ce transport définitivement ?")) return;
     setDeleting(true);
@@ -2249,6 +2493,8 @@ function TransportPanel({
             </span>
           )}
         </div>
+
+        <TripTimeline transport={transport} onToggleStaff={quickToggleStaff} />
 
         <div className="rp-tabs">
           {TRANSPORT_PANEL_TABS.map(t => (
@@ -2583,11 +2829,15 @@ export default function Transport({ focusDate = "" }) {
                   </button>
                 </div>
               ) : (
-                <AllTransportsList
-                  transports={transports}
-                  selectedId={selected?.id}
-                  onSelectTrip={handleSelectTrip}
-                />
+                <>
+                  <TransportBudgetOverview reservations={reservations} transports={transports} />
+                  <TransportCoverage reservations={reservations} transports={transports} />
+                  <WeeksOverview
+                    transports={transports}
+                    selectedId={selected?.id}
+                    onSelectTrip={handleSelectTrip}
+                  />
+                </>
               )
             )}
 

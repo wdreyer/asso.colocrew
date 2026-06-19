@@ -59,6 +59,8 @@ function mapFinance(snapshot) {
     childCount,
     stay: STAY_LABELS[canonicalStayName(data.sejour?.name)] || canonicalStayName(data.sejour?.name) || "Non renseigné",
     week: WEEK_LABELS[startDate] || startDate || "Non renseignée",
+    departureCity: data.transport?.departureCity || "",
+    returnCity: data.transport?.returnCity || "",
     stayAmount: amount(finance.stayAmount),
     transportAmount: amount(finance.transportAmount),
     grossAmount: amount(finance.grossAmount),
@@ -68,6 +70,20 @@ function mapFinance(snapshot) {
     remainingAmount: Math.max(amount(finance.remainingAmount ?? netAmount - paidAmount), 0),
     paymentProgress: netAmount > 0 ? Math.min(Math.round((paidAmount / netAmount) * 100), 100) : 0,
     hasFinance: Boolean(data.finance),
+  };
+}
+
+function mapTransportFinance(snapshot) {
+  const data = snapshot.data() || {};
+  const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+  return {
+    id: snapshot.id,
+    week: data.week || WEEK_LABELS[String(data.date || "").slice(0, 10)] || "Non renseignée",
+    direction: data.direction || "",
+    ticketCost: tickets.reduce((sum, ticket) => sum + amount(ticket.price), 0),
+    purchasedTicketCost: tickets.filter((ticket) => ticket.purchased).reduce((sum, ticket) => sum + amount(ticket.price), 0),
+    tickets: tickets.length,
+    purchasedTickets: tickets.filter((ticket) => ticket.purchased).length,
   };
 }
 
@@ -151,19 +167,122 @@ function SummaryTable({ title, firstColumn, rows }) {
   );
 }
 
+function normalizePlace(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function citySummary(rows, key) {
+  const counts = new Map();
+  for (const row of rows) {
+    const city = row[key] || "Non renseigné";
+    if (normalizePlace(city) === "sur place") continue;
+    counts.set(city, (counts.get(city) || 0) + row.childCount);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fr"))
+    .map(([city, count]) => `${city} ${count}`)
+    .join(" · ");
+}
+
+function TransportFinanceTable({ rows, transports }) {
+  const byWeek = new Map();
+  for (const row of rows) {
+    const label = row.week || "Non renseignée";
+    const current = byWeek.get(label) || {
+      label,
+      children: 0,
+      transportAmount: 0,
+      reservationRows: [],
+      ticketCost: 0,
+      purchasedTicketCost: 0,
+      tickets: 0,
+      purchasedTickets: 0,
+    };
+    current.children += row.childCount;
+    current.transportAmount += row.transportAmount;
+    current.reservationRows.push(row);
+    byWeek.set(label, current);
+  }
+  for (const transport of transports) {
+    const label = transport.week || "Non renseignée";
+    const current = byWeek.get(label) || {
+      label,
+      children: 0,
+      transportAmount: 0,
+      reservationRows: [],
+      ticketCost: 0,
+      purchasedTicketCost: 0,
+      tickets: 0,
+      purchasedTickets: 0,
+    };
+    current.ticketCost += transport.ticketCost;
+    current.purchasedTicketCost += transport.purchasedTicketCost;
+    current.tickets += transport.tickets;
+    current.purchasedTickets += transport.purchasedTickets;
+    byWeek.set(label, current);
+  }
+  const data = [...byWeek.values()].sort((a, b) => a.label.localeCompare(b.label, "fr"));
+
+  return (
+    <section className="finance-summary">
+      <div className="finance-summary-head"><h2>CA transport par semaine</h2></div>
+      <div className="finance-summary-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Semaine</th>
+              <th>Enfants</th>
+              <th>Villes aller</th>
+              <th>Villes retour</th>
+              <th>CA transport</th>
+              <th>Billets ajoutés</th>
+              <th>Coût billets</th>
+              <th>Marge transport</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row) => {
+              const margin = row.transportAmount - row.ticketCost;
+              return (
+                <tr key={row.label}>
+                  <td><strong>{row.label}</strong></td>
+                  <td>{row.children}</td>
+                  <td>{citySummary(row.reservationRows, "departureCity") || "—"}</td>
+                  <td>{citySummary(row.reservationRows, "returnCity") || "—"}</td>
+                  <td><strong>{currency(row.transportAmount)}</strong></td>
+                  <td>{row.purchasedTickets}/{row.tickets}</td>
+                  <td className={row.ticketCost > 0 ? "finance-due" : ""}>{currency(row.ticketCost)}</td>
+                  <td className={margin >= 0 ? "finance-paid" : "finance-due"}>{currency(margin)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function Finances() {
   const [rows, setRows] = useState([]);
+  const [transportFinance, setTransportFinance] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [snapshot, summarySnapshot] = await Promise.all([
+        const [snapshot, summarySnapshot, transportsSnapshot] = await Promise.all([
           getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
           getDoc(doc(db, COLLECTIONS.FINANCE_SUMMARIES, "ete-2026")),
+          getDocs(collection(db, COLLECTIONS.TRANSPORTS)),
         ]);
         setRows(snapshot.docs.map(mapFinance).filter((row) => row.hasFinance));
+        setTransportFinance(transportsSnapshot.docs.map(mapTransportFinance));
         setSummary(summarySnapshot.exists() ? summarySnapshot.data() : null);
       } finally {
         setLoading(false);
@@ -206,6 +325,19 @@ export default function Finances() {
     () => rows.reduce((total, row) => total + row.childCount, 0),
     [rows],
   );
+  const ticketTotals = useMemo(
+    () => transportFinance.reduce(
+      (total, row) => ({
+        cost: total.cost + row.ticketCost,
+        purchasedCost: total.purchasedCost + row.purchasedTicketCost,
+        tickets: total.tickets + row.tickets,
+        purchasedTickets: total.purchasedTickets + row.purchasedTickets,
+      }),
+      { cost: 0, purchasedCost: 0, tickets: 0, purchasedTickets: 0 },
+    ),
+    [transportFinance],
+  );
+  const transportMargin = amount(displayed.transportAmount) - ticketTotals.cost;
 
   const exportCsv = () => {
     const headers = [
@@ -265,6 +397,8 @@ export default function Finances() {
       <section className="finance-metrics">
         <Metric label="CA séjours" value={displayed.stayAmount} tone="stay" detail="Prestations séjours, aides comprises" />
         <Metric label="CA transport" value={displayed.transportAmount} tone="transport" detail="Transports facturés" />
+        <Metric label="Billets transport" value={ticketTotals.cost} tone="warning" detail={`${ticketTotals.purchasedTickets}/${ticketTotals.tickets} billet(s) ajoutés`} />
+        <Metric label="Marge transport" value={transportMargin} tone={transportMargin >= 0 ? "success" : "warning"} detail="CA transport - billets ajoutés" />
         <Metric label="CA total inscriptions" value={displayed.grossAmount} tone="primary" detail="CA séjours + CA transport" />
         <Metric label="Montant encaissé" value={displayed.paidAmount} tone="success" detail={`${displayed.familyAmount ? Math.round((displayed.paidAmount / displayed.familyAmount) * 100) : 0}% de la part familles`} />
         <Metric label="Reste familles" value={displayed.familyRemainingAmount} tone="warning" detail="Après déduction des aides CAF" />
@@ -282,6 +416,8 @@ export default function Finances() {
         <SummaryTable title="Totaux par séjour" firstColumn="Séjour" rows={staySummaries} />
         <SummaryTable title="Totaux par semaine" firstColumn="Semaine" rows={weekSummaries} />
       </div>
+
+      <TransportFinanceTable rows={rows} transports={transportFinance} />
 
       {loading ? (
         <section className="dash-section"><p className="dash-muted">Chargement des finances...</p></section>
