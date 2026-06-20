@@ -2,9 +2,74 @@
 
 import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
-import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDocs, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import crypto from "crypto";
+
+function normalizePlace(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function weekFromStartDate(value) {
+  const date = String(value || "").slice(0, 10);
+  return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
+}
+
+function transportStopCities(transport) {
+  const cities = new Set();
+  (transport.segments || []).forEach((segment) => {
+    [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
+  });
+  if (transport.departureCity) cities.add(transport.departureCity);
+  if (transport.arrivalCity) cities.add(transport.arrivalCity);
+  return [...cities];
+}
+
+function reservationPassengerPayload(reservationId, reservation) {
+  const children = Array.isArray(reservation.minor?.children) ? reservation.minor.children : [];
+  const first = children[0] || {};
+  return {
+    reservationId,
+    numeroDeReservation: reservation.numeroDeReservation || "",
+    nom: `${reservation.legal?.firstName || ""} ${reservation.legal?.lastName || ""}`.trim(),
+    email: reservation.legal?.email || "",
+    phone: reservation.legal?.phone || "",
+    children,
+    childName: `${first.firstName || ""} ${first.lastName || ""}`.trim(),
+    sejourName: reservation.sejour?.name || "",
+    departureCity: reservation.transport?.departureCity || "",
+    returnCity: reservation.transport?.returnCity || "",
+  };
+}
+
+async function syncReservationToMatchingTransports(reservationId, reservation) {
+  const week = weekFromStartDate(reservation.sejour?.startDate);
+  if (!week) return 0;
+  const passengerBase = reservationPassengerPayload(reservationId, reservation);
+  const transportsSnap = await getDocs(collection(db, "transports"));
+  let synced = 0;
+
+  for (const transportDoc of transportsSnap.docs) {
+    const transport = { id: transportDoc.id, ...transportDoc.data() };
+    if (transport.week !== week || normalizePlace(transport.status) === "annule") continue;
+    const city = transport.direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
+    if (!city || normalizePlace(city) === "sur place") continue;
+    const hasStop = transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city));
+    if (!hasStop) continue;
+    const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
+    if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
+    await updateDoc(doc(db, "transports", transport.id), {
+      passengers: [...passengers, { ...passengerBase, pickupCity: city }],
+      updatedAt: new Date().toISOString(),
+    });
+    synced += 1;
+  }
+  return synced;
+}
 
 export async function POST(request) {
   try {
@@ -195,6 +260,7 @@ export async function POST(request) {
     // 6) ENREGISTRER LA RÉSERVATION DANS FIRESTORE
     // ───────────────────────────────────────────────
     const docRef = await addDoc(collection(db, "reservations"), newReservation);
+    const syncedTransports = await syncReservationToMatchingTransports(docRef.id, newReservation);
 
     // ───────────────────────────────────────────────
     // 7) CRÉER LA SESSION STRIPE ACOMPTE (100€)

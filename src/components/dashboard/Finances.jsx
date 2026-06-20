@@ -53,6 +53,8 @@ function mapFinance(snapshot) {
 
   return {
     id: snapshot.id,
+    status: data.status || "",
+    validationSource: data.validationSource || "",
     reference: data.numeroDeReservation || snapshot.id,
     responsible: `${legal.firstName || ""} ${legal.lastName || ""}`.trim() || "Non renseigné",
     children: children.map((child) => `${child.firstName || ""} ${child.lastName || ""}`.trim()).filter(Boolean).join(", "),
@@ -281,7 +283,11 @@ export default function Finances() {
           getDoc(doc(db, COLLECTIONS.FINANCE_SUMMARIES, "ete-2026")),
           getDocs(collection(db, COLLECTIONS.TRANSPORTS)),
         ]);
-        setRows(snapshot.docs.map(mapFinance).filter((row) => row.hasFinance));
+        setRows(snapshot.docs.map(mapFinance).filter((row) =>
+          row.hasFinance
+          && row.status === "validated"
+          && row.validationSource === "ete26_validated_workbook",
+        ));
         setTransportFinance(transportsSnapshot.docs.map(mapTransportFinance));
         setSummary(summarySnapshot.exists() ? summarySnapshot.data() : null);
       } finally {

@@ -48,6 +48,16 @@ const STATUS_CFG = {
 
 /* ── Utilities ─────────────────────────────────────────────────────────── */
 
+function useSejours() {
+  const [sejours, setSejours] = useState([]);
+  useEffect(() => {
+    getDocs(query(collection(db, COLLECTIONS.SEJOURS), orderBy("name", "asc")))
+      .then(snap => setSejours(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(() => {});
+  }, []);
+  return sejours;
+}
+
 function tsToMs(v) {
   if (v?.toMillis) return v.toMillis();
   if (typeof v === "number") return v;
@@ -101,10 +111,173 @@ function normalizePlace(value) {
     .toLowerCase();
 }
 
+function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeSearchKey(value) {
+  return normalizeSearchText(value).replace(/\s+/g, "");
+}
+
+function editDistance(a, b) {
+  const left = normalizeSearchKey(a);
+  const right = normalizeSearchKey(b);
+  if (!left || !right) return Math.max(left.length, right.length);
+  if (left === right) return 0;
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    let prevDiagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const temp = previous[j];
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        prevDiagonal + (left[i - 1] === right[j - 1] ? 0 : 1),
+      );
+      prevDiagonal = temp;
+    }
+  }
+  return previous[right.length];
+}
+
+function childFullName(child) {
+  return `${child?.firstName || ""} ${child?.lastName || ""}`.trim();
+}
+
+function reservationSearchNames(reservation) {
+  const children = reservation.children?.length ? reservation.children : [{ firstName: reservation.childName, lastName: "" }];
+  return [
+    reservation.childName,
+    reservation.nom,
+    ...children.map(childFullName),
+  ].filter(Boolean);
+}
+
+function passengerSearchNames(passenger) {
+  const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
+  return [
+    passenger.childName,
+    passenger.nom,
+    ...children.map(childFullName),
+  ].filter(Boolean);
+}
+
+function scoreReservationMatch(target, reservation, transport) {
+  if (!target || !reservation) return 0;
+  let score = 0;
+  if (target.reservationId && target.reservationId === reservation.id) score += 200;
+  if (
+    target.numeroDeReservation
+    && reservation.numeroDeReservation
+    && normalizeSearchKey(target.numeroDeReservation) === normalizeSearchKey(reservation.numeroDeReservation)
+  ) score += 160;
+  if (transport?.week && reservation.week === transport.week) score += 25;
+  const targetCity = transport?.direction === "aller" ? target.departureCity : target.returnCity;
+  const reservationCity = transport?.direction === "aller" ? reservation.departureCity : reservation.returnCity;
+  if (targetCity && reservationCity && normalizePlace(targetCity) === normalizePlace(reservationCity)) score += 15;
+
+  const targetNames = passengerSearchNames(target);
+  const reservationNames = reservationSearchNames(reservation);
+  for (const left of targetNames) {
+    for (const right of reservationNames) {
+      const leftKey = normalizeSearchKey(left);
+      const rightKey = normalizeSearchKey(right);
+      if (!leftKey || !rightKey) continue;
+      if (leftKey === rightKey) score += 120;
+      else if (leftKey.includes(rightKey) || rightKey.includes(leftKey)) score += 80;
+      else {
+        const distance = editDistance(leftKey, rightKey);
+        const tolerance = Math.max(1, Math.floor(Math.max(leftKey.length, rightKey.length) * 0.24));
+        if (distance <= tolerance) score += 65 - distance * 8;
+      }
+    }
+  }
+  return score;
+}
+
+function resolveReservationFromPassenger(target, reservations, transport) {
+  if (!target) return null;
+  const exactId = target.reservationId && reservations.find((reservation) => reservation.id === target.reservationId);
+  if (exactId) return exactId;
+  const exactReference = target.numeroDeReservation && reservations.find((reservation) =>
+    normalizeSearchKey(reservation.numeroDeReservation) === normalizeSearchKey(target.numeroDeReservation),
+  );
+  if (exactReference) return exactReference;
+  const scored = reservations
+    .map((reservation) => ({ reservation, score: scoreReservationMatch(target, reservation, transport) }))
+    .filter((item) => item.score >= 70)
+    .sort((a, b) => b.score - a.score);
+  if (!scored.length) return null;
+  if (scored[1] && scored[0].score - scored[1].score < 15) return null;
+  return scored[0].reservation;
+}
+
+function reservationMatchesQuery(reservation, query) {
+  const q = normalizeSearchKey(query);
+  if (!q) return true;
+  const values = [
+    reservation.numeroDeReservation,
+    reservation.sejourName,
+    reservation.week,
+    reservation.departureCity,
+    reservation.returnCity,
+    ...reservationSearchNames(reservation),
+  ].filter(Boolean);
+  return values.some((value) => {
+    const key = normalizeSearchKey(value);
+    if (!key) return false;
+    if (key.includes(q) || q.includes(key)) return true;
+    const distance = editDistance(key, q);
+    const tolerance = Math.max(1, Math.floor(Math.max(key.length, q.length) * 0.26));
+    return distance <= tolerance;
+  });
+}
+
 function passengerCity(transport, passenger) {
   return passenger.pickupCity
     || (transport.direction === "aller" ? passenger.departureCity : passenger.returnCity)
     || "Ville à préciser";
+}
+
+function segmentStopCity(transport, segment) {
+  return transport.direction === "retour" ? segment?.to : segment?.from;
+}
+
+function segmentStopType(segment) {
+  return segment?.stopType || "rdv";
+}
+
+function stopTypeLabel(segment) {
+  return segmentStopType(segment) === "quai" ? "Quai uniquement" : "RDV organise";
+}
+
+function segmentMeetingLabel(segment) {
+  if (segmentStopType(segment) === "quai") return segment.platform ? `Quai / voie ${segment.platform}` : "Sur le quai";
+  return segment.meetingPoint || "Point de rendez-vous a completer";
+}
+
+function transportStopCities(transport) {
+  const cities = new Set();
+  (transport.segments || []).forEach((segment) => {
+    [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
+  });
+  if (transport.departureCity) cities.add(transport.departureCity);
+  if (transport.arrivalCity) cities.add(transport.arrivalCity);
+  return [...cities];
+}
+
+function passengerStopSegment(transport, passenger) {
+  const city = normalizePlace(passengerCity(transport, passenger));
+  if (!city) return null;
+  return (transport.segments || []).find((segment) =>
+    normalizePlace(segmentStopCity(transport, segment)) === city,
+  ) || null;
 }
 
 function groupPassengersByCity(transport, passengers = transport.passengers || []) {
@@ -135,7 +308,7 @@ function openPrintableDocument(html, features = "width=1000,height=780") {
 function passengersAtStop(transport, city) {
   const normalizedCity = normalizePlace(city);
   return (transport.passengers || []).filter((passenger) =>
-    normalizePlace(passenger.pickupCity) === normalizedCity,
+    normalizePlace(passengerCity(transport, passenger)) === normalizedCity,
   );
 }
 
@@ -144,21 +317,41 @@ function passengersOnSegment(transport, segmentIndex) {
   if (!segments[segmentIndex]) return [];
 
   return (transport.passengers || []).filter((passenger) => {
-    const passengerCity = normalizePlace(passenger.pickupCity);
-    if (!passengerCity) return false;
+    const city = normalizePlace(passengerCity(transport, passenger));
+    if (!city) return false;
 
     if (transport.direction === "retour") {
-      const dropoffIndex = segments.findIndex((segment) => normalizePlace(segment.to) === passengerCity);
+      const dropoffIndex = segments.findIndex((segment) => normalizePlace(segment.to) === city);
       return dropoffIndex >= 0 && segmentIndex <= dropoffIndex;
     }
 
-    const boardingIndex = segments.findIndex((segment) => normalizePlace(segment.from) === passengerCity);
+    const boardingIndex = segments.findIndex((segment) => normalizePlace(segment.from) === city);
     return boardingIndex >= 0 && segmentIndex >= boardingIndex;
   });
 }
 
 function purchasedTicketsForSegment(tickets, segmentId) {
   return (tickets || []).filter((ticket) => ticket.segmentId === segmentId && ticket.purchased);
+}
+
+function ticketUsedSeats(ticket, segmentPassengers = [], segmentStaff = []) {
+  if (!ticket?.purchased) return 0;
+  const seats = Number(ticket.seats || 0);
+  const coveredIds = new Set(ticket.coveredReservationIds || []);
+  const isSharedTicket = seats > 1;
+  if (coveredIds.size > 0) {
+    const coveredChildren = countChildren(segmentPassengers.filter((passenger) => coveredIds.has(passenger.reservationId)));
+    const coveredStaff = isSharedTicket ? Math.min(segmentStaff.length, Math.max(0, seats - coveredChildren)) : 0;
+    return Math.min(seats, coveredChildren + coveredStaff);
+  }
+  const usedChildren = countChildren(segmentPassengers);
+  const usedStaff = isSharedTicket ? segmentStaff.length : 0;
+  return Math.min(seats, usedChildren + usedStaff);
+}
+
+function ticketFreeSeats(ticket, segmentPassengers = [], segmentStaff = []) {
+  if (!ticket?.purchased) return 0;
+  return Math.max(0, Number(ticket.seats || 0) - ticketUsedSeats(ticket, segmentPassengers, segmentStaff));
 }
 
 function ticketSegmentLabel(ticket, segments) {
@@ -379,6 +572,24 @@ function buildGroupConvocHTML(transport) {
       ${transport.arrivalTime ? `<div class="tr-row"><span class="tr-lbl">🏁 Arrivée prévue</span><strong>${transport.arrivalTime}</strong> à ${transport.arrivalCity || "—"}</div>` : ""}
     </div>`;
 
+  const transportCardForPassenger = (passenger) => {
+    const stopSegment = passengerStopSegment(transport, passenger);
+    if (!stopSegment) return transportCard;
+    const stopCity = passengerCity(transport, passenger);
+    const isQuai = segmentStopType(stopSegment) === "quai";
+    return `
+    <div class="transport-card" style="border-color:${dirColor};background:${dirBg};margin-bottom:4px">
+      <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(transport.date)}</strong></div>
+      <div class="tr-row"><span class="tr-lbl">Ville</span><strong>${stopCity || "—"}</strong>${isQuai ? " · montee sur le quai" : ""}</div>
+      ${(stopSegment.meetingTime || transport.meetingTime) ? `<div class="tr-row"><span class="tr-lbl">Heure</span><strong>${stopSegment.meetingTime || transport.meetingTime}</strong></div>` : ""}
+      <div class="tr-row"><span class="tr-lbl">${isQuai ? "Lieu" : "Point de RDV"}</span><strong>${segmentMeetingLabel(stopSegment)}</strong></div>
+      ${(stopSegment.platform || transport.platform) ? `<div class="tr-row"><span class="tr-lbl">Voie / Quai</span><strong>${stopSegment.platform || transport.platform}</strong></div>` : ""}
+      <div class="tr-row"><span class="tr-lbl">Train</span><strong>${stopSegment.mode || transport.trainType || ""} ${stopSegment.number || transport.trainNumber || ""}</strong></div>
+      <div class="tr-row"><span class="tr-lbl">Depart</span><strong>${stopSegment.departureTime || transport.departureTime || "—"}</strong> depuis ${stopSegment.from || transport.departureCity || "—"}</div>
+      ${(stopSegment.arrivalTime || transport.arrivalTime) ? `<div class="tr-row"><span class="tr-lbl">Arrivee prevue</span><strong>${stopSegment.arrivalTime || transport.arrivalTime}</strong> a ${stopSegment.to || transport.arrivalCity || "—"}</div>` : ""}
+    </div>`;
+  };
+
   const sortedPassengers = groupPassengersByCity(transport).flatMap((group) => group.passengers);
   const pages = sortedPassengers.map((p, idx) => {
     const children = p.children || [];
@@ -413,7 +624,7 @@ function buildGroupConvocHTML(transport) {
         <tr><td>Email</td><td>${p.email}</td></tr>
       </tbody></table>
       <div class="sec">Informations de transport</div>
-      ${transportCard}
+      ${transportCardForPassenger(p)}
       ${transport.convoyeur ? `
       <div class="sec">Accompagnateur</div>
       <table><tbody>
@@ -925,6 +1136,100 @@ function DaySummary({ transports, date }) {
   );
 }
 
+function TransportHomeHeader({ reservations, transports, onCreate }) {
+  const stats = useMemo(() => {
+    const valid = reservations.filter((reservation) => reservation.status === "validated" && reservation.isImported2026);
+    const transportChildren = valid.reduce((sum, reservation) => {
+      const needsAller = normalizePlace(reservation.departureCity) !== "sur place";
+      const needsRetour = normalizePlace(reservation.returnCity) !== "sur place";
+      return sum + (needsAller || needsRetour ? reservation.childCount : 0);
+    }, 0);
+    const surPlace = valid.reduce((sum, reservation) => {
+      const bothOnSite = normalizePlace(reservation.departureCity) === "sur place"
+        && normalizePlace(reservation.returnCity) === "sur place";
+      return sum + (bothOnSite ? reservation.childCount : 0);
+    }, 0);
+    const ticketCost = transports.reduce((sum, transport) =>
+      sum + (transport.tickets || []).reduce((ticketSum, ticket) => ticketSum + Number(ticket.price || 0), 0), 0);
+    const purchasedTickets = transports.reduce((sum, transport) =>
+      sum + (transport.tickets || []).filter((ticket) => ticket.purchased).length, 0);
+    const totalTickets = transports.reduce((sum, transport) => sum + (transport.tickets || []).length, 0);
+    return {
+      validChildren: valid.reduce((sum, reservation) => sum + reservation.childCount, 0),
+      transportChildren,
+      surPlace,
+      trips: transports.length,
+      ticketCost,
+      purchasedTickets,
+      totalTickets,
+    };
+  }, [reservations, transports]);
+
+  const weekRows = useMemo(() => WEEKS.map((week) => {
+    const info = WEEK_INFO[week];
+    const weekReservations = reservations.filter((reservation) =>
+      reservation.status === "validated" && reservation.isImported2026 && reservation.week === week,
+    );
+    const children = weekReservations.reduce((sum, reservation) => sum + reservation.childCount, 0);
+    const aller = weekReservations.reduce((sum, reservation) =>
+      sum + (normalizePlace(reservation.departureCity) !== "sur place" ? reservation.childCount : 0), 0);
+    const retour = weekReservations.reduce((sum, reservation) =>
+      sum + (normalizePlace(reservation.returnCity) !== "sur place" ? reservation.childCount : 0), 0);
+    const trips = transports.filter((transport) => transport.week === week);
+    const missingTickets = trips.reduce((sum, transport) =>
+      sum + (transport.segments || []).filter((segment) =>
+        !(transport.tickets || []).some((ticket) => ticket.segmentId === segment.id),
+      ).length, 0);
+    return { week, info, children, aller, retour, trips: trips.length, missingTickets };
+  }), [reservations, transports]);
+
+  return (
+    <section className="tr-home">
+      <div className="tr-home-main">
+        <div className="tr-home-title">
+          <span>Organisation transport</span>
+          <h2>Vue opérationnelle été 2026</h2>
+          <p>Suivi des enfants à transporter, des trajets créés et des billets à acheter.</p>
+        </div>
+        <div className="tr-home-actions">
+          <button type="button" className="dash-btn dash-btn-primary" onClick={onCreate}>Nouveau transport</button>
+          <Link href="/dashboard/transport/billets" className="dash-btn">Billets</Link>
+        </div>
+      </div>
+
+      <div className="tr-home-metrics">
+        <article><span>Enfants validés</span><strong>{stats.validChildren}</strong><small>Source Excel</small></article>
+        <article><span>À transporter</span><strong>{stats.transportChildren}</strong><small>Aller ou retour</small></article>
+        <article><span>Sur place</span><strong>{stats.surPlace}</strong><small>Sans billet</small></article>
+        <article><span>Trajets</span><strong>{stats.trips}</strong><small>Créés</small></article>
+        <article><span>Billets</span><strong>{stats.purchasedTickets}/{stats.totalTickets}</strong><small>{formatMoney(stats.ticketCost)}</small></article>
+      </div>
+
+      <div className="tr-home-weeks">
+        {weekRows.map((row) => (
+          <article key={row.week} className="tr-home-week">
+            <div className="tr-home-week-head">
+              <strong>{row.week}</strong>
+              <span>{row.info.dates}</span>
+            </div>
+            <div className="tr-home-week-stats">
+              <span>{row.children}<small> enfants</small></span>
+              <span>{row.aller}<small> aller</small></span>
+              <span>{row.retour}<small> retour</small></span>
+              <span>{row.trips}<small> trajets</small></span>
+            </div>
+            <div className="tr-home-week-links">
+              <Link href={`/dashboard/transport/${row.info.aller}`}>Aller</Link>
+              <Link href={`/dashboard/transport/${row.info.retour}`}>Retour</Link>
+              {row.missingTickets > 0 && <em>{row.missingTickets} billet{row.missingTickets > 1 ? "s" : ""} manquant{row.missingTickets > 1 ? "s" : ""}</em>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function TransportBudgetOverview({ reservations, transports }) {
   const rows = useMemo(() => {
     const byWeek = new Map();
@@ -954,7 +1259,7 @@ function TransportBudgetOverview({ reservations, transports }) {
     };
 
     reservations
-      .filter((reservation) => reservation.status !== "deleted")
+      .filter((reservation) => reservation.status === "validated" && reservation.isImported2026)
       .forEach((reservation) => {
         const row = ensure(reservation.week);
         const count = reservation.childCount || 1;
@@ -1113,7 +1418,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                   <td><span className="tr-segment-step">{index + 1}</span></td>
                   <td>
                     <strong>{city || "Ville à compléter"}</strong>
-                    <small>{segment.meetingPoint || "Point de rendez-vous à compléter"}</small>
+                    <small>{stopTypeLabel(segment)} · {segmentMeetingLabel(segment)}</small>
                   </td>
                   <td><strong>{segment.from || "—"} → {segment.to || "—"}</strong></td>
                   <td><strong>{countChildren(stopPassengers)}</strong></td>
@@ -1190,6 +1495,68 @@ function DateTripCards({ transports, selectedId, onSelectTrip, onEditSegment }) 
 
 /* ── Panel tabs ─────────────────────────────────────────────────────────── */
 
+const TRANSPORT_HOME_VIEWS = [
+  { key: "organisation", label: "Organisation" },
+  { key: "jours", label: "Jour par jour" },
+  { key: "budget", label: "Budget" },
+  { key: "recap", label: "Récap" },
+];
+
+function TransportHomeTabs({ value, onChange }) {
+  return (
+    <nav className="tr-home-tabs">
+      {TRANSPORT_HOME_VIEWS.map((view) => (
+        <button
+          key={view.key}
+          type="button"
+          className={value === view.key ? "is-active" : ""}
+          onClick={() => onChange(view.key)}
+        >
+          {view.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function DayByDayOverview({ transports, selectedId, onSelectTrip, onEditSegment }) {
+  return (
+    <section className="tr-days-page">
+      {KEY_DATES.map((day) => {
+        const dayTransports = transports.filter((transport) => transport.date === day.date);
+        return (
+          <article key={day.date} className="tr-days-block">
+            <div className="tr-days-head">
+              <div>
+                <span className={`tr-days-dir is-${day.direction}`}>{day.direction === "aller" ? "Aller" : "Retour"}</span>
+                <h2>{day.label}</h2>
+                <time>{fmtDateLong(day.date)}</time>
+              </div>
+              <Link href={`/dashboard/transport/${day.date}`} className="dash-btn">Ouvrir en page dédiée</Link>
+            </div>
+            {dayTransports.length ? (
+              <>
+                <DaySummary transports={dayTransports} date={day.date} />
+                <DateTripCards
+                  transports={dayTransports}
+                  selectedId={selectedId}
+                  onSelectTrip={onSelectTrip}
+                  onEditSegment={onEditSegment}
+                />
+              </>
+            ) : (
+              <div className="tr-day-empty">
+                <strong>Aucun trajet configuré</strong>
+                <span>Créez les trajets nécessaires pour cette journée.</span>
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
 function PassengersTab({ transport, allReservations, onUpdate }) {
   const { showToast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -1198,13 +1565,45 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   const [search, setSearch] = useState("");
   const [resModal, setResModal] = useState(null); // { item } | null
 
-  const openReservation = async (reservationId) => {
+  const openReservationById = async (reservationId) => {
     if (!reservationId) return;
     try {
       const snap = await getDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId));
       if (snap.exists()) setResModal({ item: mapReservation(snap) });
       else showToast("Réservation introuvable", "error");
     } catch { showToast("Erreur de chargement", "error"); }
+  };
+
+  const patchPassengerReservationId = async (passenger, reservation) => {
+    if (!passenger || !reservation || passenger.reservationId === reservation.id) return;
+    const updated = transport.passengers.map((item) =>
+      item === passenger || (
+        item.numeroDeReservation
+        && passenger.numeroDeReservation
+        && normalizeSearchKey(item.numeroDeReservation) === normalizeSearchKey(passenger.numeroDeReservation)
+      )
+        ? { ...item, reservationId: reservation.id, numeroDeReservation: reservation.numeroDeReservation || item.numeroDeReservation }
+        : item,
+    );
+    try {
+      await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
+        passengers: updated,
+        updatedAt: serverTimestamp(),
+      });
+      onUpdate({ ...transport, passengers: updated });
+    } catch {
+      // Le lien reste utilisable pour cette ouverture, même si la correction du passager échoue.
+    }
+  };
+
+  const openReservation = async (passenger) => {
+    const resolved = resolveReservationFromPassenger(passenger, allReservations, transport);
+    if (!resolved) {
+      showToast("Réservation introuvable pour ce passager", "error");
+      return;
+    }
+    await patchPassengerReservationId(passenger, resolved);
+    return openReservationById(resolved.id);
   };
 
   const assignedIds = useMemo(
@@ -1214,25 +1613,26 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
 
   const cityKey  = transport.direction === "aller" ? "departureCity" : "returnCity";
   const cityVal  = (transport.direction === "aller" ? transport.departureCity : transport.arrivalCity)?.toLowerCase() || "";
+  const stopCityKeys = useMemo(
+    () => new Set(transportStopCities(transport).map(normalizePlace).filter(Boolean)),
+    [transport],
+  );
 
   const candidates = useMemo(() => {
-    const q = search.toLowerCase();
     return allReservations.filter(r =>
       !assignedIds.has(r.id) &&
       (r.status === "pending" || r.status === "validated") &&
-      (q
-        ? r.nom.toLowerCase().includes(q) || r.childName.toLowerCase().includes(q) || r.sejourName.toLowerCase().includes(q)
-        : true),
+      reservationMatchesQuery(r, search),
     ).sort((a, b) => {
       const aCity = (a[cityKey] || "").toLowerCase();
       const bCity = (b[cityKey] || "").toLowerCase();
-      const aMatch = cityVal && aCity.includes(cityVal) ? 0 : 1;
-      const bMatch = cityVal && bCity.includes(cityVal) ? 0 : 1;
+      const aMatch = stopCityKeys.has(normalizePlace(a[cityKey])) || (cityVal && aCity.includes(cityVal)) ? 0 : 1;
+      const bMatch = stopCityKeys.has(normalizePlace(b[cityKey])) || (cityVal && bCity.includes(cityVal)) ? 0 : 1;
       const aWeek = transport.week && a.week === transport.week ? 0 : 1;
       const bWeek = transport.week && b.week === transport.week ? 0 : 1;
       return (aWeek + aMatch) - (bWeek + bMatch);
     });
-  }, [allReservations, assignedIds, cityKey, cityVal, search, transport.week]);
+  }, [allReservations, assignedIds, cityKey, cityVal, search, stopCityKeys, transport.week]);
 
   const addSelected = async () => {
     if (selected.size === 0) return;
@@ -1328,7 +1728,8 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
             {candidates.length === 0 ? (
               <p className="tr-add-empty">Aucune réservation disponible</p>
             ) : candidates.map(r => {
-              const cityMatch = cityVal && (r[cityKey] || "").toLowerCase().includes(cityVal);
+              const cityMatch = stopCityKeys.has(normalizePlace(r[cityKey]))
+                || (cityVal && (r[cityKey] || "").toLowerCase().includes(cityVal));
               const weekMatch = transport.week && r.week === transport.week;
               return (
                 <label key={r.id} className={`tr-add-item${selected.has(r.id) ? " is-checked" : ""}${cityMatch ? " is-match" : ""}`}>
@@ -1396,15 +1797,15 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
                       ].filter(Boolean))].map((optionCity) => <option key={optionCity} value={optionCity}>{optionCity}</option>)}
                     </select>
                     <div className="tr-pax-ref">{p.numeroDeReservation}</div>
-                    {p.reservationId && (
+                    <>
                       <button type="button" className="tr-pax-open-res" title="Ouvrir la réservation"
-                        onClick={() => openReservation(p.reservationId)}>
+                        onClick={() => openReservation(p)}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">
                           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                           <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
                         </svg>
                       </button>
-                    )}
+                    </>
                     <button type="button" className="tr-pax-remove" title="Retirer"
                       onClick={() => removePassenger(p.reservationId)}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
@@ -1437,7 +1838,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   );
 }
 
-function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focusSegmentId }) {
+function OperationsTab({ transport, allReservations, staffMembers, staffContracts, onUpdate, focusSegmentId }) {
   const { showToast } = useToast();
   const [segments, setSegments] = useState(transport.segments || []);
   const [staff, setStaff] = useState(transport.staff || []);
@@ -1456,13 +1857,31 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
   const [selectedContractId, setSelectedContractId] = useState("");
   const [resModal, setResModal] = useState(null);
 
-  const openReservation = async (reservationId) => {
+  const openReservationById = async (reservationId) => {
     if (!reservationId) return;
     try {
       const snap = await getDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId));
       if (snap.exists()) setResModal({ item: mapReservation(snap) });
       else showToast("Réservation introuvable", "error");
     } catch { showToast("Erreur de chargement", "error"); }
+  };
+
+  const openReservation = async (child) => {
+    const passenger = (transport.passengers || []).find((item) => item.reservationId === child?.reservationId)
+      || (transport.passengers || []).find((item) =>
+        passengerSearchNames(item).some((name) => normalizeSearchKey(name) === normalizeSearchKey(childFullName(child))),
+      )
+      || {
+        reservationId: child?.reservationId,
+        childName: childFullName(child),
+        children: [child],
+      };
+    const resolved = resolveReservationFromPassenger(passenger, allReservations, transport);
+    if (!resolved) {
+      showToast("Réservation introuvable pour cet enfant", "error");
+      return;
+    }
+    return openReservationById(resolved.id);
   };
 
   const availableContracts = useMemo(() => {
@@ -1523,6 +1942,7 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
       mode: "TGV",
       number: "",
       platform: "",
+      stopType: "rdv",
       instructions: "",
       assignedStaffIds: [],
     }]);
@@ -1778,8 +2198,9 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
         const assignedStaff = staff.filter(m => (seg.assignedStaffIds || []).includes(m.id));
         const staffCount = assignedStaff.length;
         const needed = childCount + staffCount;
-        const bought = segTix.reduce((s, t) => s + Number(t.seats || 0), 0);
+        const bought = segTix.filter((ticket) => ticket.purchased).reduce((s, t) => s + Number(t.seats || 0), 0);
         const seatsOk = needed === 0 || bought >= needed;
+        const missingTicketIds = new Set(segTix.flatMap((ticket) => ticket.missingReservationIds || []));
 
         return (
           <div key={seg.id} className="tr-ops-seg">
@@ -1828,6 +2249,13 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
                 <span>Quai</span>
                 <input className="dash-input" value={seg.platform || ""} onChange={(e) => updateItem(setSegments, seg.id, "platform", e.target.value)} placeholder="Voie 3" />
               </label>
+              <label className="tr-ops-field-sm">
+                <span>Type arret</span>
+                <select className="dash-input" value={segmentStopType(seg)} onChange={(e) => updateItem(setSegments, seg.id, "stopType", e.target.value)}>
+                  <option value="rdv">RDV organise</option>
+                  <option value="quai">Quai uniquement</option>
+                </select>
+              </label>
             </div>
 
             {/* Animateurs — direct checkboxes + quick-add from contracts */}
@@ -1871,19 +2299,23 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
                   Enfants
                   <span className="tr-ops-anims-count">{segKids.length}</span>
                 </span>
-                {segKids.map((c, ci) => (
-                  <button key={ci} type="button"
-                    className="tr-ops-enfant-chip"
-                    onClick={() => c.reservationId && openReservation(c.reservationId)}
-                    title="Ouvrir la réservation">
-                    {`${c.firstName || ""} ${c.lastName || ""}`.trim() || "Enfant"}
-                    {c.birthDate && <span className="tr-ops-enfant-dob">{fmtBirthDate(c.birthDate)}</span>}
-                    <svg className="tr-ops-enfant-link" width="10" height="10" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </button>
-                ))}
+                {segKids.map((c, ci) => {
+                  const missingTicket = c.reservationId && missingTicketIds.has(c.reservationId);
+                  return (
+                    <button key={ci} type="button"
+                      className={`tr-ops-enfant-chip${missingTicket ? " is-ticket-missing" : ""}`}
+                      onClick={() => openReservation(c)}
+                      title={missingTicket ? "Billet manquant" : "Ouvrir la reservation"}>
+                      {`${c.firstName || ""} ${c.lastName || ""}`.trim() || "Enfant"}
+                      {c.birthDate && <span className="tr-ops-enfant-dob">{fmtBirthDate(c.birthDate)}</span>}
+                      {missingTicket && <span className="tr-ops-enfant-ticket-warn">Billet manquant</span>}
+                      <svg className="tr-ops-enfant-link" width="10" height="10" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -1901,22 +2333,28 @@ function OperationsTab({ transport, staffMembers, staffContracts, onUpdate, focu
               {segTix.length === 0 && (
                 <p className="tr-add-empty">Aucun billet pour ce segment.</p>
               )}
-              {segTix.map((ticket) => (
-                <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
-                  <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
-                  <div className="tr-ticket-card-info">
-                    <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
-                    <div className="tr-ticket-card-meta">
-                      {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
-                      {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
-                      {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
+              {segTix.map((ticket) => {
+                const usedSeats = ticketUsedSeats(ticket, segPassengers, assignedStaff);
+                const freeSeats = ticketFreeSeats(ticket, segPassengers, assignedStaff);
+                return (
+                  <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
+                    <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Achete" : "A acheter"}</span>
+                    <div className="tr-ticket-card-info">
+                      <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
+                      <div className="tr-ticket-card-meta">
+                        {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
+                        {ticket.purchased && ticket.seats > 1 && <span>{usedSeats} utilisee{usedSeats !== 1 ? "s" : ""} ({childCount} enf. + {staffCount} anim.)</span>}
+                        {ticket.purchased && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
+                        {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
+                        {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
+                      </div>
                     </div>
+                    {ticket.url && <a href={ticket.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
+                    <button type="button" className="tr-pax-remove" title="Supprimer"
+                      onClick={(e) => { e.stopPropagation(); setTickets((items) => items.filter((it) => it.id !== ticket.id)); }}>×</button>
                   </div>
-                  {ticket.url && <a href={ticket.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
-                  <button type="button" className="tr-pax-remove" title="Supprimer"
-                    onClick={(e) => { e.stopPropagation(); setTickets((items) => items.filter((it) => it.id !== ticket.id)); }}>×</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );
@@ -2161,6 +2599,7 @@ function DocumentsTab({ transport }) {
 function TransportEditTab({ transport, onSave }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const sejours = useSejours();
   const [form, setForm] = useState({
     sejourName:    transport.sejourName !== "—" ? transport.sejourName : "",
     direction:     transport.direction,
@@ -2237,7 +2676,13 @@ function TransportEditTab({ transport, onSave }) {
         <div className="rp-edit-grid">
           <label className="rp-edit-field rp-edit-span2">
             <span>Nom du séjour</span>
-            <input className="dash-input" value={form.sejourName} onChange={e => set("sejourName", e.target.value)} placeholder="ex : Alpes Été 2026" />
+            <select className="dash-input" value={form.sejourName} onChange={e => set("sejourName", e.target.value)}>
+              {form.sejourName && !sejours.some(x => x.name === form.sejourName) && (
+                <option value={form.sejourName}>{form.sejourName}</option>
+              )}
+              <option value="">— Sélectionner un séjour —</option>
+              {sejours.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
           </label>
           <F label="Ville de départ" k="departureCity" placeholder="ex : Paris" />
           <F label="Ville d'arrivée"  k="arrivalCity"   placeholder="ex : Grenoble" />
@@ -2517,6 +2962,7 @@ function TransportPanel({
         {tab === "operations" && (
           <OperationsTab
             transport={transport}
+            allReservations={allReservations}
             staffMembers={staffMembers}
             staffContracts={staffContracts}
             onUpdate={handleUpdate}
@@ -2560,6 +3006,7 @@ function NewTransportModal({ onClose, onCreated }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm]     = useState(EMPTY_TRANSPORT);
+  const sejours = useSejours();
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const save = async () => {
@@ -2583,6 +3030,7 @@ function NewTransportModal({ onClose, onCreated }) {
           mode: form.trainType,
           number: form.trainNumber,
           platform: form.platform,
+          stopType: "rdv",
           instructions: "",
           assignedStaffIds: [],
         }],
@@ -2635,7 +3083,10 @@ function NewTransportModal({ onClose, onCreated }) {
           <div className="rp-edit-grid">
             <label className="rp-edit-field rp-edit-span2">
               <span>Séjour associé</span>
-              <input className="dash-input" value={form.sejourName} onChange={e => set("sejourName", e.target.value)} placeholder="ex : Alpes Été 2026" />
+              <select className="dash-input" value={form.sejourName} onChange={e => set("sejourName", e.target.value)}>
+                <option value="">— Sélectionner un séjour —</option>
+                {sejours.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
             </label>
 
             <div className="rp-edit-field">
@@ -2653,9 +3104,13 @@ function NewTransportModal({ onClose, onCreated }) {
             </div>
             <div className="rp-edit-field">
               <span>Semaine</span>
-              <select className="dash-input" value={form.week} onChange={e => set("week", e.target.value)}>
+              <select className="dash-input" value={form.week} onChange={e => {
+                set("week", e.target.value);
+                const kd = KEY_DATES.find(k => k.week === e.target.value && k.direction === form.direction);
+                if (kd) set("date", kd.date);
+              }}>
                 <option value="">À compléter</option>
-                {WEEKS.map(week => <option key={week} value={week}>{week}</option>)}
+                {WEEKS.map(week => <option key={week} value={week}>{WEEK_INFO[week]?.label || week} ({WEEK_INFO[week]?.dates})</option>)}
               </select>
             </div>
             <div className="rp-edit-field">
@@ -2714,6 +3169,7 @@ export default function Transport({ focusDate = "" }) {
   const [selected, setSelected]         = useState(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState("");
   const [activeTripId, setActiveTripId] = useState("");
+  const [homeView, setHomeView] = useState("organisation");
   const [loading, setLoading]           = useState(true);
   const [showNew, setShowNew]           = useState(false);
   const { showToast } = useToast();
@@ -2830,13 +3286,29 @@ export default function Transport({ focusDate = "" }) {
                 </div>
               ) : (
                 <>
-                  <TransportBudgetOverview reservations={reservations} transports={transports} />
-                  <TransportCoverage reservations={reservations} transports={transports} />
-                  <WeeksOverview
+                  <TransportHomeHeader
+                    reservations={reservations}
                     transports={transports}
-                    selectedId={selected?.id}
-                    onSelectTrip={handleSelectTrip}
+                    onCreate={() => setShowNew(true)}
                   />
+                  <TransportHomeTabs value={homeView} onChange={setHomeView} />
+                  {homeView === "organisation" && (
+                    <WeeksOverview
+                      transports={transports}
+                      selectedId={selected?.id}
+                      onSelectTrip={handleSelectTrip}
+                    />
+                  )}
+                  {homeView === "jours" && (
+                    <DayByDayOverview
+                      transports={transports}
+                      selectedId={selected?.id}
+                      onSelectTrip={handleSelectTrip}
+                      onEditSegment={handleEditSegment}
+                    />
+                  )}
+                  {homeView === "budget" && <TransportBudgetOverview reservations={reservations} transports={transports} />}
+                  {homeView === "recap" && <TransportCoverage reservations={reservations} transports={transports} />}
                 </>
               )
             )}

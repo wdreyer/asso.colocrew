@@ -114,6 +114,75 @@ function weekFromStartDate(value) {
   return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
 }
 
+const WEEK_DATES = {
+  S1: { startDate: "2026-07-06", endDate: "2026-07-17", label: "S1 — 6 au 17 juil." },
+  S2: { startDate: "2026-07-20", endDate: "2026-07-31", label: "S2 — 20 au 31 juil." },
+  S3: { startDate: "2026-08-03", endDate: "2026-08-14", label: "S3 — 3 au 14 août" },
+  S4: { startDate: "2026-08-17", endDate: "2026-08-28", label: "S4 — 17 au 28 août" },
+};
+
+function transportStopCities(transport) {
+  const cities = new Set();
+  (transport.segments || []).forEach((segment) => {
+    [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
+  });
+  if (transport.departureCity) cities.add(transport.departureCity);
+  if (transport.arrivalCity) cities.add(transport.arrivalCity);
+  return [...cities];
+}
+
+function reservationPassengerPayload(id, data) {
+  const children = Array.isArray(data.minor?.children) ? data.minor.children : [];
+  const first = children[0] || {};
+  return {
+    reservationId: id,
+    numeroDeReservation: data.numeroDeReservation || "",
+    nom: `${data.legal?.firstName || ""} ${data.legal?.lastName || ""}`.trim(),
+    email: data.legal?.email || "",
+    phone: data.legal?.phone || "",
+    children,
+    childName: `${first.firstName || ""} ${first.lastName || ""}`.trim(),
+    sejourName: data.sejour?.name || "",
+    departureCity: data.transport?.departureCity || "",
+    returnCity: data.transport?.returnCity || "",
+  };
+}
+
+async function syncReservationToMatchingTransports(reservationId, data) {
+  const week = weekFromStartDate(data.sejour?.startDate);
+  if (!week) return 0;
+  const passengerBase = reservationPassengerPayload(reservationId, data);
+  const transportsSnap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
+  let synced = 0;
+
+  for (const transportDoc of transportsSnap.docs) {
+    const transport = { id: transportDoc.id, ...transportDoc.data() };
+    if (transport.week !== week || normalizePlace(transport.status) === "annule") continue;
+    const city = transport.direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
+    if (!city || normalizePlace(city) === "sur place") continue;
+    const hasStop = transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city));
+    if (!hasStop) continue;
+    const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
+    if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
+    await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
+      passengers: [...passengers, { ...passengerBase, pickupCity: city }],
+      updatedAt: serverTimestamp(),
+    });
+    synced += 1;
+  }
+  return synced;
+}
+
+function useSejours() {
+  const [sejours, setSejours] = useState([]);
+  useEffect(() => {
+    getDocs(query(collection(db, COLLECTIONS.SEJOURS), orderBy("name", "asc")))
+      .then(snap => setSejours(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(() => {});
+  }, []);
+  return sejours;
+}
+
 function bytesToBase64(bytes) {
   let binary = "";
   const chunkSize = 0x8000;
@@ -1520,6 +1589,9 @@ function EditTab({ item, onSave }) {
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
+  const sejours = useSejours();
+  const sejourForForm = sejours.find(x => x.name === form.sejourName) || null;
+
   const save = async () => {
     setSaving(true);
     try {
@@ -1613,11 +1685,43 @@ function EditTab({ item, onSave }) {
         <div className="rp-edit-grid">
           <label className="rp-edit-field rp-edit-span2">
             <span>Nom du séjour</span>
-            <input className="dash-input" value={form.sejourName} onChange={e => set("sejourName", e.target.value)} />
+            <select className="dash-input" value={form.sejourName} onChange={e => {
+              const s = sejours.find(x => x.name === e.target.value);
+              set("sejourName", e.target.value);
+              if (s?.ageGroups?.[0]) set("sejourAgeGroup", s.ageGroups[0]);
+            }}>
+              {form.sejourName && !sejours.some(x => x.name === form.sejourName) && (
+                <option value={form.sejourName}>{form.sejourName}</option>
+              )}
+              <option value="">— Sélectionner un séjour —</option>
+              {sejours.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </label>
+          <label className="rp-edit-field">
+            <span>Semaine</span>
+            <select className="dash-input" value={weekFromStartDate(form.sejourStartDate)} onChange={e => {
+              const w = WEEK_DATES[e.target.value];
+              if (!w) return;
+              set("sejourStartDate", w.startDate);
+              set("sejourEndDate", w.endDate);
+            }}>
+              <option value="">— Semaine —</option>
+              {Object.entries(WEEK_DATES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
           </label>
           <F label="Date début" k="sejourStartDate" type="date" />
           <F label="Date fin"   k="sejourEndDate"   type="date" />
-          <F label="Tranche d'âge" k="sejourAgeGroup" />
+          {sejourForForm?.ageGroups?.length > 0 ? (
+            <label className="rp-edit-field">
+              <span>Tranche d'âge</span>
+              <select className="dash-input" value={form.sejourAgeGroup} onChange={e => set("sejourAgeGroup", e.target.value)}>
+                <option value="">—</option>
+                {sejourForForm.ageGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+              </select>
+            </label>
+          ) : (
+            <F label="Tranche d'âge" k="sejourAgeGroup" />
+          )}
         </div>
       </div>
 
@@ -1814,6 +1918,7 @@ function NewReservationModal({ onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [step, setStep] = useState(1); // 1=Séjour, 2=Enfant, 3=Parent, 4=Transport+Paiement
+  const sejours = useSejours();
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -1874,7 +1979,8 @@ function NewReservationModal({ onClose, onCreated }) {
       };
 
       const docRef = await addDoc(collection(db, COLLECTIONS.RESERVATIONS), data);
-      showToast(`Réservation ${ref} créée !`, "success");
+      const syncedTransports = await syncReservationToMatchingTransports(docRef.id, data);
+      showToast(`Réservation ${ref} créée${syncedTransports ? ` et ajoutée à ${syncedTransports} transport(s)` : ""} !`, "success");
       onCreated({ id: docRef.id, ...mapReservation({ id: docRef.id, data: () => data }) });
       onClose();
     } catch (err) {
@@ -1929,11 +2035,43 @@ function NewReservationModal({ onClose, onCreated }) {
             <div className="rp-edit-grid">
               <label className="rp-edit-field rp-edit-span2">
                 <span>Nom du séjour <span style={{ color: "var(--dash-accent)" }}>*</span></span>
-                <input className="dash-input" value={form.sejourName} onChange={e => set("sejourName", e.target.value)} placeholder="ex : Alpes Été 2026" />
+                <select className="dash-input" value={form.sejourName} onChange={e => {
+                  const s = sejours.find(x => x.name === e.target.value);
+                  set("sejourName", e.target.value);
+                  if (s?.ageGroups?.[0]) set("sejourAgeGroup", s.ageGroups[0]);
+                }}>
+                  <option value="">— Sélectionner un séjour —</option>
+                  {sejours.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              </label>
+              <label className="rp-edit-field">
+                <span>Semaine</span>
+                <select className="dash-input" value={weekFromStartDate(form.sejourStartDate)} onChange={e => {
+                  const w = WEEK_DATES[e.target.value];
+                  if (!w) return;
+                  set("sejourStartDate", w.startDate);
+                  set("sejourEndDate", w.endDate);
+                }}>
+                  <option value="">— Semaine —</option>
+                  {Object.entries(WEEK_DATES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
               </label>
               <F label="Date de début" k="sejourStartDate" type="date" />
               <F label="Date de fin"   k="sejourEndDate"   type="date" />
-              <F label="Tranche d'âge" k="sejourAgeGroup" placeholder="ex : 12-17 ans" />
+              {(() => {
+                const s = sejours.find(x => x.name === form.sejourName);
+                return s?.ageGroups?.length > 0 ? (
+                  <label className="rp-edit-field">
+                    <span>Tranche d'âge</span>
+                    <select className="dash-input" value={form.sejourAgeGroup} onChange={e => set("sejourAgeGroup", e.target.value)}>
+                      <option value="">—</option>
+                      {s.ageGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+                    </select>
+                  </label>
+                ) : (
+                  <F label="Tranche d'âge" k="sejourAgeGroup" placeholder="ex : 12-17 ans" />
+                );
+              })()}
               <div className="rp-edit-field">
                 <span>Statut initial</span>
                 <select className="dash-input" value={form.status} onChange={e => set("status", e.target.value)}>
@@ -2250,8 +2388,8 @@ export default function Reservations() {
   };
 
   const totalRevenue = useMemo(
-    () => items.reduce((s, x) => s + (x.finalPrice ?? x.requestedPrice ?? 0), 0),
-    [items],
+    () => buckets.validated.reduce((sum, item) => sum + (Number(item.raw?.finance?.grossAmount) || item.finalPrice || 0), 0),
+    [buckets.validated],
   );
 
   const columns = useMemo(() => [
