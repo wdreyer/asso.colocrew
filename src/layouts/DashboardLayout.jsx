@@ -13,12 +13,7 @@ const NAV_STRUCTURE = [
       { label: "Réservations",        href: "/dashboard/reservations", icon: "calendar" },
       { label: "Finances",            href: "/dashboard/finances",     icon: "finance" },
       { label: "Ressources humaines", href: "/dashboard/rh",           icon: "users" },
-      {
-        label: "Transport", href: "/dashboard/transport", icon: "transport",
-        children: [
-          { label: "Tous les billets", href: "/dashboard/transport/billets" },
-        ],
-      },
+      { label: "Transport", href: "/dashboard/transport", icon: "transport" },
       { label: "Séjours",             href: "/dashboard/sejours",      icon: "sun" },
     ],
   },

@@ -1,0 +1,537 @@
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSPORT — Points de RDV simplifié (.tr-city-simple)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.tr-city-simple {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.tr-city-simple label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 160px;
+}
+.tr-city-simple label span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--dash-muted);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSPORT — Budget cahier comptable (.tr-ledger-*)  — style tableur
+   ════════════════════════════════════════════════════════════════════════ */
+
+.tr-ledger-page { display: flex; flex-direction: column; gap: 28px; }
+
+/* ── Bande récapitulative totaux ── */
+.tr-ledger-kpis {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+.tr-ledger-kpi {
+  flex: 1;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid #d0d0d0;
+}
+.tr-ledger-kpi:last-child { border-right: none; }
+.tr-ledger-kpi.is-credit { background: #f5fbf7; }
+.tr-ledger-kpi.is-debit  { background: #fdf5f5; }
+
+.tr-ledger-kpi-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #777;
+}
+.tr-ledger-kpi-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+  font-variant-numeric: tabular-nums;
+}
+.tr-ledger-kpi small { font-size: 10px; color: #999; }
+
+/* ── Section semaine ── */
+.tr-ledger-week {
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.tr-ledger-week-hd {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 7px 12px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #d0d0d0;
+}
+.tr-ledger-week-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+}
+.tr-ledger-week-info { font-size: 11px; color: #666; }
+.tr-ledger-week-margin { font-size: 12px; font-weight: 700; margin-left: auto; color: #333; }
+.tr-ledger-week-margin.is-pos { color: #1a6b3a; }
+.tr-ledger-week-margin.is-neg { color: #b32222; }
+
+/* ── Tableau Excel ── */
+.tr-ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  color: #222;
+}
+
+.tr-ledger-table th {
+  text-align: left;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+  background: #f7f7f7;
+  border-bottom: 2px solid #bbb;
+  border-right: 1px solid #e0e0e0;
+}
+.tr-ledger-th-credit,
+.tr-ledger-th-debit { text-align: right; color: #555 !important; }
+
+.tr-ledger-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid #e8e8e8;
+  border-right: 1px solid #efefef;
+  vertical-align: middle;
+}
+.tr-ledger-table td:last-child,
+.tr-ledger-table th:last-child { border-right: none; }
+
+/* section RECETTES / DÉPENSES */
+.tr-ledger-section td {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+  background: #f0f0f0;
+  padding: 4px 10px;
+  border-bottom: 1px solid #d0d0d0;
+  border-top: 1px solid #d0d0d0;
+}
+
+/* ligne recettes */
+.tr-ledger-row.is-credit { background: #f8fdf9; }
+.tr-ledger-row.is-debit  { background: #fff; }
+.tr-ledger-row.is-debit:nth-child(even) { background: #fafafa; }
+.tr-ledger-row.is-pending { color: #999; }
+
+/* sous-en-tête date */
+.tr-ledger-day-row td {
+  background: #f7f7f7;
+  color: #666;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-style: italic;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 4px 10px;
+}
+
+/* ligne trajet (cliquable, repliée par défaut) */
+.tr-ledger-trip-row td {
+  background: #f2f2f2;
+  font-size: 12px;
+  border-top: 1px solid #ccc;
+  border-bottom: 1px solid #ccc;
+}
+.tr-ledger-trip-clickable { cursor: pointer; }
+.tr-ledger-trip-clickable:hover td { background: #e8e8e8; }
+.tr-ledger-trip-row strong { margin: 0 6px; font-weight: 700; color: #111; }
+.tr-ledger-trip-row small  { color: #888; font-size: 10.5px; }
+.tr-ledger-trip-chevron    { font-size: 10px; color: #888; margin-right: 4px; }
+
+/* dossier groupé */
+.tr-ledger-folder-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #333;
+  padding: 0;
+}
+.tr-ledger-folder-row td { background: #fafafa; }
+.is-folder-child td { background: #fff; padding-left: 28px !important; }
+
+/* valeurs numériques */
+.tr-ledger-detail       { font-size: 11px; color: #888; }
+.tr-ledger-credit-val   { text-align: right; font-weight: 600; color: #1a6b3a; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tr-ledger-debit-val    { text-align: right; font-weight: 600; color: #b32222; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* statut — texte simple, pas de badge */
+.tr-ledger-badge {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #888;
+}
+.tr-ledger-badge.is-ok   { color: #1a6b3a; }
+.tr-ledger-badge.is-warn { color: #b32222; }
+
+/* ligne total */
+.tr-ledger-total td {
+  font-weight: 700;
+  font-size: 13px;
+  background: #f0f0f0;
+  border-top: 2px solid #aaa;
+  border-bottom: none;
+  padding: 7px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tr-ledger-link { color: #1a5fa8; text-decoration: none; }
+.tr-ledger-link:hover { text-decoration: underline; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSPORT — Prévisualisation email (.tr-email-preview)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.tr-convoc-email-row { flex-wrap: wrap; }
+.tr-convoc-email-actions { display: flex; align-items: center; gap: 8px; }
+.tr-convoc-sent-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #16a34a;
+  background: #dcf7e8;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.tr-email-preview {
+  width: 100%;
+  background: #faf8ff;
+  border: 1.5px solid var(--dash-accent);
+  border-radius: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.tr-email-preview-hd {
+  background: #ede8f5;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-bottom: 1px solid rgba(120,90,160,0.15);
+}
+.tr-email-preview-subject {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dash-text);
+}
+.tr-email-preview-to {
+  font-size: 11px;
+  color: var(--dash-muted);
+}
+.tr-email-preview-body {
+  padding: 14px 16px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--dash-text);
+  white-space: pre-wrap;
+  margin: 0;
+  background: transparent;
+  border: none;
+}
+.tr-email-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #f0ecf8;
+  border-top: 1px solid rgba(120,90,160,0.12);
+}
+.tr-email-preview-footer small { font-size: 11px; color: var(--dash-muted); }
+
+.tr-email-editable {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--dash-text);
+  background: #faf8ff;
+  border: none;
+  border-bottom: 1px solid rgba(120,90,160,0.1);
+  padding: 14px 16px;
+  box-sizing: border-box;
+  outline: none;
+}
+.tr-email-editable:focus { background: #f4f0fc; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSPORT — Modale édition passager (.tr-pedit-*)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.tr-pedit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(20,16,42,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(3px);
+}
+.tr-pedit-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 680px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(20,16,42,0.3);
+  display: flex;
+  flex-direction: column;
+}
+.tr-pedit-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid rgba(120,90,160,0.1);
+}
+.tr-pedit-hd strong { font-size: 15px; font-weight: 700; color: var(--dash-text); }
+.tr-pedit-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f0ecf8;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--dash-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tr-pedit-close:hover { background: #e0d8f0; }
+
+.tr-pedit-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+
+.tr-pedit-section {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dash-muted);
+  border-bottom: 1px solid rgba(120,90,160,0.1);
+  padding-bottom: 6px;
+  margin-top: 4px;
+}
+
+.tr-pedit-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.tr-pedit-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tr-pedit-row label span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--dash-muted);
+}
+
+.tr-pedit-child { display: flex; flex-direction: column; gap: 8px; }
+.tr-pedit-child-num { font-size: 11px; font-weight: 700; color: var(--dash-accent); }
+
+.tr-pedit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid rgba(120,90,160,0.1);
+}
+
+/* Overrides overlay z-index for reservation panel */
+.tr-res-overlay { z-index: 1200 !important; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSPORT — Onglet Billets (.tr-bil-*)
+   ════════════════════════════════════════════════════════════════════════ */
+
+.tr-bil-tab { display: flex; flex-direction: column; gap: 20px; }
+
+.tr-bil-kpis {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tr-bil-kpi {
+  background: #fff;
+  border: 1px solid rgba(120,90,160,0.13);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 140px;
+}
+.tr-bil-kpi.is-ok   { border-top: 3px solid #16a34a; }
+.tr-bil-kpi.is-warn { border-top: 3px solid #f59e0b; }
+.tr-bil-kpi span   { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dash-muted); }
+.tr-bil-kpi strong { font-size: 20px; font-weight: 800; color: var(--dash-text); }
+.tr-bil-kpi small  { font-size: 11px; color: var(--dash-muted); }
+
+.tr-bil-filter-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.tr-bil-week { display: flex; flex-direction: column; gap: 10px; }
+.tr-bil-week-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dash-accent);
+  padding: 4px 0;
+  border-bottom: 2px solid rgba(120,90,160,0.12);
+}
+.tr-bil-week-hd small {
+  color: var(--dash-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.tr-bil-trip-group {
+  background: #fff;
+  border: 1px solid rgba(120,90,160,0.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.tr-bil-trip-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #f8f5fc;
+  border-bottom: 1px solid rgba(120,90,160,0.08);
+  flex-wrap: wrap;
+}
+.tr-bil-trip-route { font-size: 13px; font-weight: 700; color: var(--dash-text); }
+.tr-bil-trip-date  { font-size: 11px; color: var(--dash-muted); }
+.tr-bil-trip-stat  { font-size: 11px; font-weight: 600; margin-left: auto; }
+.tr-bil-trip-stat.is-ok   { color: #16a34a; }
+.tr-bil-trip-stat.is-warn { color: #f59e0b; }
+.tr-bil-trip-cost  { font-size: 12px; font-weight: 700; color: var(--dash-text); }
+
+.tr-bil-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tr-bil-table thead tr { background: #faf8ff; }
+.tr-bil-table th {
+  text-align: left;
+  padding: 7px 14px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c5abf;
+  border-bottom: 1px solid rgba(120,90,160,0.08);
+}
+.tr-bil-table td {
+  padding: 9px 14px;
+  border-top: 1px solid rgba(120,90,160,0.06);
+  vertical-align: middle;
+}
+.tr-bil-row.is-bought td  { background: #f8fffe; }
+.tr-bil-row.is-pending td { background: #fffafa; }
+.tr-bil-table tbody tr:hover td { background: #f8f4fe; }
+
+.tr-bil-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tr-bil-badge.is-ok   { background: #dcf7e8; color: #12633f; }
+.tr-bil-badge.is-warn { background: #fff0f0; color: #a32222; }
+
+.tr-bil-name { display: block; font-weight: 600; }
+.tr-bil-ref  { display: block; font-size: 10px; color: var(--dash-muted); margin-top: 1px; }
+.tr-bil-seg  { font-size: 12px; font-weight: 600; color: var(--dash-text); }
+.tr-bil-seg-miss { font-size: 11px; color: #a32222; }
+.tr-bil-price { text-align: right; font-weight: 700; white-space: nowrap; }
+.tr-bil-pdf {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #ede8f5;
+  color: #4a2f6d;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.tr-bil-pdf:hover { background: #ddd4f0; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSPORT — PassengersTab add panel filter bar
+   ════════════════════════════════════════════════════════════════════════ */
+
+.tr-add-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  background: #faf8ff;
+  border-bottom: 1px solid rgba(120,90,160,0.08);
+  flex-wrap: wrap;
+}
+.tr-add-filter-info {
+  font-size: 11px;
+  color: var(--dash-muted);
+  flex: 1;
+}
+.tr-add-showall-btn {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 5px;
+  background: #ede8f5;
+  color: var(--dash-accent);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tr-add-showall-btn:hover { background: #ddd4f0; }

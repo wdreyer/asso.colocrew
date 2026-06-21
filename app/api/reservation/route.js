@@ -47,19 +47,25 @@ function reservationPassengerPayload(reservationId, reservation) {
 }
 
 async function syncReservationToMatchingTransports(reservationId, reservation) {
+  if (normalizePlace(reservation.status) !== "validated") return 0;
   const week = weekFromStartDate(reservation.sejour?.startDate);
   if (!week) return 0;
   const passengerBase = reservationPassengerPayload(reservationId, reservation);
   const transportsSnap = await getDocs(collection(db, "transports"));
+  const transports = transportsSnap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }));
   let synced = 0;
 
-  for (const transportDoc of transportsSnap.docs) {
-    const transport = { id: transportDoc.id, ...transportDoc.data() };
-    if (transport.week !== week || normalizePlace(transport.status) === "annule") continue;
-    const city = transport.direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
+  for (const direction of ["aller", "retour"]) {
+    const city = direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
     if (!city || normalizePlace(city) === "sur place") continue;
-    const hasStop = transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city));
-    if (!hasStop) continue;
+    const matches = transports.filter((transport) =>
+      transport.week === week
+      && transport.direction === direction
+      && normalizePlace(transport.status) !== "annule"
+      && transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city))
+    );
+    if (matches.length !== 1) continue;
+    const transport = matches[0];
     const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
     if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
     await updateDoc(doc(db, "transports", transport.id), {

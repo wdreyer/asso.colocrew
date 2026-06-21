@@ -114,6 +114,29 @@ function weekFromStartDate(value) {
   return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
 }
 
+function segmentStopCityForReservation(transport, segment) {
+  return transport.direction === "retour" ? segment?.to : segment?.from;
+}
+
+function passengerTransportCity(transport, passenger, fallbackItem) {
+  return passenger?.pickupCity
+    || (transport.direction === "retour" ? passenger?.returnCity || fallbackItem?.returnCity : passenger?.departureCity || fallbackItem?.departureCity)
+    || "";
+}
+
+function findPassengerSegment(transport, passenger, fallbackItem) {
+  const city = normalizePlace(passengerTransportCity(transport, passenger, fallbackItem));
+  if (!city) return null;
+  return (transport.segments || []).find((segment) =>
+    normalizePlace(segmentStopCityForReservation(transport, segment)) === city,
+  ) || null;
+}
+
+function ticketSegmentLabelForReservation(ticket, segments = []) {
+  const segment = segments.find((item) => item.id === ticket.segmentId);
+  return segment ? `${segment.from || "Départ"} > ${segment.to || "Arrivée"}` : ticket.segmentLabel || "";
+}
+
 const WEEK_DATES = {
   S1: { startDate: "2026-07-06", endDate: "2026-07-17", label: "S1 — 6 au 17 juil." },
   S2: { startDate: "2026-07-20", endDate: "2026-07-31", label: "S2 — 20 au 31 juil." },
@@ -149,19 +172,25 @@ function reservationPassengerPayload(id, data) {
 }
 
 async function syncReservationToMatchingTransports(reservationId, data) {
+  if (normalizePlace(data.status) !== "validated") return 0;
   const week = weekFromStartDate(data.sejour?.startDate);
   if (!week) return 0;
   const passengerBase = reservationPassengerPayload(reservationId, data);
   const transportsSnap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
+  const transports = transportsSnap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }));
   let synced = 0;
 
-  for (const transportDoc of transportsSnap.docs) {
-    const transport = { id: transportDoc.id, ...transportDoc.data() };
-    if (transport.week !== week || normalizePlace(transport.status) === "annule") continue;
-    const city = transport.direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
+  for (const direction of ["aller", "retour"]) {
+    const city = direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
     if (!city || normalizePlace(city) === "sur place") continue;
-    const hasStop = transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city));
-    if (!hasStop) continue;
+    const matches = transports.filter((transport) =>
+      transport.week === week
+      && transport.direction === direction
+      && normalizePlace(transport.status) !== "annule"
+      && transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city))
+    );
+    if (matches.length !== 1) continue;
+    const transport = matches[0];
     const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
     if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
     await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
@@ -171,6 +200,59 @@ async function syncReservationToMatchingTransports(reservationId, data) {
     synced += 1;
   }
   return synced;
+}
+
+async function removeReservationFromAllTransports(reservationId) {
+  const transportsSnap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
+  let removed = 0;
+
+  for (const transportDoc of transportsSnap.docs) {
+    const transport = { id: transportDoc.id, ...transportDoc.data() };
+    const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
+    const nextPassengers = passengers.filter((passenger) => passenger.reservationId !== reservationId);
+    if (nextPassengers.length === passengers.length) continue;
+    await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
+      passengers: nextPassengers,
+      updatedAt: serverTimestamp(),
+    });
+    removed += passengers.length - nextPassengers.length;
+  }
+
+  return removed;
+}
+
+async function resyncReservationTransports(reservationId, data) {
+  await removeReservationFromAllTransports(reservationId);
+  return syncReservationToMatchingTransports(reservationId, data);
+}
+
+function reservationDataForSync(item, overrides = {}) {
+  const base = item.raw || {};
+  return {
+    ...base,
+    status: overrides.status ?? item.status ?? base.status,
+    numeroDeReservation: overrides.numeroDeReservation ?? item.numeroDeReservation ?? base.numeroDeReservation,
+    legal: {
+      ...(base.legal || {}),
+      firstName: overrides.legalFirstName ?? base.legal?.firstName,
+      lastName: overrides.legalLastName ?? base.legal?.lastName,
+      email: overrides.email ?? item.email ?? base.legal?.email,
+      phone: overrides.phone ?? item.phone ?? base.legal?.phone,
+    },
+    minor: base.minor || { children: item.children || [] },
+    sejour: {
+      ...(base.sejour || {}),
+      name: overrides.sejourName ?? item.sejourName ?? base.sejour?.name,
+      startDate: overrides.sejourStartDate ?? item.sejourStartDate ?? base.sejour?.startDate,
+      endDate: overrides.sejourEndDate ?? item.sejourEndDate ?? base.sejour?.endDate,
+      ageGroup: overrides.sejourAgeGroup ?? item.sejourAgeGroup ?? base.sejour?.ageGroup,
+    },
+    transport: {
+      ...(base.transport || {}),
+      departureCity: overrides.departureCity ?? item.departureCity ?? base.transport?.departureCity,
+      returnCity: overrides.returnCity ?? item.returnCity ?? base.transport?.returnCity,
+    },
+  };
 }
 
 function useSejours() {
@@ -267,14 +349,14 @@ async function buildConvocationPdf(item, extra) {
 
   section("Aller");
   drawLine(`Date : ${fmtDate(item.sejourStartDate) || "À compléter"}`);
-  drawLine(`Ville : ${item.departureCity || "À compléter"}`);
+  drawLine(`Ville : ${extra.departureCity || item.departureCity || "À compléter"}`);
   drawLine(`Rendez-vous : ${extra.meetingPoint || "À compléter"}`);
   drawLine(`Heure de rendez-vous : ${extra.meetingTime || extra.departureTime || "À compléter"}`);
   drawLine(`Départ : ${extra.departureTime || "À compléter"}${extra.trainNumber ? ` - ${extra.trainType || "Train"} ${extra.trainNumber}` : ""}`);
 
   section("Retour");
   drawLine(`Date : ${fmtDate(item.sejourEndDate) || "À compléter"}`);
-  drawLine(`Ville : ${item.returnCity || item.departureCity || "À compléter"}`);
+  drawLine(`Ville : ${extra.returnCity || item.returnCity || item.departureCity || "À compléter"}`);
   drawLine(`Rendez-vous : ${extra.returnMeetingPoint || "À compléter"}`);
   drawLine(`Arrivée prévue : ${extra.returnTime || "À compléter"}`);
 
@@ -458,11 +540,12 @@ function buildConvocationHTML(item, extra) {
 
   <div class="section-title">Point de rendez-vous &amp; transport</div>
   <div class="highlight-box">
+    <div><strong>Ville de départ :</strong> ${extra.departureCity || item.departureCity || "À préciser"}</div>
     <div>📍 <strong>Lieu de départ :</strong> ${extra.meetingPoint || item.departureCity || "À préciser"}</div>
     ${extra.meetingTime ? `<div style="margin-top:8px">🕐 <strong>Heure de rendez-vous :</strong> ${extra.meetingTime}</div>` : ""}
     ${extra.departureTime ? `<div style="margin-top:8px">🚆 <strong>Départ :</strong> ${extra.departureTime}${extra.trainNumber ? ` — ${extra.trainType || "Train"} ${extra.trainNumber}` : ""}</div>` : ""}
     ${extra.returnTime ? `<div style="margin-top:8px">🔄 <strong>Heure de retour :</strong> ${extra.returnTime}</div>` : ""}
-    ${item.returnCity ? `<div style="margin-top:8px">🏠 <strong>Ville de retour :</strong> ${item.returnCity}</div>` : ""}
+    ${(extra.returnCity || item.returnCity) ? `<div style="margin-top:8px">🏠 <strong>Ville de retour :</strong> ${extra.returnCity || item.returnCity}</div>` : ""}
   </div>
 
   ${extra.toBring ? `<div class="section-title">À apporter</div><div class="items">${extra.toBring}</div>` : ""}
@@ -1289,6 +1372,8 @@ function DocumentsTab({ item, onSave }) {
   const [docType, setDocType] = useState("convocation");
   const saved = item.raw?.familyConvocation || {};
   const [extra, setExtra] = useState({
+    departureCity:       saved.departureCity || item.departureCity || "",
+    returnCity:          saved.returnCity || item.returnCity || "",
     meetingPoint:        saved.meetingPoint || item.departureCity || "",
     meetingTime:         saved.meetingTime || "",
     departureTime:       saved.departureTime || "",
@@ -1335,6 +1420,8 @@ function DocumentsTab({ item, onSave }) {
 
         setExtra((current) => ({
           ...current,
+          departureCity: saved.departureCity || allerPassenger?.pickupCity || item.departureCity || current.departureCity,
+          returnCity: saved.returnCity || retourPassenger?.pickupCity || item.returnCity || current.returnCity,
           meetingPoint: saved.meetingPoint || allerSegment?.meetingPoint || current.meetingPoint,
           meetingTime: saved.meetingTime || allerSegment?.meetingTime || current.meetingTime,
           departureTime: saved.departureTime || allerSegment?.departureTime || current.departureTime,
@@ -1459,6 +1546,14 @@ function DocumentsTab({ item, onSave }) {
         </div>
         <div className="rp-doc-grid">
           <label className="rp-edit-field">
+            <span>Ville de départ</span>
+            <input className="dash-input" value={extra.departureCity} onChange={e => set("departureCity", e.target.value)} placeholder="ex : Paris" />
+          </label>
+          <label className="rp-edit-field">
+            <span>Ville de retour</span>
+            <input className="dash-input" value={extra.returnCity} onChange={e => set("returnCity", e.target.value)} placeholder="ex : Paris" />
+          </label>
+          <label className="rp-edit-field">
             <span>Point de RDV départ</span>
             <input className="dash-input" value={extra.meetingPoint} onChange={e => set("meetingPoint", e.target.value)} placeholder="ex : Gare du Nord, voie 3" />
           </label>
@@ -1567,6 +1662,93 @@ function NotesTab({ item, onSave, saving }) {
   );
 }
 
+function ConvoyageInfoTab({ item }) {
+  const { showToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const snap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
+        const rows = snap.docs
+          .map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }))
+          .filter((transport) => (transport.passengers || []).some((passenger) => passenger.reservationId === item.id))
+          .map((transport) => {
+            const passenger = (transport.passengers || []).find((entry) => entry.reservationId === item.id);
+            const segment = findPassengerSegment(transport, passenger, item);
+            const city = passengerTransportCity(transport, passenger, item);
+            const staffIds = new Set(segment?.assignedStaffIds || []);
+            const staff = (transport.staff || []).filter((member) => staffIds.has(member.id));
+            const tickets = (transport.tickets || []).filter((ticket) =>
+              ticket.segmentId === segment?.id
+              && (
+                !ticket.coveredReservationIds?.length
+                || ticket.coveredReservationIds.includes(item.id)
+                || ticket.missingReservationIds?.includes(item.id)
+              )
+            );
+            return { transport, passenger, segment, city, staff, tickets };
+          })
+          .sort((a, b) => (a.transport.direction === "aller" ? -1 : 1) - (b.transport.direction === "aller" ? -1 : 1));
+        if (!cancelled) setAssignments(rows);
+      } catch (error) {
+        console.error(error);
+        showToast("Impossible de charger les informations de convoyage", "error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [item.id, showToast]);
+
+  if (loading) return <p className="dash-muted">Chargement du convoyage...</p>;
+  if (!assignments.length) {
+    return (
+      <div className="rp-empty-state">
+        <strong>Aucun trajet associe</strong>
+        <span>Cette reservation n'est pas encore rattachee a un transport.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rp-convoyage-tab">
+      {assignments.map(({ transport, segment, city, staff, tickets }) => (
+        <article key={transport.id} className="rp-convoyage-card">
+          <div className="rp-convoyage-head">
+            <span className={`rp-convoyage-dir is-${transport.direction}`}>{transport.direction === "retour" ? "Retour" : "Aller"}</span>
+            <strong>{transport.departureCity || "Départ"} &gt; {transport.arrivalCity || "Arrivée"}</strong>
+            <small>{fmtDate(transport.date)} · {transport.week || ""}</small>
+          </div>
+          <div className="rp-convoyage-grid">
+            <InfoRow label="Ville enfant" value={city || (transport.direction === "retour" ? item.returnCity : item.departureCity)} />
+            <InfoRow label="Portion" value={segment ? `${segment.from || "-"} > ${segment.to || "-"}` : "A completer"} />
+            <InfoRow label="Point RDV" value={segment?.meetingPoint || (segment?.stopType === "quai" ? "Sur le quai" : "") || "A completer"} />
+            <InfoRow label="Heure RDV" value={segment?.meetingTime || ""} />
+            <InfoRow label="Départ" value={segment?.departureTime || ""} />
+            <InfoRow label="Arrivée" value={segment?.arrivalTime || ""} />
+            <InfoRow label="Train" value={[segment?.mode, segment?.number].filter(Boolean).join(" ")} />
+            <InfoRow label="Quai / voie" value={segment?.platform || ""} />
+            <InfoRow label="Convoyeur" value={staff.length ? staff.map((member) => `${member.name || "Equipe"}${member.phone ? ` (${member.phone})` : ""}`).join(", ") : transport.convoyeur || ""} />
+          </div>
+          <div className="rp-convoyage-tickets">
+            <strong>Billets</strong>
+            {tickets.length ? tickets.map((ticket) => (
+              <span key={ticket.id} className={`rp-convoyage-ticket${ticket.purchased ? " is-ok" : " is-missing"}`}>
+                {ticket.purchased ? "Acheté" : "Manquant"} · {ticketSegmentLabelForReservation(ticket, transport.segments)} · {ticket.seats || 1} place{Number(ticket.seats || 1) > 1 ? "s" : ""}
+              </span>
+            )) : <span className="rp-convoyage-ticket is-missing">Aucun billet rattache a cette portion</span>}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function EditTab({ item, onSave }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -1587,7 +1769,16 @@ function EditTab({ item, onSave }) {
     qf:        item.qf ? String(item.qf) : "",
   });
 
+  const [children, setChildren] = useState(() =>
+    (item.children?.length
+      ? item.children
+      : [{ firstName: item.childName || "", lastName: "", birthDate: "" }]
+    ).map((c) => ({ firstName: c.firstName || "", lastName: c.lastName || "", birthDate: c.birthDate || "", birthPlace: c.birthPlace || "" })),
+  );
+
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setChild = (idx, key, val) =>
+    setChildren((prev) => prev.map((c, i) => i === idx ? { ...c, [key]: val } : c));
 
   const sejours = useSejours();
   const sejourForForm = sejours.find(x => x.name === form.sejourName) || null;
@@ -1608,7 +1799,26 @@ function EditTab({ item, onSave }) {
           : alreadyPaid > 0
             ? "in_progress"
             : "not_paid";
+      const syncData = reservationDataForSync(item, {
+        status: form.status,
+        legalFirstName: form.nom.split(" ")[0] || form.nom,
+        legalLastName: form.nom.split(" ").slice(1).join(" ") || "",
+        email: form.email,
+        phone: form.phone,
+        sejourName: form.sejourName,
+        sejourStartDate: form.sejourStartDate,
+        sejourEndDate: form.sejourEndDate,
+        sejourAgeGroup: form.sejourAgeGroup,
+        departureCity: form.departureCity,
+        returnCity: form.returnCity,
+      });
 
+      const childrenPayload = children.map((c) => ({
+        firstName:  c.firstName,
+        lastName:   c.lastName,
+        birthDate:  c.birthDate,
+        birthPlace: c.birthPlace,
+      }));
       await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
         status: form.status,
         finalPrice: hasFinalPrice ? finalPrice : null,
@@ -1631,12 +1841,17 @@ function EditTab({ item, onSave }) {
         "transport.departureCity": form.departureCity,
         "transport.returnCity":    form.returnCity,
         "transport.fee": Number.isFinite(transportFee) && form.transportFee !== "" ? transportFee : null,
+        "minor.children": childrenPayload,
         updatedAt: serverTimestamp(),
         ...(form.status === "validated" ? { validatedAt: serverTimestamp() } : {}),
       });
+      if (form.status === "validated" || item.status === "validated") {
+        await resyncReservationTransports(item.id, syncData);
+      }
       onSave({
         ...item,
         ...form,
+        children: childrenPayload,
         finalPrice: hasFinalPrice ? finalPrice : null,
         totalPrice: hasFinalPrice ? finalPrice : 0,
         remainingValue,
@@ -1667,6 +1882,33 @@ function EditTab({ item, onSave }) {
           <option value="validated">Validée</option>
           <option value="deleted">Passée</option>
         </select>
+      </div>
+
+      <div className="rp-edit-section">
+        <div className="rp-edit-section-title">Enfant{children.length > 1 ? "s" : ""}</div>
+        {children.map((child, idx) => (
+          <div key={idx} className="rp-edit-child-block">
+            {children.length > 1 && <div className="rp-edit-child-num">Enfant {idx + 1}</div>}
+            <div className="rp-edit-grid">
+              <label className="rp-edit-field">
+                <span>Prénom</span>
+                <input className="dash-input" value={child.firstName} onChange={(e) => setChild(idx, "firstName", e.target.value)} />
+              </label>
+              <label className="rp-edit-field">
+                <span>Nom</span>
+                <input className="dash-input" value={child.lastName} onChange={(e) => setChild(idx, "lastName", e.target.value)} />
+              </label>
+              <label className="rp-edit-field">
+                <span>Date de naissance</span>
+                <input className="dash-input" type="date" value={child.birthDate} onChange={(e) => setChild(idx, "birthDate", e.target.value)} />
+              </label>
+              <label className="rp-edit-field">
+                <span>Lieu de naissance</span>
+                <input className="dash-input" value={child.birthPlace} onChange={(e) => setChild(idx, "birthPlace", e.target.value)} placeholder="Ville" />
+              </label>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="rp-edit-section">
@@ -1753,16 +1995,17 @@ function EditTab({ item, onSave }) {
 const PANEL_TABS = [
   { key: "tarif",  label: "Tarif" },
   { key: "info",   label: "Infos" },
+  { key: "convoyage", label: "Convoyage" },
   { key: "docs",   label: "Documents" },
   { key: "email",  label: "Email" },
   { key: "edit",   label: "Modifier" },
   { key: "notes",  label: "Notes" },
 ];
 
-export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange }) {
+export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange, initialTab = "tarif" }) {
   const { showToast } = useToast();
   const [item, setItem]         = useState(externalItem);
-  const [panelTab, setPanelTab] = useState("tarif");
+  const [panelTab, setPanelTab] = useState(initialTab);
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -1776,14 +2019,16 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
 
   const updateStatus = async (newStatus) => {
     try {
+      const syncData = reservationDataForSync(item, { status: newStatus });
       await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
         status: newStatus, updatedAt: serverTimestamp(),
         ...(newStatus === "validated" ? { validatedAt: serverTimestamp() } : {}),
       });
+      const syncedTransports = await resyncReservationTransports(item.id, syncData);
       const updated = { ...item, status: newStatus };
       setItem(updated);
       onStatusChange(updated);
-      showToast(newStatus === "validated" ? "Réservation validée !" : "Statut mis à jour", "success");
+      showToast(newStatus === "validated" ? `Reservation validee, ${syncedTransports} trajet(s) synchronise(s)` : "Statut mis a jour", "success");
     } catch { showToast("Erreur changement statut", "error"); }
   };
 
@@ -1876,6 +2121,7 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
       <div className="rp-body">
         {panelTab === "tarif" && <PanelTarifTab item={item} onSave={handleSave} onGoToEmail={() => setPanelTab("email")} />}
         {panelTab === "info"  && <PanelInfoTab item={item} />}
+        {panelTab === "convoyage" && <ConvoyageInfoTab item={item} />}
         {panelTab === "docs"  && <DocumentsTab item={item} onSave={handleSave} />}
         {panelTab === "email" && <EmailComposer item={item} onGoToTarif={() => setPanelTab("tarif")} />}
         {panelTab === "edit"  && <EditTab item={item} onSave={handleSave} />}
@@ -2457,6 +2703,34 @@ export default function Reservations() {
       ),
     },
     {
+      key: "alreadyPaid",
+      label: "Payé",
+      sortValue: row => Number(row.alreadyPaid || 0),
+      render: row => (
+        <span style={{ fontWeight: 700, fontSize: 12, color: Number(row.alreadyPaid || 0) > 0 ? "#15803d" : "var(--dash-muted)" }}>
+          {fmtCur(Number(row.alreadyPaid || 0))}
+        </span>
+      ),
+    },
+    {
+      key: "remainingValue",
+      label: "Restant",
+      sortValue: row => {
+        const base = row.resteACharge ?? row.finalPrice ?? row.totalPrice ?? 0;
+        const remaining = row.remainingValue ?? Math.max(Number(base || 0) - Number(row.alreadyPaid || 0), 0);
+        return Number(remaining || 0);
+      },
+      render: row => {
+        const base = row.resteACharge ?? row.finalPrice ?? row.totalPrice ?? 0;
+        const remaining = row.remainingValue ?? Math.max(Number(base || 0) - Number(row.alreadyPaid || 0), 0);
+        return (
+          <span style={{ fontWeight: 800, fontSize: 12, color: Number(remaining || 0) > 0 ? "#b45309" : "#15803d" }}>
+            {fmtCur(remaining)}
+          </span>
+        );
+      },
+    },
+    {
       key: "dateMs",
       label: "Date inscription",
       sortValue: row => row.dateMs || 0,
@@ -2637,3 +2911,4 @@ export default function Reservations() {
     </>
   );
 }
+
