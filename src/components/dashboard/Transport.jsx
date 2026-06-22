@@ -289,8 +289,9 @@ function transportStopCities(transport) {
 function routeBoardingStops(transport) {
   const stops = [];
   (transport.segments || []).forEach((segment, segmentIndex) => {
-    const mainCity = segmentStopCity(transport, segment);
-    if (mainCity) {
+    const addMainStop = () => {
+      const mainCity = segmentStopCity(transport, segment);
+      if (!mainCity) return;
       stops.push({
         city: mainCity,
         segment,
@@ -299,27 +300,102 @@ function routeBoardingStops(transport) {
         type: "main",
         order: stops.length,
       });
-    }
-    segmentSubStops(segment).forEach((stop, stopIndex) => {
-      if (!stop.city) return;
-      stops.push({
-        city: stop.city,
-        segment,
-        segmentIndex,
-        stopIndex,
-        stop,
-        type: "sub",
-        order: stops.length,
+    };
+    const addSubStops = () => {
+      segmentSubStops(segment).forEach((stop, stopIndex) => {
+        if (!stop.city) return;
+        stops.push({
+          city: stop.city,
+          segment,
+          segmentIndex,
+          stopIndex,
+          stop,
+          type: "sub",
+          order: stops.length,
+        });
       });
-    });
+    };
+    if (transport.direction === "retour") {
+      addSubStops();
+      addMainStop();
+      return;
+    }
+    addMainStop();
+    addSubStops();
   });
   return stops;
+}
+
+function routeStopTime(stop, transport, kind = "arrival") {
+  if (!stop) return "";
+  if (stop.type === "sub") {
+    return kind === "departure"
+      ? stop.stop?.departureTime || stop.stop?.arrivalTime || ""
+      : stop.stop?.arrivalTime || stop.stop?.departureTime || "";
+  }
+  if (transport?.direction === "retour") {
+    return stop.segment?.arrivalTime || stop.segment?.departureTime || "";
+  }
+  return kind === "departure"
+    ? stop.segment?.departureTime || ""
+    : stop.segment?.arrivalTime || "";
+}
+
+function routeStopMeetingPoint(stop) {
+  if (!stop) return "";
+  return stop.type === "sub" ? segmentMeetingLabel(stop.stop) : segmentMeetingLabel(stop.segment);
+}
+
+function stopActionLabel(transport) {
+  return transport.direction === "retour" ? "Descendent ici" : "Montent ici";
+}
+
+function stopActionText(transport, city) {
+  return transport.direction === "retour"
+    ? `Descendent à ${city || "cette étape"}`
+    : `Montent à ${city || "cette étape"}`;
+}
+
+function routeStopForCity(transport, city) {
+  const normalizedCity = normalizePlace(city);
+  if (!normalizedCity) return null;
+  return routeBoardingStops(transport).find((stop) => normalizePlace(stop.city) === normalizedCity) || null;
+}
+
+function passengerRouteStop(transport, passenger) {
+  return routeStopForCity(transport, passengerCity(transport, passenger));
+}
+
+function passengersAfterStop(transport, stopOrder) {
+  return (transport.passengers || []).filter((passenger) => {
+    const boarding = passengerBoardingStop(transport, passenger);
+    if (!boarding) return false;
+    return transport.direction === "retour"
+      ? boarding.order > stopOrder
+      : boarding.order <= stopOrder;
+  });
+}
+
+function stopRowsForSegment(transport, segment, index) {
+  const mainStop = routeBoardingStops(transport).find((stop) =>
+    stop.type === "main" && stop.segmentIndex === index,
+  );
+  const subStops = segmentSubStops(segment).map((stop, stopIndex) => ({
+    stop,
+    stopIndex,
+    routeStop: routeBoardingStops(transport).find((item) =>
+      item.type === "sub" && item.segmentIndex === index && item.stopIndex === stopIndex,
+    ),
+  }));
+  return transport.direction === "retour"
+    ? [...subStops, { stop: null, stopIndex: -1, routeStop: mainStop }]
+    : [{ stop: null, stopIndex: -1, routeStop: mainStop }, ...subStops];
 }
 
 function passengerBoardingStop(transport, passenger) {
   const city = normalizePlace(passengerCity(transport, passenger));
   if (!city) return null;
-  return routeBoardingStops(transport).find((stop) => normalizePlace(stop.city) === city) || null;
+  return routeStopForCity(transport, city);
 }
 
 function passengerStopSegment(transport, passenger) {
@@ -343,7 +419,7 @@ function cityRouteOrder(transport, city) {
   const normalizedCity = normalizePlace(city);
   const stop = routeBoardingStops(transport).find((item) => normalizePlace(item.city) === normalizedCity);
   if (!stop) return Number.MAX_SAFE_INTEGER;
-  return transport.direction === "retour" ? routeBoardingStops(transport).length - stop.order : stop.order;
+  return stop.order;
 }
 
 function groupPassengersByCity(transport, passengers = transport.passengers || []) {
@@ -383,7 +459,10 @@ function passengersAtStop(transport, city) {
 function passengersBeforeStop(transport, stopOrder) {
   return (transport.passengers || []).filter((passenger) => {
     const boarding = passengerBoardingStop(transport, passenger);
-    return boarding && boarding.order < stopOrder;
+    if (!boarding) return false;
+    return transport.direction === "retour"
+      ? boarding.order >= stopOrder
+      : boarding.order < stopOrder;
   });
 }
 
@@ -505,6 +584,46 @@ function accountingTicketLabel(ticket, transport) {
 
 function formatMoney(value) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(value) || 0);
+}
+
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function formatDurationFromMinutes(minutes) {
+  if (!Number.isFinite(minutes) || minutes < 0) return "";
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours <= 0) return `${rest} min`;
+  return rest ? `${hours}h${String(rest).padStart(2, "0")}` : `${hours}h`;
+}
+
+function durationBetween(start, end) {
+  const startMinutes = timeToMinutes(start);
+  const endMinutes = timeToMinutes(end);
+  if (startMinutes == null || endMinutes == null) return "";
+  let diff = endMinutes - startMinutes;
+  if (diff < 0) diff += 24 * 60;
+  return formatDurationFromMinutes(diff);
+}
+
+function timelineActionInfo(transport, city, { isFirst = false } = {}) {
+  if (transport.direction === "retour" && isFirst) {
+    const count = countChildren(transport.passengers || []);
+    return count > 0 ? { label: "À bord", count, tone: "neutral" } : null;
+  }
+  const count = countChildren(passengersAtStop(transport, city));
+  if (!count) return null;
+  return {
+    label: transport.direction === "retour" ? "Descendent" : "Montent",
+    count,
+    tone: transport.direction === "retour" ? "down" : "up",
+  };
 }
 
 function mapTransport(snap) {
@@ -712,9 +831,10 @@ function buildGroupConvocHTML(transport) {
     const pages = sortedPassengers.map((p, idx) => {
       const children = p.children || [];
       const city = passengerCity(transport, p);
-      const stopSeg = passengerStopSegment(transport, p);
-      const arrivalTime = stopSeg?.arrivalTime || transport.arrivalTime || "";
-      const arrivalCity = stopSeg?.to || transport.arrivalCity || "";
+      const routeStop = passengerRouteStop(transport, p);
+      const stopSeg = routeStop?.segment || null;
+      const arrivalTime = routeStopTime(routeStop, transport, "arrival") || transport.arrivalTime || "";
+      const arrivalCity = routeStop?.city || stopSeg?.to || transport.arrivalCity || "";
       const childNames = children.length > 0
         ? children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
         : (p.childName || "-");
@@ -776,19 +896,22 @@ ${pages.join("\n")}
     </div>`;
 
   const transportCardForPassenger = (passenger) => {
-    const stopSegment = passengerStopSegment(transport, passenger);
+    const routeStop = passengerRouteStop(transport, passenger);
+    const stopSegment = routeStop?.segment || null;
     if (!stopSegment) return transportCard;
     const stopCity = passengerCity(transport, passenger);
-    const isQuai = segmentStopType(stopSegment) === "quai";
+    const isQuai = routeStop?.type === "sub" ? segmentStopType(routeStop.stop) === "quai" : segmentStopType(stopSegment) === "quai";
+    const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : segmentMeetingLabel(stopSegment);
+    const time = routeStopTime(routeStop, transport, "departure") || stopSegment.meetingTime || transport.meetingTime || "";
     return `
     <div class="transport-card" style="border-color:${dirColor};background:${dirBg};margin-bottom:4px">
       <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(transport.date)}</strong></div>
-      <div class="tr-row"><span class="tr-lbl">Ville</span><strong>${stopCity || "-"}</strong>${isQuai ? " · montee sur le quai" : ""}</div>
-      ${(stopSegment.meetingTime || transport.meetingTime) ? `<div class="tr-row"><span class="tr-lbl">Heure</span><strong>${stopSegment.meetingTime || transport.meetingTime}</strong></div>` : ""}
-      <div class="tr-row"><span class="tr-lbl">${isQuai ? "Lieu" : "Point de RDV"}</span><strong>${segmentMeetingLabel(stopSegment)}</strong></div>
-      ${(stopSegment.platform || transport.platform) ? `<div class="tr-row"><span class="tr-lbl">Voie / Quai</span><strong>${stopSegment.platform || transport.platform}</strong></div>` : ""}
-      <div class="tr-row"><span class="tr-lbl">Train</span><strong>${stopSegment.mode || transport.trainType || ""} ${stopSegment.number || transport.trainNumber || ""}</strong></div>
-      <div class="tr-row"><span class="tr-lbl">Départ</span><strong>${stopSegment.departureTime || transport.departureTime || "-"}</strong> depuis ${stopSegment.from || transport.departureCity || "-"}</div>
+      <div class="tr-row"><span class="tr-lbl">Ville</span><strong>${stopCity || "-"}</strong>${isQuai ? " · montée sur le quai" : ""}</div>
+      ${time ? `<div class="tr-row"><span class="tr-lbl">Heure</span><strong>${time}</strong></div>` : ""}
+      <div class="tr-row"><span class="tr-lbl">${isQuai ? "Lieu" : "Point de RDV"}</span><strong>${meetingPoint}</strong></div>
+      ${((routeStop?.stop?.platform || stopSegment.platform || transport.platform)) ? `<div class="tr-row"><span class="tr-lbl">Voie / Quai</span><strong>${routeStop?.stop?.platform || stopSegment.platform || transport.platform}</strong></div>` : ""}
+      <div class="tr-row"><span class="tr-lbl">Train</span><strong>${routeStop?.stop?.mode || stopSegment.mode || transport.trainType || ""} ${routeStop?.stop?.number || stopSegment.number || transport.trainNumber || ""}</strong></div>
+      <div class="tr-row"><span class="tr-lbl">Départ</span><strong>${routeStopTime(routeStop, transport, "departure") || stopSegment.departureTime || transport.departureTime || "-"}</strong> depuis ${stopSegment.from || transport.departureCity || "-"}</div>
       ${(stopSegment.arrivalTime || transport.arrivalTime) ? `<div class="tr-row"><span class="tr-lbl">Arrivée prévue</span><strong>${stopSegment.arrivalTime || transport.arrivalTime}</strong> à ${stopSegment.to || transport.arrivalCity || "-"}</div>` : ""}
     </div>`;
   };
@@ -1252,12 +1375,17 @@ function TripTimeline({ transport, onToggleStaff }) {
   if (segments.length === 0) return null;
 
   const last = segments[segments.length - 1];
+  const finalAction = timelineActionInfo(transport, last?.to);
 
   return (
     <div className="tl-wrap">
       <div className="tl-track">
         {segments.flatMap((seg, i) => {
           const assignedIds = seg.assignedStaffIds || [];
+          const previous = i > 0 ? segments[i - 1] : null;
+          const action = timelineActionInfo(transport, seg.from, { isFirst: i === 0 });
+          const connectionDuration = previous ? durationBetween(previous.arrivalTime, seg.departureTime) : "";
+          const trainDuration = durationBetween(seg.departureTime, seg.arrivalTime);
 
           return [
             /* Stop node */
@@ -1266,7 +1394,17 @@ function TripTimeline({ transport, onToggleStaff }) {
               <div className="tl-stop-info">
                 <span className="tl-city">{seg.from}</span>
                 {seg.meetingTime && <span className="tl-rdv">RDV {seg.meetingTime}</span>}
-                <span className="tl-time">{seg.departureTime || "-"}</span>
+                <div className="tl-times">
+                  {previous?.arrivalTime && <span>Arr. {previous.arrivalTime}</span>}
+                  {seg.departureTime && <span>Dép. {seg.departureTime}</span>}
+                  {!previous?.arrivalTime && !seg.departureTime && <span>-</span>}
+                </div>
+                {connectionDuration && <span className="tl-connection">Corresp. {connectionDuration}</span>}
+                {action && (
+                  <span className={`tl-count is-${action.tone}`}>
+                    {action.count} {action.label}
+                  </span>
+                )}
               </div>
             </div>,
 
@@ -1275,19 +1413,32 @@ function TripTimeline({ transport, onToggleStaff }) {
               <div className="tl-leg-line" />
               {segmentSubStops(seg).length > 0 && (
                 <div className="tl-substops">
-                  {segmentSubStops(seg).map((stop, stopIndex) => (
-                    <span key={stop.id || `${stop.city}-${stopIndex}`} className="tl-substop">
-                      <strong>{stop.city || "Étape"}</strong>
-                      <small>
-                        {[stop.arrivalTime, stop.departureTime].filter(Boolean).join(" / ") || "horaire à compléter"}
-                      </small>
-                      <em>quai</em>
-                    </span>
-                  ))}
+                  {segmentSubStops(seg).map((stop, stopIndex) => {
+                    const stopAction = timelineActionInfo(transport, stop.city);
+                    return (
+                      <span key={stop.id || `${stop.city}-${stopIndex}`} className="tl-substop">
+                        <strong>{stop.city || "Étape"}</strong>
+                        <small className="tl-substop-times">
+                          {stop.arrivalTime && <span>Arr. {stop.arrivalTime}</span>}
+                          {stop.departureTime && <span>Dép. {stop.departureTime}</span>}
+                          {!stop.arrivalTime && !stop.departureTime && <span>horaire à compléter</span>}
+                        </small>
+                        {stopAction && (
+                          <small className={`tl-substop-count is-${stopAction.tone}`}>
+                            {stopAction.count} {stopAction.label}
+                          </small>
+                        )}
+                        <em>quai</em>
+                      </span>
+                    );
+                  })}
                 </div>
               )}
-              {seg.mode && (
-                <span className="tl-train">{seg.mode}{seg.number ? ` ${seg.number}` : ""}</span>
+              {(seg.mode || trainDuration) && (
+                <span className="tl-train">
+                  {seg.mode && <strong>{seg.mode}{seg.number ? ` ${seg.number}` : ""}</strong>}
+                  {trainDuration && <em>{trainDuration}</em>}
+                </span>
               )}
               {staffPool.length > 0 && (
                 <div className="tl-leg-anims">
@@ -1318,7 +1469,14 @@ function TripTimeline({ transport, onToggleStaff }) {
           <div className="tl-dot tl-dot-arrival" />
           <div className="tl-stop-info">
             <span className="tl-city">{last?.to}</span>
-            <span className="tl-time">{last?.arrivalTime || "-"}</span>
+            <div className="tl-times">
+              {last?.arrivalTime ? <span>Arr. {last.arrivalTime}</span> : <span>-</span>}
+            </div>
+            {finalAction && (
+              <span className={`tl-count is-${finalAction.tone}`}>
+                {finalAction.count} {finalAction.label}
+              </span>
+            )}
             <span className="tl-arr-tag">Arrivée</span>
           </div>
         </div>
@@ -1697,6 +1855,7 @@ function TransportBudgetOverview({ reservations, transports }) {
 
 function SegmentSummaryTable({ transport, onEditSegment }) {
   const segments = transport.segments || [];
+  const isRetour = transport.direction === "retour";
   if (!segments.length) {
     return (
       <div className="tr-segment-summary-empty">
@@ -1718,8 +1877,8 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
               <th>#</th>
               <th>Ville</th>
               <th>Trajet</th>
-              <th>Déjà présents</th>
-              <th>Montent ici</th>
+              <th>À bord avant arrêt</th>
+              <th>{isRetour ? "Descendent ici" : "Montent ici"}</th>
               <th>Cumul à bord</th>
               <th>RDV</th>
               <th>Départ</th>
@@ -1781,7 +1940,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                   item.type === "sub" && item.segmentIndex === index && item.stopIndex === stopIndex,
                 );
                 const alreadyAtSubStop = passengersBeforeStop(transport, routeStop?.order ?? index);
-                const onboardAfterSubStop = [...alreadyAtSubStop, ...stopPassengersAtCity];
+                const onboardAfterSubStop = passengersAfterStop(transport, routeStop?.order ?? index);
                 rows.push(
                   <tr key={`${segment.id}-stop-${stop.id || stop.city || stopIndex}`} className="is-quai-stop is-sub-stop" onClick={() => onEditSegment(transport, segment.id)}>
                     <td><span className="tr-segment-step is-small">{index + 1}.{stopIndex + 1}</span></td>
@@ -1809,7 +1968,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                   </tr>,
                 );
               });
-              return rows;
+              return isRetour ? [...rows.slice(1), rows[0]] : rows;
             })}
           </tbody>
         </table>
@@ -2741,10 +2900,14 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
       )}
 
       {segments.map((seg, i) => {
+        const isRetour = activeT.direction === "retour";
         const segTix = tickets.filter((t) => t.segmentId === seg.id);
         const segPassengers = passengersOnSegment(activeT, i);
         const mainStop = routeBoardingStops(activeT).find((stop) => stop.type === "main" && stop.segmentIndex === i);
-        const passengersAlreadyHere = passengersBeforeStop(activeT, mainStop?.order ?? i);
+        const mainStopOrder = mainStop?.order ?? i;
+        const passengersAlreadyHere = isRetour
+          ? passengersAfterStop(activeT, mainStopOrder)
+          : passengersBeforeStop(activeT, mainStopOrder);
         const passengersBoardingHere = passengersAtStop(activeT, segmentStopCity(activeT, seg));
         const segKids = segPassengers.flatMap(p =>
           (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
@@ -2896,8 +3059,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <span className="tr-ops-anims-count">{segKids.length}</span>
                 </span>
                 {kidsAlreadyHere.length > 0 && (
-                  <div className="tr-ops-stop-group">
-                    <span className="tr-ops-stop-title">Déjà présents dans le train</span>
+                  <div className="tr-ops-stop-group" style={{ order: isRetour ? 3 : 1 }}>
+                    <span className="tr-ops-stop-title">{isRetour ? "Restent après l'arrêt" : "Déjà présents dans le train"}</span>
                     <div className="tr-ops-stop-kids">
                       {kidsAlreadyHere.map((c, ci) => (
                         <ChildChip key={`already-${ci}`} child={c} missingTicketIds={missingTicketIds} openReservation={openReservation} />
@@ -2906,8 +3069,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   </div>
                 )}
                 {kidsBoardingHere.length > 0 && (
-                  <div className="tr-ops-stop-group">
-                    <span className="tr-ops-stop-title">Montent à {segmentStopCity(activeT, seg) || "cette étape"}</span>
+                  <div className="tr-ops-stop-group" style={{ order: isRetour ? 2 : 2 }}>
+                    <span className="tr-ops-stop-title">{stopActionText(activeT, segmentStopCity(activeT, seg))}</span>
                     <div className="tr-ops-stop-kids">
                       {kidsBoardingHere.map((c, ci) => (
                         <ChildChip key={`boarding-${ci}`} child={c} missingTicketIds={missingTicketIds} openReservation={openReservation} />
@@ -2919,7 +3082,11 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   const routeStop = routeBoardingStops(activeT).find((item) =>
                     item.type === "sub" && item.segmentIndex === i && item.stopIndex === stopIndex,
                   );
-                  const alreadyAtStop = passengersBeforeStop(activeT, routeStop?.order ?? i).flatMap(p =>
+                  const stopOrder = routeStop?.order ?? i;
+                  const alreadyAtStopPassengers = isRetour
+                    ? passengersAfterStop(activeT, stopOrder)
+                    : passengersBeforeStop(activeT, stopOrder);
+                  const alreadyAtStop = alreadyAtStopPassengers.flatMap(p =>
                     (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
                       .map(c => ({ ...c, reservationId: p.reservationId }))
                   );
@@ -2933,15 +3100,15 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                     stop.platform ? `Voie ${stop.platform}` : null,
                   ].filter(Boolean);
                   return (
-                    <div key={stop.id || `${stop.city}-${stopIndex}`} className="tr-ops-stop-group is-quai-stop is-inline">
+                    <div key={stop.id || `${stop.city}-${stopIndex}`} className="tr-ops-stop-group is-quai-stop is-inline" style={{ order: isRetour ? 1 : 3 }}>
                       <div className="tr-ops-stop-main">
                         <span className="tr-ops-stop-badge">Étape quai</span>
                         <strong>{stop.city || "Ville à compléter"}</strong>
                         <span className="tr-ops-stop-time">{stopTimes.join(" · ") || "Horaires à compléter"}</span>
                       </div>
                       <div className="tr-ops-stop-counts">
-                        <span>Déjà présents <strong>{alreadyAtStop.length}</strong></span>
-                        <span>Montent ici <strong>{boardingAtStop.length}</strong></span>
+                        <span>{isRetour ? "Restent après" : "Déjà présents"} <strong>{alreadyAtStop.length}</strong></span>
+                        <span>{stopActionLabel(activeT)} <strong>{boardingAtStop.length}</strong></span>
                       </div>
                       {boardingAtStop.length > 0 && (
                         <div className="tr-ops-stop-kids">
@@ -4413,19 +4580,21 @@ function ConvocIndividuelle({ transport }) {
 
 function getEmailRdvInfo(transport, passenger) {
   const city = passengerCity(transport, passenger);
-  const seg = (transport.segments || []).find(
-    (s) => normalizePlace(segmentStopCity(transport, s)) === normalizePlace(city),
-  );
-  const trainTime = seg?.departureTime || transport.departureTime || null;
+  const routeStop = routeStopForCity(transport, city);
+  const seg = routeStop?.segment || null;
+  const trainTime = routeStopTime(routeStop, transport, transport.direction === "retour" ? "arrival" : "departure")
+    || seg?.departureTime
+    || transport.departureTime
+    || null;
   let rdvTime = seg?.meetingTime || null;
   if (!rdvTime && trainTime) {
     const [h, m] = trainTime.split(":").map(Number);
     const total = ((h * 60 + m - 45) % 1440 + 1440) % 1440;
     rdvTime = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
   }
-  const meetingPoint = seg?.meetingPoint || transport.meetingPoint || "";
-  const stopType = seg?.stopType || transport.stopType || "rdv";
-  const platform = seg?.platform || transport.platform || "";
+  const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || transport.meetingPoint || "";
+  const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || transport.stopType || "rdv";
+  const platform = routeStop?.stop?.platform || seg?.platform || transport.platform || "";
   return { city, rdvTime, trainTime, meetingPoint, stopType, platform };
 }
 
@@ -4439,11 +4608,10 @@ function getRetourInfo(transport, passenger, allTransports) {
   for (const rt of retourTransports) {
     const stopCities = new Set(transportStopCities(rt).map(normalizePlace).filter(Boolean));
     if (!retourCity || stopCities.has(retourCity) || stopCities.size === 0) {
-      const seg = retourCity
-        ? (rt.segments || []).find((s) => normalizePlace(segmentStopCity(rt, s)) === retourCity)
-        : null;
-      const arrivalTime = seg?.arrivalTime || rt.arrivalTime || "";
-      const arrivalCity = seg?.to || rt.arrivalCity || passenger.returnCity || "";
+      const routeStop = retourCity ? routeStopForCity(rt, retourCity) : null;
+      const seg = routeStop?.segment || null;
+      const arrivalTime = routeStopTime(routeStop, rt, "arrival") || seg?.arrivalTime || rt.arrivalTime || "";
+      const arrivalCity = routeStop?.city || seg?.to || rt.arrivalCity || passenger.returnCity || "";
       return { date: rt.date, arrivalTime, arrivalCity };
     }
   }
