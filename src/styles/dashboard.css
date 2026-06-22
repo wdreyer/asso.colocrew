@@ -2563,13 +2563,38 @@
   margin-bottom: 10px;
 }
 .tr-city-card-title strong { font-size: 14px; }
-.tr-city-card-title span {
+.tr-city-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tr-city-card-actions span {
   padding: 2px 8px;
   border-radius: 999px;
   background: #f3edf9;
   color: #5f3374;
   font-size: 10px;
   font-weight: 800;
+}
+.tr-city-delete {
+  border: 1px solid rgba(163, 34, 34, 0.16);
+  background: #fff7f7;
+  color: #a32222;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.tr-city-delete:hover:not(:disabled) {
+  background: #fff0f0;
+  border-color: rgba(163, 34, 34, 0.32);
+}
+.tr-city-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .tr-city-grid {
   display: grid;

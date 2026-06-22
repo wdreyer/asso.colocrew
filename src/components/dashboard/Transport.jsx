@@ -4411,6 +4411,7 @@ function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsCh
   const [rows, setRows] = useState(() => cityRowsFromAllTransports(transports, cityStops));
   const [newCity, setNewCity] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingCity, setDeletingCity] = useState("");
 
   useEffect(() => {
     setRows(cityRowsFromAllTransports(transports, cityStops));
@@ -4447,6 +4448,28 @@ function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsCh
       isReference: true,
     }]));
     setNewCity("");
+  };
+
+  const deleteCity = async (row) => {
+    const cityKey = normalizePlace(row.city);
+    if (!cityKey) return;
+    if (row.tripCount > 0) {
+      showToast("Cette ville est utilisée dans des segments. Retire-la des trajets avant de la supprimer.", "warning");
+      return;
+    }
+    if (!window.confirm(`Supprimer le point de RDV "${row.city}" ?`)) return;
+    setDeletingCity(cityKey);
+    try {
+      await deleteDoc(doc(db, COLLECTIONS.TRANSPORT_RDV_POINTS, cityStopDocId(row.city)));
+      setRows((items) => items.filter((item) => normalizePlace(item.city) !== cityKey));
+      onCityStopsChange((cityStops || []).filter((item) => normalizePlace(item.city) !== cityKey));
+      showToast("Point de RDV supprimé", "success");
+    } catch (error) {
+      console.error(error);
+      showToast("Erreur lors de la suppression du point de RDV", "error");
+    } finally {
+      setDeletingCity("");
+    }
   };
 
   const save = async () => {
@@ -4551,7 +4574,20 @@ function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsCh
           <article key={row.city} className="tr-city-card">
             <div className="tr-city-card-title">
               <strong>{row.city}</strong>
-              <span>{row.stopType === "quai" ? "Quai uniquement" : "RDV organisé"} · {row.tripCount} trajet{row.tripCount > 1 ? "s" : ""}</span>
+              <div className="tr-city-card-actions">
+                <span>{row.stopType === "quai" ? "Quai uniquement" : "RDV organisé"} · {row.tripCount} trajet{row.tripCount > 1 ? "s" : ""}</span>
+                {row.isReference && (
+                  <button
+                    type="button"
+                    className="tr-city-delete"
+                    onClick={() => deleteCity(row)}
+                    disabled={row.tripCount > 0 || deletingCity === normalizePlace(row.city)}
+                    title={row.tripCount > 0 ? "Ville utilisée dans des segments" : "Supprimer ce point de RDV"}
+                  >
+                    {deletingCity === normalizePlace(row.city) ? "..." : "Supprimer"}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="tr-city-simple">
               <label>
@@ -5045,102 +5081,345 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
   return lines.join("\n");
 }
 
+function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports) {
+  const children = passenger.children?.length
+    ? passenger.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
+    : passenger.childName || "";
+  const firstNames = passenger.children?.length
+    ? passenger.children.map((c) => c.firstName || "").filter(Boolean).join(" et ")
+    : passenger.childName || "";
+  const nbChildren = passenger.children?.length || 0;
+  const { city, rdvTime, trainTime, meetingPoint, stopType, platform } = rdvInfo;
+  const weekInfo = WEEK_INFO[transport.week] || null;
+  const sejourShort = shortSejourName(transport.sejourName);
+  const retourInfo = getRetourInfo(transport, passenger, allTransports);
+
+  const TBC = `<span style="color:#94a3b8;font-style:italic;">A confirmer</span>`;
+
+  const allerRdv = (() => {
+    if (stopType === "quai" && platform) return `<strong>Voie / Quai ${platform}</strong><br><span style="font-size:12px;color:#64748b;">Gare de ${city}</span>`;
+    if (meetingPoint) return `<strong>${meetingPoint}</strong>${city ? `<br><span style="font-size:12px;color:#64748b;">Gare de ${city}</span>` : ""}`;
+    if (city) return `<strong>${city}</strong>`;
+    return TBC;
+  })();
+
+  const allerDate = transport.date
+    ? `<strong>${fmtDateLong(transport.date)}</strong>${rdvTime ? `<br><span style="color:#16a34a;font-weight:700;">RDV a ${rdvTime}</span>` : ""}`
+    : TBC;
+
+  const allerTrain = trainTime ? `Depart train : <strong>${trainTime}</strong>` : TBC;
+  const retourDate = retourInfo?.date ? `<strong>${fmtDateLong(retourInfo.date)}</strong>` : TBC;
+  const retourArrivee = retourInfo?.arrivalTime
+    ? `Arrivee <strong>${retourInfo.arrivalTime}</strong>${retourInfo.arrivalCity ? ` a <strong>${retourInfo.arrivalCity}</strong>` : ""}`
+    : TBC;
+
+  const td0 = (last) => `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
+  const td1 = (last) => `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
+  const td2 = (last) => `style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
+
+  const phones = EMERGENCY_PHONES.join(" / ");
+
+  return `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Convocation transport</title></head>
+<body style="margin:0;padding:20px 8px;background:#f0ebff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);">
+  <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;"><tr>
+    <td style="padding:20px 28px 16px;vertical-align:middle;">
+      <table style="border-collapse:collapse;"><tr>
+        <td style="padding:0 10px 0 0;vertical-align:middle;">
+          <div style="background:#B8336A;border-radius:8px;width:38px;height:38px;text-align:center;line-height:38px;">
+            <span style="color:#fff;font-weight:900;font-size:16px;">CC</span>
+          </div>
+        </td>
+        <td style="vertical-align:middle;">
+          <div style="font-size:19px;font-weight:900;color:#B8336A;">ColoCrew</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:1px;">reinventons les colos !</div>
+        </td>
+      </tr></table>
+    </td>
+    <td style="padding:20px 28px 16px;text-align:right;vertical-align:top;font-size:12px;color:#64748b;line-height:1.9;">
+      <div>info@colocrew.com</div><div>01 84 21 02 30</div><div>colocrew.com</div>
+    </td>
+  </tr></table>
+  <div style="padding:24px 28px 8px;">
+    <h1 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#B8336A;">Convocation de transport - ${sejourShort}</h1>
+    <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1e1040;">${passenger.nom}</p>
+    <p style="margin:0 0 18px;font-size:14px;color:#374151;line-height:1.75;">
+      <strong>${firstNames || children}</strong> ${nbChildren > 1 ? "sont inscrits" : "est inscrit(e)"} au sejour
+      <strong>${sejourShort}</strong>${weekInfo ? ` du <strong>${fmtDateLong(weekInfo.aller)}</strong> au <strong>${fmtDateLong(weekInfo.retour)}</strong>` : ""}.
+    </p>
+  </div>
+  <div style="padding:0 28px 20px;">
+    <table style="width:100%;border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+      <thead><tr>
+        <td style="padding:11px 16px;background:#f8f9fa;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;width:27%;"></td>
+        <th style="padding:12px 16px;background:#f0fdf4;color:#16a34a;font-weight:900;font-size:14px;text-align:center;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;">ALLER</th>
+        <th style="padding:12px 16px;background:#fff7ed;color:#ea580c;font-weight:900;font-size:14px;text-align:center;border-bottom:2px solid #e5e7eb;">RETOUR</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td ${td0(false)}>Lieu de rendez-vous</td>
+          <td ${td1(false)}>${allerRdv}</td>
+          <td ${td2(false)}>A confirmer</td>
+        </tr>
+        <tr>
+          <td ${td0(false)}>Date et heure RDV</td>
+          <td ${td1(false)}>${allerDate}</td>
+          <td ${td2(false)}>${retourDate}</td>
+        </tr>
+        <tr>
+          <td ${td0(true)}>Infos train</td>
+          <td ${td1(true)}>${allerTrain}</td>
+          <td ${td2(true)}>${retourArrivee}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin:0 28px 20px;padding:14px 20px;background:linear-gradient(135deg,#fff0f6,#f5f0ff);border:1.5px solid #f3d0e6;border-radius:10px;text-align:center;">
+    <p style="margin:0;font-size:15px;font-weight:800;color:#B8336A;">Permanence transport : ${phones}</p>
+  </div>
+  <div style="padding:0 28px 28px;">
+    <h2 style="font-size:14px;font-weight:900;color:#1e1040;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #f5f0ff;">Deroulement du transport encadre</h2>
+    <ul style="margin:0;padding-left:18px;font-size:14px;color:#374151;line-height:1.9;">
+      <li>Le rendez-vous est fixe <strong>1h avant le depart du train.</strong></li>
+      <li>Un animateur vous attendra avec un <strong>ecriteau COLOCREW.</strong></li>
+      <li>Merci de vous presenter a l'animateur.</li>
+      <li>En cas d'urgence : <strong>${phones}</strong></li>
+    </ul>
+  </div>
+  <div style="border-top:2px solid #f5f0ff;padding:16px 28px;text-align:center;background:#fdf8fc;">
+    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Association ColoCrew - SIRET : 9 3 2 1 7 1 4 3 2 0 0 0 1 0</p>
+    <p style="margin:0;font-size:12px;color:#94a3b8;">@_colocrew / ColoCrew</p>
+  </div>
+</div></body></html>`;
+}
+
 function ConvocEmailSender({ transport, allTransports }) {
+  const { showToast } = useToast();
   const passengers = transport.passengers || [];
-  const [sent, setSent] = useState(new Set());
-  const [preview, setPreview] = useState(null); // reservationId being previewed
-  const [editedBodies, setEditedBodies] = useState({}); // { [reservationId]: string }
+
+  const [sentStatus, setSentStatus] = useState(() => {
+    const m = {};
+    passengers.forEach((p) => { if (p.convocationSent) m[p.reservationId] = true; });
+    return m;
+  });
+  const [preview, setPreview]           = useState(null);
+  const [sendingId, setSendingId]       = useState(null);
+  const [sendingAll, setSendingAll]     = useState(false);
+  const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, errors: [] });
 
   const emailSubject = (() => {
     const short = shortSejourName(transport.sejourName);
     const wi = WEEK_INFO[transport.week];
     const dates = wi ? ` (${wi.dates})` : "";
-    return `Convocation transport  ${short}${dates}  ${fmtDateLong(transport.date)}`;
+    return `Convocation transport - ${short}${dates} - ${fmtDateLong(transport.date)}`;
   })();
 
-  const openPreview = (p) => {
-    const rdvInfo = getEmailRdvInfo(transport, p);
-    const body = buildEmailBody(transport, p, rdvInfo, allTransports);
-    setEditedBodies((prev) => ({ ...prev, [p.reservationId]: prev[p.reservationId] ?? body }));
-    setPreview(p.reservationId);
-  };
+  const markSent = useCallback(async (reservationId) => {
+    if (!reservationId) return;
+    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId), {
+      convocationSent: true,
+      convocationSentAt: serverTimestamp(),
+    });
+    setSentStatus((prev) => ({ ...prev, [reservationId]: true }));
+  }, []);
 
-  const doSend = (passenger) => {
-    const body = editedBodies[passenger.reservationId] || "";
-    openPrintableDocument(buildSingleConvocHTML(transport, passenger));
-    window.open(`mailto:${passenger.email}?subject=${encodeURIComponent(emailSubject)}&cc=${encodeURIComponent(CC_EMAIL)}&body=${encodeURIComponent(body)}`, "_blank");
-    setSent((prev) => new Set([...prev, passenger.reservationId]));
-    setPreview(null);
-  };
+  const markUnsent = useCallback(async (reservationId) => {
+    if (!reservationId) return;
+    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId), {
+      convocationSent: false,
+      convocationSentAt: null,
+    });
+    setSentStatus((prev) => ({ ...prev, [reservationId]: false }));
+  }, []);
+
+  const doSend = useCallback(async (p) => {
+    const rdvInfo = getEmailRdvInfo(transport, p);
+    const html = buildConvocEmailHtml(transport, p, rdvInfo, allTransports);
+    const resp = await fetch("/api/communication/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: p.email,
+        subject: emailSubject,
+        html,
+        from_name: "ColoCrew Inscriptions",
+        from_email: "inscriptions@colocrew.com",
+      }),
+    });
+    if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
+    await markSent(p.reservationId);
+    openPrintableDocument(buildSingleConvocHTML(transport, p));
+  }, [transport, allTransports, emailSubject, markSent]);
+
+  const handleSendAll = useCallback(async () => {
+    const toSend = passengers.filter((p) => !sentStatus[p.reservationId] && p.email && p.email !== "-");
+    if (!toSend.length) { showToast("Toutes les convocations ont ete envoyees", "info"); return; }
+    setSendingAll(true);
+    setSendProgress({ done: 0, total: toSend.length, errors: [] });
+    const errors = [];
+    for (let i = 0; i < toSend.length; i++) {
+      try { await doSend(toSend[i]); } catch (e) { errors.push({ email: toSend[i].email, error: e.message }); }
+      setSendProgress({ done: i + 1, total: toSend.length, errors: [...errors] });
+      if (i < toSend.length - 1) await new Promise((r) => setTimeout(r, 350));
+    }
+    setSendingAll(false);
+    if (errors.length === 0) showToast(`${toSend.length} convocation(s) envoyee(s)`, "success");
+    else showToast(`${toSend.length - errors.length} succes - ${errors.length} erreur(s)`, "error");
+  }, [passengers, sentStatus, doSend, showToast]);
 
   if (!passengers.length) {
-    return <p className="tr-convoc-empty-msg">Aucun passager assigné à ce trajet.</p>;
+    return <p className="tr-convoc-empty-msg">Aucun passager assigne a ce trajet.</p>;
   }
+
+  const pendingCount = passengers.filter((p) => !sentStatus[p.reservationId] && p.email && p.email !== "-").length;
 
   return (
     <div className="tr-convoc-email-list">
-      <p className="tr-convoc-email-hint">
-        Prévisualisez et modifiez le contenu de chaque email avant envoi. Un PDF de convocation s'ouvrira également.
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
+        <p className="tr-convoc-email-hint" style={{ margin: 0 }}>
+          Previsualiser et envoyer les convocations. Une copie BCC est envoyee a contact@colocrew.com.
+        </p>
+        {sendingAll ? (
+          <div style={{ minWidth: 180 }}>
+            <div style={{ fontSize: 12, color: "#374151", marginBottom: 4 }}>
+              Envoi {sendProgress.done}/{sendProgress.total}
+              {sendProgress.errors.length > 0 && <span style={{ color: "#ef4444", marginLeft: 6 }}> - {sendProgress.errors.length} erreur(s)</span>}
+            </div>
+            <div style={{ height: 5, background: "#f3f4f6", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", background: "#B8336A", borderRadius: 999, transition: "width 0.3s", width: `${Math.round((sendProgress.done / sendProgress.total) * 100)}%` }} />
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingCount === 0}>
+            Envoyer tout ({pendingCount} restante{pendingCount > 1 ? "s" : ""})
+          </button>
+        )}
+      </div>
+
       {passengers.map((p, i) => {
-        const isSent = sent.has(p.reservationId);
-        const isPreviewing = preview === p.reservationId;
-        const children = p.children?.length
+        const isSent       = Boolean(sentStatus[p.reservationId]);
+        const isSending    = sendingId === p.reservationId;
+        const isPreviewing = preview?.reservationId === p.reservationId;
+        const children     = p.children?.length
           ? p.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
           : p.childName;
-        const city = passengerCity(transport, p);
+        const city     = passengerCity(transport, p);
         const hasEmail = p.email && p.email !== "-";
-        const rdvInfo = getEmailRdvInfo(transport, p);
+        const rdvInfo  = getEmailRdvInfo(transport, p);
+
         return (
           <div key={p.reservationId || i} className={`tr-convoc-email-row${isSent ? " is-sent" : ""}`}>
-            <div className="tr-convoc-email-info">
-              <span className="tr-convoc-email-name">{p.nom}</span>
-              <span className="tr-convoc-email-child">{children}</span>
-              <span className="tr-convoc-email-meta">
-                {city}
-                {rdvInfo.rdvTime && <strong> · RDV {rdvInfo.rdvTime}</strong>}
-                {rdvInfo.meetingPoint && <span> · {rdvInfo.meetingPoint}</span>}
-                <span style={{ marginLeft: 6 }}>{hasEmail ? p.email : <em>Email non renseigné</em>}</span>
-              </span>
+            <div className="tr-convoc-email-info" style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1, minWidth: 0 }}>
+              <button
+                type="button"
+                onClick={() => isSent ? markUnsent(p.reservationId) : markSent(p.reservationId)}
+                title={isSent ? "Cliquer pour annuler" : "Marquer envoyee manuellement"}
+                style={{
+                  flexShrink: 0, marginTop: 2,
+                  width: 22, height: 22, borderRadius: 5,
+                  border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`,
+                  background: isSent ? "#dcfce7" : "#fff",
+                  cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {isSent && (
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+              <div style={{ minWidth: 0 }}>
+                <span className="tr-convoc-email-name">{p.nom}</span>
+                <span className="tr-convoc-email-child">{children}</span>
+                <span className="tr-convoc-email-meta">
+                  {city}
+                  {rdvInfo.rdvTime && <strong> - RDV {rdvInfo.rdvTime}</strong>}
+                  {rdvInfo.meetingPoint && <span> - {rdvInfo.meetingPoint}</span>}
+                  <span style={{ marginLeft: 6 }}>{hasEmail ? p.email : <em>Email non renseigne</em>}</span>
+                </span>
+              </div>
             </div>
             <div className="tr-convoc-email-actions">
-              {isSent
-                ? <span className="tr-convoc-sent-badge">✓ Envoyé</span>
-                : (
-                  <button type="button" className="dash-btn dash-btn-primary"
-                    onClick={() => isPreviewing ? setPreview(null) : openPreview(p)}
-                    disabled={!hasEmail}>
-                    {isPreviewing ? "Fermer" : "Prévisualiser"}
-                  </button>
-                )}
+              <button
+                type="button"
+                className="dash-btn"
+                onClick={() => setPreview(isPreviewing ? null : { ...p, _rdvInfo: rdvInfo })}
+              >
+                {isPreviewing ? "Fermer" : "Apercu"}
+              </button>
+              <button
+                type="button"
+                className={`dash-btn${isSent ? "" : " dash-btn-primary"}`}
+                disabled={!hasEmail || isSending || sendingAll}
+                onClick={async () => {
+                  setSendingId(p.reservationId);
+                  try {
+                    await doSend(p);
+                    showToast(`Convocation envoyee a ${p.email}`, "success");
+                  } catch (e) {
+                    showToast(`Erreur : ${e.message}`, "error");
+                  } finally {
+                    setSendingId(null);
+                  }
+                }}
+              >
+                {isSending ? "Envoi..." : isSent ? "Renvoyer" : "Envoyer"}
+              </button>
             </div>
-            {isPreviewing && (
-              <div className="tr-email-preview">
-                <div className="tr-email-preview-hd">
-                  <div className="tr-email-preview-subject">Objet : {emailSubject}</div>
-                  <div className="tr-email-preview-to">À : {p.email}</div>
-                </div>
-                <textarea
-                  className="tr-email-preview-body tr-email-editable"
-                  value={editedBodies[p.reservationId] ?? ""}
-                  onChange={(e) => setEditedBodies((prev) => ({ ...prev, [p.reservationId]: e.target.value }))}
-                  rows={18}
-                />
-                <div className="tr-email-preview-footer">
-                  <small>La convocation PDF s'ouvrira dans un nouvel onglet au moment de l'envoi.</small>
-                  <button type="button" className="dash-btn dash-btn-primary" onClick={() => doSend(p)}>
-                    Confirmer et envoyer
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         );
       })}
+
+      {preview && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setPreview(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 720, maxHeight: "92vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.3)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0e8f5", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>Apercu - {preview.nom}</div>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.email}</div>
+              </div>
+              <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>x</button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
+              <div dangerouslySetInnerHTML={{ __html: buildConvocEmailHtml(transport, preview, preview._rdvInfo, allTransports) }} />
+            </div>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
+              <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
+              <button
+                type="button"
+                disabled={sendingId === preview.reservationId}
+                onClick={async () => {
+                  setSendingId(preview.reservationId);
+                  try {
+                    await doSend(preview);
+                    showToast(`Convocation envoyee a ${preview.email}`, "success");
+                    setPreview(null);
+                  } catch (e) {
+                    showToast(`Erreur : ${e.message}`, "error");
+                  } finally {
+                    setSendingId(null);
+                  }
+                }}
+                style={{ padding: "8px 16px", background: sendingId === preview.reservationId ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingId === preview.reservationId ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingId === preview.reservationId ? "not-allowed" : "pointer" }}
+              >
+                {sendingId === preview.reservationId ? "Envoi en cours..." : "Envoyer cette convocation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
 function ConvocationsTab({ transports, reservations }) {
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [selectedTripId, setSelectedTripId] = useState("");

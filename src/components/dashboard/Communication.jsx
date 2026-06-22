@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { collection, doc, getDocs, query, orderBy, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { useToast } from "@/src/contexts/ToastContext";
@@ -29,13 +29,13 @@ const SENDERS = [
 ];
 
 const MISSING_DOCS_OPTIONS = [
-  { key: "fiche_sanitaire",     label: "Fiche sanitaire de liaison" },
-  { key: "fiche_medicale",      label: "Fiche médicale" },
-  { key: "autorisation_photo",  label: "Autorisation de photographie" },
-  { key: "justificatif_caf",    label: "Justificatif CAF / Sécurité sociale" },
-  { key: "acompte",             label: "Acompte de 100€" },
-  { key: "assurance",           label: "Attestation d'assurance" },
-  { key: "autorisation_sortie", label: "Autorisation de sortie" },
+  { key: "fiche_sanitaire",      label: "Fiche sanitaire de liaison" },
+  { key: "fiche_medicale",       label: "Fiche médicale" },
+  { key: "autorisation_photo",   label: "Autorisation de photographie" },
+  { key: "justificatif_caf",     label: "Justificatif CAF / Sécurité sociale" },
+  { key: "acompte",              label: "Acompte de 100€" },
+  { key: "assurance",            label: "Attestation d'assurance" },
+  { key: "autorisation_sortie",  label: "Autorisation de sortie" },
   { key: "attestation_natation", label: "Attestation de natation" },
 ];
 
@@ -128,33 +128,27 @@ L'équipe ColoCrew`,
 À très bientôt,
 L'équipe ColoCrew`,
   },
-  {
-    key: "convocation_transport",
-    label: "Convocation transport",
-    defaultSubject: "ColoCrew — Convocation de transport — {{nom_sejour}}",
-    defaultBody: "",
-  },
 ];
 
 const VAR_BADGES_SUBJECT = [
-  { label: "Prénom parent",     var: "prenom_parent" },
-  { label: "Nom séjour",        var: "nom_sejour" },
-  { label: "Semaine",           var: "semaine" },
-  { label: "Prénoms enfants",   var: "prenom_enfants" },
-  { label: "N° résa",           var: "numero_reservation" },
+  { label: "Prénom parent",   var: "prenom_parent" },
+  { label: "Nom séjour",      var: "nom_sejour" },
+  { label: "Semaine",         var: "semaine" },
+  { label: "Prénoms enfants", var: "prenom_enfants" },
+  { label: "N° résa",         var: "numero_reservation" },
 ];
 
 const VAR_BADGES_BODY = [
-  { label: "Prénom parent",          var: "prenom_parent" },
-  { label: "Nom parent",             var: "nom_parent" },
-  { label: "Prénoms enfants",        var: "prenom_enfants" },
-  { label: "Noms complets enfants",  var: "noms_enfants" },
-  { label: "Nom séjour",             var: "nom_sejour" },
-  { label: "Semaine",                var: "semaine" },
-  { label: "Dates séjour",           var: "dates_sejour" },
-  { label: "N° résa",                var: "numero_reservation" },
-  { label: "Lien paiement",          var: "lien_paiement" },
-  { label: "Liste documents",        var: "liste_documents" },
+  { label: "Prénom parent",         var: "prenom_parent" },
+  { label: "Nom parent",            var: "nom_parent" },
+  { label: "Prénoms enfants",       var: "prenom_enfants" },
+  { label: "Noms complets enfants", var: "noms_enfants" },
+  { label: "Nom séjour",            var: "nom_sejour" },
+  { label: "Semaine",               var: "semaine" },
+  { label: "Dates séjour",          var: "dates_sejour" },
+  { label: "N° résa",               var: "numero_reservation" },
+  { label: "Lien paiement",         var: "lien_paiement" },
+  { label: "Liste documents",       var: "liste_documents" },
 ];
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -187,17 +181,17 @@ function resolveVars(text, reservation, extraVars = {}) {
   const { legal = {}, minor = {}, sejour = {} } = reservation;
   const week = weekFromStartDate(sejour?.startDate);
   const vars = {
-    prenom_parent:       legal.firstName || "",
-    nom_parent:          legal.lastName || "",
-    prenom_enfants:      childrenFirstNames(minor) || childrenFullNames(minor),
-    noms_enfants:        childrenFullNames(minor),
-    enfants_count:       String(Array.isArray(minor?.children) ? minor.children.length : 1),
-    nom_sejour:          sejour.name || "",
-    semaine:             week,
-    dates_sejour:        formatDateRange(sejour.startDate, sejour.endDate),
-    numero_reservation:  reservation.numeroDeReservation || "",
-    lien_paiement:       reservation.stripeDepositUrl || "(lien non disponible)",
-    liste_documents:     "",
+    prenom_parent:      legal.firstName || "",
+    nom_parent:         legal.lastName  || "",
+    prenom_enfants:     childrenFirstNames(minor) || childrenFullNames(minor),
+    noms_enfants:       childrenFullNames(minor),
+    enfants_count:      String(Array.isArray(minor?.children) ? minor.children.length : 1),
+    nom_sejour:         sejour.name || "",
+    semaine:            week,
+    dates_sejour:       formatDateRange(sejour.startDate, sejour.endDate),
+    numero_reservation: reservation.numeroDeReservation || "",
+    lien_paiement:      reservation.stripeDepositUrl || "(lien non disponible)",
+    liste_documents:    "",
     ...extraVars,
   };
   return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
@@ -230,240 +224,6 @@ function bodyToHtml(bodyText) {
     </p>
   </div>
 </div>`;
-}
-
-// ─── Convocation Transport helpers ────────────────────────────────────────────
-
-function normalizeCity(v) {
-  return String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
-}
-
-function transportAllCities(transport) {
-  const cities = new Set();
-  for (const seg of transport.segments || []) {
-    if (seg.from) cities.add(normalizeCity(seg.from));
-    if (seg.to)   cities.add(normalizeCity(seg.to));
-    for (const stop of seg.stops || []) if (stop.city) cities.add(normalizeCity(stop.city));
-  }
-  if (transport.departureCity) cities.add(normalizeCity(transport.departureCity));
-  if (transport.arrivalCity)   cities.add(normalizeCity(transport.arrivalCity));
-  return cities;
-}
-
-function findTransportForCity(transports, week, direction, city) {
-  const nc = normalizeCity(city);
-  if (!nc || nc === "sur place") return null;
-  return transports.find(
-    (t) => t.week === week && t.direction === direction && transportAllCities(t).has(nc)
-  ) || null;
-}
-
-function getMeetingInfo(transport, city) {
-  if (!transport) return null;
-  const nc = normalizeCity(city);
-  for (const seg of transport.segments || []) {
-    const boardCity = transport.direction === "aller" ? seg.from : seg.to;
-    if (normalizeCity(boardCity) === nc) {
-      return {
-        meetingPoint:  seg.meetingPoint  || transport.meetingPoint  || boardCity || "",
-        meetingTime:   seg.meetingTime   || transport.meetingTime   || "",
-        platform:      seg.platform      || transport.platform      || "",
-        departureTime: seg.departureTime || transport.departureTime || "",
-        trainType:     transport.trainType   || "",
-        trainNumber:   transport.trainNumber || seg.number || "",
-        date:          transport.date || "",
-      };
-    }
-    for (const stop of seg.stops || []) {
-      if (normalizeCity(stop.city) === nc) {
-        return {
-          meetingPoint:  stop.meetingPoint  || seg.meetingPoint  || transport.meetingPoint  || stop.city || "",
-          meetingTime:   stop.meetingTime   || stop.arrivalTime  || seg.meetingTime         || transport.meetingTime  || "",
-          platform:      stop.platform      || seg.platform      || transport.platform      || "",
-          departureTime: stop.departureTime || seg.departureTime || transport.departureTime || "",
-          trainType:     transport.trainType   || "",
-          trainNumber:   transport.trainNumber || seg.number || "",
-          date:          transport.date || "",
-        };
-      }
-    }
-  }
-  return {
-    meetingPoint:  transport.meetingPoint  || transport.departureCity || "",
-    meetingTime:   transport.meetingTime   || "",
-    platform:      transport.platform      || "",
-    departureTime: transport.departureTime || "",
-    trainType:     transport.trainType     || "",
-    trainNumber:   transport.trainNumber   || "",
-    date:          transport.date          || "",
-  };
-}
-
-function fmtDateLong(iso) {
-  if (!iso) return "—";
-  const d = new Date(String(iso).includes("T") ? iso : `${iso}T00:00:00`);
-  return isNaN(d) ? iso : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-}
-
-function buildConvocationHtml(reservation, allerTransport, retourTransport) {
-  const legal   = reservation.legal   || {};
-  const minor   = reservation.minor   || {};
-  const sejour  = reservation.sejour  || {};
-  const tpt     = reservation.transport || {};
-  const children = Array.isArray(minor.children) ? minor.children : [];
-
-  const allerCity  = tpt.departureCity || "";
-  const retourCity = tpt.returnCity    || "";
-
-  const allerM  = getMeetingInfo(allerTransport,  allerCity);
-  const retourM = getMeetingInfo(retourTransport, retourCity);
-
-  const allNames   = children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean);
-  const firstNames = children.map((c) => c.firstName || "").filter(Boolean);
-  const firstName  = firstNames[0] || legal.firstName || "votre enfant";
-  const headerName = allNames.join(", ") || `${legal.firstName || ""} ${legal.lastName || ""}`.trim();
-  const verb = children.length > 1 ? "sont inscrits" : "est inscrit(e)";
-
-  const TBC = `<span style="color:#94a3b8;font-style:italic;">À confirmer.</span>`;
-
-  const mkRdv = (m, city) => m?.meetingPoint
-    ? `<strong>${m.meetingPoint}</strong>${m.platform ? `<br><span style="font-size:12px;color:#64748b;">Voie / quai ${m.platform}</span>` : ""}`
-    : city ? `<strong>${city}</strong>` : TBC;
-
-  const mkDateTime = (m, fallbackDate, accentColor) => {
-    const d = m?.date || fallbackDate;
-    return d
-      ? `<strong>${fmtDateLong(d)}</strong>${m?.meetingTime ? `<br><span style="color:${accentColor};font-weight:700;">RDV à ${m.meetingTime}</span>` : ""}`
-      : TBC;
-  };
-
-  const mkTrain = (m) => {
-    const label = m?.trainType && m?.trainNumber ? `${m.trainType} n°${m.trainNumber}` : (m?.trainNumber ? `Train n°${m.trainNumber}` : "");
-    const dep   = m?.departureTime ? `Départ à <strong>${m.departureTime}</strong>` : "";
-    return [label, dep].filter(Boolean).join("<br>") || TBC;
-  };
-
-  const th = (label, bg, color) =>
-    `<th style="padding:12px 16px;background:${bg};color:${color};font-weight:900;font-size:14px;text-align:center;border-bottom:2px solid #e5e7eb;">${label}</th>`;
-
-  const tdLabel = (last) =>
-    `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
-  const tdData = (last) =>
-    `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
-  const tdDataLast = (last) =>
-    `style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
-
-  return `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Convocation transport — ${sejour.name || "ColoCrew"}</title>
-</head>
-<body style="margin:0;padding:20px 8px;background:#f0ebff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-<div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);">
-
-  <!-- HEADER -->
-  <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;">
-    <tr>
-      <td style="padding:20px 28px 16px;vertical-align:middle;">
-        <table style="border-collapse:collapse;"><tr>
-          <td style="padding:0 10px 0 0;vertical-align:middle;">
-            <div style="background:#B8336A;border-radius:8px;width:38px;height:38px;text-align:center;line-height:38px;">
-              <span style="color:#fff;font-weight:900;font-size:16px;letter-spacing:-1px;">CC</span>
-            </div>
-          </td>
-          <td style="vertical-align:middle;">
-            <div style="font-size:19px;font-weight:900;color:#B8336A;line-height:1.1;letter-spacing:-0.02em;">ColoCrew</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
-          </td>
-        </tr></table>
-      </td>
-      <td style="padding:20px 28px 16px;text-align:right;vertical-align:top;font-size:12px;color:#64748b;line-height:1.9;">
-        <div>📧 info@colocrew.com</div>
-        <div>📞 01 84 21 02 30</div>
-        <div>🌐 colocrew.com</div>
-      </td>
-    </tr>
-  </table>
-
-  <!-- TITLE -->
-  <div style="padding:24px 28px 8px;">
-    <h1 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#B8336A;line-height:1.3;">
-      🚅 Convocation de transport — ${sejour.name || "Séjour ColoCrew"}
-    </h1>
-    <p style="margin:0 0 18px;font-size:15px;font-weight:700;color:#1e1040;">
-      ${headerName} — DOSSIER N°${reservation.numeroDeReservation || "—"}
-    </p>
-    <p style="margin:0 0 6px;font-size:14px;color:#374151;line-height:1.75;">
-      <strong>${firstNames.join(" et ") || firstName}</strong> ${verb} au séjour
-      <strong>${sejour.name || "ColoCrew"}</strong>
-      du <strong>${fmtDateLong(sejour.startDate)}</strong> au <strong>${fmtDateLong(sejour.endDate)}</strong>.
-    </p>
-    <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.75;">
-      Vous trouverez ci-dessous les informations de transport encadré.
-    </p>
-  </div>
-
-  <!-- TRANSPORT TABLE -->
-  <div style="padding:0 28px 20px;">
-    <table style="width:100%;border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;">
-      <thead>
-        <tr>
-          <td style="padding:11px 16px;background:#f8f9fa;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;width:27%;"></td>
-          ${th("↑ ALLER", "#f0fdf4", "#16a34a")}
-          ${th("↓ RETOUR", "#fff7ed", "#ea580c").replace('border-bottom', 'border-left:1px solid #e5e7eb;border-bottom')}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td ${tdLabel(false)}>Lieu de<br>rendez-vous</td>
-          <td ${tdData(false)}>${mkRdv(allerM, allerCity)}</td>
-          <td ${tdDataLast(false)}>${mkRdv(retourM, retourCity)}</td>
-        </tr>
-        <tr>
-          <td ${tdLabel(false)}>Date &amp; heure de<br>rendez-vous</td>
-          <td ${tdData(false)}>${mkDateTime(allerM,  sejour.startDate, "#16a34a")}</td>
-          <td ${tdDataLast(false)}>${mkDateTime(retourM, sejour.endDate,   "#ea580c")}</td>
-        </tr>
-        <tr>
-          <td ${tdLabel(true)}>Informations<br>complémentaires</td>
-          <td ${tdData(true)}>${mkTrain(allerM)}</td>
-          <td ${tdDataLast(true)}>${mkTrain(retourM)}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- PERMANENCE -->
-  <div style="margin:0 28px 20px;padding:14px 20px;background:linear-gradient(135deg,#fff0f6,#f5f0ff);border:1.5px solid #f3d0e6;border-radius:10px;text-align:center;">
-    <p style="margin:0;font-size:15px;font-weight:800;color:#B8336A;">📞 Permanence transport : 06 11 91 37 64 📞</p>
-  </div>
-
-  <!-- DÉROULÉ -->
-  <div style="padding:0 28px 28px;">
-    <h2 style="font-size:14px;font-weight:900;color:#1e1040;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #f5f0ff;">
-      🧳 Déroulé du transport encadré par ColoCrew
-    </h2>
-    <ul style="margin:0;padding-left:18px;font-size:14px;color:#374151;line-height:1.9;">
-      <li>Le rendez-vous est fixé <strong>1h avant le départ du train.</strong></li>
-      <li>Un animateur attendra les enfants au point de rendez-vous, reconnaissable grâce à un <strong>écriteau COLOCREW.</strong></li>
-      <li>Les responsables légaux sont invités à <strong>se présenter à l'animateur,</strong> disponible pour répondre à vos questions.</li>
-      <li>Si votre enfant se rend seul(e) au point de rendez-vous, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
-      <li>L'animateur prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au lieu de séjour.</li>
-      <li>Pour le retour, si l'enfant doit rentrer seul(e) ou être récupéré(e) par une tierce personne, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
-    </ul>
-  </div>
-
-  <!-- FOOTER -->
-  <div style="border-top:2px solid #f5f0ff;padding:16px 28px;text-align:center;background:#fdf8fc;">
-    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Association ColoCrew — SIRET : 9 3 2 1 7 1 4 3 2 0 0 0 1 0</p>
-    <p style="margin:0;font-size:12px;color:#94a3b8;">Suivez-nous sur les réseaux : @_colocrew/ColoCrew</p>
-  </div>
-
-</div>
-</body>
-</html>`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -558,7 +318,6 @@ export default function Communication() {
   const [filterSejour, setFilterSejour] = useState("all");
   const [filterWeek, setFilterWeek] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [filterConvocation, setFilterConvocation] = useState("all"); // "all" | "sent" | "not_sent"
   const [search, setSearch] = useState("");
 
   // Selection
@@ -570,10 +329,9 @@ export default function Communication() {
   const [body, setBody] = useState(TEMPLATES[0].defaultBody);
   const [sender, setSender] = useState(SENDERS[0]);
   const [missingDocs, setMissingDocs] = useState(new Set());
-  const [transports, setTransports] = useState([]);
 
   // Send state
-  const [sendState, setSendState] = useState("idle"); // "idle" | "sending" | "done"
+  const [sendState, setSendState] = useState("idle");
   const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, errors: [] });
 
   // Preview
@@ -601,12 +359,6 @@ export default function Communication() {
     load();
   }, [showToast]);
 
-  useEffect(() => {
-    getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "asc")))
-      .then((snap) => setTransports(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
-      .catch(console.error);
-  }, []);
-
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const sejourOptions = useMemo(() => {
@@ -620,8 +372,6 @@ export default function Communication() {
       if (filterSejour !== "all" && r.sejour?.name !== filterSejour) return false;
       if (filterWeek !== "all" && weekFromStartDate(r.sejour?.startDate) !== filterWeek) return false;
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
-      if (filterConvocation === "sent"     && !r.convocationSent) return false;
-      if (filterConvocation === "not_sent" &&  r.convocationSent) return false;
       if (search) {
         const q = search.toLowerCase();
         const name = `${r.legal?.firstName || ""} ${r.legal?.lastName || ""}`.toLowerCase();
@@ -632,7 +382,7 @@ export default function Communication() {
       }
       return true;
     });
-  }, [reservations, filterSejour, filterWeek, filterStatus, filterConvocation, search]);
+  }, [reservations, filterSejour, filterWeek, filterStatus, search]);
 
   const selectedList = useMemo(
     () => filtered.filter((r) => selected.has(r.id)),
@@ -663,34 +413,14 @@ export default function Communication() {
   const selectAll = useCallback(() => setSelected(new Set(filtered.map((r) => r.id))), [filtered]);
   const deselectAll = useCallback(() => setSelected(new Set()), []);
 
-  // ── Convocation status ────────────────────────────────────────────────────
-
-  const toggleConvocation = useCallback(async (res) => {
-    const next = !res.convocationSent;
-    try {
-      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), {
-        convocationSent: next,
-        convocationSentAt: next ? serverTimestamp() : null,
-      });
-      setReservations((prev) =>
-        prev.map((r) => r.id === res.id ? { ...r, convocationSent: next, convocationSentAt: next ? new Date().toISOString() : null } : r)
-      );
-    } catch {
-      showToast("Erreur lors de la mise à jour", "error");
-    }
-  }, [showToast]);
-
   // ── Variable insertion ────────────────────────────────────────────────────
 
   const insertVar = useCallback((varName, ref, setter) => {
     const el = ref?.current;
     const token = `{{${varName}}}`;
-    if (!el) {
-      setter((prev) => prev + token);
-      return;
-    }
+    if (!el) { setter((prev) => prev + token); return; }
     const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? el.value.length;
+    const end   = el.selectionEnd   ?? el.value.length;
     const newVal = el.value.slice(0, start) + token + el.value.slice(end);
     setter(newVal);
     requestAnimationFrame(() => {
@@ -719,18 +449,8 @@ export default function Communication() {
 
   const previewHtml = useMemo(() => {
     if (!previewReservation) return "";
-    if (templateKey === "convocation_transport") {
-      const week = weekFromStartDate(previewReservation.sejour?.startDate);
-      const aC = previewReservation.transport?.departureCity || "";
-      const rC = previewReservation.transport?.returnCity    || "";
-      return buildConvocationHtml(
-        previewReservation,
-        findTransportForCity(transports, week, "aller",  aC),
-        findTransportForCity(transports, week, "retour", rC),
-      );
-    }
     return bodyToHtml(resolveVars(body, previewReservation, getExtraVars()));
-  }, [previewReservation, body, getExtraVars, templateKey, transports]);
+  }, [previewReservation, body, getExtraVars]);
 
   const previewSubject = useMemo(() => {
     if (!previewReservation) return "";
@@ -758,13 +478,7 @@ export default function Communication() {
           body: JSON.stringify({
             to: res.legal.email,
             subject: resolveVars(subject, res, extraVars),
-            html: templateKey === "convocation_transport"
-              ? buildConvocationHtml(
-                  res,
-                  findTransportForCity(transports, weekFromStartDate(res.sejour?.startDate), "aller",  res.transport?.departureCity || ""),
-                  findTransportForCity(transports, weekFromStartDate(res.sejour?.startDate), "retour", res.transport?.returnCity    || ""),
-                )
-              : bodyToHtml(resolveVars(body, res, extraVars)),
+            html: bodyToHtml(resolveVars(body, res, extraVars)),
             from_name: sender.name,
             from_email: sender.email,
           }),
@@ -773,23 +487,11 @@ export default function Communication() {
           const text = await resp.text();
           throw new Error(text || `HTTP ${resp.status}`);
         }
-        if (templateKey === "convocation_transport") {
-          updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), {
-            convocationSent: true,
-            convocationSentAt: serverTimestamp(),
-          }).then(() => {
-            setReservations((prev) =>
-              prev.map((r) => r.id === res.id ? { ...r, convocationSent: true } : r)
-            );
-          }).catch(console.error);
-        }
       } catch (e) {
         errors.push({ email: res.legal.email, error: e.message });
       }
 
-      const done = i + 1;
-      setSendProgress({ done, total: selectedList.length, errors: [...errors] });
-
+      setSendProgress({ done: i + 1, total: selectedList.length, errors: [...errors] });
       if (i < selectedList.length - 1) await new Promise((r) => setTimeout(r, 350));
     }
 
@@ -799,7 +501,7 @@ export default function Communication() {
     } else {
       showToast(`${selectedList.length - errors.length} succès, ${errors.length} erreur(s)`, "error");
     }
-  }, [selectedList, subject, body, sender, getExtraVars, showToast, templateKey, transports]);
+  }, [selectedList, subject, body, sender, getExtraVars, showToast]);
 
   const resetSend = useCallback(() => {
     setSendState("idle");
@@ -852,19 +554,12 @@ export default function Communication() {
                 {Object.entries(WEEK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
-                <option value="all">Tous les statuts</option>
-                <option value="pending">En cours</option>
-                <option value="validated">Validées</option>
-                <option value="deleted">Passées</option>
-              </select>
-              <select value={filterConvocation} onChange={(e) => setFilterConvocation(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
-                <option value="all">Toutes convocations</option>
-                <option value="not_sent">🔴 Sans convocation</option>
-                <option value="sent">✅ Convoquées</option>
-              </select>
-            </div>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
+              <option value="all">Tous les statuts</option>
+              <option value="pending">En cours</option>
+              <option value="validated">Validées</option>
+              <option value="deleted">Passées</option>
+            </select>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={selectAll} style={btnSmallStyle}>
                 Tout sélect. ({filtered.length})
@@ -932,50 +627,25 @@ export default function Communication() {
                       <div style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {res.legal?.email}
                       </div>
-                      {res.convocationSent && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
-                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          Convocation envoyée
-                        </div>
-                      )}
                     </div>
 
-                    {/* Actions : toggle convocation + aperçu */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center", flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); toggleConvocation(res); }}
-                        title={res.convocationSent ? "Annuler convocation envoyée" : "Marquer convocation envoyée"}
-                        style={{
-                          background: res.convocationSent ? "#dcfce7" : "#f1f5f9",
-                          border: `1.5px solid ${res.convocationSent ? "#86efac" : "#e2e8f0"}`,
-                          borderRadius: 6, cursor: "pointer", padding: "2px 5px",
-                          color: res.convocationSent ? "#16a34a" : "#94a3b8",
-                          fontSize: 13, lineHeight: 1, flexShrink: 0,
-                        }}
-                      >
-                        {res.convocationSent ? "✓" : "🚅"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const idx = selectedList.findIndex((r) => r.id === res.id);
-                          setPreviewIdx(idx >= 0 ? idx : 0);
-                          if (!selected.has(res.id)) {
-                            toggleSelect(res.id);
-                            setPreviewIdx(0);
-                          }
-                          setPreviewOpen(true);
-                        }}
-                        title="Aperçu email"
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", padding: 0 }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                        </svg>
-                      </button>
-                    </div>
+                    {/* Aperçu */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const idx = selectedList.findIndex((r) => r.id === res.id);
+                        setPreviewIdx(idx >= 0 ? idx : 0);
+                        if (!selected.has(res.id)) { toggleSelect(res.id); setPreviewIdx(0); }
+                        setPreviewOpen(true);
+                      }}
+                      title="Aperçu email"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", padding: 0, flexShrink: 0, paddingTop: 3 }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
                   </div>
                 );
               })
@@ -1090,47 +760,25 @@ export default function Communication() {
               </div>
 
               {/* Corps */}
-              {templateKey === "convocation_transport" ? (
-                <div style={{ padding: "18px 20px", background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 10 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#15803d", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 16 }}>🚅</span> Email de convocation auto-généré
-                  </div>
-                  <p style={{ margin: "0 0 10px", fontSize: 13, color: "#166534", lineHeight: 1.65 }}>
-                    Le corps de l&apos;email est généré automatiquement pour chaque famille à partir des données Firebase :
-                  </p>
-                  <ul style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: 12.5, color: "#166534", lineHeight: 1.9 }}>
-                    <li>Nom du séjour, dates du séjour, n° de dossier</li>
-                    <li>Prénom(s) et nom(s) des enfants inscrits</li>
-                    <li><strong>Point de RDV aller</strong> — déduit de la ville de départ de la réservation</li>
-                    <li>Date &amp; heure de RDV, voie, numéro de train</li>
-                    <li><strong>Point de RDV retour</strong> — si le transport retour est configuré dans Firebase</li>
-                    <li>Numéro de permanence transport + déroulé ColoCrew</li>
-                  </ul>
-                  <p style={{ margin: 0, fontSize: 12, color: "#15803d", fontStyle: "italic" }}>
-                    Utilisez &quot;Aperçu&quot; pour vérifier le rendu personnalisé avant d&apos;envoyer.
-                  </p>
+              <div style={{ marginBottom: 8 }}>
+                <label style={labelStyle}>Corps du message</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
+                  {VAR_BADGES_BODY.map((v) => (
+                    <VarBadge key={v.var} label={v.label} onClick={() => insertVar(v.var, bodyRef, setBody)} />
+                  ))}
                 </div>
-              ) : (
-                <div style={{ marginBottom: 8 }}>
-                  <label style={labelStyle}>Corps du message</label>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
-                    {VAR_BADGES_BODY.map((v) => (
-                      <VarBadge key={v.var} label={v.label} onClick={() => insertVar(v.var, bodyRef, setBody)} />
-                    ))}
-                  </div>
-                  <textarea
-                    ref={bodyRef}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    rows={16}
-                    placeholder="Corps du message…"
-                    style={{ ...inputStyle, resize: "vertical", fontFamily: "'Courier New', Courier, monospace", fontSize: 13, lineHeight: 1.65 }}
-                  />
-                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#94a3b8" }}>
-                    Cliquez sur un badge pour insérer une variable. Le texte sera automatiquement mis en forme dans l&apos;email.
-                  </p>
-                </div>
-              )}
+                <textarea
+                  ref={bodyRef}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={16}
+                  placeholder="Corps du message…"
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "'Courier New', Courier, monospace", fontSize: 13, lineHeight: 1.65 }}
+                />
+                <p style={{ margin: "4px 0 0", fontSize: 11, color: "#94a3b8" }}>
+                  Cliquez sur un badge pour insérer une variable. Le texte sera automatiquement mis en forme dans l&apos;email.
+                </p>
+              </div>
             </div>
 
             {/* ── Footer ── */}
@@ -1211,7 +859,6 @@ export default function Communication() {
             style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 680, maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div style={{ padding: "14px 18px", borderBottom: "1px solid #f0e8f5", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>Aperçu de l&apos;email</div>
@@ -1219,61 +866,24 @@ export default function Communication() {
                   {previewReservation.legal?.firstName} {previewReservation.legal?.lastName} · {previewReservation.legal?.email}
                 </div>
               </div>
-
-              {/* Navigation entre destinataires */}
               {selectedList.length > 1 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewIdx((i) => Math.max(0, i - 1))}
-                    disabled={previewIdx <= 0}
-                    style={{ ...btnSmallStyle, padding: "4px 8px", opacity: previewIdx <= 0 ? 0.4 : 1 }}
-                  >←</button>
-                  <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
-                    {previewIdx + 1} / {selectedList.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewIdx((i) => Math.min(selectedList.length - 1, i + 1))}
-                    disabled={previewIdx >= selectedList.length - 1}
-                    style={{ ...btnSmallStyle, padding: "4px 8px", opacity: previewIdx >= selectedList.length - 1 ? 0.4 : 1 }}
-                  >→</button>
+                  <button type="button" onClick={() => setPreviewIdx((i) => Math.max(0, i - 1))} disabled={previewIdx <= 0} style={{ ...btnSmallStyle, padding: "4px 8px", opacity: previewIdx <= 0 ? 0.4 : 1 }}>←</button>
+                  <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>{previewIdx + 1} / {selectedList.length}</span>
+                  <button type="button" onClick={() => setPreviewIdx((i) => Math.min(selectedList.length - 1, i + 1))} disabled={previewIdx >= selectedList.length - 1} style={{ ...btnSmallStyle, padding: "4px 8px", opacity: previewIdx >= selectedList.length - 1 ? 0.4 : 1 }}>→</button>
                 </div>
               )}
-
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontWeight: 700, color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-              >✕</button>
+              <button type="button" onClick={() => setPreviewOpen(false)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontWeight: 700, color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
             </div>
-
-            {/* Subject preview */}
             <div style={{ padding: "8px 18px", background: "#fafafa", borderBottom: "1px solid #f0e8f5" }}>
-              <span style={{ fontSize: 12, color: "#374151" }}>
-                <strong>Objet :</strong> {previewSubject}
-              </span>
+              <span style={{ fontSize: 12, color: "#374151" }}><strong>Objet :</strong> {previewSubject}</span>
             </div>
-
-            {/* Email body preview */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", background: "#f8f9fa" }}>
               <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
             </div>
-
-            {/* Modal footer */}
             <div style={{ padding: "12px 18px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                style={{ ...btnStyle, background: "#f1f5f9", color: "#64748b" }}
-              >
-                Fermer
-              </button>
-              <button
-                type="button"
-                onClick={() => { setPreviewOpen(false); sendBatch(); }}
-                style={{ ...btnStyle, background: "#B8336A", color: "#fff" }}
-              >
+              <button type="button" onClick={() => setPreviewOpen(false)} style={{ ...btnStyle, background: "#f1f5f9", color: "#64748b" }}>Fermer</button>
+              <button type="button" onClick={() => { setPreviewOpen(false); sendBatch(); }} style={{ ...btnStyle, background: "#B8336A", color: "#fff" }}>
                 Envoyer ({selectedList.length})
               </button>
             </div>
@@ -1301,34 +911,32 @@ const inputStyle = {
 const selectStyle = {
   ...inputStyle,
   appearance: "none",
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
   backgroundRepeat: "no-repeat",
   backgroundPosition: "right 10px center",
-  paddingRight: 30,
+  paddingRight: 32,
   cursor: "pointer",
 };
 
 const btnStyle = {
-  padding: "9px 18px",
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "8px 16px",
   borderRadius: 8,
   border: "none",
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  transition: "opacity 0.15s",
+  transition: "all 0.15s",
 };
 
 const btnSmallStyle = {
-  padding: "5px 11px",
-  borderRadius: 6,
-  border: "1.5px solid #e2e8f0",
+  ...btnStyle,
+  padding: "6px 12px",
+  fontSize: 12,
   background: "#f5f0ff",
   color: "#7c3aed",
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: "pointer",
+  border: "1.5px solid #d4c0e8",
 };
 
 const labelStyle = {
@@ -1338,5 +946,5 @@ const labelStyle = {
   color: "#64748b",
   textTransform: "uppercase",
   letterSpacing: "0.07em",
-  marginBottom: 6,
+  marginBottom: 7,
 };
