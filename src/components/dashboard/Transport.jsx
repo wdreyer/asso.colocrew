@@ -505,24 +505,50 @@ function requiredSeatsForSegment(transport, segment, segmentIndex) {
   return countChildren(passengersOnSegment(transport, segmentIndex)) + (segment.assignedStaffIds || []).length;
 }
 
+function purchasedSeatsForSegmentTickets(tickets) {
+  return (tickets || [])
+    .filter((ticket) => ticket.purchased)
+    .reduce((sum, ticket) => sum + Number(ticket.seats || 0), 0);
+}
+
+function missingSeatsForSegment(transport, segment, segmentIndex, segmentTickets = []) {
+  const neededSeats = requiredSeatsForSegment(transport, segment, segmentIndex);
+  const purchasedSeats = purchasedSeatsForSegmentTickets(segmentTickets);
+  return Math.max(0, neededSeats - purchasedSeats);
+}
+
+function displayTicketForSegment(ticket, transport, segment, segmentIndex, segmentTickets = []) {
+  if (!ticket || ticket.purchased || !segment) return ticket;
+  const missingSeats = missingSeatsForSegment(transport, segment, segmentIndex, segmentTickets);
+  if (missingSeats <= 0) return ticket;
+  return {
+    ...ticket,
+    seats: missingSeats,
+    name: `À vérifier - ${missingSeats} place${missingSeats > 1 ? "s" : ""} manquante${missingSeats > 1 ? "s" : ""} - ${segmentRouteLabel(segment)}`,
+  };
+}
+
 function ticketRowsForTransport(transport, { includeMissingSegments = true } = {}) {
   const segments = transport.segments || [];
   const linkedTickets = ticketsLinkedToSegments(transport);
-  const rows = linkedTickets.map((ticket) => ({
-    type: "ticket",
-    ticket,
-    transport,
-    seg: segments.find((segment) => segment.id === ticket.segmentId) || null,
-  }));
+  const rows = linkedTickets.map((ticket) => {
+    const segmentIndex = segments.findIndex((segment) => segment.id === ticket.segmentId);
+    const seg = segmentIndex >= 0 ? segments[segmentIndex] : null;
+    const segmentTickets = seg ? linkedTickets.filter((item) => item.segmentId === seg.id) : [];
+    return {
+      type: "ticket",
+      ticket: displayTicketForSegment(ticket, transport, seg, segmentIndex, segmentTickets),
+      transport,
+      seg,
+    };
+  });
 
   if (!includeMissingSegments) return rows;
 
   segments.forEach((segment, segmentIndex) => {
     const segmentTickets = linkedTickets.filter((ticket) => ticket.segmentId === segment.id);
     const hasPendingTicket = segmentTickets.some((ticket) => !ticket.purchased);
-    const purchasedSeats = segmentTickets
-      .filter((ticket) => ticket.purchased)
-      .reduce((sum, ticket) => sum + Number(ticket.seats || 0), 0);
+    const purchasedSeats = purchasedSeatsForSegmentTickets(segmentTickets);
     const neededSeats = requiredSeatsForSegment(transport, segment, segmentIndex);
     if (neededSeats <= 0) return;
     if (segmentTickets.length > 0 && (purchasedSeats >= neededSeats || hasPendingTicket)) return;
@@ -2881,8 +2907,9 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const addTicketForSegment = (segmentId) => {
     const newId = crypto.randomUUID();
     const segIdx = segments.findIndex((s) => s.id === segmentId);
+    const segmentTickets = tickets.filter((ticket) => ticket.segmentId === segmentId);
     const autoSeats = segIdx >= 0
-      ? countChildren(passengersOnSegment(activeT, segIdx)) + (segments[segIdx].assignedStaffIds || []).length
+      ? missingSeatsForSegment(activeT, segments[segIdx], segIdx, segmentTickets)
       : 1;
     setTickets((items) => [...items, {
       id: newId, name: `Billet à acheter - ${segIdx >= 0 ? segmentRouteLabel(segments[segIdx]) : "segment"}`, segmentId, seats: autoSeats || 1,
@@ -2901,7 +2928,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
 
       {segments.map((seg, i) => {
         const isRetour = activeT.direction === "retour";
-        const segTix = tickets.filter((t) => t.segmentId === seg.id);
+        const rawSegTix = tickets.filter((t) => t.segmentId === seg.id);
+        const segTix = rawSegTix.map((ticket) => displayTicketForSegment(ticket, activeT, seg, i, rawSegTix));
         const segPassengers = passengersOnSegment(activeT, i);
         const mainStop = routeBoardingStops(activeT).find((stop) => stop.type === "main" && stop.segmentIndex === i);
         const mainStopOrder = mainStop?.order ?? i;
@@ -2925,7 +2953,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         const assignedStaff = staff.filter(m => (seg.assignedStaffIds || []).includes(m.id));
         const staffCount = assignedStaff.length;
         const needed = childCount + staffCount;
-        const bought = segTix.filter((ticket) => ticket.purchased).reduce((s, t) => s + Number(t.seats || 0), 0);
+        const bought = purchasedSeatsForSegmentTickets(rawSegTix);
         const seatsOk = needed === 0 || bought >= needed;
         const missingTicketIds = new Set(segTix.flatMap((ticket) => ticket.missingReservationIds || []));
 
