@@ -129,6 +129,11 @@ function normalizeSearchText(value) {
     .trim();
 }
 
+function isOnSiteTransportCity(value) {
+  const normalized = normalizePlace(value);
+  return !normalized || normalized === "sur place";
+}
+
 function normalizeSearchKey(value) {
   return normalizeSearchText(value).replace(/\s+/g, "");
 }
@@ -1020,6 +1025,91 @@ ${pages.join("\n")}
 
 function buildSingleConvocHTML(transport, passenger) {
   return buildGroupConvocHTML({ ...transport, passengers: [passenger] });
+}
+
+function buildOnSiteConvocHTML(reservations, week, options = {}) {
+  const weekInfo = WEEK_INFO[week] || {};
+  const today = new Date().toLocaleDateString("fr-FR");
+  const arrivalTime = options.arrivalTime || "À compléter";
+  const returnTime = options.returnTime || "À compléter";
+  const arrivalPoint = options.arrivalPoint || "Lieu du séjour";
+  const returnPoint = options.returnPoint || arrivalPoint;
+  const sejourLabel = reservations[0]?.sejourName && reservations[0].sejourName !== "-"
+    ? shortSejourName(reservations[0].sejourName)
+    : "Séjour ColoCrew";
+
+  const pages = reservations.map((reservation, idx) => {
+    const children = reservation.children || [];
+    const childRows = children.length > 0
+      ? children.map((child, childIndex) => `<tr>
+          <td>${children.length > 1 ? `Enfant ${childIndex + 1}` : "Jeune"}</td>
+          <td><strong>${child.firstName || ""} ${child.lastName || ""}</strong>
+          ${child.birthDate ? `<br><span class="sub">Né(e) le ${fmtBirthDate(child.birthDate)}</span>` : ""}
+          ${child.birthPlace ? `<br><span class="sub">à ${child.birthPlace}</span>` : ""}
+          </td></tr>`).join("")
+      : `<tr><td>Jeune</td><td><strong>${reservation.childName || "-"}</strong></td></tr>`;
+    const isLast = idx === reservations.length - 1;
+
+    return `<div class="page${isLast ? "" : " pb"}">
+      <div class="doc-header">
+        <div><div class="logo">ColoCrew</div><div class="logo-sub">Association de séjours éducatifs</div></div>
+        <div class="hdr-right"><div>Réf. <strong>${reservation.numeroDeReservation || reservation.id?.slice(0, 8) || "-"}</strong></div><div>${today}</div></div>
+      </div>
+      <div class="doc-title">CONVOCATION SUR PLACE</div>
+      <div class="dir-badge">
+        ${sejourLabel}${weekInfo.dates ? `<br><span style="font-size:12px;font-weight:600;letter-spacing:0">${weekInfo.dates}</span>` : ""}
+      </div>
+      <div class="city-badge">MODE DE RENDEZ-VOUS : SUR PLACE</div>
+      <div class="sec">Participant(s)</div>
+      <table><tbody>${childRows}</tbody></table>
+      <div class="sec">Responsable légal</div>
+      <table><tbody>
+        <tr><td>Nom</td><td>${reservation.nom}</td></tr>
+        <tr><td>Téléphone</td><td><strong>${reservation.phone}</strong></td></tr>
+        <tr><td>Email</td><td>${reservation.email}</td></tr>
+      </tbody></table>
+      <div class="sec">Rendez-vous aller</div>
+      <div class="transport-card" style="border-color:#16a34a;background:#f0fdf4;margin-bottom:12px">
+        <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(weekInfo.aller)}</strong></div>
+        <div class="tr-row"><span class="tr-lbl">Heure de RDV</span><strong>${arrivalTime}</strong></div>
+        <div class="tr-row"><span class="tr-lbl">Lieu</span><strong>${arrivalPoint}</strong></div>
+        <div class="tr-row"><span class="tr-lbl">Consigne</span>Remise de l'enfant directement à l'équipe ColoCrew sur le lieu du séjour.</div>
+      </div>
+      <div class="sec">Rendez-vous retour</div>
+      <div class="transport-card" style="border-color:#ea580c;background:#fff7ed;margin-bottom:12px">
+        <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(weekInfo.retour)}</strong></div>
+        <div class="tr-row"><span class="tr-lbl">Heure de RDV</span><strong>${returnTime}</strong></div>
+        <div class="tr-row"><span class="tr-lbl">Lieu</span><strong>${returnPoint}</strong></div>
+        <div class="tr-row"><span class="tr-lbl">Consigne</span>Reprise de l'enfant directement auprès de l'équipe ColoCrew sur le lieu du séjour.</div>
+      </div>
+      <div class="sec">Contacts utiles</div>
+      <table><tbody>
+        <tr><td>Urgences</td><td><strong>${EMERGENCY_PHONES.join(" / ")}</strong></td></tr>
+      </tbody></table>
+      <div class="sig-grid" style="grid-template-columns:1fr 1fr">
+        <div class="sig-box"><h4>Signature responsable légal<br>(remise de l'enfant)</h4></div>
+        <div class="sig-box"><h4>Signature responsable légal<br>(reprise de l'enfant)</h4></div>
+      </div>
+    </div>`;
+  });
+
+  if (pages.length === 0) {
+    pages.push(`<div class="page"><p style="text-align:center;padding:60px;color:#aaa">Aucun enfant sur place pour cette semaine.</p></div>`);
+  }
+
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>Convocations sur place - ${week}</title>
+<style>
+  ${SHARED_CSS}
+  .page{max-width:760px;margin:0 auto;padding:36px 32px}
+  .pb{page-break-after:always}
+  .doc-title{font-size:21px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#166534;text-align:center;border:2px solid #16a34a;padding:12px 20px;margin:0 0 18px;border-radius:6px}
+  .dir-badge{text-align:center;font-weight:800;font-size:13.5px;border:1.5px solid #16a34a;color:#166534;background:#f0fdf4;border-radius:8px;padding:10px;margin-bottom:18px;letter-spacing:0.04em}
+  .city-badge{text-align:center;font-weight:900;font-size:14px;color:#166534;background:#dcfce7;border-radius:8px;padding:9px 12px;margin:-8px 0 18px}
+</style></head><body>
+${pages.join("\n")}
+<div class="print-btn"><button onclick="window.print()">Imprimer les convocations sur place (${reservations.length} page${reservations.length > 1 ? "s" : ""})</button></div>
+</body></html>`;
 }
 
 function buildStaffBriefingHTML(transport) {
@@ -4791,14 +4881,31 @@ function ConvocEmailSender({ transport, allTransports }) {
   );
 }
 
-function ConvocationsTab({ transports }) {
+function ConvocationsTab({ transports, reservations }) {
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [selectedTripId, setSelectedTripId] = useState("");
   const [showEmail, setShowEmail]           = useState(false);
+  const [onSiteRdv, setOnSiteRdv] = useState({
+    arrivalTime: "14:00",
+    returnTime: "10:00",
+    arrivalPoint: "Lieu du séjour",
+    returnPoint: "Lieu du séjour",
+  });
 
   // Only aller trips shown - retour info is included in the aller email
   const weekTrips  = transports.filter((t) => t.week === selectedWeek && t.status !== "annulé" && t.direction === "aller");
+  const onSiteReservations = reservations
+    .filter((reservation) =>
+      reservation.week === selectedWeek &&
+      reservation.status === "validated" &&
+      isOnSiteTransportCity(reservation.departureCity) &&
+      isOnSiteTransportCity(reservation.returnCity),
+    )
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" }));
+  const onSiteChildren = onSiteReservations.reduce((sum, reservation) => sum + reservation.childCount, 0);
+  const selectedOnSite = selectedTripId === "__sur_place__";
   const selectedTrip = weekTrips.find((t) => t.id === selectedTripId) || null;
+  const setOnSiteField = (key, value) => setOnSiteRdv((current) => ({ ...current, [key]: value }));
 
   const openDoc = (html) => {
     const win = openPrintableDocument(html);
@@ -4824,6 +4931,19 @@ function ConvocationsTab({ transports }) {
         {/* Left - sélecteur de trajet */}
         <div className="tr-convoc-selector">
           <div className="tr-convoc-selector-hd">Choisir un trajet</div>
+          <div className="tr-convoc-day-group">
+            <div className="tr-convoc-day-label">
+              <span className="tr-days-dir is-aller">SP</span>
+              Enfants sur place
+            </div>
+            <button type="button"
+              className={`tr-convoc-trip-btn${selectedOnSite ? " is-active" : ""}`}
+              onClick={() => { setSelectedTripId("__sur_place__"); setShowEmail(false); }}>
+              <span className="tr-convoc-trip-zone">Sur place</span>
+              <span className="tr-convoc-trip-route">RDV au lieu du séjour</span>
+              <span className="tr-convoc-trip-count">{onSiteChildren} enf.</span>
+            </button>
+          </div>
           {KEY_DATES.filter((kd) => kd.week === selectedWeek && kd.direction === "aller").map((kd) => {
             const dayTrips = weekTrips.filter((t) => t.date === kd.date);
             return (
@@ -4851,7 +4971,60 @@ function ConvocationsTab({ transports }) {
 
         {/* Right - actions */}
         <div className="tr-convoc-panel">
-          {!selectedTrip ? (
+          {selectedOnSite ? (
+            <>
+              <div className="tr-convoc-panel-hd">
+                <div>
+                  <h3>Enfants sur place - {selectedWeek}</h3>
+                  <p>{WEEK_INFO[selectedWeek]?.dates || ""} · {onSiteReservations.length} famille{onSiteReservations.length !== 1 ? "s" : ""} · {onSiteChildren} enfant{onSiteChildren !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+
+              <div className="tr-onsite-config">
+                <label>
+                  <span>RDV aller</span>
+                  <input className="dash-input" type="time" value={onSiteRdv.arrivalTime} onChange={(event) => setOnSiteField("arrivalTime", event.target.value)} />
+                </label>
+                <label>
+                  <span>RDV retour</span>
+                  <input className="dash-input" type="time" value={onSiteRdv.returnTime} onChange={(event) => setOnSiteField("returnTime", event.target.value)} />
+                </label>
+                <label>
+                  <span>Lieu aller</span>
+                  <input className="dash-input" value={onSiteRdv.arrivalPoint} onChange={(event) => setOnSiteField("arrivalPoint", event.target.value)} placeholder="Lieu du séjour" />
+                </label>
+                <label>
+                  <span>Lieu retour</span>
+                  <input className="dash-input" value={onSiteRdv.returnPoint} onChange={(event) => setOnSiteField("returnPoint", event.target.value)} placeholder="Lieu du séjour" />
+                </label>
+              </div>
+
+              <div className="tr-convoc-actions">
+                <button type="button" className="tr-convoc-action-card"
+                  onClick={() => openDoc(buildOnSiteConvocHTML(onSiteReservations, selectedWeek, onSiteRdv))}
+                  disabled={!onSiteReservations.length}>
+                  <span className="tr-convoc-action-icon">SP</span>
+                  <div>
+                    <div className="tr-convoc-action-title">Convocations sur place</div>
+                    <div className="tr-convoc-action-desc">
+                      {onSiteReservations.length} famille{onSiteReservations.length !== 1 ? "s" : ""} - RDV aller et retour inclus
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="tr-onsite-list">
+                {onSiteReservations.length === 0 ? (
+                  <p className="tr-convoc-empty-msg">Aucun enfant sur place pour cette semaine.</p>
+                ) : onSiteReservations.map((reservation) => (
+                  <div key={reservation.id} className="tr-onsite-row">
+                    <strong>{reservation.nom}</strong>
+                    <span>{reservation.children?.length ? reservation.children.map((child) => `${child.firstName || ""} ${child.lastName || ""}`.trim()).join(", ") : reservation.childName}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : !selectedTrip ? (
             <div className="tr-convoc-panel-empty">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" strokeWidth="1.2" strokeLinecap="round" stroke="#c4bbd6">
                 <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
@@ -5284,7 +5457,7 @@ export default function Transport({ focusDate = "" }) {
 
           {/* Convocations */}
           {activeTab === "convocations" && (
-            <ConvocationsTab transports={transports} />
+            <ConvocationsTab transports={transports} reservations={reservations} />
           )}
 
           {/* Billets */}
