@@ -517,8 +517,15 @@ function missingSeatsForSegment(transport, segment, segmentIndex, segmentTickets
   return Math.max(0, neededSeats - purchasedSeats);
 }
 
+function normalizeSegmentLabel(value) {
+  return normalizePlace(String(value || "").replace(/\s*(?:→|>)\s*/g, ">"));
+}
+
 function displayTicketForSegment(ticket, transport, segment, segmentIndex, segmentTickets = []) {
   if (!ticket || ticket.purchased || !segment) return ticket;
+  if (ticket.segmentLabel && normalizeSegmentLabel(ticket.segmentLabel) !== normalizeSegmentLabel(segmentRouteLabel(segment))) {
+    return ticket;
+  }
   const missingSeats = missingSeatsForSegment(transport, segment, segmentIndex, segmentTickets);
   if (missingSeats <= 0) return ticket;
   return {

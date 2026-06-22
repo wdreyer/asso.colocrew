@@ -6508,7 +6508,7 @@
 }
 
 .tl-wrap {
-  padding: 16px 0 18px;
+  padding: 18px 0 22px;
   border-bottom: 1px solid rgba(120, 90, 160, 0.1);
   background: linear-gradient(180deg, #faf7ff 0%, #fff 100%);
 }
@@ -6516,7 +6516,7 @@
 .tl-track {
   display: flex;
   align-items: flex-start;
-  padding: 0 14px;
+  padding: 0 18px 4px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   gap: 0;
@@ -6528,7 +6528,7 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  min-width: 92px;
+  min-width: 108px;
   flex-shrink: 0;
   animation: tl-in 0.3s ease both;
   animation-delay: calc(var(--i, 0) * 80ms);
@@ -6557,10 +6557,10 @@
 }
 
 .tl-city {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
   color: var(--dash-text);
-  max-width: 80px;
+  max-width: 104px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6628,7 +6628,7 @@
 /* ── Leg (connector between stops) ── */
 .tl-leg {
   flex: 1;
-  min-width: 176px;
+  min-width: 232px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -6646,51 +6646,87 @@
 .tl-substops {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: -18px;
-  min-height: 38px;
-  padding: 0 5px;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  min-height: 64px;
+  padding: 0 8px;
 }
 
 .tl-substop {
-  display: inline-flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 3px 5px;
-  max-width: 170px;
-  min-height: 30px;
-  padding: 3px 7px;
-  border: 1px dashed rgba(82, 96, 112, 0.28);
-  border-radius: 9px;
-  background: #fbfcff;
+  gap: 5px 8px;
+  width: min(190px, 100%);
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid rgba(120, 90, 160, 0.18);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(58, 42, 86, 0.08);
   color: #526070;
-  font-size: 9px;
-  text-align: center;
+  font-size: 10px;
+  text-align: left;
+}
+
+.tl-substop::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  width: 2px;
+  height: 14px;
+  border-radius: 2px;
+  background: rgba(120, 90, 160, 0.26);
+  transform: translateX(-50%);
+}
+
+.tl-substop::after {
+  content: "";
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #7c5bd6;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px #faf7ff;
+  transform: translateX(-50%);
 }
 
 .tl-substop strong {
-  color: #334155;
-  font-size: 9.5px;
+  grid-column: 1 / 2;
+  color: var(--dash-text);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: normal;
 }
 
 .tl-substop-times {
   display: inline-flex;
   flex-direction: column;
-  gap: 0;
-  line-height: 1.1;
+  grid-column: 1 / 2;
+  gap: 2px;
+  line-height: 1.15;
 }
 
 .tl-substop small {
   color: #64748b;
-  font-size: 8.5px;
+  font-size: 9.5px;
   font-weight: 700;
 }
 
 .tl-substop-count {
-  padding: 1px 5px;
+  grid-column: 2 / 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 3px 7px;
   border-radius: 999px;
-  font-size: 8px !important;
+  font-size: 9px !important;
   font-weight: 900 !important;
   white-space: nowrap;
 }
@@ -6700,11 +6736,14 @@
 .tl-substop-count.is-neutral { background: #ede8f5; color: #4a2f6d; }
 
 .tl-substop em {
-  color: #7c3a6a;
-  font-size: 8px;
+  grid-column: 1 / -1;
+  justify-self: start;
+  color: #6d4fc2;
+  font-size: 8.5px;
   font-style: normal;
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .tl-train {
@@ -6716,7 +6755,7 @@
   color: var(--dash-muted);
   font-weight: 600;
   text-align: center;
-  margin-top: 6px;
+  margin-top: 10px;
   white-space: nowrap;
 }
 
