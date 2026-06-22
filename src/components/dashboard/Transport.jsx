@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   addDoc, collection, deleteDoc, doc, getDoc,
-  getDocs, orderBy, query, serverTimestamp, updateDoc,
+  getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import Badge from "@/src/components/dashboard/ui/Badge";
@@ -118,6 +118,12 @@ function normalizePlace(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function cityStopDocId(value) {
+  return normalizePlace(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "ville";
 }
 
 function normalizeSearchText(value) {
@@ -694,6 +700,19 @@ function mapTransport(snap) {
     emergencyContact: d.emergencyContact || "",
     emergencyPhone:   d.emergencyPhone || "",
     dateMs:          tsToMs(d.createdAt),
+  };
+}
+
+function mapCityStop(snap) {
+  const d = snap.data() || {};
+  return {
+    id: snap.id,
+    city: d.city || "",
+    meetingPoint: d.meetingPoint || "",
+    meetingTime: d.meetingTime || "",
+    platform: d.platform || "",
+    stopType: d.stopType || "rdv",
+    instructions: d.instructions || "",
   };
 }
 
@@ -3902,29 +3921,33 @@ function CityStopsTab({ transport, onUpdate }) {
   );
 }
 
-function cityRowsFromAllTransports(transports) {
+function cityRowsFromAllTransports(transports, cityStops = []) {
   const rows = new Map();
-  const ingestCity = (transport, segment, city) => {
+  const ingestCity = (transport, segment, city, useStopDetails = false) => {
     const key = normalizePlace(city);
     if (!key) return;
+    const canReadStopDetails = useStopDetails
+      || normalizePlace(city) === normalizePlace(segmentStopCity(transport, segment));
     const previous = rows.get(key);
     const row = previous || {
       city,
-      meetingPoint: segment.meetingPoint || "",
-      meetingTime: segment.meetingTime || "",
-      platform: segment.platform || "",
-      stopType: segmentStopType(segment),
-      instructions: segment.instructions || "",
+      meetingPoint: canReadStopDetails ? segment.meetingPoint || "" : "",
+      meetingTime: canReadStopDetails ? segment.meetingTime || "" : "",
+      platform: canReadStopDetails ? segment.platform || "" : "",
+      stopType: canReadStopDetails ? segmentStopType(segment) : "rdv",
+      instructions: canReadStopDetails ? segment.instructions || "" : "",
       tripCount: 0,
       order: Number.MAX_SAFE_INTEGER,
     };
     row.tripCount += 1;
     row.order = Math.min(row.order, cityRouteOrder(transport, city));
-    if (!row.meetingPoint && segment.meetingPoint) row.meetingPoint = segment.meetingPoint;
-    if (!row.meetingTime && segment.meetingTime) row.meetingTime = segment.meetingTime;
-    if (!row.platform && segment.platform) row.platform = segment.platform;
-    if (!row.instructions && segment.instructions) row.instructions = segment.instructions;
-    if (segmentStopType(segment) === "quai") row.stopType = "quai";
+    if (canReadStopDetails) {
+      if (!row.meetingPoint && segment.meetingPoint) row.meetingPoint = segment.meetingPoint;
+      if (!row.meetingTime && segment.meetingTime) row.meetingTime = segment.meetingTime;
+      if (!row.platform && segment.platform) row.platform = segment.platform;
+      if (!row.instructions && segment.instructions) row.instructions = segment.instructions;
+      if (segmentStopType(segment) === "quai") row.stopType = "quai";
+    }
     rows.set(key, row);
   };
   (transports || []).forEach((transport) => {
@@ -3943,7 +3966,31 @@ function cityRowsFromAllTransports(transports) {
     transportSegments.forEach((segment) => {
       ingestCity(transport, segment, segment.from);
       ingestCity(transport, segment, segment.to);
-      segmentSubStops(segment).forEach((stop) => ingestCity(transport, { ...segment, ...stop }, stop.city));
+      segmentSubStops(segment).forEach((stop) => ingestCity(transport, { ...segment, ...stop }, stop.city, true));
+    });
+  });
+  (cityStops || []).forEach((stop) => {
+    const key = normalizePlace(stop.city);
+    if (!key || key === "sur place") return;
+    const previous = rows.get(key) || {
+      city: stop.city,
+      meetingPoint: "",
+      meetingTime: "",
+      platform: "",
+      stopType: "rdv",
+      instructions: "",
+      tripCount: 0,
+      order: Number.MAX_SAFE_INTEGER,
+    };
+    rows.set(key, {
+      ...previous,
+      city: stop.city || previous.city,
+      meetingPoint: stop.meetingPoint || "",
+      meetingTime: stop.meetingTime || "",
+      platform: stop.platform || "",
+      stopType: stop.stopType || "rdv",
+      instructions: stop.instructions || "",
+      isReference: true,
     });
   });
   return [...rows.values()].sort((a, b) => {
@@ -3953,8 +4000,8 @@ function cityRowsFromAllTransports(transports) {
   });
 }
 
-function cityOptionsFromTransports(transports) {
-  return cityRowsFromAllTransports(transports).map((row) => row.city).filter(Boolean);
+function cityOptionsFromTransports(transports, cityStops = []) {
+  return cityRowsFromAllTransports(transports, cityStops).map((row) => row.city).filter(Boolean);
 }
 
 /* BilletsTab */
@@ -4351,17 +4398,55 @@ function BilletsTab({ transports, onBulkUpdate }) {
 
 /* GlobalCityStopsTab */
 
-function GlobalCityStopsTab({ transports, onBulkUpdate }) {
+function sortCityRows(rows) {
+  return [...rows].sort((a, b) => {
+    const order = (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER);
+    if (order !== 0) return order;
+    return a.city.localeCompare(b.city, "fr", { sensitivity: "base" });
+  });
+}
+
+function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsChange }) {
   const { showToast } = useToast();
-  const [rows, setRows] = useState(() => cityRowsFromAllTransports(transports));
+  const [rows, setRows] = useState(() => cityRowsFromAllTransports(transports, cityStops));
+  const [newCity, setNewCity] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setRows(cityRowsFromAllTransports(transports));
-  }, [transports]);
+    setRows(cityRowsFromAllTransports(transports, cityStops));
+  }, [transports, cityStops]);
 
   const updateRow = (city, key, value) => {
     setRows((items) => items.map((item) => item.city === city ? { ...item, [key]: value } : item));
+  };
+
+  const addCity = () => {
+    const city = newCity.trim();
+    if (!city) {
+      showToast("Indique une ville à ajouter.", "warning");
+      return;
+    }
+    if (normalizePlace(city) === "sur place") {
+      showToast("Sur place reste géré séjour par séjour.", "warning");
+      return;
+    }
+    if (rows.some((row) => normalizePlace(row.city) === normalizePlace(city))) {
+      showToast("Cette ville existe déjà dans les points de RDV.", "warning");
+      return;
+    }
+    setRows((items) => sortCityRows([...items, {
+      id: cityStopDocId(city),
+      city,
+      meetingPoint: "",
+      meetingTime: "",
+      platform: "",
+      stopType: "rdv",
+      instructions: "",
+      tripCount: 0,
+      order: Number.MAX_SAFE_INTEGER,
+      isReference: true,
+    }]));
+    setNewCity("");
   };
 
   const save = async () => {
@@ -4374,10 +4459,35 @@ function GlobalCityStopsTab({ transports, onBulkUpdate }) {
       const updatedTransports = [];
       let updatedCount = 0;
 
+      const referenceRows = rows.filter((row) => normalizePlace(row.city) && normalizePlace(row.city) !== "sur place");
+      await Promise.all(referenceRows.map((row) => setDoc(
+        doc(db, COLLECTIONS.TRANSPORT_RDV_POINTS, cityStopDocId(row.city)),
+        {
+          city: row.city.trim(),
+          meetingPoint: row.meetingPoint || "",
+          meetingTime: row.meetingTime || "",
+          platform: row.platform || "",
+          stopType: row.stopType || "rdv",
+          instructions: row.instructions || "",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      )));
+
       for (const transport of transports) {
         const patchedSegments = (transport.segments || []).map((segment) => {
+          let patchedSegment = segment;
           const patch = cityMap.get(normalizePlace(segmentStopCity(transport, segment)));
-          return patch ? { ...segment, meetingPoint: patch.meetingPoint, stopType: patch.stopType } : segment;
+          if (patch) {
+            patchedSegment = { ...patchedSegment, meetingPoint: patch.meetingPoint, stopType: patch.stopType };
+          }
+
+          const patchedStops = segmentSubStops(segment).map((stop) => {
+            const stopPatch = cityMap.get(normalizePlace(stop.city));
+            return stopPatch ? { ...stop, meetingPoint: stopPatch.meetingPoint, stopType: stopPatch.stopType } : stop;
+          });
+          if (patchedStops.length) patchedSegment = { ...patchedSegment, stops: patchedStops };
+          return patchedSegment;
         });
         if (JSON.stringify(transport.segments || []) === JSON.stringify(patchedSegments)) continue;
         await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
@@ -4389,10 +4499,19 @@ function GlobalCityStopsTab({ transports, onBulkUpdate }) {
       }
 
       onBulkUpdate(updatedTransports);
-      showToast(`Points de RDV repliques sur ${updatedCount} trajet(s)`, "success");
+      onCityStopsChange(referenceRows.map((row) => ({
+        id: cityStopDocId(row.city),
+        city: row.city.trim(),
+        meetingPoint: row.meetingPoint || "",
+        meetingTime: row.meetingTime || "",
+        platform: row.platform || "",
+        stopType: row.stopType || "rdv",
+        instructions: row.instructions || "",
+      })));
+      showToast(`Points de RDV répliqués sur ${updatedCount} trajet(s)`, "success");
     } catch (error) {
       console.error(error);
-      showToast("Erreur lors de la replication des villes", "error");
+      showToast("Erreur lors de la réplication des villes", "error");
     } finally {
       setSaving(false);
     }
@@ -4403,11 +4522,29 @@ function GlobalCityStopsTab({ transports, onBulkUpdate }) {
       <div className="tr-city-head">
         <div>
           <strong>Villes et points de RDV</strong>
-          <small>Ces reglages sont globaux pour tous les trajets qui utilisent la ville.</small>
+          <small>Ces réglages sont globaux pour tous les trajets qui utilisent la ville.</small>
         </div>
         <button type="button" className="dash-btn dash-btn-primary" onClick={save} disabled={saving || rows.length === 0}>
           {saving ? "Enregistrement..." : "Enregistrer"}
         </button>
+      </div>
+      <div className="tr-city-add">
+        <label>
+          <span>Nouvelle ville</span>
+          <input
+            className="dash-input"
+            value={newCity}
+            onChange={(event) => setNewCity(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addCity();
+              }
+            }}
+            placeholder="Ex : Saint-Chamond"
+          />
+        </label>
+        <button type="button" className="dash-btn" onClick={addCity}>+ Ajouter la ville</button>
       </div>
       <div className="tr-city-list">
         {rows.map((row) => (
@@ -4676,10 +4813,10 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
   );
 }
 
-function TrajetsTab({ transports, reservations, staffMembers, staffContracts, onSave, onDelete, onCreated, onCreate }) {
+function TrajetsTab({ transports, reservations, staffMembers, staffContracts, cityStops, onSave, onDelete, onCreated, onCreate }) {
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [expandedId, setExpandedId]     = useState(null);
-  const cityOptions = useMemo(() => cityOptionsFromTransports(transports), [transports]);
+  const cityOptions = useMemo(() => cityOptionsFromTransports(transports, cityStops), [transports, cityStops]);
 
   const weekTransports = useMemo(
     () => transports.filter((t) => t.week === selectedWeek),
@@ -5402,6 +5539,7 @@ export default function Transport({ focusDate = "" }) {
   const [reservations, setReservations]     = useState([]);
   const [staffMembers, setStaffMembers]     = useState([]);
   const [staffContracts, setStaffContracts] = useState([]);
+  const [cityStops, setCityStops]           = useState([]);
   const [loading, setLoading]               = useState(true);
   const [showNew, setShowNew]               = useState(false);
   const [activeTab, setActiveTab]           = useState("overview");
@@ -5410,16 +5548,18 @@ export default function Transport({ focusDate = "" }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [tSnap, rSnap, staffSnap, contractsSnap] = await Promise.all([
+      const [tSnap, rSnap, staffSnap, contractsSnap, cityStopsSnap] = await Promise.all([
         getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "desc"))),
         getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
         getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
         getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
+        getDocs(collection(db, COLLECTIONS.TRANSPORT_RDV_POINTS)),
       ]);
       setTransports(tSnap.docs.map(mapTransport));
       setReservations(rSnap.docs.map(mapReservationForTransport));
       setStaffMembers(staffSnap.docs.map(mapStaffMember).filter((m) => m.active));
       setStaffContracts(contractsSnap.docs.map(mapStaffContract).filter((c) => c.status !== "cancelled"));
+      setCityStops(cityStopsSnap.docs.map(mapCityStop).filter((row) => row.city));
     } catch { showToast("Erreur de chargement", "error"); }
     finally { setLoading(false); }
   }, [showToast]);
@@ -5565,6 +5705,7 @@ export default function Transport({ focusDate = "" }) {
                 reservations={reservations}
                 staffMembers={staffMembers}
                 staffContracts={staffContracts}
+                cityStops={cityStops}
                 onSave={handleSave}
                 onDelete={handleDelete}
                 onCreated={handleCreated}
@@ -5590,7 +5731,12 @@ export default function Transport({ focusDate = "" }) {
 
           {/* Points de RDV */}
           {activeTab === "villes" && (
-            <GlobalCityStopsTab transports={transports} onBulkUpdate={handleBulkSave} />
+            <GlobalCityStopsTab
+              transports={transports}
+              cityStops={cityStops}
+              onBulkUpdate={handleBulkSave}
+              onCityStopsChange={setCityStops}
+            />
           )}
         </div>
       )}

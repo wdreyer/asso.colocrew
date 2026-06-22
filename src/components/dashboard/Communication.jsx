@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, doc, getDocs, query, orderBy, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { useToast } from "@/src/contexts/ToastContext";
@@ -558,6 +558,7 @@ export default function Communication() {
   const [filterSejour, setFilterSejour] = useState("all");
   const [filterWeek, setFilterWeek] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterConvocation, setFilterConvocation] = useState("all"); // "all" | "sent" | "not_sent"
   const [search, setSearch] = useState("");
 
   // Selection
@@ -619,6 +620,8 @@ export default function Communication() {
       if (filterSejour !== "all" && r.sejour?.name !== filterSejour) return false;
       if (filterWeek !== "all" && weekFromStartDate(r.sejour?.startDate) !== filterWeek) return false;
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
+      if (filterConvocation === "sent"     && !r.convocationSent) return false;
+      if (filterConvocation === "not_sent" &&  r.convocationSent) return false;
       if (search) {
         const q = search.toLowerCase();
         const name = `${r.legal?.firstName || ""} ${r.legal?.lastName || ""}`.toLowerCase();
@@ -629,7 +632,7 @@ export default function Communication() {
       }
       return true;
     });
-  }, [reservations, filterSejour, filterWeek, filterStatus, search]);
+  }, [reservations, filterSejour, filterWeek, filterStatus, filterConvocation, search]);
 
   const selectedList = useMemo(
     () => filtered.filter((r) => selected.has(r.id)),
@@ -659,6 +662,23 @@ export default function Communication() {
 
   const selectAll = useCallback(() => setSelected(new Set(filtered.map((r) => r.id))), [filtered]);
   const deselectAll = useCallback(() => setSelected(new Set()), []);
+
+  // ── Convocation status ────────────────────────────────────────────────────
+
+  const toggleConvocation = useCallback(async (res) => {
+    const next = !res.convocationSent;
+    try {
+      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), {
+        convocationSent: next,
+        convocationSentAt: next ? serverTimestamp() : null,
+      });
+      setReservations((prev) =>
+        prev.map((r) => r.id === res.id ? { ...r, convocationSent: next, convocationSentAt: next ? new Date().toISOString() : null } : r)
+      );
+    } catch {
+      showToast("Erreur lors de la mise à jour", "error");
+    }
+  }, [showToast]);
 
   // ── Variable insertion ────────────────────────────────────────────────────
 
@@ -753,6 +773,16 @@ export default function Communication() {
           const text = await resp.text();
           throw new Error(text || `HTTP ${resp.status}`);
         }
+        if (templateKey === "convocation_transport") {
+          updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), {
+            convocationSent: true,
+            convocationSentAt: serverTimestamp(),
+          }).then(() => {
+            setReservations((prev) =>
+              prev.map((r) => r.id === res.id ? { ...r, convocationSent: true } : r)
+            );
+          }).catch(console.error);
+        }
       } catch (e) {
         errors.push({ email: res.legal.email, error: e.message });
       }
@@ -822,12 +852,19 @@ export default function Communication() {
                 {Object.entries(WEEK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
-              <option value="all">Tous les statuts</option>
-              <option value="pending">En cours</option>
-              <option value="validated">Validées</option>
-              <option value="deleted">Passées</option>
-            </select>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
+                <option value="all">Tous les statuts</option>
+                <option value="pending">En cours</option>
+                <option value="validated">Validées</option>
+                <option value="deleted">Passées</option>
+              </select>
+              <select value={filterConvocation} onChange={(e) => setFilterConvocation(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
+                <option value="all">Toutes convocations</option>
+                <option value="not_sent">🔴 Sans convocation</option>
+                <option value="sent">✅ Convoquées</option>
+              </select>
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={selectAll} style={btnSmallStyle}>
                 Tout sélect. ({filtered.length})
@@ -895,28 +932,50 @@ export default function Communication() {
                       <div style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {res.legal?.email}
                       </div>
+                      {res.convocationSent && (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          Convocation envoyée
+                        </div>
+                      )}
                     </div>
 
-                    {/* Aperçu eye */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const idx = selectedList.findIndex((r) => r.id === res.id);
-                        setPreviewIdx(idx >= 0 ? idx : 0);
-                        if (!selected.has(res.id)) {
-                          toggleSelect(res.id);
-                          setPreviewIdx(0);
-                        }
-                        setPreviewOpen(true);
-                      }}
-                      title="Aperçu email"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", padding: 0, flexShrink: 0, paddingTop: 3 }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                      </svg>
-                    </button>
+                    {/* Actions : toggle convocation + aperçu */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center", flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleConvocation(res); }}
+                        title={res.convocationSent ? "Annuler convocation envoyée" : "Marquer convocation envoyée"}
+                        style={{
+                          background: res.convocationSent ? "#dcfce7" : "#f1f5f9",
+                          border: `1.5px solid ${res.convocationSent ? "#86efac" : "#e2e8f0"}`,
+                          borderRadius: 6, cursor: "pointer", padding: "2px 5px",
+                          color: res.convocationSent ? "#16a34a" : "#94a3b8",
+                          fontSize: 13, lineHeight: 1, flexShrink: 0,
+                        }}
+                      >
+                        {res.convocationSent ? "✓" : "🚅"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const idx = selectedList.findIndex((r) => r.id === res.id);
+                          setPreviewIdx(idx >= 0 ? idx : 0);
+                          if (!selected.has(res.id)) {
+                            toggleSelect(res.id);
+                            setPreviewIdx(0);
+                          }
+                          setPreviewOpen(true);
+                        }}
+                        title="Aperçu email"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", padding: 0 }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 );
               })

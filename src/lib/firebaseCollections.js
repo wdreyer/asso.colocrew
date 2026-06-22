@@ -3,6 +3,7 @@
   RESERVATIONS: "reservations",
   FINANCE_SUMMARIES: "finance_summaries",
   TRANSPORTS: "transports",
+  TRANSPORT_RDV_POINTS: "transport_rdv_points",
   STAFF_MEMBERS: "staff_members",
   STAFF_CONTRACTS: "staff_contracts",
   PAGES: "pages",

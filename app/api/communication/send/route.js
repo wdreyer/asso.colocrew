@@ -21,6 +21,7 @@ export async function POST(request) {
     const info = await transporter.sendMail({
       from: `"${from_name || "ColoCrew"}" <${from_email || "contact@colocrew.com"}>`,
       to,
+      bcc: "contact@colocrew.com",
       subject,
       html,
     });
