@@ -128,6 +128,12 @@ L'équipe ColoCrew`,
 À très bientôt,
 L'équipe ColoCrew`,
   },
+  {
+    key: "convocation_transport",
+    label: "Convocation transport",
+    defaultSubject: "ColoCrew — Convocation de transport — {{nom_sejour}}",
+    defaultBody: "",
+  },
 ];
 
 const VAR_BADGES_SUBJECT = [
@@ -224,6 +230,240 @@ function bodyToHtml(bodyText) {
     </p>
   </div>
 </div>`;
+}
+
+// ─── Convocation Transport helpers ────────────────────────────────────────────
+
+function normalizeCity(v) {
+  return String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+}
+
+function transportAllCities(transport) {
+  const cities = new Set();
+  for (const seg of transport.segments || []) {
+    if (seg.from) cities.add(normalizeCity(seg.from));
+    if (seg.to)   cities.add(normalizeCity(seg.to));
+    for (const stop of seg.stops || []) if (stop.city) cities.add(normalizeCity(stop.city));
+  }
+  if (transport.departureCity) cities.add(normalizeCity(transport.departureCity));
+  if (transport.arrivalCity)   cities.add(normalizeCity(transport.arrivalCity));
+  return cities;
+}
+
+function findTransportForCity(transports, week, direction, city) {
+  const nc = normalizeCity(city);
+  if (!nc || nc === "sur place") return null;
+  return transports.find(
+    (t) => t.week === week && t.direction === direction && transportAllCities(t).has(nc)
+  ) || null;
+}
+
+function getMeetingInfo(transport, city) {
+  if (!transport) return null;
+  const nc = normalizeCity(city);
+  for (const seg of transport.segments || []) {
+    const boardCity = transport.direction === "aller" ? seg.from : seg.to;
+    if (normalizeCity(boardCity) === nc) {
+      return {
+        meetingPoint:  seg.meetingPoint  || transport.meetingPoint  || boardCity || "",
+        meetingTime:   seg.meetingTime   || transport.meetingTime   || "",
+        platform:      seg.platform      || transport.platform      || "",
+        departureTime: seg.departureTime || transport.departureTime || "",
+        trainType:     transport.trainType   || "",
+        trainNumber:   transport.trainNumber || seg.number || "",
+        date:          transport.date || "",
+      };
+    }
+    for (const stop of seg.stops || []) {
+      if (normalizeCity(stop.city) === nc) {
+        return {
+          meetingPoint:  stop.meetingPoint  || seg.meetingPoint  || transport.meetingPoint  || stop.city || "",
+          meetingTime:   stop.meetingTime   || stop.arrivalTime  || seg.meetingTime         || transport.meetingTime  || "",
+          platform:      stop.platform      || seg.platform      || transport.platform      || "",
+          departureTime: stop.departureTime || seg.departureTime || transport.departureTime || "",
+          trainType:     transport.trainType   || "",
+          trainNumber:   transport.trainNumber || seg.number || "",
+          date:          transport.date || "",
+        };
+      }
+    }
+  }
+  return {
+    meetingPoint:  transport.meetingPoint  || transport.departureCity || "",
+    meetingTime:   transport.meetingTime   || "",
+    platform:      transport.platform      || "",
+    departureTime: transport.departureTime || "",
+    trainType:     transport.trainType     || "",
+    trainNumber:   transport.trainNumber   || "",
+    date:          transport.date          || "",
+  };
+}
+
+function fmtDateLong(iso) {
+  if (!iso) return "—";
+  const d = new Date(String(iso).includes("T") ? iso : `${iso}T00:00:00`);
+  return isNaN(d) ? iso : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function buildConvocationHtml(reservation, allerTransport, retourTransport) {
+  const legal   = reservation.legal   || {};
+  const minor   = reservation.minor   || {};
+  const sejour  = reservation.sejour  || {};
+  const tpt     = reservation.transport || {};
+  const children = Array.isArray(minor.children) ? minor.children : [];
+
+  const allerCity  = tpt.departureCity || "";
+  const retourCity = tpt.returnCity    || "";
+
+  const allerM  = getMeetingInfo(allerTransport,  allerCity);
+  const retourM = getMeetingInfo(retourTransport, retourCity);
+
+  const allNames   = children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean);
+  const firstNames = children.map((c) => c.firstName || "").filter(Boolean);
+  const firstName  = firstNames[0] || legal.firstName || "votre enfant";
+  const headerName = allNames.join(", ") || `${legal.firstName || ""} ${legal.lastName || ""}`.trim();
+  const verb = children.length > 1 ? "sont inscrits" : "est inscrit(e)";
+
+  const TBC = `<span style="color:#94a3b8;font-style:italic;">À confirmer.</span>`;
+
+  const mkRdv = (m, city) => m?.meetingPoint
+    ? `<strong>${m.meetingPoint}</strong>${m.platform ? `<br><span style="font-size:12px;color:#64748b;">Voie / quai ${m.platform}</span>` : ""}`
+    : city ? `<strong>${city}</strong>` : TBC;
+
+  const mkDateTime = (m, fallbackDate, accentColor) => {
+    const d = m?.date || fallbackDate;
+    return d
+      ? `<strong>${fmtDateLong(d)}</strong>${m?.meetingTime ? `<br><span style="color:${accentColor};font-weight:700;">RDV à ${m.meetingTime}</span>` : ""}`
+      : TBC;
+  };
+
+  const mkTrain = (m) => {
+    const label = m?.trainType && m?.trainNumber ? `${m.trainType} n°${m.trainNumber}` : (m?.trainNumber ? `Train n°${m.trainNumber}` : "");
+    const dep   = m?.departureTime ? `Départ à <strong>${m.departureTime}</strong>` : "";
+    return [label, dep].filter(Boolean).join("<br>") || TBC;
+  };
+
+  const th = (label, bg, color) =>
+    `<th style="padding:12px 16px;background:${bg};color:${color};font-weight:900;font-size:14px;text-align:center;border-bottom:2px solid #e5e7eb;">${label}</th>`;
+
+  const tdLabel = (last) =>
+    `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
+  const tdData = (last) =>
+    `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
+  const tdDataLast = (last) =>
+    `style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Convocation transport — ${sejour.name || "ColoCrew"}</title>
+</head>
+<body style="margin:0;padding:20px 8px;background:#f0ebff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);">
+
+  <!-- HEADER -->
+  <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;">
+    <tr>
+      <td style="padding:20px 28px 16px;vertical-align:middle;">
+        <table style="border-collapse:collapse;"><tr>
+          <td style="padding:0 10px 0 0;vertical-align:middle;">
+            <div style="background:#B8336A;border-radius:8px;width:38px;height:38px;text-align:center;line-height:38px;">
+              <span style="color:#fff;font-weight:900;font-size:16px;letter-spacing:-1px;">CC</span>
+            </div>
+          </td>
+          <td style="vertical-align:middle;">
+            <div style="font-size:19px;font-weight:900;color:#B8336A;line-height:1.1;letter-spacing:-0.02em;">ColoCrew</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
+          </td>
+        </tr></table>
+      </td>
+      <td style="padding:20px 28px 16px;text-align:right;vertical-align:top;font-size:12px;color:#64748b;line-height:1.9;">
+        <div>📧 info@colocrew.com</div>
+        <div>📞 01 84 21 02 30</div>
+        <div>🌐 colocrew.com</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- TITLE -->
+  <div style="padding:24px 28px 8px;">
+    <h1 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#B8336A;line-height:1.3;">
+      🚅 Convocation de transport — ${sejour.name || "Séjour ColoCrew"}
+    </h1>
+    <p style="margin:0 0 18px;font-size:15px;font-weight:700;color:#1e1040;">
+      ${headerName} — DOSSIER N°${reservation.numeroDeReservation || "—"}
+    </p>
+    <p style="margin:0 0 6px;font-size:14px;color:#374151;line-height:1.75;">
+      <strong>${firstNames.join(" et ") || firstName}</strong> ${verb} au séjour
+      <strong>${sejour.name || "ColoCrew"}</strong>
+      du <strong>${fmtDateLong(sejour.startDate)}</strong> au <strong>${fmtDateLong(sejour.endDate)}</strong>.
+    </p>
+    <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.75;">
+      Vous trouverez ci-dessous les informations de transport encadré.
+    </p>
+  </div>
+
+  <!-- TRANSPORT TABLE -->
+  <div style="padding:0 28px 20px;">
+    <table style="width:100%;border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+      <thead>
+        <tr>
+          <td style="padding:11px 16px;background:#f8f9fa;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;width:27%;"></td>
+          ${th("↑ ALLER", "#f0fdf4", "#16a34a")}
+          ${th("↓ RETOUR", "#fff7ed", "#ea580c").replace('border-bottom', 'border-left:1px solid #e5e7eb;border-bottom')}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td ${tdLabel(false)}>Lieu de<br>rendez-vous</td>
+          <td ${tdData(false)}>${mkRdv(allerM, allerCity)}</td>
+          <td ${tdDataLast(false)}>${mkRdv(retourM, retourCity)}</td>
+        </tr>
+        <tr>
+          <td ${tdLabel(false)}>Date &amp; heure de<br>rendez-vous</td>
+          <td ${tdData(false)}>${mkDateTime(allerM,  sejour.startDate, "#16a34a")}</td>
+          <td ${tdDataLast(false)}>${mkDateTime(retourM, sejour.endDate,   "#ea580c")}</td>
+        </tr>
+        <tr>
+          <td ${tdLabel(true)}>Informations<br>complémentaires</td>
+          <td ${tdData(true)}>${mkTrain(allerM)}</td>
+          <td ${tdDataLast(true)}>${mkTrain(retourM)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PERMANENCE -->
+  <div style="margin:0 28px 20px;padding:14px 20px;background:linear-gradient(135deg,#fff0f6,#f5f0ff);border:1.5px solid #f3d0e6;border-radius:10px;text-align:center;">
+    <p style="margin:0;font-size:15px;font-weight:800;color:#B8336A;">📞 Permanence transport : 06 11 91 37 64 📞</p>
+  </div>
+
+  <!-- DÉROULÉ -->
+  <div style="padding:0 28px 28px;">
+    <h2 style="font-size:14px;font-weight:900;color:#1e1040;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #f5f0ff;">
+      🧳 Déroulé du transport encadré par ColoCrew
+    </h2>
+    <ul style="margin:0;padding-left:18px;font-size:14px;color:#374151;line-height:1.9;">
+      <li>Le rendez-vous est fixé <strong>1h avant le départ du train.</strong></li>
+      <li>Un animateur attendra les enfants au point de rendez-vous, reconnaissable grâce à un <strong>écriteau COLOCREW.</strong></li>
+      <li>Les responsables légaux sont invités à <strong>se présenter à l'animateur,</strong> disponible pour répondre à vos questions.</li>
+      <li>Si votre enfant se rend seul(e) au point de rendez-vous, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
+      <li>L'animateur prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au lieu de séjour.</li>
+      <li>Pour le retour, si l'enfant doit rentrer seul(e) ou être récupéré(e) par une tierce personne, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
+    </ul>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="border-top:2px solid #f5f0ff;padding:16px 28px;text-align:center;background:#fdf8fc;">
+    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Association ColoCrew — SIRET : 9 3 2 1 7 1 4 3 2 0 0 0 1 0</p>
+    <p style="margin:0;font-size:12px;color:#94a3b8;">Suivez-nous sur les réseaux : @_colocrew/ColoCrew</p>
+  </div>
+
+</div>
+</body>
+</html>`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -329,6 +569,7 @@ export default function Communication() {
   const [body, setBody] = useState(TEMPLATES[0].defaultBody);
   const [sender, setSender] = useState(SENDERS[0]);
   const [missingDocs, setMissingDocs] = useState(new Set());
+  const [transports, setTransports] = useState([]);
 
   // Send state
   const [sendState, setSendState] = useState("idle"); // "idle" | "sending" | "done"
@@ -358,6 +599,12 @@ export default function Communication() {
     }
     load();
   }, [showToast]);
+
+  useEffect(() => {
+    getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "asc")))
+      .then((snap) => setTransports(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+      .catch(console.error);
+  }, []);
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -452,8 +699,18 @@ export default function Communication() {
 
   const previewHtml = useMemo(() => {
     if (!previewReservation) return "";
+    if (templateKey === "convocation_transport") {
+      const week = weekFromStartDate(previewReservation.sejour?.startDate);
+      const aC = previewReservation.transport?.departureCity || "";
+      const rC = previewReservation.transport?.returnCity    || "";
+      return buildConvocationHtml(
+        previewReservation,
+        findTransportForCity(transports, week, "aller",  aC),
+        findTransportForCity(transports, week, "retour", rC),
+      );
+    }
     return bodyToHtml(resolveVars(body, previewReservation, getExtraVars()));
-  }, [previewReservation, body, getExtraVars]);
+  }, [previewReservation, body, getExtraVars, templateKey, transports]);
 
   const previewSubject = useMemo(() => {
     if (!previewReservation) return "";
@@ -481,7 +738,13 @@ export default function Communication() {
           body: JSON.stringify({
             to: res.legal.email,
             subject: resolveVars(subject, res, extraVars),
-            html: bodyToHtml(resolveVars(body, res, extraVars)),
+            html: templateKey === "convocation_transport"
+              ? buildConvocationHtml(
+                  res,
+                  findTransportForCity(transports, weekFromStartDate(res.sejour?.startDate), "aller",  res.transport?.departureCity || ""),
+                  findTransportForCity(transports, weekFromStartDate(res.sejour?.startDate), "retour", res.transport?.returnCity    || ""),
+                )
+              : bodyToHtml(resolveVars(body, res, extraVars)),
             from_name: sender.name,
             from_email: sender.email,
           }),
@@ -506,7 +769,7 @@ export default function Communication() {
     } else {
       showToast(`${selectedList.length - errors.length} succès, ${errors.length} erreur(s)`, "error");
     }
-  }, [selectedList, subject, body, sender, getExtraVars, showToast]);
+  }, [selectedList, subject, body, sender, getExtraVars, showToast, templateKey, transports]);
 
   const resetSend = useCallback(() => {
     setSendState("idle");
@@ -768,25 +1031,47 @@ export default function Communication() {
               </div>
 
               {/* Corps */}
-              <div style={{ marginBottom: 8 }}>
-                <label style={labelStyle}>Corps du message</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
-                  {VAR_BADGES_BODY.map((v) => (
-                    <VarBadge key={v.var} label={v.label} onClick={() => insertVar(v.var, bodyRef, setBody)} />
-                  ))}
+              {templateKey === "convocation_transport" ? (
+                <div style={{ padding: "18px 20px", background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 10 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#15803d", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 16 }}>🚅</span> Email de convocation auto-généré
+                  </div>
+                  <p style={{ margin: "0 0 10px", fontSize: 13, color: "#166534", lineHeight: 1.65 }}>
+                    Le corps de l&apos;email est généré automatiquement pour chaque famille à partir des données Firebase :
+                  </p>
+                  <ul style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: 12.5, color: "#166534", lineHeight: 1.9 }}>
+                    <li>Nom du séjour, dates du séjour, n° de dossier</li>
+                    <li>Prénom(s) et nom(s) des enfants inscrits</li>
+                    <li><strong>Point de RDV aller</strong> — déduit de la ville de départ de la réservation</li>
+                    <li>Date &amp; heure de RDV, voie, numéro de train</li>
+                    <li><strong>Point de RDV retour</strong> — si le transport retour est configuré dans Firebase</li>
+                    <li>Numéro de permanence transport + déroulé ColoCrew</li>
+                  </ul>
+                  <p style={{ margin: 0, fontSize: 12, color: "#15803d", fontStyle: "italic" }}>
+                    Utilisez &quot;Aperçu&quot; pour vérifier le rendu personnalisé avant d&apos;envoyer.
+                  </p>
                 </div>
-                <textarea
-                  ref={bodyRef}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={16}
-                  placeholder="Corps du message…"
-                  style={{ ...inputStyle, resize: "vertical", fontFamily: "'Courier New', Courier, monospace", fontSize: 13, lineHeight: 1.65 }}
-                />
-                <p style={{ margin: "4px 0 0", fontSize: 11, color: "#94a3b8" }}>
-                  Cliquez sur un badge pour insérer une variable. Le texte sera automatiquement mis en forme dans l&apos;email.
-                </p>
-              </div>
+              ) : (
+                <div style={{ marginBottom: 8 }}>
+                  <label style={labelStyle}>Corps du message</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
+                    {VAR_BADGES_BODY.map((v) => (
+                      <VarBadge key={v.var} label={v.label} onClick={() => insertVar(v.var, bodyRef, setBody)} />
+                    ))}
+                  </div>
+                  <textarea
+                    ref={bodyRef}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={16}
+                    placeholder="Corps du message…"
+                    style={{ ...inputStyle, resize: "vertical", fontFamily: "'Courier New', Courier, monospace", fontSize: 13, lineHeight: 1.65 }}
+                  />
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#94a3b8" }}>
+                    Cliquez sur un badge pour insérer une variable. Le texte sera automatiquement mis en forme dans l&apos;email.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* ── Footer ── */}

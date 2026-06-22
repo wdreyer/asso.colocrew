@@ -2623,7 +2623,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   );
 }
 
-function OperationsTab({ transport, allReservations, staffMembers, staffContracts, onUpdate, focusSegmentId }) {
+function OperationsTab({ transport, allReservations, staffMembers, staffContracts, onUpdate, focusSegmentId, cityOptions = [] }) {
   const { showToast } = useToast();
   const [segments, setSegments] = useState(transport.segments || []);
   const [staff, setStaff] = useState(transport.staff || []);
@@ -2714,6 +2714,24 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     setter((items) => items.map((item) => item.id === id ? { ...item, [key]: value } : item));
   };
 
+  const cityChoicesFor = (...currentValues) => {
+    const choices = new Map();
+    [...cityOptions, ...currentValues].filter(Boolean).forEach((city) => {
+      const key = normalizePlace(city);
+      if (!key || choices.has(key)) return;
+      choices.set(key, city);
+    });
+    return [...choices.values()];
+  };
+
+  const defaultCityPair = (items) => {
+    const previousTo = items.at(-1)?.to || transport.departureCity || "";
+    const choices = cityChoicesFor(previousTo, transport.departureCity, transport.arrivalCity);
+    const from = choices.find((city) => normalizePlace(city) === normalizePlace(previousTo)) || choices[0] || "";
+    const to = choices.find((city) => normalizePlace(city) !== normalizePlace(from)) || "";
+    return { from, to };
+  };
+
   const addSubStop = (segmentId) => {
     setSegments((items) => items.map((segment) => {
       if (segment.id !== segmentId) return segment;
@@ -2757,22 +2775,36 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
 
   const addSegment = () => {
     const newId = crypto.randomUUID();
-    setSegments((items) => [...items, {
-      id: newId,
-      from: items.at(-1)?.to || transport.departureCity || "",
-      to: "",
-      meetingTime: "",
-      meetingPoint: "",
-      departureTime: "",
-      arrivalTime: "",
-      mode: "TGV",
-      number: "",
-      platform: "",
-      stopType: "rdv",
-      instructions: "",
-      assignedStaffIds: [],
-    }]);
+    setSegments((items) => {
+      const { from, to } = defaultCityPair(items);
+      return [...items, {
+        id: newId,
+        from,
+        to,
+        meetingTime: "",
+        meetingPoint: "",
+        departureTime: "",
+        arrivalTime: "",
+        mode: "TGV",
+        number: "",
+        platform: "",
+        stopType: "rdv",
+        instructions: "",
+        assignedStaffIds: [],
+      }];
+    });
     setEditingSegmentId(newId);
+  };
+
+  const moveSegment = (segmentId, direction) => {
+    setSegments((items) => {
+      const index = items.findIndex((segment) => segment.id === segmentId);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= items.length) return items;
+      const next = [...items];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
   };
 
   const removeSegment = (segmentId) => {
@@ -2916,6 +2948,18 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const save = async () => {
     setSaving(true);
     try {
+      const knownCityKeys = new Set(cityChoicesFor(transport.departureCity, transport.arrivalCity).map((city) => normalizePlace(city)).filter(Boolean));
+      const invalidSegment = segments.find((segment) =>
+        !knownCityKeys.has(normalizePlace(segment.from)) || !knownCityKeys.has(normalizePlace(segment.to)),
+      );
+      const invalidStop = segments.flatMap((segment) => segmentSubStops(segment)).find((stop) =>
+        !knownCityKeys.has(normalizePlace(stop.city)),
+      );
+      if (invalidSegment || invalidStop) {
+        showToast("Chaque segment doit utiliser une ville présente dans Points de RDV.", "error");
+        return;
+      }
+
       const first = segments[0];
       const last = segments.at(-1);
       const segmentIds = new Set(segments.map((segment) => segment.id).filter(Boolean));
@@ -3053,12 +3097,29 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         const bought = purchasedSeatsForSegmentTickets(rawSegTix);
         const seatsOk = needed === 0 || bought >= needed;
         const missingTicketIds = new Set(segTix.flatMap((ticket) => ticket.missingReservationIds || []));
+        const segmentStops = segmentSubStops(seg);
+        const trainLabel = `${seg.mode || "Transport"}${seg.number ? ` ${seg.number}` : ""}`;
+        const segmentCityChoices = cityChoicesFor(seg.from, seg.to);
 
         return (
           <div key={seg.id} className="tr-ops-seg">
             <div className="tr-ops-seg-head">
               <span className="tr-ops-seg-num">{i + 1}</span>
-              <span className="tr-ops-seg-title">{seg.from || "Départ"} → {seg.to || "Arrivée"}</span>
+              <div className="tr-ops-seg-order" aria-label="Ordre du segment">
+                <button type="button" onClick={() => moveSegment(seg.id, -1)} disabled={i === 0} title="Monter le segment">↑</button>
+                <button type="button" onClick={() => moveSegment(seg.id, 1)} disabled={i === segments.length - 1} title="Descendre le segment">↓</button>
+              </div>
+              <div className="tr-ops-seg-main">
+                <span className="tr-ops-seg-title">{seg.from || "Départ"} → {seg.to || "Arrivée"}</span>
+                <div className="tr-ops-seg-summary">
+                  <span><strong>{seg.departureTime || "--:--"}</strong> → <strong>{seg.arrivalTime || "--:--"}</strong></span>
+                  <span>{trainLabel}</span>
+                  <span>{childCount} enfant{childCount !== 1 ? "s" : ""}</span>
+                  <span>{staffCount} anim.</span>
+                  <span className={seatsOk ? "is-ok" : "is-short"}>Billets {bought}/{needed || 0}</span>
+                  {segmentStops.length > 0 && <span>{segmentStops.length} étape{segmentStops.length > 1 ? "s" : ""}</span>}
+                </div>
+              </div>
               <button type="button" className="tr-ops-seg-del"
                 onClick={() => removeSegment(seg.id)}>
                 Supprimer
@@ -3066,14 +3127,22 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             </div>
 
             {/* Train info inline */}
-            <div className="tr-ops-train-row">
+            <details className="tr-ops-details">
+              <summary>Détails du segment</summary>
+              <div className="tr-ops-train-row">
               <label className="tr-ops-field-sm">
                 <span>De</span>
-                <input className="dash-input" value={seg.from} onChange={(e) => updateItem(setSegments, seg.id, "from", e.target.value)} placeholder="Ville départ" />
+                <select className="dash-input" value={seg.from || ""} onChange={(e) => updateItem(setSegments, seg.id, "from", e.target.value)}>
+                  <option value="">Ville RDV...</option>
+                  {segmentCityChoices.map((city) => <option key={`from-${seg.id}-${city}`} value={city}>{city}</option>)}
+                </select>
               </label>
               <label className="tr-ops-field-sm">
                 <span>À</span>
-                <input className="dash-input" value={seg.to} onChange={(e) => updateItem(setSegments, seg.id, "to", e.target.value)} placeholder="Ville arrivée" />
+                <select className="dash-input" value={seg.to || ""} onChange={(e) => updateItem(setSegments, seg.id, "to", e.target.value)}>
+                  <option value="">Ville RDV...</option>
+                  {segmentCityChoices.map((city) => <option key={`to-${seg.id}-${city}`} value={city}>{city}</option>)}
+                </select>
               </label>
               <label className="tr-ops-field-sm">
                 <span>Mode</span>
@@ -3108,9 +3177,15 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <option value="quai">Quai uniquement</option>
                 </select>
               </label>
-            </div>
+              </div>
+            </details>
 
-            <div className="tr-ops-substops">
+            <details className="tr-ops-details">
+              <summary>
+                Villes étapes
+                {segmentStops.length > 0 && <span>{segmentStops.length}</span>}
+              </summary>
+              <div className="tr-ops-substops">
               <div className="tr-ops-substops-head">
                 <span>Villes étapes</span>
                 <small>Arrêt sur le quai, sans RDV séparé et sans billet de continuation.</small>
@@ -3123,7 +3198,12 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 <div key={stop.id} className="tr-ops-substop-row">
                   <label>
                     <span>Ville</span>
-                    <input className="dash-input" value={stop.city || ""} onChange={(e) => updateSubStop(seg.id, stop.id, "city", e.target.value)} placeholder="ex : Valence" />
+                    <select className="dash-input" value={stop.city || ""} onChange={(e) => updateSubStop(seg.id, stop.id, "city", e.target.value)}>
+                      <option value="">Ville RDV...</option>
+                      {cityChoicesFor(stop.city, seg.from, seg.to).map((city) => (
+                        <option key={`stop-${stop.id}-${city}`} value={city}>{city}</option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>Arrivée</span>
@@ -3140,10 +3220,16 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <button type="button" className="tr-pax-remove" title="Supprimer la ville étape" onClick={() => removeSubStop(seg.id, stop.id)}>×</button>
                 </div>
               ))}
-            </div>
+              </div>
+            </details>
 
             {/* Animateurs - direct checkboxes + quick-add from contracts */}
-            <div className="tr-ops-anims">
+            <details className="tr-ops-details">
+              <summary>
+                Animateurs
+                {staffCount > 0 && <span>{staffCount}</span>}
+              </summary>
+              <div className="tr-ops-anims">
               <span className="tr-ops-anims-label">
                 Animateurs
                 {staffCount > 0 && <span className="tr-ops-anims-count">{staffCount}</span>}
@@ -3174,11 +3260,17 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
               {availableContracts.length === 0 && staff.length === 0 && (
                 <span className="tr-ops-anims-empty">Aucun contrat disponible pour cette semaine</span>
               )}
-            </div>
+              </div>
+            </details>
 
             {/* Enfants sur ce segment */}
             {(segKids.length > 0 || segmentSubStops(seg).length > 0) && (
-              <div className="tr-ops-enfants">
+              <details className="tr-ops-details">
+                <summary>
+                  Enfants
+                  <span>{segKids.length}</span>
+                </summary>
+                <div className="tr-ops-enfants">
                 <span className="tr-ops-anims-label">
                   Enfants
                   <span className="tr-ops-anims-count">{segKids.length}</span>
@@ -3245,11 +3337,17 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              </details>
             )}
 
             {/* Billets */}
-            <div className="tr-ops-tix">
+            <details className="tr-ops-details">
+              <summary>
+                Billets
+                <span className={seatsOk ? "is-ok" : "is-short"}>{bought}/{needed || 0}</span>
+              </summary>
+              <div className="tr-ops-tix">
               <div className="tr-ops-tix-head">
                 <span className="tr-ops-anims-label">Billets</span>
                 {needed > 0 && (
@@ -3284,7 +3382,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </details>
           </div>
         );
       })}
@@ -3805,30 +3904,46 @@ function CityStopsTab({ transport, onUpdate }) {
 
 function cityRowsFromAllTransports(transports) {
   const rows = new Map();
+  const ingestCity = (transport, segment, city) => {
+    const key = normalizePlace(city);
+    if (!key) return;
+    const previous = rows.get(key);
+    const row = previous || {
+      city,
+      meetingPoint: segment.meetingPoint || "",
+      meetingTime: segment.meetingTime || "",
+      platform: segment.platform || "",
+      stopType: segmentStopType(segment),
+      instructions: segment.instructions || "",
+      tripCount: 0,
+      order: Number.MAX_SAFE_INTEGER,
+    };
+    row.tripCount += 1;
+    row.order = Math.min(row.order, cityRouteOrder(transport, city));
+    if (!row.meetingPoint && segment.meetingPoint) row.meetingPoint = segment.meetingPoint;
+    if (!row.meetingTime && segment.meetingTime) row.meetingTime = segment.meetingTime;
+    if (!row.platform && segment.platform) row.platform = segment.platform;
+    if (!row.instructions && segment.instructions) row.instructions = segment.instructions;
+    if (segmentStopType(segment) === "quai") row.stopType = "quai";
+    rows.set(key, row);
+  };
   (transports || []).forEach((transport) => {
-    (transport.segments || []).forEach((segment) => {
-      const city = segmentStopCity(transport, segment);
-      const key = normalizePlace(city);
-      if (!key) return;
-      const previous = rows.get(key);
-      const row = previous || {
-        city,
-        meetingPoint: segment.meetingPoint || "",
-        meetingTime: segment.meetingTime || "",
-        platform: segment.platform || "",
-        stopType: segmentStopType(segment),
-        instructions: segment.instructions || "",
-        tripCount: 0,
-        order: Number.MAX_SAFE_INTEGER,
+    const transportSegments = transport.segments || [];
+    if (!transportSegments.length) {
+      const fallbackSegment = {
+        meetingPoint: transport.meetingPoint || "",
+        meetingTime: transport.meetingTime || "",
+        platform: transport.platform || "",
+        stopType: transport.stopType || "rdv",
+        instructions: transport.instructions || "",
       };
-      row.tripCount += 1;
-      row.order = Math.min(row.order, cityRouteOrder(transport, city));
-      if (!row.meetingPoint && segment.meetingPoint) row.meetingPoint = segment.meetingPoint;
-      if (!row.meetingTime && segment.meetingTime) row.meetingTime = segment.meetingTime;
-      if (!row.platform && segment.platform) row.platform = segment.platform;
-      if (!row.instructions && segment.instructions) row.instructions = segment.instructions;
-      if (segmentStopType(segment) === "quai") row.stopType = "quai";
-      rows.set(key, row);
+      ingestCity(transport, fallbackSegment, transport.departureCity);
+      ingestCity(transport, fallbackSegment, transport.arrivalCity);
+    }
+    transportSegments.forEach((segment) => {
+      ingestCity(transport, segment, segment.from);
+      ingestCity(transport, segment, segment.to);
+      segmentSubStops(segment).forEach((stop) => ingestCity(transport, { ...segment, ...stop }, stop.city));
     });
   });
   return [...rows.values()].sort((a, b) => {
@@ -3836,6 +3951,10 @@ function cityRowsFromAllTransports(transports) {
     if (order !== 0) return order;
     return a.city.localeCompare(b.city, "fr", { sensitivity: "base" });
   });
+}
+
+function cityOptionsFromTransports(transports) {
+  return cityRowsFromAllTransports(transports).map((row) => row.city).filter(Boolean);
 }
 
 /* BilletsTab */
@@ -4331,6 +4450,7 @@ function TripDetail({
   allReservations,
   staffMembers,
   staffContracts,
+  cityOptions = [],
   onClose,
   onSave,
   onDelete,
@@ -4484,6 +4604,7 @@ function TripDetail({
             allReservations={allReservations}
             staffMembers={staffMembers}
             staffContracts={staffContracts}
+            cityOptions={cityOptions}
             onUpdate={handleUpdate}
             focusSegmentId={null}
           />
@@ -4500,7 +4621,7 @@ function TripDetail({
 
 /* TrajetsTab */
 
-function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staffContracts, onSave, onDelete, onCreated, zoneName }) {
+function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staffContracts, cityOptions, onSave, onDelete, onCreated, zoneName }) {
   const childCount  = countChildren(trip.passengers);
   const segCount    = (trip.segments || []).length;
   const totalTix    = (trip.tickets || []).length;
@@ -4544,6 +4665,7 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
           allReservations={reservations}
           staffMembers={staffMembers}
           staffContracts={staffContracts}
+          cityOptions={cityOptions}
           onClose={() => onToggle()}
           onSave={onSave}
           onDelete={onDelete}
@@ -4557,6 +4679,7 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
 function TrajetsTab({ transports, reservations, staffMembers, staffContracts, onSave, onDelete, onCreated, onCreate }) {
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [expandedId, setExpandedId]     = useState(null);
+  const cityOptions = useMemo(() => cityOptionsFromTransports(transports), [transports]);
 
   const weekTransports = useMemo(
     () => transports.filter((t) => t.week === selectedWeek),
@@ -4635,7 +4758,7 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, on
                     isExpanded={expandedId === trip.id}
                     onToggle={() => toggle(trip.id)}
                     reservations={reservations} staffMembers={staffMembers}
-                    staffContracts={staffContracts} onSave={onSave}
+                    staffContracts={staffContracts} cityOptions={cityOptions} onSave={onSave}
                     onDelete={(id) => { setExpandedId(null); onDelete(id); }}
                     onCreated={onCreated}
                   />
@@ -4646,7 +4769,7 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, on
                   isExpanded={expandedId === trip.id}
                   onToggle={() => toggle(trip.id)}
                   reservations={reservations} staffMembers={staffMembers}
-                  staffContracts={staffContracts} onSave={onSave}
+                  staffContracts={staffContracts} cityOptions={cityOptions} onSave={onSave}
                   onDelete={(id) => { setExpandedId(null); onDelete(id); }}
                   onCreated={onCreated}
                 />
