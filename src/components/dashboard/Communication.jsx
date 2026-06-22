@@ -157,6 +157,15 @@ function weekFromStartDate(iso) {
   return WEEK_MAP[String(iso || "").slice(0, 10)] || "";
 }
 
+function isValidatedReservation(reservation) {
+  return reservation?.status === "validated";
+}
+
+function reservationChildCount(reservation) {
+  const count = Array.isArray(reservation?.minor?.children) ? reservation.minor.children.length : 0;
+  return count > 0 ? count : 1;
+}
+
 function formatDateRange(startDate, endDate) {
   if (!startDate) return "";
   const fmt = (iso) => {
@@ -317,7 +326,6 @@ export default function Communication() {
   // Filters
   const [filterSejour, setFilterSejour] = useState("all");
   const [filterWeek, setFilterWeek] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
   const [search, setSearch] = useState("");
 
   // Selection
@@ -361,17 +369,27 @@ export default function Communication() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
+  const validatedReservations = useMemo(
+    () => reservations.filter(isValidatedReservation),
+    [reservations],
+  );
+
+  const validStats = useMemo(() => {
+    const withEmail = validatedReservations.filter((r) => r.legal?.email).length;
+    const children = validatedReservations.reduce((sum, r) => sum + reservationChildCount(r), 0);
+    return { files: validatedReservations.length, children, withEmail };
+  }, [validatedReservations]);
+
   const sejourOptions = useMemo(() => {
-    const names = new Set(reservations.map((r) => r.sejour?.name).filter(Boolean));
+    const names = new Set(validatedReservations.map((r) => r.sejour?.name).filter(Boolean));
     return [...names].sort();
-  }, [reservations]);
+  }, [validatedReservations]);
 
   const filtered = useMemo(() => {
-    return reservations.filter((r) => {
+    return validatedReservations.filter((r) => {
       if (!r.legal?.email) return false;
       if (filterSejour !== "all" && r.sejour?.name !== filterSejour) return false;
       if (filterWeek !== "all" && weekFromStartDate(r.sejour?.startDate) !== filterWeek) return false;
-      if (filterStatus !== "all" && r.status !== filterStatus) return false;
       if (search) {
         const q = search.toLowerCase();
         const name = `${r.legal?.firstName || ""} ${r.legal?.lastName || ""}`.toLowerCase();
@@ -382,12 +400,20 @@ export default function Communication() {
       }
       return true;
     });
-  }, [reservations, filterSejour, filterWeek, filterStatus, search]);
+  }, [validatedReservations, filterSejour, filterWeek, search]);
 
   const selectedList = useMemo(
     () => filtered.filter((r) => selected.has(r.id)),
     [filtered, selected]
   );
+
+  useEffect(() => {
+    const allowed = new Set(filtered.map((r) => r.id));
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => allowed.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filtered]);
 
   // ── Template ──────────────────────────────────────────────────────────────
 
@@ -460,6 +486,10 @@ export default function Communication() {
   // ── Send ──────────────────────────────────────────────────────────────────
 
   const sendBatch = useCallback(async () => {
+    if (selectedList.some((res) => !isValidatedReservation(res))) {
+      showToast("L'envoi famille est limité aux réservations validées", "error");
+      return;
+    }
     if (selectedList.length === 0) { showToast("Aucun destinataire sélectionné", "error"); return; }
     if (!subject.trim()) { showToast("L'objet du mail est obligatoire", "error"); return; }
 
@@ -525,7 +555,7 @@ export default function Communication() {
       <div style={{ padding: "18px 24px 14px", borderBottom: "1px solid #f0e8f5", flexShrink: 0 }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#1e1040" }}>Communication familles</h1>
         <p style={{ margin: "3px 0 0", fontSize: 13, color: "#94a3b8" }}>
-          {reservations.length} réservations · {filtered.length} visible(s) · {selected.size} sélectionnée(s)
+          {validStats.children} enfants validés · {validStats.files} dossiers · {validStats.withEmail} familles avec email · {filtered.length} visible(s) · {selectedList.length} sélectionnée(s)
         </p>
       </div>
 
@@ -554,12 +584,9 @@ export default function Communication() {
                 {Object.entries(WEEK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
-              <option value="all">Tous les statuts</option>
-              <option value="pending">En cours</option>
-              <option value="validated">Validées</option>
-              <option value="deleted">Passées</option>
-            </select>
+            <div style={{ padding: "8px 10px", borderRadius: 8, background: "#ecfdf5", color: "#047857", fontSize: 12, fontWeight: 700, border: "1px solid #bbf7d0" }}>
+              {"Uniquement les réservations validées"}
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={selectAll} style={btnSmallStyle}>
                 Tout sélect. ({filtered.length})
@@ -802,9 +829,9 @@ export default function Communication() {
               ) : (
                 <>
                   <span style={{ fontSize: 13, color: "#64748b", flex: 1 }}>
-                    {selected.size === 0
+                    {selectedList.length === 0
                       ? "Sélectionnez des destinataires dans la liste"
-                      : `${selected.size} destinataire(s) sélectionné(s)`}
+                      : `${selectedList.length} destinataire(s) sélectionné(s)`}
                   </span>
 
                   <button

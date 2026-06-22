@@ -170,6 +170,13 @@ function childFullName(child) {
   return `${child?.firstName || ""} ${child?.lastName || ""}`.trim();
 }
 
+function legalPassengerName(legal, children = []) {
+  const name = `${legal?.firstName || legal?.prenom || ""} ${legal?.lastName || legal?.nom || ""}`.trim();
+  if (!name) return "";
+  const childNames = children.map(childFullName).filter(Boolean);
+  return childNames.some((childName) => normalizeSearchText(childName) === normalizeSearchText(name)) ? "" : name;
+}
+
 function reservationSearchNames(reservation) {
   const children = reservation.children?.length ? reservation.children : [{ firstName: reservation.childName, lastName: "" }];
   return [
@@ -282,7 +289,12 @@ function stopTypeLabel(segment) {
 }
 
 function segmentMeetingLabel(segment) {
-  if (segmentStopType(segment) === "quai") return segment.platform ? `Quai / voie ${segment.platform}` : "Sur le quai";
+  if (segmentStopType(segment) === "quai") {
+    return [
+      segment.meetingPoint || "",
+      segment.platform ? `Quai / voie ${segment.platform}` : "",
+    ].filter(Boolean).join(" · ") || "Sur le quai";
+  }
   return segment.meetingPoint || "Point de rendez-vous à compléter";
 }
 
@@ -725,10 +737,11 @@ function mapReservationForTransport(snap) {
   const finance = d.finance || {};
   const children = minor.children || [];
   const first   = children[0] || {};
+  const legalName = legalPassengerName(legal, children);
   return {
     id:   snap.id,
     numeroDeReservation: d.numeroDeReservation || "",
-    nom:  `${legal.firstName || ""} ${legal.lastName || ""}`.trim() || "-",
+    nom:  legalName,
     email: legal.email || "-",
     phone: legal.phone || "-",
     children,
@@ -742,8 +755,55 @@ function mapReservationForTransport(snap) {
     financeNetAmount: Number(finance.netAmount || 0) || 0,
     financeStayAmount: Number(finance.stayAmount || 0) || 0,
     status: d.status || "pending",
+    convocationSent: Boolean(d.convocationSent),
+    convocationSentAt: d.convocationSentAt || null,
     isImported2026: d.validationSource === "ete26_validated_workbook",
     childCount: Math.max(children.length, 1),
+  };
+}
+
+function compactTransportPassengers(passengers = []) {
+  return passengers
+    .filter((passenger) => passenger?.reservationId)
+    .map((passenger) => {
+      const entry = { reservationId: passenger.reservationId };
+      if (passenger.pickupCity) entry.pickupCity = passenger.pickupCity;
+      if (typeof passenger.convocationSent === "boolean") entry.convocationSent = passenger.convocationSent;
+      if (passenger.convocationSentAt) entry.convocationSentAt = passenger.convocationSentAt;
+      return entry;
+    });
+}
+
+function hydrateTransportPassenger(passenger, reservation, transport) {
+  if (!reservation) return passenger;
+  return {
+    ...passenger,
+    numeroDeReservation: reservation.numeroDeReservation,
+    nom: reservation.nom || "",
+    email: reservation.email || "",
+    phone: reservation.phone || "",
+    children: reservation.children || [],
+    childName: reservation.childName || "",
+    sejourName: reservation.sejourName || "",
+    departureCity: reservation.departureCity || "",
+    returnCity: reservation.returnCity || "",
+    transportAmount: reservation.transportAmount || 0,
+    financeNetAmount: reservation.financeNetAmount || 0,
+    financeStayAmount: reservation.financeStayAmount || 0,
+    status: reservation.status,
+    convocationSent: Boolean(reservation.convocationSent ?? passenger.convocationSent),
+    convocationSentAt: reservation.convocationSentAt || passenger.convocationSentAt || null,
+    pickupCity: passenger.pickupCity || (transport.direction === "retour" ? reservation.returnCity : reservation.departureCity) || "",
+  };
+}
+
+function hydrateTransportPassengers(transport, reservations = []) {
+  const byId = reservations instanceof Map ? reservations : new Map(reservations.map((reservation) => [reservation.id, reservation]));
+  return {
+    ...transport,
+    passengers: (transport.passengers || []).map((passenger) =>
+      hydrateTransportPassenger(passenger, byId.get(passenger.reservationId), transport),
+    ),
   };
 }
 
@@ -892,6 +952,11 @@ function buildGroupConvocHTML(transport) {
       const stopSeg = routeStop?.segment || null;
       const arrivalTime = routeStopTime(routeStop, transport, "arrival") || transport.arrivalTime || "";
       const arrivalCity = routeStop?.city || stopSeg?.to || transport.arrivalCity || "";
+      const isQuai = routeStop?.type === "sub" ? segmentStopType(routeStop.stop) === "quai" : segmentStopType(stopSeg) === "quai";
+      const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : (stopSeg ? segmentMeetingLabel(stopSeg) : transport.meetingPoint || "");
+      const platform = routeStop?.stop?.platform || stopSeg?.platform || transport.platform || "";
+      const trainType = routeStop?.stop?.mode || stopSeg?.mode || transport.trainType || "";
+      const trainNumber = routeStop?.stop?.number || stopSeg?.number || transport.trainNumber || "";
       const childNames = children.length > 0
         ? children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
         : (p.childName || "-");
@@ -915,7 +980,9 @@ function buildGroupConvocHTML(transport) {
         <div class="transport-card" style="border-color:#ea580c;background:#fff7ed">
           <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(transport.date)}</strong></div>
           <div class="tr-row"><span class="tr-lbl">Arrivée prévue</span><strong>${arrivalTime || "À préciser"}</strong> à ${arrivalCity || "-"}</div>
-          ${transport.trainType || transport.trainNumber ? `<div class="tr-row"><span class="tr-lbl">Train</span><strong>${transport.trainType || ""} ${transport.trainNumber || ""}</strong></div>` : ""}
+          <div class="tr-row"><span class="tr-lbl">${isQuai ? "Lieu" : "Point de RDV"}</span><strong>${meetingPoint || arrivalCity || "-"}</strong></div>
+          ${platform ? `<div class="tr-row"><span class="tr-lbl">Voie / Quai</span><strong>${platform}</strong></div>` : ""}
+          ${trainType || trainNumber ? `<div class="tr-row"><span class="tr-lbl">Train</span><strong>${trainType} ${trainNumber}</strong></div>` : ""}
         </div>
         <p style="font-size:13px;color:#555;margin-top:18px;padding:12px;background:#fef9f0;border-left:3px solid #ea580c;border-radius:4px">
           Merci de venir chercher votre enfant à la gare à l'heure indiquée. En cas de retard ou d'imprévu,
@@ -1151,13 +1218,24 @@ function buildStaffBriefingHTML(transport) {
   const stopSections = segments.map((segment, index) => {
     const stopPassengers = passengersOnSegment(transport, index);
     const assignedStaff = staff.filter((member) => (segment.assignedStaffIds || []).includes(member.id));
-    const childRows = stopPassengers.flatMap((passenger) => {
-      const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
-      return children.map((child) => `
-        <tr><td><strong>${child.firstName || ""} ${child.lastName || ""}</strong></td>
-        <td>${passenger.nom || "-"}</td><td><strong>${passenger.phone || "-"}</strong></td>
-        <td>${passenger.numeroDeReservation || "-"}</td><td>→</td></tr>
-      `);
+    const sortedStopPassengers = [...stopPassengers].sort((a, b) => {
+      const oa = cityRouteOrder(transport, passengerCity(transport, a));
+      const ob = cityRouteOrder(transport, passengerCity(transport, b));
+      if (oa !== ob) return oa - ob;
+      return passengerCity(transport, a).localeCompare(passengerCity(transport, b), "fr", { sensitivity: "base" });
+    });
+    const childRows = groupPassengersByCity(transport, sortedStopPassengers).flatMap(({ city, passengers: cp }) => {
+      const hdr = `<tr class="city-row"><td colspan="6">` + city + ` — ${countChildren(cp)} enfant${countChildren(cp) !== 1 ? "s" : ""}</td></tr>`;
+      const rows = cp.flatMap((passenger) => {
+        const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
+        return children.map((child) => `
+          <tr><td><strong>${child.firstName || ""} ${child.lastName || ""}</strong></td>
+          <td>${city}</td>
+          <td>${passenger.nom || "-"}</td><td><strong>${passenger.phone || "-"}</strong></td>
+          <td>${passenger.numeroDeReservation || "-"}</td><td>→</td></tr>
+        `);
+      });
+      return [hdr, ...rows];
     }).join("");
     return `
       <section class="stop">
@@ -1169,8 +1247,8 @@ function buildStaffBriefingHTML(transport) {
         <div class="stop-trip">${segment.mode || ""} ${segment.number || ""} vers <strong>${segment.to || "destination à compléter"}</strong> · arrivée ${segment.arrivalTime || "à compléter"}</div>
         <div class="stop-place"><strong>Animateurs sur cette portion :</strong> ${assignedStaff.length ? assignedStaff.map((member) => `${member.name || "Nom à compléter"} (${member.phone || "téléphone manquant"})`).join(", ") : "Aucun animateur affecté"}</div>
         ${segment.instructions ? `<div class="stop-note">${segment.instructions}</div>` : ""}
-        <table><thead><tr><th>Enfant</th><th>Responsable</th><th>Téléphone</th><th>Dossier</th><th>Présent</th></tr></thead>
-        <tbody>${childRows || "<tr><td colspan='5'>Aucun enfant affecté à cet arrêt.</td></tr>"}</tbody></table>
+        <table><thead><tr><th>Enfant</th><th>Ville</th><th>Responsable</th><th>Téléphone</th><th>Dossier</th><th>Présent</th></tr></thead>
+        <tbody>${childRows || "<tr><td colspan='6'>Aucun enfant affecté à cet arrêt.</td></tr>"}</tbody></table>
       </section>`;
   }).join("");
   const staffRows = staff.map((member) => `
@@ -2272,7 +2350,7 @@ function PassengerEditModal({ passenger, transport, onSave, onClose }) {
         <div className="tr-pedit-body">
           <div className="tr-pedit-section">Informations famille</div>
           <div className="tr-pedit-row">
-            <label><span>Nom de famille</span><input className="dash-input" value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} /></label>
+            <label><span>Responsable légal</span><input className="dash-input" value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} /></label>
             <label><span>Email</span><input className="dash-input" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
             <label><span>Téléphone</span><input className="dash-input" type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></label>
           </div>
@@ -2307,7 +2385,6 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [resModal, setResModal] = useState(null); // { item } | null
-  const [editModal, setEditModal] = useState(null); // passenger | null
 
   const openReservationById = async (reservationId) => {
     if (!reservationId) return;
@@ -2320,7 +2397,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
 
   const patchPassengerReservationId = async (passenger, reservation) => {
     if (!passenger || !reservation || passenger.reservationId === reservation.id) return;
-    const updated = transport.passengers.map((item) =>
+    const updated = compactTransportPassengers(transport.passengers.map((item) =>
       item === passenger || (
         item.numeroDeReservation
         && passenger.numeroDeReservation
@@ -2328,13 +2405,13 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
       )
         ? { ...item, reservationId: reservation.id, numeroDeReservation: reservation.numeroDeReservation || item.numeroDeReservation }
         : item,
-    );
+    ));
     try {
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
         passengers: updated,
         updatedAt: serverTimestamp(),
       });
-      onUpdate({ ...transport, passengers: updated });
+      onUpdate(hydrateTransportPassengers({ ...transport, passengers: updated }, allReservations));
     } catch {
       // Le lien reste utilisable pour cette ouverture, même si la correction du passager échoue.
     }
@@ -2400,23 +2477,14 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
         .filter(r => selected.has(r.id))
         .map(r => ({
           reservationId:       r.id,
-          numeroDeReservation: r.numeroDeReservation,
-          nom:       r.nom,
-          email:     r.email,
-          phone:     r.phone,
-          children:  r.children,
-          childName: r.childName,
-          sejourName: r.sejourName,
-          departureCity: r.departureCity,
-          returnCity: r.returnCity,
           pickupCity: transport.direction === "aller" ? r.departureCity : r.returnCity,
         }));
-      const updated = [...transport.passengers, ...toAdd];
+      const updated = compactTransportPassengers([...transport.passengers, ...toAdd]);
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
         passengers: updated,
         updatedAt: serverTimestamp(),
       });
-      onUpdate({ ...transport, passengers: updated });
+      onUpdate(hydrateTransportPassengers({ ...transport, passengers: updated }, allReservations));
       showToast(`${toAdd.length} passager${toAdd.length > 1 ? "s" : ""} ajouté${toAdd.length > 1 ? "s" : ""}`, "success");
       setSelected(new Set());
       setShowAdd(false);
@@ -2428,12 +2496,12 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   };
 
   const removePassenger = async (reservationId) => {
-    const updated = transport.passengers.filter(p => p.reservationId !== reservationId);
+    const updated = compactTransportPassengers(transport.passengers.filter(p => p.reservationId !== reservationId));
     try {
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
         passengers: updated, updatedAt: serverTimestamp(),
       });
-      onUpdate({ ...transport, passengers: updated });
+      onUpdate(hydrateTransportPassengers({ ...transport, passengers: updated }, allReservations));
       showToast("Passager retiré", "success");
     } catch {
       showToast("Erreur", "error");
@@ -2441,15 +2509,15 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
   };
 
   const updatePickupCity = async (reservationId, pickupCity) => {
-    const updated = transport.passengers.map((passenger) =>
+    const updated = compactTransportPassengers(transport.passengers.map((passenger) =>
       passenger.reservationId === reservationId ? { ...passenger, pickupCity } : passenger,
-    );
+    ));
     try {
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
         passengers: updated,
         updatedAt: serverTimestamp(),
       });
-      onUpdate({ ...transport, passengers: updated });
+      onUpdate(hydrateTransportPassengers({ ...transport, passengers: updated }, allReservations));
     } catch {
       showToast("Erreur lors du changement de ville", "error");
     }
@@ -2584,13 +2652,6 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
                       ))}
                     </select>
                     <div className="tr-pax-ref">{p.numeroDeReservation}</div>
-                    <button type="button" className="tr-pax-open-res" title="Modifier le passager"
-                      onClick={() => setEditModal(p)}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
                     <button type="button" className="tr-pax-open-res" title="Ouvrir la réservation"
                       onClick={() => openReservation(p)} style={{ marginLeft: 2 }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">
@@ -2629,15 +2690,6 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
         </div>
       )}
 
-      {/* Passenger edit modal */}
-      {editModal && (
-        <PassengerEditModal
-          passenger={editModal}
-          transport={transport}
-          onSave={(updated) => { onUpdate(updated); }}
-          onClose={() => setEditModal(null)}
-        />
-      )}
     </div>
   );
 }
@@ -4688,9 +4740,9 @@ function TripDetail({
         emergencyContact: transport.emergencyContact, emergencyPhone: transport.emergencyPhone,
         capacity: transport.capacity, status: "brouillon",
         notes: `Copie depuis le trajet ${transport.direction}. Horaires à compléter.`,
-        passengers: transport.passengers.map((p) => ({
+        passengers: compactTransportPassengers(transport.passengers.map((p) => ({
           ...p, pickupCity: p.returnCity || transport.arrivalCity,
-        })),
+        }))),
         segments: [...(transport.segments || [])].reverse().map((s) => ({
           ...s, id: crypto.randomUUID(), from: s.to, to: s.from,
           departureTime: "", arrivalTime: "", platform: "",
@@ -5010,7 +5062,7 @@ function getEmailRdvInfo(transport, passenger) {
   let rdvTime = seg?.meetingTime || null;
   if (!rdvTime && trainTime) {
     const [h, m] = trainTime.split(":").map(Number);
-    const total = ((h * 60 + m - 45) % 1440 + 1440) % 1440;
+    const total = ((h * 60 + m - 60) % 1440 + 1440) % 1440;
     rdvTime = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
   }
   const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || transport.meetingPoint || "";
@@ -5033,7 +5085,10 @@ function getRetourInfo(transport, passenger, allTransports) {
       const seg = routeStop?.segment || null;
       const arrivalTime = routeStopTime(routeStop, rt, "arrival") || seg?.arrivalTime || rt.arrivalTime || "";
       const arrivalCity = routeStop?.city || seg?.to || rt.arrivalCity || passenger.returnCity || "";
-      return { date: rt.date, arrivalTime, arrivalCity };
+      const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || rt.meetingPoint || "";
+      const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || rt.stopType || "rdv";
+      const platform = routeStop?.stop?.platform || seg?.platform || rt.platform || "";
+      return { date: rt.date, arrivalTime, arrivalCity, meetingPoint, stopType, platform };
     }
   }
   return null;
@@ -5066,6 +5121,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
     retourInfo ? `- RETOUR -` : null,
     retourInfo ? `Date de retour : ${fmtDateLong(retourInfo.date)}` : null,
     retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
+    retourInfo?.meetingPoint ? `Lieu de récupération : ${retourInfo.meetingPoint}` : null,
     retourInfo ? `` : null,
     `- CONSIGNES -`,
     `• Merci d'être présent(e) à l'heure de RDV, le train ne peut pas vous attendre.`,
@@ -5091,10 +5147,14 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   const nbChildren = passenger.children?.length || 0;
   const { city, rdvTime, trainTime, meetingPoint, stopType, platform } = rdvInfo;
   const weekInfo = WEEK_INFO[transport.week] || null;
-  const sejourShort = shortSejourName(transport.sejourName);
+  // Use the real séjour name from the reservation, not the transport doc (which may say "Été 2026")
+  const sejourReal = (passenger.sejourName && passenger.sejourName !== "-")
+    ? passenger.sejourName
+    : shortSejourName(transport.sejourName);
+  const sejourShort = sejourReal;
   const retourInfo = getRetourInfo(transport, passenger, allTransports);
 
-  const TBC = `<span style="color:#94a3b8;font-style:italic;">A confirmer</span>`;
+  const TBC = `<span style="color:#94a3b8;font-style:italic;">À confirmer</span>`;
 
   const allerRdv = (() => {
     if (stopType === "quai" && platform) return `<strong>Voie / Quai ${platform}</strong><br><span style="font-size:12px;color:#64748b;">Gare de ${city}</span>`;
@@ -5112,6 +5172,15 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   const retourArrivee = retourInfo?.arrivalTime
     ? `Arrivée <strong>${retourInfo.arrivalTime}</strong>${retourInfo.arrivalCity ? ` à <strong>${retourInfo.arrivalCity}</strong>` : ""}`
     : TBC;
+  const retourLieu = (() => {
+    if (!retourInfo) return TBC;
+    const place = retourInfo.meetingPoint || retourInfo.arrivalCity || "";
+    if (!place) return TBC;
+    const quai = retourInfo.platform && !place.includes(retourInfo.platform)
+      ? `<br><span style="font-size:12px;color:#64748b;">Quai / voie ${retourInfo.platform}</span>`
+      : "";
+    return `<strong>${place}</strong>${quai}`;
+  })();
 
   const td0 = (last) => `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
   const td1 = (last) => `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
@@ -5161,7 +5230,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
         <tr>
           <td ${td0(false)}>Lieu de rendez-vous</td>
           <td ${td1(false)}>${allerRdv}</td>
-          <td ${td2(false)}>A confirmer</td>
+          <td ${td2(false)}>${retourLieu}</td>
         </tr>
         <tr>
           <td ${td0(false)}>Date et heure RDV</td>
@@ -5507,16 +5576,34 @@ function ConvocEmailSender({ transport, allTransports }) {
 const thS = { padding: "9px 12px", fontWeight: 700, fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" };
 const tdS = { padding: "10px 12px", verticalAlign: "middle" };
 
+// Group passengers by email (family) within a trip
+function groupPassengersByFamily(passengers) {
+  const map = new Map();
+  (passengers || []).forEach((p) => {
+    const key = (p.email && p.email !== "-") ? p.email : (p.reservationId || p.nom);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(p);
+  });
+  return Array.from(map.values());
+}
+
+function mergeFamily(passengers) {
+  const primary = passengers[0];
+  const allChildren = passengers.flatMap((p) => p.children?.length ? p.children : [{ firstName: p.childName || "", lastName: "" }]).filter((c) => c.firstName || c.lastName);
+  return { ...primary, children: allChildren };
+}
+
 function ConvocationsTab({ transports, reservations }) {
   const { showToast } = useToast();
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [sentStatus, setSentStatus]     = useState({});
-  const [sendingId, setSendingId]       = useState(null);
+  const [sendingKey, setSendingKey]     = useState(null);
   const [sendingAll, setSendingAll]     = useState(false);
   const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, errors: [] });
   const [preview, setPreview]           = useState(null);
   const [showEditor, setShowEditor]     = useState(false);
   const [customIntro, setCustomIntro]   = useState("");
+  const [onSiteConfigs, setOnSiteConfigs] = useState({});
 
   const weekTrips = useMemo(
     () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé" && t.direction === "aller"),
@@ -5530,7 +5617,27 @@ function ConvocationsTab({ transports, reservations }) {
     [reservations, selectedWeek],
   );
 
-  // Init sentStatus from Firebase data when week changes
+  const onSiteBySejourMap = useMemo(() => {
+    const map = new Map();
+    onSiteReservations.forEach((r) => {
+      const key = r.sejourName || "Séjour";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r);
+    });
+    return map;
+  }, [onSiteReservations]);
+
+  const onSiteSejourNames = useMemo(() => Array.from(onSiteBySejourMap.keys()), [onSiteBySejourMap]);
+
+  const getOnSiteConfig = useCallback((sejourName) => ({
+    time: onSiteConfigs[sejourName]?.time || "14:00",
+    lieu: onSiteConfigs[sejourName]?.lieu || "",
+  }), [onSiteConfigs]);
+
+  const setOnSiteConfig = useCallback((sejourName, field, value) => {
+    setOnSiteConfigs((prev) => ({ ...prev, [sejourName]: { ...prev[sejourName], [field]: value } }));
+  }, []);
+
   useEffect(() => {
     const m = {};
     onSiteReservations.forEach((r) => { if (r.convocationSent) m[r.id] = true; });
@@ -5545,67 +5652,85 @@ function ConvocationsTab({ transports, reservations }) {
     setTimeout(() => win.print(), 800);
   };
 
-  const markSent = useCallback(async (id) => {
-    if (!id) return;
-    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), { convocationSent: true, convocationSentAt: serverTimestamp() });
-    setSentStatus((prev) => ({ ...prev, [id]: true }));
+  const markAllSent = useCallback(async (ids) => {
+    await Promise.all(ids.filter(Boolean).map((id) =>
+      updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), { convocationSent: true, convocationSentAt: serverTimestamp() })
+    ));
+    setSentStatus((prev) => {
+      const next = { ...prev };
+      ids.filter(Boolean).forEach((id) => { next[id] = true; });
+      return next;
+    });
   }, []);
 
-  const markUnsent = useCallback(async (id) => {
-    if (!id) return;
-    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), { convocationSent: false, convocationSentAt: null });
-    setSentStatus((prev) => ({ ...prev, [id]: false }));
+  const markAllUnsent = useCallback(async (ids) => {
+    await Promise.all(ids.filter(Boolean).map((id) =>
+      updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), { convocationSent: false, convocationSentAt: null })
+    ));
+    setSentStatus((prev) => {
+      const next = { ...prev };
+      ids.filter(Boolean).forEach((id) => { next[id] = false; });
+      return next;
+    });
   }, []);
 
-  // Build pending list across all trips (sur place has no email send)
-  const pendingRows = useMemo(() => {
+  const doSendFamily = useCallback(async (trip, passengers) => {
+    const primary  = passengers[0];
+    const merged   = mergeFamily(passengers);
+    const rdvInfo  = getEmailRdvInfo(trip, primary);
+    const html     = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro);
+    const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
+    const wi = WEEK_INFO[trip.week];
+    const subject  = `Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
+    const resp = await fetch("/api/communication/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com" }),
+    });
+    if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
+    await markAllSent(passengers.map((p) => p.reservationId));
+  }, [transports, customIntro, markAllSent]);
+
+  // Pending = one entry per unique family (email) that hasn't been fully sent
+  const pendingFamilies = useMemo(() => {
+    const seen = new Set();
     const rows = [];
     weekTrips.forEach((trip) => {
-      (trip.passengers || []).forEach((p) => {
-        if (!sentStatus[p.reservationId] && p.email && p.email !== "-") {
-          rows.push({ trip, passenger: p });
+      groupPassengersByFamily(trip.passengers).forEach((passengers) => {
+        const primary = passengers[0];
+        const emailKey = (primary.email && primary.email !== "-") ? primary.email : primary.reservationId;
+        if (seen.has(emailKey)) return;
+        const allIds = passengers.map((p) => p.reservationId).filter(Boolean);
+        const allSent = allIds.every((id) => sentStatus[id]);
+        if (!allSent && primary.email && primary.email !== "-") {
+          seen.add(emailKey);
+          rows.push({ trip, passengers });
         }
       });
     });
     return rows;
   }, [weekTrips, sentStatus]);
 
-  const doSendPassenger = useCallback(async (trip, p) => {
-    const rdvInfo = getEmailRdvInfo(trip, p);
-    const html = buildConvocEmailHtml(trip, p, rdvInfo, transports, customIntro);
-    const short = shortSejourName(trip.sejourName);
-    const wi = WEEK_INFO[trip.week];
-    const dates = wi ? ` (${wi.dates})` : "";
-    const subject = `Convocation transport — ${short}${dates} — ${fmtDateLong(trip.date)}`;
-    const resp = await fetch("/api/communication/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: p.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com" }),
-    });
-    if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
-    await markSent(p.reservationId);
-  }, [transports, customIntro, markSent]);
-
   const handleSendAll = useCallback(async () => {
-    if (!pendingRows.length) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
+    if (!pendingFamilies.length) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
     setSendingAll(true);
-    setSendProgress({ done: 0, total: pendingRows.length, errors: [] });
+    setSendProgress({ done: 0, total: pendingFamilies.length, errors: [] });
     const errors = [];
-    for (let i = 0; i < pendingRows.length; i++) {
-      const { trip, passenger } = pendingRows[i];
-      try { await doSendPassenger(trip, passenger); }
-      catch (e) { errors.push({ email: passenger.email, error: e.message }); }
-      setSendProgress({ done: i + 1, total: pendingRows.length, errors: [...errors] });
-      if (i < pendingRows.length - 1) await new Promise((r) => setTimeout(r, 350));
+    for (let i = 0; i < pendingFamilies.length; i++) {
+      const { trip, passengers } = pendingFamilies[i];
+      try { await doSendFamily(trip, passengers); }
+      catch (e) { errors.push({ email: passengers[0].email, error: e.message }); }
+      setSendProgress({ done: i + 1, total: pendingFamilies.length, errors: [...errors] });
+      if (i < pendingFamilies.length - 1) await new Promise((r) => setTimeout(r, 350));
     }
     setSendingAll(false);
-    if (errors.length === 0) showToast(`${pendingRows.length} convocation(s) envoyée(s)`, "success");
-    else showToast(`${pendingRows.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
-  }, [pendingRows, doSendPassenger, showToast]);
+    if (errors.length === 0) showToast(`${pendingFamilies.length} convocation(s) envoyée(s)`, "success");
+    else showToast(`${pendingFamilies.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
+  }, [pendingFamilies, doSendFamily, showToast]);
 
   return (
     <div className="tr-convoc-tab">
-      {/* Semaine */}
+      {/* Chips semaine */}
       <nav className="dash-subtabs" style={{ marginBottom: 16 }}>
         {WEEKS.map((week) => (
           <button key={week} type="button"
@@ -5616,24 +5741,15 @@ function ConvocationsTab({ transports, reservations }) {
         ))}
       </nav>
 
-      {/* Barre d'actions globale */}
+      {/* Barre d'actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ flex: 1, fontSize: 13, color: "#64748b" }}>
-          <span style={{ fontWeight: 700, color: "#1e1040" }}>
-            {onSiteReservations.length + weekTrips.reduce((s, t) => s + (t.passengers?.length || 0), 0)}
-          </span> famille(s) au total
-          {pendingRows.length > 0 && (
-            <span style={{ color: "#ef4444", marginLeft: 10, fontWeight: 600 }}>
-              · {pendingRows.length} convocation(s) email non envoyée(s)
-            </span>
-          )}
+          {pendingFamilies.length > 0
+            ? <span style={{ color: "#ef4444", fontWeight: 600 }}>{pendingFamilies.length} email(s) non envoyé(s)</span>
+            : <span style={{ color: "#16a34a", fontWeight: 600 }}>Toutes les convocations sont envoyées</span>}
         </div>
-        <button
-          type="button"
-          className="dash-btn"
-          onClick={() => setShowEditor((v) => !v)}
-          style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}
-        >
+        <button type="button" className="dash-btn" onClick={() => setShowEditor((v) => !v)}
+          style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -5651,22 +5767,17 @@ function ConvocationsTab({ transports, reservations }) {
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            className="dash-btn dash-btn-primary"
-            onClick={handleSendAll}
-            disabled={pendingRows.length === 0}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
+          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingFamilies.length === 0}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
-            Envoyer tout ({pendingRows.length})
+            Envoyer tout ({pendingFamilies.length})
           </button>
         )}
       </div>
 
-      {/* Editeur message global */}
+      {/* Éditeur de message */}
       {showEditor && (
         <div style={{ marginBottom: 14, padding: "14px 16px", background: "#fdf8fc", border: "1.5px solid #e8d5f0", borderRadius: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -5680,155 +5791,160 @@ function ConvocationsTab({ transports, reservations }) {
             style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #d4c0e8", borderRadius: 8, fontSize: 13, color: "#374151", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
           />
           <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 5 }}>
-            Ce texte remplace l&rsquo;introduction par défaut dans tous les emails envoyés. Le tableau ALLER/RETOUR est généré automatiquement.
+            Ce texte remplace l&rsquo;introduction par défaut dans tous les emails. Le tableau ALLER/RETOUR est généré automatiquement.
           </div>
         </div>
       )}
 
-      {/* Tableau unique */}
+      {/* Tableau */}
       <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: "#f8f9fa", borderBottom: "1px solid #e5e7eb" }}>
               <th style={cTh}>Trajet</th>
               <th style={cTh}>Famille</th>
+              <th style={cTh}>Ville</th>
               <th style={cTh}>Enfants</th>
-              <th style={cTh}>Ville RDV</th>
+              <th style={cTh}>Point de RDV</th>
               <th style={cTh}>Heure RDV</th>
               <th style={cTh}>Email</th>
-              <th style={{ ...cTh, textAlign: "center" }}>Convocié</th>
+              <th style={{ ...cTh, textAlign: "center" }}>Convoqué</th>
               <th style={{ ...cTh, textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
 
-            {/* ── Sur place ── */}
-            {(onSiteReservations.length > 0 || true) && (
+            {/* Sur place — par séjour */}
+            {onSiteSejourNames.length === 0 && (
               <tr style={{ background: "#f0fdf4" }}>
-                <td colSpan={8} style={{ padding: "8px 14px", fontWeight: 800, fontSize: 12, color: "#15803d", borderTop: "2px solid #bbf7d0", borderBottom: "1px solid #d1fae5" }}>
+                <td colSpan={8} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
                   <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", marginRight: 8, fontSize: 11 }}>SP</span>
-                  Enfants sur place
-                  <span style={{ fontWeight: 400, color: "#64748b", marginLeft: 8 }}>
-                    {onSiteReservations.length} famille{onSiteReservations.length !== 1 ? "s" : ""}
-                    {onSiteReservations.length > 0 && (
-                      <button
-                        type="button"
-                        className="dash-btn"
-                        style={{ marginLeft: 12, fontSize: 11, padding: "2px 8px" }}
-                        onClick={() => openDoc(buildOnSiteConvocHTML(onSiteReservations, selectedWeek, { arrivalTime: "14:00", returnTime: "10:00", arrivalPoint: "Lieu du séjour", returnPoint: "Lieu du séjour" }))}
-                      >
-                        PDF convocations
-                      </button>
-                    )}
-                  </span>
+                  Sur place — aucune famille cette semaine
                 </td>
               </tr>
             )}
-            {onSiteReservations.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>
-                  Aucun enfant sur place pour cette semaine
-                </td>
-              </tr>
-            )}
-            {onSiteReservations.map((r, i) => {
-              const isSent = Boolean(sentStatus[r.id]);
-              const kids   = r.children?.length
-                ? r.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
-                : r.childName || "—";
+            {onSiteSejourNames.map((sejourName) => {
+              const sejourRows = onSiteBySejourMap.get(sejourName) || [];
+              const cfg = getOnSiteConfig(sejourName);
               return (
-                <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
-                  <td style={cTd}><span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", borderRadius: 4, padding: "2px 6px", fontWeight: 700 }}>Sur place</span></td>
-                  <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
-                  <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
-                  <td style={cTd}><span style={{ color: "#374151" }}>Lieu du séjour</span></td>
-                  <td style={cTd}><span style={{ color: "#94a3b8" }}>14h00</span></td>
-                  <td style={cTd}>
-                    {r.email
-                      ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span>
-                      : <span style={{ color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Non renseigné</span>}
-                  </td>
-                  <td style={{ ...cTd, textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => isSent ? markUnsent(r.id) : markSent(r.id)}
-                      style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                    >
-                      {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                    </button>
-                  </td>
-                  <td style={{ ...cTd, textAlign: "right" }}>
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>PDF uniquement</span>
-                  </td>
-                </tr>
+                <Fragment key={`sp-${sejourName}`}>
+                  <tr style={{ background: "#f0fdf4", borderTop: "2px solid #bbf7d0" }}>
+                    <td colSpan={8} style={{ padding: "8px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>SP</span>
+                        <span style={{ fontWeight: 800, fontSize: 12, color: "#15803d" }}>{sejourName}</span>
+                        <span style={{ fontSize: 11, color: "#64748b" }}>{sejourRows.length} famille{sejourRows.length !== 1 ? "s" : ""}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>RDV :</span>
+                          <input type="time" value={cfg.time} onChange={(e) => setOnSiteConfig(sejourName, "time", e.target.value)}
+                            style={{ padding: "2px 6px", border: "1px solid #d1fae5", borderRadius: 5, fontSize: 12, color: "#15803d", fontWeight: 700, width: 90 }} />
+                          <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Adresse :</span>
+                          <input type="text" value={cfg.lieu} onChange={(e) => setOnSiteConfig(sejourName, "lieu", e.target.value)}
+                            placeholder="Adresse du lieu de séjour"
+                            style={{ padding: "2px 8px", border: "1px solid #d1fae5", borderRadius: 5, fontSize: 12, color: "#374151", width: 240 }} />
+                        </div>
+                        <button type="button" className="dash-btn" style={{ marginLeft: "auto", fontSize: 11, padding: "2px 8px" }}
+                          onClick={() => openDoc(buildOnSiteConvocHTML(sejourRows, selectedWeek, { arrivalTime: cfg.time, returnTime: cfg.time, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }))}
+                          disabled={!sejourRows.length}>
+                          PDF convocations
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {sejourRows.map((r, i) => {
+                    const isSent = Boolean(sentStatus[r.id]);
+                    const kids = r.children?.length ? r.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ") : r.childName || "—";
+                    return (
+                      <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
+                        <td style={cTd}><span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", borderRadius: 4, padding: "2px 6px", fontWeight: 700 }}>Sur place</span></td>
+                        <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
+                        <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
+                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
+                        <td style={cTd}><span style={{ fontWeight: 700, color: "#16a34a" }}>{cfg.time}</span></td>
+                        <td style={cTd}>{r.email ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span> : <span style={{ color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Non renseigné</span>}</td>
+                        <td style={{ ...cTd, textAlign: "center" }}>
+                          <button type="button" onClick={() => isSent ? markAllUnsent([r.id]) : markAllSent([r.id])}
+                            style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                            {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                          </button>
+                        </td>
+                        <td style={{ ...cTd, textAlign: "right" }}><span style={{ fontSize: 11, color: "#94a3b8" }}>PDF uniquement</span></td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
               );
             })}
 
-            {/* ── Trajets ── */}
+            {/* Trajets — une ligne par famille */}
             {weekTrips.map((trip) => {
-              const passengers = trip.passengers || [];
-              const pendingTripCount = passengers.filter((p) => !sentStatus[p.reservationId] && p.email && p.email !== "-").length;
+              const familyGroups = groupPassengersByFamily(trip.passengers).slice().sort((a, b) => {
+                const oa = cityRouteOrder(trip, passengerCity(trip, a[0]));
+                const ob = cityRouteOrder(trip, passengerCity(trip, b[0]));
+                if (oa !== ob) return oa - ob;
+                return passengerCity(trip, a[0]).localeCompare(passengerCity(trip, b[0]), "fr", { sensitivity: "base" });
+              });
+              const pendingCount = familyGroups.filter((ps) => {
+                const allIds = ps.map((p) => p.reservationId).filter(Boolean);
+                return !allIds.every((id) => sentStatus[id]) && ps[0].email && ps[0].email !== "-";
+              }).length;
+
               return (
                 <Fragment key={trip.id}>
-                  {/* En-tete trajet */}
+                  {/* En-tête trajet */}
                   <tr style={{ background: "#f5f0ff", borderTop: "2px solid #d4c0e8" }}>
                     <td colSpan={8} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 800, fontSize: 12, color: "#5f3374" }}>
-                          {trip.departureCity} → {trip.arrivalCity}
-                        </span>
+                        <span style={{ fontWeight: 800, fontSize: 12, color: "#5f3374" }}>{trip.departureCity} → {trip.arrivalCity}</span>
                         <span style={{ fontSize: 11, color: "#7c3aed", background: "#ede9fe", borderRadius: 5, padding: "2px 7px", fontWeight: 700 }}>
                           {ROUTE_GROUPS.find((g) => g.value === trip.routeGroup)?.label || trip.routeGroup}
                         </span>
                         <span style={{ fontSize: 11, color: "#64748b" }}>
-                          {fmtDate(trip.date)} · {passengers.length} famille{passengers.length !== 1 ? "s" : ""}
-                          {pendingTripCount > 0 && <span style={{ color: "#ef4444", marginLeft: 6 }}>· {pendingTripCount} non envoyée{pendingTripCount > 1 ? "s" : ""}</span>}
+                          {fmtDate(trip.date)} · {familyGroups.length} famille{familyGroups.length !== 1 ? "s" : ""}
+                          {pendingCount > 0 && <span style={{ color: "#ef4444", marginLeft: 6 }}>· {pendingCount} non envoyée{pendingCount > 1 ? "s" : ""}</span>}
                         </span>
                         <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
                           <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "2px 8px" }}
-                            onClick={() => openDoc(buildGroupConvocHTML(trip))} disabled={!passengers.length}>
-                            PDF convocations
-                          </button>
+                            onClick={() => openDoc(buildGroupConvocHTML(trip))} disabled={!familyGroups.length}>PDF convocations</button>
                           <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "2px 8px" }}
-                            onClick={() => openDoc(buildStaffBriefingHTML(trip))}>
-                            Briefing
-                          </button>
+                            onClick={() => openDoc(buildStaffBriefingHTML(trip))}>Briefing</button>
                           <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "2px 8px" }}
-                            onClick={() => openDoc(buildPassengerListHTML(trip))}>
-                            Liste
-                          </button>
+                            onClick={() => openDoc(buildPassengerListHTML(trip))}>Liste</button>
                         </div>
                       </div>
                     </td>
                   </tr>
-                  {passengers.length === 0 && (
-                    <tr>
-                      <td colSpan={8} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>
-                        Aucun passager assigné à ce trajet
-                      </td>
-                    </tr>
+                  {familyGroups.length === 0 && (
+                    <tr><td colSpan={8} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
                   )}
-                  {passengers.map((p, i) => {
-                    const isSent    = Boolean(sentStatus[p.reservationId]);
-                    const isSending = sendingId === p.reservationId;
-                    const children  = p.children?.length
-                      ? p.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
-                      : p.childName || "—";
-                    const city     = passengerCity(trip, p);
-                    const hasEmail = p.email && p.email !== "-";
-                    const rdvInfo  = getEmailRdvInfo(trip, p);
-                    const isPreviewing = preview?.reservationId === p.reservationId;
+                  {familyGroups.map((passengers, i) => {
+                    const primary   = passengers[0];
+                    const merged    = mergeFamily(passengers);
+                    const allIds    = passengers.map((p) => p.reservationId).filter(Boolean);
+                    const isSent    = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
+                    const familyKey = (primary.email && primary.email !== "-") ? primary.email : (primary.reservationId || i);
+                    const isSending = sendingKey === familyKey;
+                    const hasEmail  = primary.email && primary.email !== "-";
+                    const rdvInfo   = getEmailRdvInfo(trip, primary);
+                    const allChildren = merged.children?.length
+                      ? merged.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
+                      : primary.childName || "—";
+                    const isPreviewing = preview?.familyKey === familyKey;
 
                     return (
-                      <tr key={p.reservationId || i} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
+                      <tr key={familyKey} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
                         <td style={cTd}>
                           <span style={{ fontSize: 11, background: "#f5f0ff", color: "#7c3aed", borderRadius: 4, padding: "2px 6px", fontWeight: 600 }}>
                             {ROUTE_GROUPS.find((g) => g.value === trip.routeGroup)?.label || trip.departureCity}
                           </span>
                         </td>
-                        <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{p.nom}</span></td>
-                        <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{children}</span></td>
-                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || city || "—"}</span></td>
+                        <td style={cTd}>
+                          <span style={{ fontWeight: 600, color: "#1e1040" }}>{primary.nom}</span>
+                          {passengers.length > 1 && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 6 }}>({passengers.length} dossiers)</span>}
+                        </td>
+                        <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#5f3374" }}>{passengerCity(trip, primary)}</span></td>
+                        <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{allChildren}</span></td>
+                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || passengerCity(trip, primary) || "—"}</span></td>
                         <td style={cTd}>
                           {rdvInfo.rdvTime
                             ? <span style={{ fontWeight: 700, color: "#16a34a" }}>{rdvInfo.rdvTime}</span>
@@ -5836,46 +5952,36 @@ function ConvocationsTab({ transports, reservations }) {
                         </td>
                         <td style={cTd}>
                           {hasEmail
-                            ? <span style={{ color: "#374151", fontSize: 12 }}>{p.email}</span>
+                            ? <span style={{ color: "#374151", fontSize: 12 }}>{primary.email}</span>
                             : <span style={{ color: "#ef4444", fontSize: 12, fontStyle: "italic" }}>Manquant</span>}
                         </td>
                         <td style={{ ...cTd, textAlign: "center" }}>
-                          <button
-                            type="button"
-                            onClick={() => isSent ? markUnsent(p.reservationId) : markSent(p.reservationId)}
+                          <button type="button"
+                            onClick={() => isSent ? markAllUnsent(allIds) : markAllSent(allIds)}
                             title={isSent ? "Cliquer pour annuler" : "Marquer envoyée manuellement"}
-                            style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                          >
+                            style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                             {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </button>
                         </td>
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
-                            <button
-                              type="button"
-                              className="dash-btn"
-                              style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => setPreview(isPreviewing ? null : { ...p, _rdvInfo: rdvInfo, _trip: trip })}
-                            >
+                            <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
+                              onClick={() => setPreview(isPreviewing ? null : { ...merged, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
                             </button>
-                            <button
-                              type="button"
-                              className={`dash-btn${isSent ? "" : " dash-btn-primary"}`}
-                              style={{ fontSize: 11, padding: "3px 9px" }}
+                            <button type="button" className={`dash-btn${isSent ? "" : " dash-btn-primary"}`} style={{ fontSize: 11, padding: "3px 9px" }}
                               disabled={!hasEmail || isSending || sendingAll}
                               onClick={async () => {
-                                setSendingId(p.reservationId);
+                                setSendingKey(familyKey);
                                 try {
-                                  await doSendPassenger(trip, p);
-                                  showToast(`Convocation envoyée à ${p.email}`, "success");
+                                  await doSendFamily(trip, passengers);
+                                  showToast(`Convocation envoyée à ${primary.email}`, "success");
                                 } catch (e) {
-                                  showToast(`Erreur : ${e.message}`, "error");
+                                  showToast(`Erreur : ${e.message}`, "error");
                                 } finally {
-                                  setSendingId(null);
+                                  setSendingKey(null);
                                 }
-                              }}
-                            >
+                              }}>
                               {isSending ? "..." : isSent ? "Renvoyer" : "Envoyer"}
                             </button>
                           </div>
@@ -5886,21 +5992,16 @@ function ConvocationsTab({ transports, reservations }) {
                 </Fragment>
               );
             })}
-
           </tbody>
         </table>
       </div>
 
-      {/* Modal Aperçu */}
+      {/* Modal aperçu */}
       {preview && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-          onClick={() => setPreview(null)}
-        >
-          <div
-            style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 720, maxHeight: "92vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.3)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setPreview(null)}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 720, maxHeight: "92vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.3)" }}
+            onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0e8f5", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.nom}</div>
@@ -5912,27 +6013,22 @@ function ConvocationsTab({ transports, reservations }) {
               <div dangerouslySetInnerHTML={{ __html: buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro) }} />
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
-              <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>
-                Fermer
-              </button>
-              <button
-                type="button"
-                disabled={!!sendingId}
+              <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
+              <button type="button" disabled={!!sendingKey}
                 onClick={async () => {
-                  setSendingId(preview.reservationId);
+                  setSendingKey(preview.familyKey);
                   try {
-                    await doSendPassenger(preview._trip, preview);
+                    await doSendFamily(preview._trip, preview._passengers);
                     showToast(`Convocation envoyée à ${preview.email}`, "success");
                     setPreview(null);
                   } catch (e) {
-                    showToast(`Erreur : ${e.message}`, "error");
+                    showToast(`Erreur : ${e.message}`, "error");
                   } finally {
-                    setSendingId(null);
+                    setSendingKey(null);
                   }
                 }}
-                style={{ padding: "8px 16px", background: sendingId ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingId ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingId ? "not-allowed" : "pointer" }}
-              >
-                {sendingId ? "Envoi en cours…" : "Envoyer cette convocation"}
+                style={{ padding: "8px 16px", background: sendingKey ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingKey ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingKey ? "not-allowed" : "pointer" }}>
+                {sendingKey ? "Envoi en cours…" : "Envoyer cette convocation"}
               </button>
             </div>
           </div>
@@ -5944,6 +6040,7 @@ function ConvocationsTab({ transports, reservations }) {
 
 const cTh = { padding: "9px 12px", fontWeight: 700, fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left", whiteSpace: "nowrap" };
 const cTd = { padding: "10px 12px", verticalAlign: "middle" };
+
 
 /* New transport modal */
 
@@ -6148,8 +6245,10 @@ export default function Transport({ focusDate = "" }) {
         getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
         getDocs(collection(db, COLLECTIONS.TRANSPORT_RDV_POINTS)),
       ]);
-      setTransports(tSnap.docs.map(mapTransport));
-      setReservations(rSnap.docs.map(mapReservationForTransport));
+      const reservationRows = rSnap.docs.map(mapReservationForTransport);
+      const transportRows = tSnap.docs.map(mapTransport);
+      setReservations(reservationRows);
+      setTransports(transportRows.map((transport) => hydrateTransportPassengers(transport, reservationRows)));
       setStaffMembers(staffSnap.docs.map(mapStaffMember).filter((m) => m.active));
       setStaffContracts(contractsSnap.docs.map(mapStaffContract).filter((c) => c.status !== "cancelled"));
       setCityStops(cityStopsSnap.docs.map(mapCityStop).filter((row) => row.city));
@@ -6160,17 +6259,17 @@ export default function Transport({ focusDate = "" }) {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   const handleSave = (updated) =>
-    setTransports((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setTransports((prev) => prev.map((t) => (t.id === updated.id ? hydrateTransportPassengers(updated, reservations) : t)));
 
   const handleBulkSave = (updatedItems) => {
-    const byId = new Map(updatedItems.map((item) => [item.id, item]));
+    const byId = new Map(updatedItems.map((item) => [item.id, hydrateTransportPassengers(item, reservations)]));
     setTransports((prev) => prev.map((t) => byId.get(t.id) || t));
   };
 
   const handleDelete = (id) => setTransports((prev) => prev.filter((t) => t.id !== id));
 
   const handleCreated = (t) => {
-    setTransports((prev) => [t, ...prev]);
+    setTransports((prev) => [hydrateTransportPassengers(t, reservations), ...prev]);
     setActiveTab("trajets");
   };
 

@@ -52,6 +52,54 @@ function childFullName(c) {
   return `${c?.firstName || ""} ${c?.lastName || ""}`.trim();
 }
 
+function legalName(legal = {}) {
+  return `${legal.firstName || legal.prenom || ""} ${legal.lastName || legal.nom || ""}`.trim();
+}
+
+function mapReservationPassenger(snap) {
+  const data = snap.data() || {};
+  const children = Array.isArray(data.minor?.children) ? data.minor.children : [];
+  const first = children[0] || {};
+  return {
+    id: snap.id,
+    numeroDeReservation: data.numeroDeReservation || "",
+    nom: legalName(data.legal || {}),
+    email: data.legal?.email || "",
+    phone: data.legal?.phone || "",
+    children,
+    childName: childFullName(first),
+    sejourName: data.sejour?.name || "",
+    departureCity: data.transport?.departureCity || "",
+    returnCity: data.transport?.returnCity || "",
+    status: data.status || "",
+  };
+}
+
+function hydrateTransportPassengers(transport, reservations = []) {
+  const byId = new Map(reservations.map((reservation) => [reservation.id, reservation]));
+  return {
+    ...transport,
+    passengers: (transport.passengers || []).map((passenger) => {
+      const reservation = byId.get(passenger.reservationId);
+      if (!reservation) return passenger;
+      return {
+        ...passenger,
+        numeroDeReservation: reservation.numeroDeReservation,
+        nom: reservation.nom,
+        email: reservation.email,
+        phone: reservation.phone,
+        children: reservation.children,
+        childName: reservation.childName,
+        sejourName: reservation.sejourName,
+        departureCity: reservation.departureCity,
+        returnCity: reservation.returnCity,
+        status: reservation.status,
+        pickupCity: passenger.pickupCity || (transport.direction === "retour" ? reservation.returnCity : reservation.departureCity) || "",
+      };
+    }),
+  };
+}
+
 function countChildren(passengers) {
   return (passengers || []).reduce((s, p) => s + Math.max(p.children?.length || 0, 1), 0);
 }
@@ -811,8 +859,16 @@ export default function ConvoyagePage() {
   const [staffId, setStaffId] = useState(null);
 
   useEffect(() => {
-    getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "asc")))
-      .then((snap) => setTransports(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+    Promise.all([
+      getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "asc"))),
+      getDocs(collection(db, COLLECTIONS.RESERVATIONS)),
+    ])
+      .then(([transportSnap, reservationSnap]) => {
+        const reservations = reservationSnap.docs.map(mapReservationPassenger);
+        setTransports(transportSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .map((transport) => hydrateTransportPassengers(transport, reservations)));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

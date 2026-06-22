@@ -23,40 +23,25 @@ function transportStopCities(transport) {
   const cities = new Set();
   (transport.segments || []).forEach((segment) => {
     [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
+    (segment.stops || []).forEach((stop) => stop.city && cities.add(stop.city));
   });
   if (transport.departureCity) cities.add(transport.departureCity);
   if (transport.arrivalCity) cities.add(transport.arrivalCity);
   return [...cities];
 }
 
-function reservationPassengerPayload(reservationId, reservation) {
-  const children = Array.isArray(reservation.minor?.children) ? reservation.minor.children : [];
-  const first = children[0] || {};
-  return {
-    reservationId,
-    numeroDeReservation: reservation.numeroDeReservation || "",
-    nom: `${reservation.legal?.firstName || ""} ${reservation.legal?.lastName || ""}`.trim(),
-    email: reservation.legal?.email || "",
-    phone: reservation.legal?.phone || "",
-    children,
-    childName: `${first.firstName || ""} ${first.lastName || ""}`.trim(),
-    sejourName: reservation.sejour?.name || "",
-    departureCity: reservation.transport?.departureCity || "",
-    returnCity: reservation.transport?.returnCity || "",
-  };
-}
-
 async function syncReservationToMatchingTransports(reservationId, reservation) {
   if (normalizePlace(reservation.status) !== "validated") return 0;
   const week = weekFromStartDate(reservation.sejour?.startDate);
   if (!week) return 0;
-  const passengerBase = reservationPassengerPayload(reservationId, reservation);
+  const departureCity = reservation.transport?.departureCity || "";
+  const returnCity = reservation.transport?.returnCity || "";
   const transportsSnap = await getDocs(collection(db, "transports"));
   const transports = transportsSnap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }));
   let synced = 0;
 
   for (const direction of ["aller", "retour"]) {
-    const city = direction === "retour" ? passengerBase.returnCity : passengerBase.departureCity;
+    const city = direction === "retour" ? returnCity : departureCity;
     if (!city || normalizePlace(city) === "sur place") continue;
     const matches = transports.filter((transport) =>
       transport.week === week
@@ -69,7 +54,7 @@ async function syncReservationToMatchingTransports(reservationId, reservation) {
     const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
     if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
     await updateDoc(doc(db, "transports", transport.id), {
-      passengers: [...passengers, { ...passengerBase, pickupCity: city }],
+      passengers: [...passengers, { reservationId, pickupCity: city }],
       updatedAt: new Date().toISOString(),
     });
     synced += 1;
