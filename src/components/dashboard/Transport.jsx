@@ -512,6 +512,22 @@ function openPrintableDocument(html, features = "width=1000,height=780") {
   return win;
 }
 
+function wrapForPrint(innerHtml) {
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+  body{margin:0;padding:20px 8px;background:#f0ebff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;}
+  @media print{body{background:#fff!important;padding:0!important;}@page{margin:10mm;}}
+  .no-print{text-align:center;margin:24px 0 0;}
+  .no-print button{padding:10px 28px;background:#B8336A;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;}
+  @media print{.no-print{display:none;}}
+</style>
+</head><body>
+${innerHtml}
+<div class="no-print"><button onclick="window.print()">Imprimer / Télécharger PDF</button></div>
+</body></html>`;
+}
+
 function passengersAtStop(transport, city) {
   const normalizedCity = normalizePlace(city);
   return (transport.passengers || []).filter((passenger) =>
@@ -1327,7 +1343,7 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
       </thead>
       <tbody>
         ${row("Date", `<strong>${fmtDateLong(weekInfo.aller)}</strong>`, `<strong>${fmtDateLong(weekInfo.retour)}</strong>`)}
-        ${row("Heure de RDV", `<strong style="color:#16a34a;">${arrivalTime}</strong>`, `<strong style="color:#ea580c;">${returnTime}</strong>`)}
+        ${row("Heure de RDV", `<strong style="color:#16a34a;">à partir de ${arrivalTime}</strong>`, `<strong style="color:#ea580c;">à partir de ${returnTime}</strong>`)}
         ${row("Lieu", `<strong>${arrivalPoint}</strong>`, `<strong>${returnPoint}</strong>`)}
         ${row("Consigne", "Remise de l'enfant directement à l'équipe ColoCrew sur le lieu du séjour.", "Reprise de l'enfant directement auprès de l'équipe ColoCrew sur le lieu du séjour.", true)}
       </tbody>
@@ -5773,6 +5789,7 @@ function ConvocationsTab({ transports, reservations }) {
   const [showEditor, setShowEditor]     = useState(false);
   const [customIntro, setCustomIntro]   = useState("");
   const [onSiteConfigs, setOnSiteConfigs] = useState({});
+  const [onSiteModal, setOnSiteModal]     = useState(null); // sejourName en cours d'édition
 
   const weekTrips = useMemo(
     () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé" && t.direction === "aller"),
@@ -5799,8 +5816,9 @@ function ConvocationsTab({ transports, reservations }) {
   const onSiteSejourNames = useMemo(() => Array.from(onSiteBySejourMap.keys()), [onSiteBySejourMap]);
 
   const getOnSiteConfig = useCallback((sejourName) => ({
-    time: onSiteConfigs[sejourName]?.time || "14:00",
-    lieu: onSiteConfigs[sejourName]?.lieu || "",
+    arrivalTime: onSiteConfigs[sejourName]?.arrivalTime || "14:00",
+    returnTime:  onSiteConfigs[sejourName]?.returnTime  || "14:00",
+    lieu:        onSiteConfigs[sejourName]?.lieu        || "",
   }), [onSiteConfigs]);
 
   const setOnSiteConfig = useCallback((sejourName, field, value) => {
@@ -5863,10 +5881,10 @@ function ConvocationsTab({ transports, reservations }) {
   const doSendOnSite = useCallback(async (reservation) => {
     const cfg = getOnSiteConfig(reservation.sejourName || "Séjour");
     const html = buildOnSiteEmailHtml(reservation, selectedWeek, {
-      arrivalTime: cfg.time,
-      returnTime: cfg.time,
+      arrivalTime: cfg.arrivalTime,
+      returnTime:  cfg.returnTime,
       arrivalPoint: cfg.lieu || "Lieu du séjour",
-      returnPoint: cfg.lieu || "Lieu du séjour",
+      returnPoint:  cfg.lieu || "Lieu du séjour",
     }, customIntro);
     const wi = WEEK_INFO[selectedWeek];
     const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
@@ -6078,14 +6096,18 @@ function ConvocationsTab({ transports, reservations }) {
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#15803d" }}>{sejourName}</span>
                         <span style={{ fontSize: 11, color: "#64748b" }}>{sejourRows.length} famille{sejourRows.length !== 1 ? "s" : ""}</span>
                         {pendingSejourRows.length > 0 && <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>{pendingSejourRows.length} non envoyée{pendingSejourRows.length > 1 ? "s" : ""}</span>}
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>RDV :</span>
-                          <input type="time" value={cfg.time} onChange={(e) => setOnSiteConfig(sejourName, "time", e.target.value)}
-                            style={{ padding: "2px 6px", border: "1px solid #d1fae5", borderRadius: 5, fontSize: 12, color: "#15803d", fontWeight: 700, width: 90 }} />
-                          <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Adresse :</span>
-                          <input type="text" value={cfg.lieu} onChange={(e) => setOnSiteConfig(sejourName, "lieu", e.target.value)}
-                            placeholder="Adresse du lieu de séjour"
-                            style={{ padding: "2px 8px", border: "1px solid #d1fae5", borderRadius: 5, fontSize: 12, color: "#374151", width: 240 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>↓ Dépose : à partir de {cfg.arrivalTime}</span>
+                          <span style={{ fontSize: 11, color: "#64748b" }}>·</span>
+                          <span style={{ fontSize: 11, color: "#ea580c", fontWeight: 700 }}>↑ Récup : à partir de {cfg.returnTime}</span>
+                          {cfg.lieu && <span style={{ fontSize: 11, color: "#64748b" }}>· {cfg.lieu}</span>}
+                          <button
+                            type="button"
+                            onClick={() => setOnSiteModal(sejourName)}
+                            style={{ padding: "2px 10px", border: "1px solid #d1fae5", borderRadius: 5, fontSize: 11, fontWeight: 700, color: "#15803d", background: "#fff", cursor: "pointer" }}
+                          >
+                            ⚙ Configurer
+                          </button>
                         </div>
                       </div>
                     </td>
@@ -6102,7 +6124,11 @@ function ConvocationsTab({ transports, reservations }) {
                         <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
                         <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}>Sur place</span></td>
-                        <td style={cTd}><span style={{ fontWeight: 700, color: "#16a34a" }}>{cfg.time}</span></td>
+                        <td style={cTd}>
+                          <span style={{ fontWeight: 700, color: "#16a34a", fontSize: 11 }}>↓ {cfg.arrivalTime}</span>
+                          <br />
+                          <span style={{ fontWeight: 700, color: "#ea580c", fontSize: 11 }}>↑ {cfg.returnTime}</span>
+                        </td>
                         <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
                         <td style={cTd}>{hasEmail ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span> : <span style={{ color: "#ef4444", fontStyle: "italic", fontSize: 12 }}>Manquant</span>}</td>
                         <td style={{ ...cTd, textAlign: "center" }}>
@@ -6114,7 +6140,7 @@ function ConvocationsTab({ transports, reservations }) {
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => openDoc(buildOnSiteConvocHTML([r], selectedWeek, { arrivalTime: cfg.time, returnTime: cfg.time, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }))}>
+                              onClick={() => openDoc(wrapForPrint(buildOnSiteEmailHtml(r, selectedWeek, { arrivalTime: cfg.arrivalTime, returnTime: cfg.returnTime, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }, customIntro)))}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -6222,7 +6248,7 @@ function ConvocationsTab({ transports, reservations }) {
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => openDoc(buildGroupConvocHTML({ ...trip, passengers }))}>
+                              onClick={() => openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro)))}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -6272,10 +6298,10 @@ function ConvocationsTab({ transports, reservations }) {
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
               <div dangerouslySetInnerHTML={{ __html: preview.type === "onsite"
                 ? buildOnSiteEmailHtml(preview.reservation, selectedWeek, {
-                    arrivalTime: preview.cfg.time,
-                    returnTime: preview.cfg.time,
+                    arrivalTime: preview.cfg.arrivalTime,
+                    returnTime:  preview.cfg.returnTime,
                     arrivalPoint: preview.cfg.lieu || "Lieu du séjour",
-                    returnPoint: preview.cfg.lieu || "Lieu du séjour",
+                    returnPoint:  preview.cfg.lieu || "Lieu du séjour",
                   }, customIntro)
                 : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro) }} />
             </div>
@@ -6301,6 +6327,69 @@ function ConvocationsTab({ transports, reservations }) {
                 }}
                 style={{ padding: "8px 16px", background: sendingKey ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingKey ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingKey ? "not-allowed" : "pointer" }}>
                 {sendingKey ? "Envoi en cours…" : "Envoyer cette convocation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal configuration Sur place */}
+      {onSiteModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setOnSiteModal(null)}>
+          <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440, boxShadow: "0 24px 64px rgba(0,0,0,0.28)", overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ background: "#f0fdf4", borderBottom: "1.5px solid #bbf7d0", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ background: "#15803d", color: "#fff", borderRadius: 6, padding: "3px 10px", fontWeight: 800, fontSize: 12 }}>SP</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#15803d" }}>{onSiteModal}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Configuration Sur place</div>
+              </div>
+              <button type="button" onClick={() => setOnSiteModal(null)} style={{ background: "#dcfce7", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#15803d", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            {/* Body */}
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d" }}>
+                  ↓ Heure de dépose — <em style={{ fontWeight: 600 }}>à partir de</em>
+                </span>
+                <input
+                  type="time"
+                  value={getOnSiteConfig(onSiteModal).arrivalTime}
+                  onChange={(e) => setOnSiteConfig(onSiteModal, "arrivalTime", e.target.value)}
+                  style={{ padding: "8px 12px", border: "1.5px solid #86efac", borderRadius: 8, fontSize: 15, fontWeight: 700, color: "#15803d", width: "100%", outline: "none" }}
+                />
+                <span style={{ fontSize: 11, color: "#64748b" }}>Heure à partir de laquelle les familles peuvent déposer leur enfant</span>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#ea580c" }}>
+                  ↑ Heure de récupération — <em style={{ fontWeight: 600 }}>à partir de</em>
+                </span>
+                <input
+                  type="time"
+                  value={getOnSiteConfig(onSiteModal).returnTime}
+                  onChange={(e) => setOnSiteConfig(onSiteModal, "returnTime", e.target.value)}
+                  style={{ padding: "8px 12px", border: "1.5px solid #fed7aa", borderRadius: 8, fontSize: 15, fontWeight: 700, color: "#ea580c", width: "100%", outline: "none" }}
+                />
+                <span style={{ fontSize: 11, color: "#64748b" }}>Heure à partir de laquelle les familles peuvent récupérer leur enfant</span>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Adresse du lieu de séjour</span>
+                <input
+                  type="text"
+                  value={getOnSiteConfig(onSiteModal).lieu}
+                  onChange={(e) => setOnSiteConfig(onSiteModal, "lieu", e.target.value)}
+                  placeholder="Ex : Centre de vacances, 42 rue des Alpes, Barcelonnette"
+                  style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, color: "#374151", width: "100%", outline: "none" }}
+                />
+              </label>
+            </div>
+            {/* Footer */}
+            <div style={{ padding: "14px 24px", borderTop: "1px solid #f0fdf4", display: "flex", justifyContent: "flex-end", background: "#fafafa" }}>
+              <button type="button" onClick={() => setOnSiteModal(null)}
+                style={{ padding: "9px 22px", background: "#15803d", border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                Valider
               </button>
             </div>
           </div>
