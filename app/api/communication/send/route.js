@@ -34,8 +34,16 @@ export async function POST(request) {
     const info = await transporter.sendMail({
       from: `"${from_name || "ColoCrew"}" <${from_email || "contact@colocrew.com"}>`,
       to,
-      bcc: "contact@colocrew.com",
       subject,
+      html,
+      attachments: attachments.length ? attachments : undefined,
+    });
+
+    // Copie admin séparée avec préfixe dans l'objet
+    await transporter.sendMail({
+      from: `"${from_name || "ColoCrew"}" <${from_email || "contact@colocrew.com"}>`,
+      to: "contact@colocrew.com",
+      subject: `[COPIE ADMIN] ${subject}`,
       html,
       attachments: attachments.length ? attachments : undefined,
     });

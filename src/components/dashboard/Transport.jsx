@@ -742,8 +742,8 @@ const DEFAULT_HTML_REMINDER = {
 };
 
 function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepartureTime, returnArrivalTime }, convocSettings = {}) {
-  const needsLunch  = isBeforeNoon(departureTime) || isBeforeNoon(returnDepartureTime);
-  const needsDinner = isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnArrivalTime);
+  const needsLunch  = isBeforeNoon(departureTime);
+  const needsDinner = isAfterDinnerTime(arrivalTime);
   const items = convocSettings.items || {};
   const condMet = (c) => c === "always" || (c === "picnic" && needsLunch) || (c === "dinner" && needsDinner);
   return DEFAULT_REMINDER_ITEMS.map((item) => {
@@ -1095,8 +1095,7 @@ function buildGroupConvocHTML(transport) {
         <div class="transport-card" style="border-color:#ea580c;background:#fff7ed">
           <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(transport.date)}</strong></div>
           <div class="tr-row"><span class="tr-lbl">Arrivée prévue</span><strong>${arrivalTime || "À préciser"}</strong> à ${arrivalCity || "-"}</div>
-          <div class="tr-row"><span class="tr-lbl">${isQuai ? "Lieu" : "Point de RDV"}</span><strong>${meetingPoint || arrivalCity || "-"}</strong></div>
-          ${platform ? `<div class="tr-row"><span class="tr-lbl">Voie / Quai</span><strong>${platform}</strong></div>` : ""}
+          <div class="tr-row"><span class="tr-lbl">Récupération</span><em>À la descente du quai — communiqué par l'animateur·ice</em></div>
           ${trainType || trainNumber ? `<div class="tr-row"><span class="tr-lbl">Train</span><strong>${trainType} ${trainNumber}</strong></div>` : ""}
         </div>
         <p style="font-size:13px;color:#555;margin-top:18px;padding:12px;background:#fef9f0;border-left:3px solid #ea580c;border-radius:4px">
@@ -1326,10 +1325,10 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "",
     ? reservation.children.map((child) => `${child.firstName || ""} ${child.lastName || ""}`.trim()).filter(Boolean)
     : [reservation.childName || "votre enfant"];
   const childLabel = children.join(", ");
-  const parentFirstName = (reservation.nom || "").split(" ")[0] || "Madame, Monsieur";
+  const parentFullName = reservation.nom || "Madame, Monsieur";
   const intro = customIntro?.trim()
     ? customIntro.trim().split(/\n{2,}/).map((part) => `<p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">${part.replace(/\n/g, "<br>")}</p>`).join("")
-    : `<p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">Bonjour ${parentFirstName},</p>
+    : `<p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">Bonjour <strong>${parentFullName}</strong>,</p>
        <p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">Nous vous transmettons les informations de rendez-vous sur place pour ${childLabel}.</p>`;
   const row = (label, aller, retour, last = false) => `
     <tr>
@@ -5316,7 +5315,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
   const retourInfo = getRetourInfo(transport, passenger, allTransports);
 
   const lines = [
-    `Bonjour,`,
+    `Bonjour ${passenger.nom || ""},`,
     ``,
     `Nous vous adressons la convocation de transport pour ${children} dans le cadre du séjour « ${sejourShort} »${sejourDatesStr ? ` (${sejourDatesStr})` : ""}.`,
     ``,
@@ -5334,7 +5333,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
     retourInfo?.trainLabel ? `Train retour : ${retourInfo.trainLabel}` : null,
     retourInfo?.departureTime ? `Départ retour prévu : ${retourInfo.departureTime}` : null,
     retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
-    retourInfo?.meetingPoint ? `Lieu de récupération : ${retourInfo.meetingPoint}` : null,
+    retourInfo ? `Lieu de récupération : à la descente du quai — communiqué par l'animateur·ice` : null,
     retourInfo ? `` : null,
     `- CONSIGNES -`,
     ...buildConvocationReminderItems({
@@ -5398,15 +5397,9 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   const retourTrain = retourInfo
     ? trainDetailHtml(retourInfo.trainLabel, retourInfo.departureTime, retourInfo.arrivalTime, retourInfo.arrivalCity)
     : TBC;
-  const retourLieu = (() => {
-    if (!retourInfo) return TBC;
-    const place = retourInfo.meetingPoint || retourInfo.arrivalCity || "";
-    if (!place) return TBC;
-    const quai = retourInfo.platform && !place.includes(retourInfo.platform)
-      ? `<br><span style="font-size:12px;color:#64748b;">Quai / voie ${retourInfo.platform}</span>`
-      : "";
-    return `<strong>${place}</strong>${quai}`;
-  })();
+  const retourLieu = retourInfo
+    ? `<em style="color:#64748b;">À la descente du quai — communiqué par l'animateur·ice</em>`
+    : TBC;
 
   const td0 = (last) => `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
   const td1 = (last) => `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
@@ -5446,8 +5439,8 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     </td>
   </tr></table>
   <div style="padding:24px 28px 8px;">
-    <h1 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#B8336A;">🚆 Convocation de transport — ${sejourShort}</h1>
-    <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1e1040;">${passenger.nom}</p>
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:900;color:#B8336A;">🚆 Convocation de transport — ${sejourShort}</h1>
+    <p style="margin:0 0 14px;font-size:15px;color:#374151;">Bonjour <strong>${passenger.nom}</strong>,</p>
     ${introHtml}
   </div>
   <div style="padding:0 28px 20px;">
