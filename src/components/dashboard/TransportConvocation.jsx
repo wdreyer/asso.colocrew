@@ -133,7 +133,7 @@ function childrenFirstNames(minor) {
 
 // ─── Email template ───────────────────────────────────────────────────────────
 
-function buildConvocationHtml(reservation, allerTransport, retourTransport, overrides = {}) {
+function buildConvocationHtml(reservation, allerTransport, retourTransport, overrides = {}, animInfo = {}) {
   const legal   = reservation.legal   || {};
   const minor   = reservation.minor   || {};
   const sejour  = reservation.sejour  || {};
@@ -184,6 +184,14 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
   const td1 = (last) => `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
   const td2 = (last) => `style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
 
+  const logoUrl = (typeof window !== 'undefined' ? window.location.origin : 'https://colocrew.com') + '/LogoColoCrew.png';
+  const animBlock = animInfo?.name ? `
+  <div style="margin:0 28px 20px;padding:14px 20px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
+    <p style="margin:0;font-size:15px;font-weight:800;color:#1e1040;">${animInfo.name}</p>
+    ${animInfo.phone ? `<p style="margin:4px 0 0;font-size:14px;color:#374151;">📞 ${animInfo.phone}</p>` : ""}
+  </div>` : "";
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -197,20 +205,10 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
   <!-- HEADER -->
   <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;">
     <tr>
-      <td style="padding:20px 28px 16px;vertical-align:middle;">
-        <table style="border-collapse:collapse;"><tr>
-          <td style="padding:0 10px 0 0;vertical-align:middle;">
-            <div style="background:#B8336A;border-radius:8px;width:38px;height:38px;text-align:center;line-height:38px;">
-              <span style="color:#fff;font-weight:900;font-size:16px;letter-spacing:-1px;">CC</span>
-            </div>
-          </td>
-          <td style="vertical-align:middle;">
-            <div style="font-size:19px;font-weight:900;color:#B8336A;letter-spacing:-0.02em;">ColoCrew</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
-          </td>
-        </tr></table>
+      <td style="padding:14px 28px;vertical-align:middle;">
+        <img src="${logoUrl}" alt="ColoCrew" style="height:48px;width:auto;display:block;" onerror="this.style.display='none'" />
       </td>
-      <td style="padding:20px 28px 16px;text-align:right;vertical-align:top;font-size:12px;color:#64748b;line-height:1.9;">
+      <td style="padding:14px 28px;text-align:right;vertical-align:middle;font-size:12px;color:#64748b;line-height:1.9;">
         <div>📧 info@colocrew.com</div>
         <div>📞 01 84 21 02 30</div>
         <div>🌐 colocrew.com</div>
@@ -278,7 +276,7 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
     </h2>
     <ul style="margin:0;padding-left:18px;font-size:14px;color:#374151;line-height:1.9;">
       <li>Le rendez-vous est fixé <strong>1h avant le départ du train.</strong></li>
-      <li>Un animateur ou une animatrice attendra les enfants au point de rendez-vous, reconnaissable grâce à un <strong>écriteau COLOCREW.</strong></li>
+      <li>Un animateur ou une animatrice attendra les enfants au point de rendez-vous, reconnaissable à son <strong>t-shirt ColoCrew</strong>.</li>
       <li>Les responsables légaux sont invités à <strong>se présenter à l'animateur ou animatrice,</strong> disponible pour répondre à vos questions.</li>
       <li>Si votre enfant se rend seul(e) au point de rendez-vous, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur ou animatrice.</li>
       <li>L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au lieu de séjour.</li>
@@ -286,6 +284,9 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
     </ul>
     ${legacyReminderHtml(legacyReminderItems)}
   </div>
+
+  <!-- ANIMATEUR -->
+  ${animBlock}
 
   <!-- FOOTER -->
   <div style="border-top:2px solid #f5f0ff;padding:16px 28px;text-align:center;background:#fdf8fc;">
@@ -305,6 +306,7 @@ export default function TransportConvocation() {
 
   const [transports, setTransports]     = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
   const [loading, setLoading]           = useState(true);
 
   // Preview modal
@@ -327,14 +329,26 @@ export default function TransportConvocation() {
     Promise.all([
       getDocs(query(collection(db, COLLECTIONS.TRANSPORTS),   orderBy("date",      "asc"))),
       getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
     ])
-      .then(([tSnap, rSnap]) => {
+      .then(([tSnap, rSnap, staffSnap]) => {
         setTransports(tSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setReservations(rSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setStaffMembers(staffSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       })
       .catch(() => showToast("Erreur de chargement", "error"))
       .finally(() => setLoading(false));
   }, [showToast]);
+
+  const getAnimForTransport = useCallback((transport) => {
+    const s = transport?.staff?.[0];
+    if (!s) return {};
+    const member = staffMembers.find((m) => m.id === s.memberId);
+    return {
+      name: member?.name || s.name || "",
+      phone: member?.phone || s.phone || "",
+    };
+  }, [staffMembers]);
 
   // ── Grouping ──────────────────────────────────────────────────────────────
   // One group per aller transport, with matched reservations
@@ -383,7 +397,8 @@ export default function TransportConvocation() {
   }, []);
 
   const sendOne = useCallback(async (res, allerT, retourT, subject, overrides = {}) => {
-    const html = buildConvocationHtml(res, allerT, retourT, overrides);
+    const animInfo = getAnimForTransport(allerT);
+    const html = buildConvocationHtml(res, allerT, retourT, overrides, animInfo);
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -398,7 +413,7 @@ export default function TransportConvocation() {
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     await markSent(res.id);
-  }, [markSent]);
+  }, [markSent, getAnimForTransport]);
 
   const handleSendFromModal = useCallback(async () => {
     if (!previewItem) return;
@@ -461,7 +476,8 @@ export default function TransportConvocation() {
 
   const handleDownloadPdf = useCallback(() => {
     if (!previewItem) return;
-    const html = buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides);
+    const animInfo = getAnimForTransport(previewItem.allerT);
+    const html = buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides, animInfo);
     const printHtml = html.replace(
       "</head>",
       `<style>@media print{body{background:#fff!important;padding:0!important;}@page{margin:10mm;}}</style></head>`
@@ -472,7 +488,7 @@ export default function TransportConvocation() {
     if (!win) { URL.revokeObjectURL(url); showToast("Le navigateur a bloqué l'ouverture du document", "warning"); return; }
     win.focus();
     setTimeout(() => { win.print(); URL.revokeObjectURL(url); }, 800);
-  }, [previewItem, timeOverrides, showToast]);
+  }, [previewItem, timeOverrides, showToast, getAnimForTransport]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -806,7 +822,7 @@ export default function TransportConvocation() {
 
             {/* Email preview */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides) }} />
+              <div dangerouslySetInnerHTML={{ __html: buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides, getAnimForTransport(previewItem.allerT)) }} />
             </div>
 
             {/* Modal footer */}

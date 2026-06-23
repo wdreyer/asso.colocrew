@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import DataTable from "@/src/components/dashboard/ui/DataTable";
 import Badge from "@/src/components/dashboard/ui/Badge";
 import { db } from "@/src/lib/firebase";
@@ -184,6 +184,8 @@ export default function HumanResources() {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("contracts");
+  const [editingMember, setEditingMember] = useState(null); // { id, name, phone, email }
+  const [savingMember, setSavingMember]   = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -238,6 +240,24 @@ export default function HumanResources() {
     { key: "status", label: "Paiement", filterable: true, filterLabel: "Tous les paiements", render: (row) => <Badge label={row.status} variant={row.status === "Payé" ? "success" : "warning"} />, sortValue: (row) => row.status },
   ];
 
+  const saveMember = async () => {
+    if (!editingMember) return;
+    setSavingMember(true);
+    try {
+      await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, editingMember.id), {
+        phone: editingMember.phone,
+        email: editingMember.email,
+      });
+      setMembers((prev) => prev.map((m) => m.id === editingMember.id
+        ? { ...m, phone: editingMember.phone, email: editingMember.email }
+        : m
+      ));
+      setEditingMember(null);
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
   const memberColumns = [
     { key: "name", label: "Animateur" },
     { key: "contractCount", label: "Contrats", sortValue: (row) => row.contractCount },
@@ -246,6 +266,19 @@ export default function HumanResources() {
     { key: "roles", label: "Postes" },
     { key: "phone", label: "Téléphone", render: (row) => row.phone || <span className="hr-missing">À compléter</span>, sortValue: (row) => row.phone },
     { key: "email", label: "E-mail", render: (row) => row.email || <span className="hr-missing">À compléter</span>, sortValue: (row) => row.email },
+    {
+      key: "_edit",
+      label: "",
+      render: (row) => (
+        <button
+          type="button"
+          onClick={() => setEditingMember({ id: row.id, name: row.name, phone: row.phone || "", email: row.email || "" })}
+          style={{ padding: "3px 10px", fontSize: 11, fontWeight: 700, background: "#f5f0ff", border: "1px solid #d4c0e8", borderRadius: 6, color: "#7c3aed", cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          ✎ Modifier
+        </button>
+      ),
+    },
   ];
 
   const exportCsv = () => {
@@ -325,6 +358,65 @@ export default function HumanResources() {
           )}
         </>
       )}
+
+      {/* ── Modale édition animateur ── */}
+      {editingMember && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => !savingMember && setEditingMember(null)}
+        >
+          <div
+            style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.25)", overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ background: "#f5f0ff", borderBottom: "1.5px solid #ddd6fe", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontWeight: 800, fontSize: 13, color: "#5b21b6" }}>✎ Modifier — {editingMember.name}</span>
+              <button type="button" onClick={() => setEditingMember(null)} disabled={savingMember} style={{ background: "none", border: "none", fontSize: 16, color: "#64748b", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>📞 Téléphone</span>
+                <input
+                  type="tel"
+                  value={editingMember.phone}
+                  onChange={(e) => setEditingMember((prev) => ({ ...prev, phone: e.target.value }))}
+                  placeholder="06 12 34 56 78"
+                  style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, color: "#374151", width: "100%", outline: "none" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>✉ E-mail</span>
+                <input
+                  type="email"
+                  value={editingMember.email}
+                  onChange={(e) => setEditingMember((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="prenom.nom@email.com"
+                  style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, color: "#374151", width: "100%", outline: "none" }}
+                />
+              </label>
+            </div>
+            <div style={{ padding: "12px 24px", borderTop: "1px solid #f0f0f0", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
+              <button
+                type="button"
+                onClick={() => setEditingMember(null)}
+                disabled={savingMember}
+                style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer", fontSize: 13 }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={saveMember}
+                disabled={savingMember}
+                style={{ padding: "8px 20px", background: "#7c3aed", border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: savingMember ? "not-allowed" : "pointer", fontSize: 13, opacity: savingMember ? 0.7 : 1 }}
+              >
+                {savingMember ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

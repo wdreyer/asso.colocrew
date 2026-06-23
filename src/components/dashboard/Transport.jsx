@@ -725,6 +725,7 @@ function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepar
     needsDinner ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
     "💧 Merci de prévoir <strong>de l'eau et un goûter</strong> pour le trajet.",
     "⏱️ Le rendez-vous est fixé <strong>au moins 45 minutes avant le départ du train</strong>.",
+    "👕 Un animateur ou animatrice ColoCrew vous attendra au point de rendez-vous, reconnaissable à son <strong>t-shirt ColoCrew</strong>.",
     "👥 L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au centre de vacances.",
     "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'animateur ou animatrice au moment du rendez-vous.",
     "📝 Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
@@ -924,6 +925,7 @@ function mapStaffContract(snap) {
     role: data.role || "Animateur convoyeur",
     status: data.status || "active",
     contractFileUrl: data.contractFileUrl || "",
+    transportSegment: data.transportSegment || "",
   };
 }
 
@@ -1289,7 +1291,7 @@ ${pages.join("\n")}
 </body></html>`;
 }
 
-function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "") {
+function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "", animInfo = {}) {
   const weekInfo = WEEK_INFO[week] || {};
   const arrivalTime = options.arrivalTime || "À confirmer";
   const returnTime = options.returnTime || arrivalTime;
@@ -1316,17 +1318,30 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
   const onSiteReminderItems = [
     isBeforeNoon(arrivalTime) ? "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>." : null,
     isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnTime) ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "👕 Un animateur ou animatrice ColoCrew sera reconnaissable à son <strong>t-shirt ColoCrew</strong>.",
     "💧 Merci de prévoir <strong>de l'eau et un goûter</strong>.",
     "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'équipe au moment du rendez-vous.",
     "📝 Si votre enfant arrive seul, repart seul ou est récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>.",
   ].filter(Boolean);
 
+  const logoUrl = (typeof window !== 'undefined' ? window.location.origin : 'https://colocrew.com') + '/LogoColoCrew.png';
+  const animBlock = animInfo?.name ? `
+  <div style="margin:0 28px 20px;padding:14px 20px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
+    <p style="margin:0;font-size:15px;font-weight:800;color:#1e1040;">${animInfo.name}</p>
+    ${animInfo.phone ? `<p style="margin:4px 0 0;font-size:14px;color:#374151;">📞 ${animInfo.phone}</p>` : ""}
+  </div>` : "";
+
   return `
 <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-  <div style="padding:20px 28px 16px;border-bottom:3px solid #16a34a;">
-    <div style="font-size:19px;font-weight:900;color:#B8336A;letter-spacing:-0.02em;">ColoCrew</div>
-    <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
-  </div>
+  <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #16a34a;"><tr>
+    <td style="padding:14px 28px;vertical-align:middle;">
+      <img src="${logoUrl}" alt="ColoCrew" style="height:48px;width:auto;display:block;" onerror="this.style.display='none'" />
+    </td>
+    <td style="padding:14px 28px;text-align:right;vertical-align:middle;font-size:12px;color:#64748b;line-height:1.9;">
+      <div>info@colocrew.com</div><div>colocrew.com</div>
+    </td>
+  </tr></table>
   <div style="padding:24px 28px 8px;">
     <h1 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#166534;">📍 Convocation sur place</h1>
     <p style="margin:0 0 18px;font-size:15px;font-weight:700;color:#1e1040;">${childLabel} — ${sejourLabel}${weekInfo.dates ? ` (${weekInfo.dates})` : ""}</p>
@@ -1354,6 +1369,7 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
     </div>
     <p style="margin:18px 0 0;font-size:13px;line-height:1.65;color:#64748b;">En cas d'imprévu, contactez-nous rapidement : <strong>${EMERGENCY_PHONES.join(" / ")}</strong>.</p>
   </div>
+  ${animBlock}
 </div>`;
 }
 
@@ -5310,7 +5326,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
   return lines.join("\n");
 }
 
-function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, customIntro) {
+function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, customIntro, animInfo = {}) {
   const children = passenger.children?.length
     ? passenger.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
     : passenger.childName || "";
@@ -5379,26 +5395,24 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     ? customIntro.trim().split(/\n\n+/).map((para) => `<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">${para.replace(/\n/g, "<br/>")}</p>`).join("")
     : `<p style="margin:0 0 18px;font-size:14px;color:#374151;line-height:1.75;"><strong>${firstNames || children}</strong> ${nbChildren > 1 ? "sont inscrits" : "est inscrit(e)"} au séjour <strong>${sejourShort}</strong>${weekInfo ? ` du <strong>${fmtDateLong(weekInfo.aller)}</strong> au <strong>${fmtDateLong(weekInfo.retour)}</strong>` : ""}.</p>`;
 
+  const logoUrl = (typeof window !== 'undefined' ? window.location.origin : 'https://colocrew.com') + '/LogoColoCrew.png';
+  const animBlock = animInfo?.name ? `
+  <div style="margin:0 28px 20px;padding:14px 20px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
+    <p style="margin:0;font-size:15px;font-weight:800;color:#1e1040;">${animInfo.name}</p>
+    ${animInfo.phone ? `<p style="margin:4px 0 0;font-size:14px;color:#374151;">📞 ${animInfo.phone}</p>` : ""}
+  </div>` : "";
+
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Convocation transport</title></head>
 <body style="margin:0;padding:20px 8px;background:#f0ebff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
 <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);">
   <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;"><tr>
-    <td style="padding:20px 28px 16px;vertical-align:middle;">
-      <table style="border-collapse:collapse;"><tr>
-        <td style="padding:0 10px 0 0;vertical-align:middle;">
-          <div style="background:#B8336A;border-radius:8px;width:38px;height:38px;text-align:center;line-height:38px;">
-            <span style="color:#fff;font-weight:900;font-size:16px;">CC</span>
-          </div>
-        </td>
-        <td style="vertical-align:middle;">
-          <div style="font-size:19px;font-weight:900;color:#B8336A;">ColoCrew</div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
-        </td>
-      </tr></table>
+    <td style="padding:14px 28px;vertical-align:middle;">
+      <img src="${logoUrl}" alt="ColoCrew" style="height:48px;width:auto;display:block;" onerror="this.style.display='none'" />
     </td>
-    <td style="padding:20px 28px 16px;text-align:right;vertical-align:top;font-size:12px;color:#64748b;line-height:1.9;">
+    <td style="padding:14px 28px;text-align:right;vertical-align:middle;font-size:12px;color:#64748b;line-height:1.9;">
       <div>info@colocrew.com</div><div>01 84 21 02 30</div><div>colocrew.com</div>
     </td>
   </tr></table>
@@ -5441,6 +5455,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     ${buildReminderListHtml(reminderItems)}
     <p style="margin:14px 0 0;font-size:14px;color:#374151;line-height:1.7;">En cas d'urgence ou d'imprévu : <strong>${phones}</strong></p>
   </div>
+  ${animBlock}
   <div style="border-top:2px solid #f5f0ff;padding:16px 28px;text-align:center;background:#fdf8fc;">
     <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Association ColoCrew — SIRET : 9 3 2 1 7 1 4 3 2 0 0 0 1 0</p>
     <p style="margin:0;font-size:12px;color:#94a3b8;">@_colocrew / ColoCrew</p>
@@ -5778,7 +5793,7 @@ function mergeFamily(passengers) {
   return { ...primary, children: allChildren };
 }
 
-function ConvocationsTab({ transports, reservations }) {
+function ConvocationsTab({ transports, reservations, staffMembers = [], staffContracts = [] }) {
   const { showToast } = useToast();
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [sentStatus, setSentStatus]     = useState({});
@@ -5790,6 +5805,22 @@ function ConvocationsTab({ transports, reservations }) {
   const [customIntro, setCustomIntro]   = useState("");
   const [onSiteConfigs, setOnSiteConfigs] = useState({});
   const [onSiteModal, setOnSiteModal]     = useState(null); // sejourName en cours d'édition
+
+  const getAnimForTrip = useCallback((trip) => {
+    const s = trip?.staff?.[0];
+    if (!s) return {};
+    const member = staffMembers.find((m) => m.id === s.memberId);
+    return {
+      name: member?.name || s.name || "",
+      phone: member?.phone || s.phone || "",
+    };
+  }, [staffMembers]);
+
+  const getAnimForOnSite = useCallback((sejourName) => {
+    const cfg = onSiteConfigs[sejourName] || {};
+    if (!cfg.animName) return {};
+    return { name: cfg.animName, phone: cfg.animPhone || "" };
+  }, [onSiteConfigs]);
 
   const weekTrips = useMemo(
     () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé" && t.direction === "aller"),
@@ -5819,6 +5850,8 @@ function ConvocationsTab({ transports, reservations }) {
     arrivalTime: onSiteConfigs[sejourName]?.arrivalTime || "14:00",
     returnTime:  onSiteConfigs[sejourName]?.returnTime  || "14:00",
     lieu:        onSiteConfigs[sejourName]?.lieu        || "",
+    animName:    onSiteConfigs[sejourName]?.animName    || "",
+    animPhone:   onSiteConfigs[sejourName]?.animPhone   || "",
   }), [onSiteConfigs]);
 
   const setOnSiteConfig = useCallback((sejourName, field, value) => {
@@ -5865,7 +5898,8 @@ function ConvocationsTab({ transports, reservations }) {
     const primary  = passengers[0];
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
-    const html     = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro);
+    const animInfo = getAnimForTrip(trip);
+    const html     = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo);
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
     const wi = WEEK_INFO[trip.week];
     const subject  = `Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
@@ -5876,16 +5910,17 @@ function ConvocationsTab({ transports, reservations }) {
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     await markAllSent(passengers.map((p) => p.reservationId));
-  }, [transports, customIntro, markAllSent]);
+  }, [transports, customIntro, markAllSent, getAnimForTrip]);
 
   const doSendOnSite = useCallback(async (reservation) => {
     const cfg = getOnSiteConfig(reservation.sejourName || "Séjour");
+    const animInfo = getAnimForOnSite(reservation.sejourName || "Séjour");
     const html = buildOnSiteEmailHtml(reservation, selectedWeek, {
       arrivalTime: cfg.arrivalTime,
       returnTime:  cfg.returnTime,
       arrivalPoint: cfg.lieu || "Lieu du séjour",
       returnPoint:  cfg.lieu || "Lieu du séjour",
-    }, customIntro);
+    }, customIntro, animInfo);
     const wi = WEEK_INFO[selectedWeek];
     const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
     const subject = `Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
@@ -5896,7 +5931,7 @@ function ConvocationsTab({ transports, reservations }) {
     });
     if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
     await markAllSent([reservation.id]);
-  }, [customIntro, getOnSiteConfig, markAllSent, selectedWeek]);
+  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, selectedWeek, getAnimForTrip]);
 
   // Pending = one entry per unique family (email) that hasn't been fully sent
   const pendingFamilies = useMemo(() => {
@@ -6140,7 +6175,7 @@ function ConvocationsTab({ transports, reservations }) {
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => openDoc(wrapForPrint(buildOnSiteEmailHtml(r, selectedWeek, { arrivalTime: cfg.arrivalTime, returnTime: cfg.returnTime, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }, customIntro)))}>
+                              onClick={() => { const ai = getAnimForOnSite(sejourName); openDoc(wrapForPrint(buildOnSiteEmailHtml(r, selectedWeek, { arrivalTime: cfg.arrivalTime, returnTime: cfg.returnTime, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }, customIntro, ai))); }}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -6248,7 +6283,7 @@ function ConvocationsTab({ transports, reservations }) {
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro)))}>
+                              onClick={() => { const ai = getAnimForTrip(trip); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai))); }}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -6302,8 +6337,8 @@ function ConvocationsTab({ transports, reservations }) {
                     returnTime:  preview.cfg.returnTime,
                     arrivalPoint: preview.cfg.lieu || "Lieu du séjour",
                     returnPoint:  preview.cfg.lieu || "Lieu du séjour",
-                  }, customIntro)
-                : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro) }} />
+                  }, customIntro, getAnimForOnSite(preview.reservation?.sejourName || "Séjour"))
+                : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip)) }} />
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
               <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
@@ -6382,6 +6417,26 @@ function ConvocationsTab({ transports, reservations }) {
                   onChange={(e) => setOnSiteConfig(onSiteModal, "lieu", e.target.value)}
                   placeholder="Ex : Centre de vacances, 42 rue des Alpes, Barcelonnette"
                   style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, color: "#374151", width: "100%", outline: "none" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed" }}>👤 Animateur·trice référent·e (optionnel)</span>
+                <input
+                  type="text"
+                  value={getOnSiteConfig(onSiteModal).animName}
+                  onChange={(e) => setOnSiteConfig(onSiteModal, "animName", e.target.value)}
+                  placeholder="Prénom Nom"
+                  style={{ padding: "8px 12px", border: "1.5px solid #ede9fe", borderRadius: 8, fontSize: 13, color: "#374151", width: "100%", outline: "none" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed" }}>📞 Téléphone (optionnel)</span>
+                <input
+                  type="text"
+                  value={getOnSiteConfig(onSiteModal).animPhone}
+                  onChange={(e) => setOnSiteConfig(onSiteModal, "animPhone", e.target.value)}
+                  placeholder="06 12 34 56 78"
+                  style={{ padding: "8px 12px", border: "1.5px solid #ede9fe", borderRadius: 8, fontSize: 13, color: "#374151", width: "100%", outline: "none" }}
                 />
               </label>
             </div>
@@ -6774,7 +6829,7 @@ export default function Transport({ focusDate = "" }) {
 
           {/* Convocations */}
           {activeTab === "convocations" && (
-            <ConvocationsTab transports={transports} reservations={reservations} />
+            <ConvocationsTab transports={transports} reservations={reservations} staffMembers={staffMembers} staffContracts={staffContracts} />
           )}
 
           {/* Billets */}
