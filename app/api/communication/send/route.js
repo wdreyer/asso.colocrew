@@ -1,10 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
 import nodemailer from "nodemailer";
+import puppeteer from "puppeteer";
 
 export async function POST(request) {
   try {
-    const { to, subject, html, from_name, from_email, includeDecharge } = await request.json();
+    const { to, subject, html, from_name, from_email, includeDecharge, convocHtml } = await request.json();
 
     if (!to || !subject || !html) {
       return Response.json({ error: "Paramètres manquants (to, subject, html)" }, { status: 400 });
@@ -21,6 +22,7 @@ export async function POST(request) {
     });
 
     const attachments = [];
+
     if (includeDecharge) {
       const dechargePath = path.join(process.cwd(), "public", "documents", "decharge-responsabilite-colocrew.pdf");
       const content = await fs.readFile(dechargePath);
@@ -29,6 +31,25 @@ export async function POST(request) {
         content,
         contentType: "application/pdf",
       });
+    }
+
+    if (convocHtml) {
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+      try {
+        const page = await browser.newPage();
+        await page.setContent(convocHtml, { waitUntil: "networkidle0" });
+        const pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
+        attachments.push({
+          filename: "Convocation ColoCrew.pdf",
+          content: Buffer.from(pdfBuffer),
+          contentType: "application/pdf",
+        });
+      } finally {
+        await browser.close();
+      }
     }
 
     const info = await transporter.sendMail({

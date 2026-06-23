@@ -5526,47 +5526,59 @@ function ConvocEmailSender({ transport, allTransports }) {
     setSentStatus((prev) => ({ ...prev, [reservationId]: false }));
   }, []);
 
-  const doSend = useCallback(async (p) => {
-    const rdvInfo = getEmailRdvInfo(transport, p);
-    const html = buildConvocEmailHtml(transport, p, rdvInfo, allTransports, customIntro);
+  const doSendGroup = useCallback(async (groupPax) => {
+    const primary  = groupPax[0];
+    const merged   = mergeFamily(groupPax);
+    const rdvInfo  = getEmailRdvInfo(transport, primary);
+    const html     = buildConvocEmailHtml(transport, merged, rdvInfo, allTransports, customIntro);
+    const convocHtml = buildGroupConvocHTML({ ...transport, passengers: groupPax });
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        to: p.email,
+        to: primary.email,
         subject: emailSubject,
         html,
         from_name: "ColoCrew Inscriptions",
         from_email: "inscriptions@colocrew.com",
         includeDecharge: true,
+        convocHtml,
       }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
-    await markSent(p.reservationId);
+    await Promise.all(groupPax.map((p) => p.reservationId ? markSent(p.reservationId) : null));
   }, [transport, allTransports, emailSubject, customIntro, markSent]);
 
   const handleSendAll = useCallback(async () => {
-    const toSend = passengers.filter((p) => !sentStatus[p.reservationId] && p.email && p.email !== "-");
+    const groups  = groupPassengersByFamily(passengers);
+    const toSend  = groups.filter((g) => {
+      const allIds = g.map((p) => p.reservationId).filter(Boolean);
+      return !allIds.every((id) => sentStatus[id]) && g[0].email && g[0].email !== "-";
+    });
     if (!toSend.length) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
     setSendingAll(true);
     setSendProgress({ done: 0, total: toSend.length, errors: [] });
     const errors = [];
     for (let i = 0; i < toSend.length; i++) {
-      try { await doSend(toSend[i]); } catch (e) { errors.push({ email: toSend[i].email, error: e.message }); }
+      try { await doSendGroup(toSend[i]); } catch (e) { errors.push({ email: toSend[i][0].email, error: e.message }); }
       setSendProgress({ done: i + 1, total: toSend.length, errors: [...errors] });
       if (i < toSend.length - 1) await new Promise((r) => setTimeout(r, 350));
     }
     setSendingAll(false);
-    if (errors.length === 0) showToast(`${toSend.length} convocation(s) envoyée(s)`, "success");
+    if (errors.length === 0) showToast(`${toSend.length} email(s) envoyé(s)`, "success");
     else showToast(`${toSend.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
-  }, [passengers, sentStatus, doSend, showToast]);
+  }, [passengers, sentStatus, doSendGroup, showToast]);
 
   if (!passengers.length) {
     return <p className="tr-convoc-empty-msg">Aucun passager assigné à ce trajet.</p>;
   }
 
-  const pendingCount = passengers.filter((p) => !sentStatus[p.reservationId] && p.email && p.email !== "-").length;
-  const sentCount = passengers.length - pendingCount;
+  const familyGroups  = groupPassengersByFamily(passengers);
+  const pendingCount  = familyGroups.filter((g) => {
+    const allIds = g.map((p) => p.reservationId).filter(Boolean);
+    return !allIds.every((id) => sentStatus[id]) && g[0].email && g[0].email !== "-";
+  }).length;
+  const sentCount = familyGroups.length - pendingCount;
 
   return (
     <div className="tr-convoc-email-list">
@@ -5574,8 +5586,8 @@ function ConvocEmailSender({ transport, allTransports }) {
       {/* ── Barre d'actions ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, color: "#64748b", flex: 1 }}>
-          <span style={{ fontWeight: 700, color: "#1e1040" }}>{passengers.length}</span> famille{passengers.length > 1 ? "s" : ""}
-          {sentCount > 0 && <span style={{ color: "#16a34a", marginLeft: 8, fontWeight: 600 }}>· {sentCount} envoyee{sentCount > 1 ? "s" : ""}</span>}
+          <span style={{ fontWeight: 700, color: "#1e1040" }}>{familyGroups.length}</span> famille{familyGroups.length > 1 ? "s" : ""}
+          {sentCount > 0 && <span style={{ color: "#16a34a", marginLeft: 8, fontWeight: 600 }}>· {sentCount} envoyée{sentCount > 1 ? "s" : ""}</span>}
           {pendingCount > 0 && <span style={{ color: "#ef4444", marginLeft: 8, fontWeight: 600 }}>· {pendingCount} en attente</span>}
         </div>
         <button
@@ -5643,22 +5655,27 @@ function ConvocEmailSender({ transport, allTransports }) {
             </tr>
           </thead>
           <tbody>
-            {passengers.map((p, i) => {
-              const isSent    = Boolean(sentStatus[p.reservationId]);
-              const isSending = sendingId === p.reservationId;
-              const children  = p.children?.length
-                ? p.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
-                : p.childName || "-";
-              const city     = passengerCity(transport, p);
-              const hasEmail = p.email && p.email !== "-";
-              const rdvInfo  = getEmailRdvInfo(transport, p);
+            {familyGroups.map((groupPax, i) => {
+              const primary  = groupPax[0];
+              const merged   = mergeFamily(groupPax);
+              const allIds   = groupPax.map((p) => p.reservationId).filter(Boolean);
+              const isSent   = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
+              const isSending = sendingId === (primary.email || primary.reservationId);
+              const children  = merged.children?.length
+                ? merged.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
+                : merged.childName || "-";
+              const city     = passengerCity(transport, primary);
+              const hasEmail = primary.email && primary.email !== "-";
+              const rdvInfo  = getEmailRdvInfo(transport, primary);
+              const groupKey = primary.email || primary.reservationId;
 
               return (
-                <tr key={p.reservationId || i} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: i === 0 ? "none" : "1px solid #f0f0f0" }}>
+                <tr key={groupKey || i} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: i === 0 ? "none" : "1px solid #f0f0f0" }}>
 
                   {/* Famille */}
                   <td style={tdS}>
-                    <div style={{ fontWeight: 600, color: "#1e1040" }}>{p.nom}</div>
+                    <div style={{ fontWeight: 600, color: "#1e1040" }}>{primary.nom}</div>
+                    {groupPax.length > 1 && <div style={{ fontSize: 11, color: "#94a3b8" }}>{groupPax.length} inscriptions groupées</div>}
                   </td>
 
                   {/* Enfants */}
@@ -5681,7 +5698,7 @@ function ConvocEmailSender({ transport, allTransports }) {
                   {/* Email */}
                   <td style={tdS}>
                     {hasEmail
-                      ? <span style={{ color: "#374151", fontSize: 12 }}>{p.email}</span>
+                      ? <span style={{ color: "#374151", fontSize: 12 }}>{primary.email}</span>
                       : <span style={{ color: "#ef4444", fontSize: 12, fontStyle: "italic" }}>Manquant</span>}
                   </td>
 
@@ -5689,8 +5706,11 @@ function ConvocEmailSender({ transport, allTransports }) {
                   <td style={{ ...tdS, textAlign: "center" }}>
                     <button
                       type="button"
-                      onClick={() => isSent ? markUnsent(p.reservationId) : markSent(p.reservationId)}
-                      title={isSent ? "Cliquer pour annuler" : "Marquer envoyee"}
+                      onClick={() => isSent
+                        ? Promise.all(allIds.map((id) => markUnsent(id)))
+                        : Promise.all(allIds.map((id) => markSent(id)))
+                      }
+                      title={isSent ? "Cliquer pour annuler" : "Marquer envoyée"}
                       style={{
                         width: 24, height: 24, borderRadius: 6,
                         border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`,
@@ -5714,7 +5734,7 @@ function ConvocEmailSender({ transport, allTransports }) {
                         type="button"
                         className="dash-btn"
                         style={{ fontSize: 12, padding: "4px 10px" }}
-                        onClick={() => setPreview(preview?.reservationId === p.reservationId ? null : { ...p, _rdvInfo: rdvInfo })}
+                        onClick={() => setPreview(preview?._groupKey === groupKey ? null : { ...merged, _groupKey: groupKey, _groupPax: groupPax, _rdvInfo: rdvInfo })}
                       >
                         Aperçu
                       </button>
@@ -5724,10 +5744,10 @@ function ConvocEmailSender({ transport, allTransports }) {
                         style={{ fontSize: 12, padding: "4px 10px" }}
                         disabled={!hasEmail || isSending || sendingAll}
                         onClick={async () => {
-                          setSendingId(p.reservationId);
+                          setSendingId(groupKey);
                           try {
-                            await doSend(p);
-                            showToast(`Convocation envoyée à ${p.email}`, "success");
+                            await doSendGroup(groupPax);
+                            showToast(`Convocation envoyée à ${primary.email}`, "success");
                           } catch (e) {
                             showToast(`Erreur : ${e.message}`, "error");
                           } finally {
@@ -5760,6 +5780,7 @@ function ConvocEmailSender({ transport, allTransports }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.nom}</div>
                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.email} &middot; {emailSubject}</div>
+                {preview._groupPax?.length > 1 && <div style={{ fontSize: 11, color: "#7c3aed", marginTop: 2 }}>{preview._groupPax.length} inscriptions — 1 email groupé + 1 PDF par enfant</div>}
               </div>
               <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>x</button>
             </div>
@@ -5772,9 +5793,10 @@ function ConvocEmailSender({ transport, allTransports }) {
                 type="button"
                 disabled={!!sendingId}
                 onClick={async () => {
-                  setSendingId(preview.reservationId);
+                  const groupPax = preview._groupPax || [preview];
+                  setSendingId(preview._groupKey || preview.email);
                   try {
-                    await doSend(preview);
+                    await doSendGroup(groupPax);
                     showToast(`Convocation envoyée à ${preview.email}`, "success");
                     setPreview(null);
                   } catch (e) {
