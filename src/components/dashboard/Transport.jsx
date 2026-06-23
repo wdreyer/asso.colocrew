@@ -1344,6 +1344,7 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "",
     "👕 Un animateur ou animatrice ColoCrew sera reconnaissable à son <strong>t-shirt ColoCrew</strong>.",
     "💧 Merci de prévoir <strong>de l'eau et un goûter</strong>.",
     "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'équipe au moment du rendez-vous.",
+    "🛏️ Pensez à apporter des <strong>draps, un sac de couchage ou un sac à viande</strong> pour votre enfant.",
     "📝 Si votre enfant arrive seul, repart seul ou est récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>.",
   ].filter(Boolean);
 
