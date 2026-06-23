@@ -705,14 +705,14 @@ function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepar
   const needsLunch = isBeforeNoon(departureTime) || isBeforeNoon(returnDepartureTime);
   const needsDinner = isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnArrivalTime);
   return [
-    needsLunch ? "Pensez à prévoir un pique-nique pour le déjeuner." : null,
-    needsDinner ? "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
-    "Merci de prévoir de l'eau et un goûter pour le trajet.",
-    "Le rendez-vous est fixé au moins 45 minutes avant le départ du train.",
-    "L'animateur prendra ensuite en charge le groupe et assurera un trajet encadré et sécurisé jusqu'au centre de vacances.",
-    "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance, et de prévenir l'animateur au moment du rendez-vous.",
-    "Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'accompagnateur.",
-    "Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'accompagnateur.",
+    needsLunch ? "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>." : null,
+    needsDinner ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "💧 Merci de prévoir <strong>de l'eau et un goûter</strong> pour le trajet.",
+    "⏱️ Le rendez-vous est fixé <strong>au moins 45 minutes avant le départ du train</strong>.",
+    "👥 L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au centre de vacances.",
+    "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'animateur ou animatrice au moment du rendez-vous.",
+    "📝 Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
+    "📝 Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
   ].filter(Boolean);
 }
 
@@ -720,6 +720,10 @@ function buildReminderListHtml(items) {
   return `<ul style="margin:0;padding:0;list-style:none;font-size:14px;color:#374151;line-height:1.75;">
     ${items.map((item) => `<li style="margin:0 0 8px;padding-left:18px;position:relative;"><span style="position:absolute;left:0;color:#B8336A;">●</span>${item}</li>`).join("")}
   </ul>`;
+}
+
+function plainReminderText(value) {
+  return String(value || "").replace(/<[^>]+>/g, "");
 }
 
 function formatDurationFromMinutes(minutes) {
@@ -1294,11 +1298,11 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
       <td style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;">${retour}</td>
     </tr>`;
   const onSiteReminderItems = [
-    isBeforeNoon(arrivalTime) ? "Pensez à prévoir un pique-nique pour le déjeuner." : null,
-    isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnTime) ? "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
-    "Merci de prévoir de l'eau et un goûter.",
-    "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance, et de prévenir l'équipe au moment du rendez-vous.",
-    "Si votre enfant arrive seul, repart seul ou est récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe.",
+    isBeforeNoon(arrivalTime) ? "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>." : null,
+    isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnTime) ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "💧 Merci de prévoir <strong>de l'eau et un goûter</strong>.",
+    "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'équipe au moment du rendez-vous.",
+    "📝 Si votre enfant arrive seul, repart seul ou est récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>.",
   ].filter(Boolean);
 
   return `
@@ -1308,7 +1312,7 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
     <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
   </div>
   <div style="padding:24px 28px 8px;">
-    <h1 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#166534;">Convocation sur place</h1>
+    <h1 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#166534;">📍 Convocation sur place</h1>
     <p style="margin:0 0 18px;font-size:15px;font-weight:700;color:#1e1040;">${childLabel} — ${sejourLabel}${weekInfo.dates ? ` (${weekInfo.dates})` : ""}</p>
     ${intro}
   </div>
@@ -5278,7 +5282,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
       returnDepartureTime: retourInfo?.departureTime,
       returnArrivalTime: retourInfo?.arrivalTime,
       city,
-    }).map((item) => `• ${item}`),
+    }).map((item) => `• ${plainReminderText(item)}`),
     `• En cas d'urgence ou d'imprévu, contactez-nous immédiatement :`,
     ...EMERGENCY_PHONES.map((n) => `  ${n}`),
     ``,
@@ -5383,7 +5387,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     </td>
   </tr></table>
   <div style="padding:24px 28px 8px;">
-    <h1 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#B8336A;">Convocation de transport — ${sejourShort}</h1>
+    <h1 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#B8336A;">🚆 Convocation de transport — ${sejourShort}</h1>
     <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1e1040;">${passenger.nom}</p>
     ${introHtml}
   </div>
@@ -6040,12 +6044,11 @@ function ConvocationsTab({ transports, reservations }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: "#f8f9fa", borderBottom: "1px solid #e5e7eb" }}>
-              <th style={cTh}>Trajet</th>
-              <th style={cTh}>Famille</th>
-              <th style={cTh}>Ville</th>
+              <th style={cTh}>Parents</th>
               <th style={cTh}>Enfants</th>
+              <th style={cTh}>Ville</th>
+              <th style={cTh}>Horaire</th>
               <th style={cTh}>Point de RDV</th>
-              <th style={cTh}>Heure RDV</th>
               <th style={cTh}>Email</th>
               <th style={{ ...cTh, textAlign: "center" }}>Convoqué</th>
               <th style={{ ...cTh, textAlign: "right" }}>Actions</th>
@@ -6056,7 +6059,7 @@ function ConvocationsTab({ transports, reservations }) {
             {/* Sur place — par séjour */}
             {onSiteSejourNames.length === 0 && (
               <tr style={{ background: "#f0fdf4" }}>
-                <td colSpan={9} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
+                <td colSpan={8} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
                   <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", marginRight: 8, fontSize: 11 }}>SP</span>
                   Sur place — aucune famille cette semaine
                 </td>
@@ -6069,7 +6072,7 @@ function ConvocationsTab({ transports, reservations }) {
               return (
                 <Fragment key={`sp-${sejourName}`}>
                   <tr style={{ background: "#f0fdf4", borderTop: "2px solid #bbf7d0" }}>
-                    <td colSpan={9} style={{ padding: "8px 14px" }}>
+                    <td colSpan={8} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>SP</span>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#15803d" }}>{sejourName}</span>
@@ -6084,11 +6087,6 @@ function ConvocationsTab({ transports, reservations }) {
                             placeholder="Adresse du lieu de séjour"
                             style={{ padding: "2px 8px", border: "1px solid #d1fae5", borderRadius: 5, fontSize: 12, color: "#374151", width: 240 }} />
                         </div>
-                        <button type="button" className="dash-btn" style={{ marginLeft: "auto", fontSize: 11, padding: "2px 8px" }}
-                          onClick={() => openDoc(buildOnSiteConvocHTML(sejourRows, selectedWeek, { arrivalTime: cfg.time, returnTime: cfg.time, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }))}
-                          disabled={!sejourRows.length}>
-                          PDF convocations
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -6101,12 +6099,11 @@ function ConvocationsTab({ transports, reservations }) {
                     const isPreviewing = preview?.familyKey === familyKey;
                     return (
                       <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
-                        <td style={cTd}><span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", borderRadius: 4, padding: "2px 6px", fontWeight: 700 }}>Sur place</span></td>
                         <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
-                        <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}>Sur place</span></td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
-                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
+                        <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}>Sur place</span></td>
                         <td style={cTd}><span style={{ fontWeight: 700, color: "#16a34a" }}>{cfg.time}</span></td>
+                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
                         <td style={cTd}>{hasEmail ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span> : <span style={{ color: "#ef4444", fontStyle: "italic", fontSize: 12 }}>Manquant</span>}</td>
                         <td style={{ ...cTd, textAlign: "center" }}>
                           <button type="button" onClick={() => isSent ? markAllUnsent([r.id]) : markAllSent([r.id])}
@@ -6116,6 +6113,10 @@ function ConvocationsTab({ transports, reservations }) {
                         </td>
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                            <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
+                              onClick={() => openDoc(buildOnSiteConvocHTML([r], selectedWeek, { arrivalTime: cfg.time, returnTime: cfg.time, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }))}>
+                              PDF
+                            </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
                               onClick={() => setPreview(isPreviewing ? null : { type: "onsite", familyKey, reservation: r, cfg })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
@@ -6161,7 +6162,7 @@ function ConvocationsTab({ transports, reservations }) {
                 <Fragment key={trip.id}>
                   {/* En-tête trajet */}
                   <tr style={{ background: "#f5f0ff", borderTop: "2px solid #d4c0e8" }}>
-                    <td colSpan={9} style={{ padding: "8px 14px" }}>
+                    <td colSpan={8} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#5f3374" }}>{trip.departureCity} → {trip.arrivalCity}</span>
                         <span style={{ fontSize: 11, color: "#7c3aed", background: "#ede9fe", borderRadius: 5, padding: "2px 7px", fontWeight: 700 }}>
@@ -6171,19 +6172,11 @@ function ConvocationsTab({ transports, reservations }) {
                           {fmtDate(trip.date)} · {familyGroups.length} famille{familyGroups.length !== 1 ? "s" : ""}
                           {pendingCount > 0 && <span style={{ color: "#ef4444", marginLeft: 6 }}>· {pendingCount} non envoyée{pendingCount > 1 ? "s" : ""}</span>}
                         </span>
-                        <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-                          <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "2px 8px" }}
-                            onClick={() => openDoc(buildGroupConvocHTML(trip))} disabled={!familyGroups.length}>PDF convocations</button>
-                          <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "2px 8px" }}
-                            onClick={() => openDoc(buildStaffBriefingHTML(trip))}>Briefing</button>
-                          <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "2px 8px" }}
-                            onClick={() => openDoc(buildPassengerListHTML(trip))}>Liste</button>
-                        </div>
                       </div>
                     </td>
                   </tr>
                   {familyGroups.length === 0 && (
-                    <tr><td colSpan={9} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
+                    <tr><td colSpan={8} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
                   )}
                   {familyGroups.map((passengers, i) => {
                     const primary   = passengers[0];
@@ -6202,22 +6195,17 @@ function ConvocationsTab({ transports, reservations }) {
                     return (
                       <tr key={familyKey} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
                         <td style={cTd}>
-                          <span style={{ fontSize: 11, background: "#f5f0ff", color: "#7c3aed", borderRadius: 4, padding: "2px 6px", fontWeight: 600 }}>
-                            {ROUTE_GROUPS.find((g) => g.value === trip.routeGroup)?.label || trip.departureCity}
-                          </span>
-                        </td>
-                        <td style={cTd}>
                           <span style={{ fontWeight: 600, color: "#1e1040" }}>{primary.nom}</span>
                           {passengers.length > 1 && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 6 }}>({passengers.length} dossiers)</span>}
                         </td>
-                        <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#5f3374" }}>{passengerCity(trip, primary)}</span></td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{allChildren}</span></td>
-                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || passengerCity(trip, primary) || "—"}</span></td>
+                        <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#5f3374" }}>{passengerCity(trip, primary)}</span></td>
                         <td style={cTd}>
                           {rdvInfo.rdvTime
                             ? <span style={{ fontWeight: 700, color: "#16a34a" }}>{rdvInfo.rdvTime}</span>
                             : <span style={{ color: "#94a3b8" }}>—</span>}
                         </td>
+                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || passengerCity(trip, primary) || "—"}</span></td>
                         <td style={cTd}>
                           {hasEmail
                             ? <span style={{ color: "#374151", fontSize: 12 }}>{primary.email}</span>
@@ -6233,6 +6221,10 @@ function ConvocationsTab({ transports, reservations }) {
                         </td>
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                            <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
+                              onClick={() => openDoc(buildGroupConvocHTML({ ...trip, passengers }))}>
+                              PDF
+                            </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
                               onClick={() => setPreview(isPreviewing ? null : { ...merged, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}

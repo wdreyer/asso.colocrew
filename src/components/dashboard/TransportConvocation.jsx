@@ -42,11 +42,11 @@ function legacyConvocationReminderItems({ departureTime, returnDepartureTime, re
     || (returnDepartureMinutes !== null && returnDepartureMinutes < 12 * 60);
   const needsDinner = returnArrivalMinutes !== null && returnArrivalMinutes >= 19 * 60;
   return [
-    needsLunch ? "Pensez à prévoir un pique-nique pour le déjeuner." : null,
-    needsDinner ? "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
-    "Merci de prévoir de l'eau et un goûter pour le trajet.",
-    "Le rendez-vous est fixé au moins 45 minutes avant le départ du train.",
-    "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance.",
+    needsLunch ? "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>." : null,
+    needsDinner ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "💧 Merci de prévoir <strong>de l'eau et un goûter</strong> pour le trajet.",
+    "⏱️ Le rendez-vous est fixé <strong>au moins 45 minutes avant le départ du train</strong>.",
+    "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>.",
   ].filter(Boolean);
 }
 
@@ -275,11 +275,11 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport) {
     </h2>
     <ul style="margin:0;padding-left:18px;font-size:14px;color:#374151;line-height:1.9;">
       <li>Le rendez-vous est fixé <strong>1h avant le départ du train.</strong></li>
-      <li>Un animateur attendra les enfants au point de rendez-vous, reconnaissable grâce à un <strong>écriteau COLOCREW.</strong></li>
-      <li>Les responsables légaux sont invités à <strong>se présenter à l'animateur,</strong> disponible pour répondre à vos questions.</li>
-      <li>Si votre enfant se rend seul(e) au point de rendez-vous, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
-      <li>L'animateur prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au lieu de séjour.</li>
-      <li>Pour le retour, si l'enfant doit rentrer seul(e) ou être récupéré(e) par une tierce personne, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
+      <li>Un animateur ou une animatrice attendra les enfants au point de rendez-vous, reconnaissable grâce à un <strong>écriteau COLOCREW.</strong></li>
+      <li>Les responsables légaux sont invités à <strong>se présenter à l'animateur ou animatrice,</strong> disponible pour répondre à vos questions.</li>
+      <li>Si votre enfant se rend seul(e) au point de rendez-vous, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur ou animatrice.</li>
+      <li>L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au lieu de séjour.</li>
+      <li>Pour le retour, si l'enfant doit rentrer seul(e) ou être récupéré(e) par une tierce personne, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur ou animatrice.</li>
     </ul>
     ${legacyReminderHtml(legacyReminderItems)}
   </div>

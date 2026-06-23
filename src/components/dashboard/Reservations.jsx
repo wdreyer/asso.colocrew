@@ -122,12 +122,12 @@ function reservationTransportReminderLines(extra) {
   const departureMinutes = timeToMinutes(extra.departureTime);
   const returnMinutes = timeToMinutes(extra.returnTime);
   return [
-    departureMinutes !== null && departureMinutes < 12 * 60 ? "• Pensez à prévoir un pique-nique pour le déjeuner." : null,
-    returnMinutes !== null && returnMinutes >= 19 * 60 ? "• Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
-    "• Merci de prévoir de l'eau et un goûter pour le trajet.",
-    "• Le rendez-vous est fixé au moins 45 minutes avant le départ du train.",
-    "• Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance.",
-    "• Si votre enfant se rend seul au point de rendez-vous, rentre seul ou est récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe.",
+    departureMinutes !== null && departureMinutes < 12 * 60 ? "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>." : null,
+    returnMinutes !== null && returnMinutes >= 19 * 60 ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "💧 Merci de prévoir <strong>de l'eau et un goûter</strong> pour le trajet.",
+    "⏱️ Le rendez-vous est fixé <strong>au moins 45 minutes avant le départ du train</strong>.",
+    "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>.",
+    "📝 Si votre enfant se rend seul au point de rendez-vous, rentre seul ou est récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>.",
   ].filter(Boolean);
 }
 
