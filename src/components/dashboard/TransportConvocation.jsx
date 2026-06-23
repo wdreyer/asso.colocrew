@@ -133,7 +133,7 @@ function childrenFirstNames(minor) {
 
 // ─── Email template ───────────────────────────────────────────────────────────
 
-function buildConvocationHtml(reservation, allerTransport, retourTransport) {
+function buildConvocationHtml(reservation, allerTransport, retourTransport, overrides = {}) {
   const legal   = reservation.legal   || {};
   const minor   = reservation.minor   || {};
   const sejour  = reservation.sejour  || {};
@@ -143,8 +143,11 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport) {
   const allerCity  = tpt.departureCity || "";
   const retourCity = tpt.returnCity    || "";
 
-  const allerM  = getMeetingInfo(allerTransport,  allerCity);
-  const retourM = getMeetingInfo(retourTransport, retourCity);
+  const allerMBase  = getMeetingInfo(allerTransport,  allerCity);
+  const retourMBase = getMeetingInfo(retourTransport, retourCity);
+
+  const allerM  = allerMBase  ? { ...allerMBase,  meetingTime: overrides.allerMeetingTime  ?? allerMBase.meetingTime  } : null;
+  const retourM = retourMBase ? { ...retourMBase, meetingTime: overrides.retourMeetingTime ?? retourMBase.meetingTime } : null;
 
   const allNames   = childrenNames(minor);
   const firstNames = children.map((c) => c.firstName || "").filter(Boolean);
@@ -167,7 +170,7 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport) {
   const mkDateTime = (m, fallbackDate, accentColor) => {
     const d = m?.date || fallbackDate;
     return d
-      ? `<strong>${fmtDateLong(d)}</strong>${m?.meetingTime ? `<br><span style="color:${accentColor};font-weight:700;">RDV à ${m.meetingTime}</span>` : ""}`
+      ? `<strong>${fmtDateLong(d)}</strong>${m?.meetingTime ? `<br><span style="color:${accentColor};font-weight:700;">à partir de ${m.meetingTime}</span>` : ""}`
       : TBC;
   };
 
@@ -307,6 +310,8 @@ export default function TransportConvocation() {
   // Preview modal
   const [previewItem, setPreviewItem]   = useState(null); // { res, allerT, retourT }
   const [editSubject, setEditSubject]   = useState("");
+  const [editAllerTime, setEditAllerTime]   = useState("");
+  const [editRetourTime, setEditRetourTime] = useState("");
   const [sendingId, setSendingId]       = useState(null);
 
   // Global send all
@@ -377,8 +382,8 @@ export default function TransportConvocation() {
     setReservations((prev) => prev.map((r) => r.id === resId ? { ...r, convocationSent: false } : r));
   }, []);
 
-  const sendOne = useCallback(async (res, allerT, retourT, subject) => {
-    const html = buildConvocationHtml(res, allerT, retourT);
+  const sendOne = useCallback(async (res, allerT, retourT, subject, overrides = {}) => {
+    const html = buildConvocationHtml(res, allerT, retourT, overrides);
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -399,7 +404,7 @@ export default function TransportConvocation() {
     if (!previewItem) return;
     setSendingId(previewItem.res.id);
     try {
-      await sendOne(previewItem.res, previewItem.allerT, previewItem.retourT, editSubject);
+      await sendOne(previewItem.res, previewItem.allerT, previewItem.retourT, editSubject, timeOverrides);
       showToast(`Convocation envoyée à ${previewItem.res.legal.email}`, "success");
       setPreviewItem(null);
     } catch (e) {
@@ -407,7 +412,7 @@ export default function TransportConvocation() {
     } finally {
       setSendingId(null);
     }
-  }, [previewItem, editSubject, sendOne, showToast]);
+  }, [previewItem, editSubject, timeOverrides, sendOne, showToast]);
 
   const handleSendAll = useCallback(async () => {
     const toSend = groups.flatMap((g) =>
@@ -442,8 +447,32 @@ export default function TransportConvocation() {
 
   const openPreview = useCallback((res, allerT, retourT) => {
     setEditSubject(`ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`);
+    const allerCity  = res.transport?.departureCity || "";
+    const retourCity = res.transport?.returnCity    || "";
+    setEditAllerTime(getMeetingInfo(allerT, allerCity)?.meetingTime  || "");
+    setEditRetourTime(getMeetingInfo(retourT, retourCity)?.meetingTime || "");
     setPreviewItem({ res, allerT, retourT });
   }, []);
+
+  const timeOverrides = useMemo(() => ({
+    allerMeetingTime:  editAllerTime  || undefined,
+    retourMeetingTime: editRetourTime || undefined,
+  }), [editAllerTime, editRetourTime]);
+
+  const handleDownloadPdf = useCallback(() => {
+    if (!previewItem) return;
+    const html = buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides);
+    const printHtml = html.replace(
+      "</head>",
+      `<style>@media print{body{background:#fff!important;padding:0!important;}@page{margin:10mm;}}</style></head>`
+    );
+    const blob = new Blob([printHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank", "width=900,height=760");
+    if (!win) { URL.revokeObjectURL(url); showToast("Le navigateur a bloqué l'ouverture du document", "warning"); return; }
+    win.focus();
+    setTimeout(() => { win.print(); URL.revokeObjectURL(url); }, 800);
+  }, [previewItem, timeOverrides, showToast]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -749,13 +778,39 @@ export default function TransportConvocation() {
               />
             </div>
 
+            {/* Editable times */}
+            <div style={{ padding: "10px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", gap: 16, alignItems: "center", background: "#fafafa" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" }}>Heures RDV :</span>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span style={{ color: "#16a34a", fontWeight: 700 }}>↑ Aller</span>
+                <input
+                  type="text"
+                  value={editAllerTime}
+                  onChange={(e) => setEditAllerTime(e.target.value)}
+                  placeholder="ex : 08h30"
+                  style={{ width: 80, padding: "4px 8px", border: "1.5px solid #d1fae5", borderRadius: 6, fontSize: 12, color: "#1e1040", outline: "none" }}
+                />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span style={{ color: "#ea580c", fontWeight: 700 }}>↓ Retour</span>
+                <input
+                  type="text"
+                  value={editRetourTime}
+                  onChange={(e) => setEditRetourTime(e.target.value)}
+                  placeholder="ex : 18h45"
+                  style={{ width: 80, padding: "4px 8px", border: "1.5px solid #fed7aa", borderRadius: 6, fontSize: 12, color: "#1e1040", outline: "none" }}
+                />
+              </label>
+              <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>Modifiez pour cette convocation uniquement</span>
+            </div>
+
             {/* Email preview */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT) }} />
+              <div dangerouslySetInnerHTML={{ __html: buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides) }} />
             </div>
 
             {/* Modal footer */}
-            <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#fff" }}>
               <button
                 type="button"
                 onClick={() => setPreviewItem(null)}
@@ -763,23 +818,35 @@ export default function TransportConvocation() {
               >
                 Fermer
               </button>
-              <button
-                type="button"
-                disabled={Boolean(sendingId)}
-                onClick={handleSendFromModal}
-                style={{
-                  ...btnStyle,
-                  background: sendingId ? "#f1f5f9" : "#B8336A",
-                  color: sendingId ? "#94a3b8" : "#fff",
-                  cursor: sendingId ? "not-allowed" : "pointer",
-                  boxShadow: sendingId ? "none" : "0 4px 12px rgba(184,51,106,0.3)",
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
-                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
-                {sendingId ? "Envoi en cours…" : "Envoyer cette convocation"}
-              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  style={{ ...btnStyle, background: "#f5f0ff", color: "#7c3aed", border: "1.5px solid #d4c0e8" }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Télécharger PDF
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(sendingId)}
+                  onClick={handleSendFromModal}
+                  style={{
+                    ...btnStyle,
+                    background: sendingId ? "#f1f5f9" : "#B8336A",
+                    color: sendingId ? "#94a3b8" : "#fff",
+                    cursor: sendingId ? "not-allowed" : "pointer",
+                    boxShadow: sendingId ? "none" : "0 4px 12px rgba(184,51,106,0.3)",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
+                    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                  {sendingId ? "Envoi en cours…" : "Envoyer cette convocation"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
