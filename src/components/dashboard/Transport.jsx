@@ -1198,6 +1198,63 @@ ${pages.join("\n")}
 </body></html>`;
 }
 
+function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "") {
+  const weekInfo = WEEK_INFO[week] || {};
+  const arrivalTime = options.arrivalTime || "À confirmer";
+  const returnTime = options.returnTime || arrivalTime;
+  const arrivalPoint = options.arrivalPoint || "Lieu du séjour";
+  const returnPoint = options.returnPoint || arrivalPoint;
+  const sejourLabel = reservation.sejourName && reservation.sejourName !== "-"
+    ? shortSejourName(reservation.sejourName)
+    : "Séjour ColoCrew";
+  const children = reservation.children?.length
+    ? reservation.children.map((child) => `${child.firstName || ""} ${child.lastName || ""}`.trim()).filter(Boolean)
+    : [reservation.childName || "votre enfant"];
+  const childLabel = children.join(", ");
+  const parentFirstName = (reservation.nom || "").split(" ")[0] || "Madame, Monsieur";
+  const intro = customIntro?.trim()
+    ? customIntro.trim().split(/\n{2,}/).map((part) => `<p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">${part.replace(/\n/g, "<br>")}</p>`).join("")
+    : `<p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">Bonjour ${parentFirstName},</p>
+       <p style="margin:0 0 12px;font-size:14px;line-height:1.65;color:#374151;">Nous vous transmettons les informations de rendez-vous sur place pour ${childLabel}.</p>`;
+  const row = (label, aller, retour, last = false) => `
+    <tr>
+      <td style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;">${label}</td>
+      <td style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;">${aller}</td>
+      <td style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;">${retour}</td>
+    </tr>`;
+
+  return `
+<div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+  <div style="padding:20px 28px 16px;border-bottom:3px solid #16a34a;">
+    <div style="font-size:19px;font-weight:900;color:#B8336A;letter-spacing:-0.02em;">ColoCrew</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:1px;">réinventons les colos !</div>
+  </div>
+  <div style="padding:24px 28px 8px;">
+    <h1 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#166534;">Convocation sur place</h1>
+    <p style="margin:0 0 18px;font-size:15px;font-weight:700;color:#1e1040;">${childLabel} — ${sejourLabel}${weekInfo.dates ? ` (${weekInfo.dates})` : ""}</p>
+    ${intro}
+  </div>
+  <div style="padding:0 28px 22px;">
+    <table style="width:100%;border-collapse:collapse;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+      <thead>
+        <tr>
+          <td style="padding:11px 16px;background:#f8f9fa;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;width:27%;"></td>
+          <th style="padding:12px 16px;background:#f0fdf4;color:#16a34a;font-weight:900;font-size:14px;text-align:center;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;">ARRIVÉE</th>
+          <th style="padding:12px 16px;background:#fff7ed;color:#ea580c;font-weight:900;font-size:14px;text-align:center;border-left:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;">DÉPART</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${row("Date", `<strong>${fmtDateLong(weekInfo.aller)}</strong>`, `<strong>${fmtDateLong(weekInfo.retour)}</strong>`)}
+        ${row("Heure de RDV", `<strong style="color:#16a34a;">${arrivalTime}</strong>`, `<strong style="color:#ea580c;">${returnTime}</strong>`)}
+        ${row("Lieu", `<strong>${arrivalPoint}</strong>`, `<strong>${returnPoint}</strong>`)}
+        ${row("Consigne", "Remise de l'enfant directement à l'équipe ColoCrew sur le lieu du séjour.", "Reprise de l'enfant directement auprès de l'équipe ColoCrew sur le lieu du séjour.", true)}
+      </tbody>
+    </table>
+    <p style="margin:18px 0 0;font-size:13px;line-height:1.65;color:#64748b;">En cas d'imprévu, contactez-nous rapidement : <strong>${EMERGENCY_PHONES.join(" / ")}</strong>.</p>
+  </div>
+</div>`;
+}
+
 function buildStaffBriefingHTML(transport) {
   const staff = transport.staff || [];
   const segments = transport.segments || [];
@@ -5691,6 +5748,26 @@ function ConvocationsTab({ transports, reservations }) {
     await markAllSent(passengers.map((p) => p.reservationId));
   }, [transports, customIntro, markAllSent]);
 
+  const doSendOnSite = useCallback(async (reservation) => {
+    const cfg = getOnSiteConfig(reservation.sejourName || "Séjour");
+    const html = buildOnSiteEmailHtml(reservation, selectedWeek, {
+      arrivalTime: cfg.time,
+      returnTime: cfg.time,
+      arrivalPoint: cfg.lieu || "Lieu du séjour",
+      returnPoint: cfg.lieu || "Lieu du séjour",
+    }, customIntro);
+    const wi = WEEK_INFO[selectedWeek];
+    const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
+    const subject = `Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
+    const resp = await fetch("/api/communication/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com" }),
+    });
+    if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
+    await markAllSent([reservation.id]);
+  }, [customIntro, getOnSiteConfig, markAllSent, selectedWeek]);
+
   // Pending = one entry per unique family (email) that hasn't been fully sent
   const pendingFamilies = useMemo(() => {
     const seen = new Set();
@@ -5711,22 +5788,66 @@ function ConvocationsTab({ transports, reservations }) {
     return rows;
   }, [weekTrips, sentStatus]);
 
+  const missingEmailFamilies = useMemo(() => {
+    const seen = new Set();
+    const rows = [];
+    weekTrips.forEach((trip) => {
+      groupPassengersByFamily(trip.passengers).forEach((passengers) => {
+        const primary = passengers[0];
+        const key = primary.reservationId || `${primary.nom || ""}-${primary.childName || ""}`;
+        if (seen.has(key)) return;
+        const allIds = passengers.map((p) => p.reservationId).filter(Boolean);
+        const allSent = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
+        const hasEmail = primary.email && primary.email !== "-";
+        if (!allSent && !hasEmail) {
+          seen.add(key);
+          rows.push({ trip, passengers });
+        }
+      });
+    });
+    return rows;
+  }, [weekTrips, sentStatus]);
+
+  const pendingOnSiteReservations = useMemo(
+    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && reservation.email && reservation.email !== "-"),
+    [onSiteReservations, sentStatus],
+  );
+
+  const missingOnSiteEmailReservations = useMemo(
+    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && (!reservation.email || reservation.email === "-")),
+    [onSiteReservations, sentStatus],
+  );
+
+  const pendingMailCount = pendingFamilies.length + pendingOnSiteReservations.length;
+  const missingEmailCount = missingEmailFamilies.length + missingOnSiteEmailReservations.length;
+
   const handleSendAll = useCallback(async () => {
-    if (!pendingFamilies.length) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
+    const total = pendingFamilies.length + pendingOnSiteReservations.length;
+    if (!total) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
     setSendingAll(true);
-    setSendProgress({ done: 0, total: pendingFamilies.length, errors: [] });
+    setSendProgress({ done: 0, total, errors: [] });
     const errors = [];
+    let done = 0;
     for (let i = 0; i < pendingFamilies.length; i++) {
       const { trip, passengers } = pendingFamilies[i];
       try { await doSendFamily(trip, passengers); }
       catch (e) { errors.push({ email: passengers[0].email, error: e.message }); }
-      setSendProgress({ done: i + 1, total: pendingFamilies.length, errors: [...errors] });
-      if (i < pendingFamilies.length - 1) await new Promise((r) => setTimeout(r, 350));
+      done += 1;
+      setSendProgress({ done, total, errors: [...errors] });
+      if (done < total) await new Promise((r) => setTimeout(r, 350));
+    }
+    for (let i = 0; i < pendingOnSiteReservations.length; i++) {
+      const reservation = pendingOnSiteReservations[i];
+      try { await doSendOnSite(reservation); }
+      catch (e) { errors.push({ email: reservation.email, error: e.message }); }
+      done += 1;
+      setSendProgress({ done, total, errors: [...errors] });
+      if (done < total) await new Promise((r) => setTimeout(r, 350));
     }
     setSendingAll(false);
-    if (errors.length === 0) showToast(`${pendingFamilies.length} convocation(s) envoyée(s)`, "success");
-    else showToast(`${pendingFamilies.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
-  }, [pendingFamilies, doSendFamily, showToast]);
+    if (errors.length === 0) showToast(`${total} convocation(s) envoyée(s)`, "success");
+    else showToast(`${total - errors.length} succès · ${errors.length} erreur(s)`, "error");
+  }, [pendingFamilies, pendingOnSiteReservations, doSendFamily, doSendOnSite, showToast]);
 
   return (
     <div className="tr-convoc-tab">
@@ -5744,9 +5865,19 @@ function ConvocationsTab({ transports, reservations }) {
       {/* Barre d'actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ flex: 1, fontSize: 13, color: "#64748b" }}>
-          {pendingFamilies.length > 0
-            ? <span style={{ color: "#ef4444", fontWeight: 600 }}>{pendingFamilies.length} email(s) non envoyé(s)</span>
+          {pendingMailCount > 0
+            ? <span style={{ color: "#ef4444", fontWeight: 600 }}>{pendingMailCount} convocation(s) à envoyer par email</span>
             : <span style={{ color: "#16a34a", fontWeight: 600 }}>Toutes les convocations sont envoyées</span>}
+          {pendingOnSiteReservations.length > 0 && (
+            <span style={{ color: "#15803d", marginLeft: 8, fontWeight: 600 }}>
+              · dont {pendingOnSiteReservations.length} sur place
+            </span>
+          )}
+          {missingEmailCount > 0 && (
+            <span style={{ color: "#f97316", marginLeft: 8, fontWeight: 600 }}>
+              · {missingEmailCount} famille(s) sans email
+            </span>
+          )}
         </div>
         <button type="button" className="dash-btn" onClick={() => setShowEditor((v) => !v)}
           style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
@@ -5767,12 +5898,12 @@ function ConvocationsTab({ transports, reservations }) {
             </div>
           </div>
         ) : (
-          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingFamilies.length === 0}
+          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingMailCount === 0}
             style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
-            Envoyer tout ({pendingFamilies.length})
+            Envoyer tout ({pendingMailCount})
           </button>
         )}
       </div>
@@ -5817,7 +5948,7 @@ function ConvocationsTab({ transports, reservations }) {
             {/* Sur place — par séjour */}
             {onSiteSejourNames.length === 0 && (
               <tr style={{ background: "#f0fdf4" }}>
-                <td colSpan={8} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
+                <td colSpan={9} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
                   <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", marginRight: 8, fontSize: 11 }}>SP</span>
                   Sur place — aucune famille cette semaine
                 </td>
@@ -5826,14 +5957,16 @@ function ConvocationsTab({ transports, reservations }) {
             {onSiteSejourNames.map((sejourName) => {
               const sejourRows = onSiteBySejourMap.get(sejourName) || [];
               const cfg = getOnSiteConfig(sejourName);
+              const pendingSejourRows = sejourRows.filter((row) => !sentStatus[row.id] && row.email && row.email !== "-");
               return (
                 <Fragment key={`sp-${sejourName}`}>
                   <tr style={{ background: "#f0fdf4", borderTop: "2px solid #bbf7d0" }}>
-                    <td colSpan={8} style={{ padding: "8px 14px" }}>
+                    <td colSpan={9} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>SP</span>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#15803d" }}>{sejourName}</span>
                         <span style={{ fontSize: 11, color: "#64748b" }}>{sejourRows.length} famille{sejourRows.length !== 1 ? "s" : ""}</span>
+                        {pendingSejourRows.length > 0 && <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 700 }}>{pendingSejourRows.length} non envoyée{pendingSejourRows.length > 1 ? "s" : ""}</span>}
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>RDV :</span>
                           <input type="time" value={cfg.time} onChange={(e) => setOnSiteConfig(sejourName, "time", e.target.value)}
@@ -5854,21 +5987,48 @@ function ConvocationsTab({ transports, reservations }) {
                   {sejourRows.map((r, i) => {
                     const isSent = Boolean(sentStatus[r.id]);
                     const kids = r.children?.length ? r.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ") : r.childName || "—";
+                    const familyKey = `onsite-${r.id}`;
+                    const hasEmail = r.email && r.email !== "-";
+                    const isSending = sendingKey === familyKey;
+                    const isPreviewing = preview?.familyKey === familyKey;
                     return (
                       <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
                         <td style={cTd}><span style={{ fontSize: 11, background: "#dcfce7", color: "#15803d", borderRadius: 4, padding: "2px 6px", fontWeight: 700 }}>Sur place</span></td>
                         <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
+                        <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}>Sur place</span></td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
                         <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
                         <td style={cTd}><span style={{ fontWeight: 700, color: "#16a34a" }}>{cfg.time}</span></td>
-                        <td style={cTd}>{r.email ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span> : <span style={{ color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Non renseigné</span>}</td>
+                        <td style={cTd}>{hasEmail ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span> : <span style={{ color: "#ef4444", fontStyle: "italic", fontSize: 12 }}>Manquant</span>}</td>
                         <td style={{ ...cTd, textAlign: "center" }}>
                           <button type="button" onClick={() => isSent ? markAllUnsent([r.id]) : markAllSent([r.id])}
                             style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                             {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </button>
                         </td>
-                        <td style={{ ...cTd, textAlign: "right" }}><span style={{ fontSize: 11, color: "#94a3b8" }}>PDF uniquement</span></td>
+                        <td style={{ ...cTd, textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                            <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
+                              onClick={() => setPreview(isPreviewing ? null : { type: "onsite", familyKey, reservation: r, cfg })}>
+                              {isPreviewing ? "Fermer" : "Aperçu"}
+                            </button>
+                            <button type="button" className={`dash-btn${isSent ? "" : " dash-btn-primary"}`} style={{ fontSize: 11, padding: "3px 9px" }}
+                              disabled={!hasEmail || isSending || sendingAll}
+                              onClick={async () => {
+                                setSendingKey(familyKey);
+                                try {
+                                  await doSendOnSite(r);
+                                  showToast(`Convocation envoyée à ${r.email}`, "success");
+                                } catch (e) {
+                                  showToast(`Erreur : ${e.message}`, "error");
+                                } finally {
+                                  setSendingKey(null);
+                                }
+                              }}>
+                              {isSending ? "..." : isSent ? "Renvoyer" : "Envoyer"}
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -5893,7 +6053,7 @@ function ConvocationsTab({ transports, reservations }) {
                 <Fragment key={trip.id}>
                   {/* En-tête trajet */}
                   <tr style={{ background: "#f5f0ff", borderTop: "2px solid #d4c0e8" }}>
-                    <td colSpan={8} style={{ padding: "8px 14px" }}>
+                    <td colSpan={9} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#5f3374" }}>{trip.departureCity} → {trip.arrivalCity}</span>
                         <span style={{ fontSize: 11, color: "#7c3aed", background: "#ede9fe", borderRadius: 5, padding: "2px 7px", fontWeight: 700 }}>
@@ -5915,7 +6075,7 @@ function ConvocationsTab({ transports, reservations }) {
                     </td>
                   </tr>
                   {familyGroups.length === 0 && (
-                    <tr><td colSpan={8} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
+                    <tr><td colSpan={9} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
                   )}
                   {familyGroups.map((passengers, i) => {
                     const primary   = passengers[0];
@@ -6004,13 +6164,20 @@ function ConvocationsTab({ transports, reservations }) {
             onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0e8f5", display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.nom}</div>
-                <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.email}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.type === "onsite" ? preview.reservation.nom : preview.nom}</div>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.type === "onsite" ? preview.reservation.email : preview.email}</div>
               </div>
               <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>&#x2715;</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro) }} />
+              <div dangerouslySetInnerHTML={{ __html: preview.type === "onsite"
+                ? buildOnSiteEmailHtml(preview.reservation, selectedWeek, {
+                    arrivalTime: preview.cfg.time,
+                    returnTime: preview.cfg.time,
+                    arrivalPoint: preview.cfg.lieu || "Lieu du séjour",
+                    returnPoint: preview.cfg.lieu || "Lieu du séjour",
+                  }, customIntro)
+                : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro) }} />
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
               <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
@@ -6018,8 +6185,13 @@ function ConvocationsTab({ transports, reservations }) {
                 onClick={async () => {
                   setSendingKey(preview.familyKey);
                   try {
-                    await doSendFamily(preview._trip, preview._passengers);
-                    showToast(`Convocation envoyée à ${preview.email}`, "success");
+                    if (preview.type === "onsite") {
+                      await doSendOnSite(preview.reservation);
+                      showToast(`Convocation envoyée à ${preview.reservation.email}`, "success");
+                    } else {
+                      await doSendFamily(preview._trip, preview._passengers);
+                      showToast(`Convocation envoyée à ${preview.email}`, "success");
+                    }
                     setPreview(null);
                   } catch (e) {
                     showToast(`Erreur : ${e.message}`, "error");
