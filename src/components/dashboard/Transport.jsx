@@ -369,6 +369,46 @@ function routeStopMeetingPoint(stop) {
   return stop.type === "sub" ? segmentMeetingLabel(stop.stop) : segmentMeetingLabel(stop.segment);
 }
 
+function trainLabelForSegment(segment, transport) {
+  const type = segment?.mode || segment?.trainType || transport?.trainType || transport?.mode || "Train";
+  const number = segment?.number || segment?.trainNumber || transport?.trainNumber || transport?.number || "";
+  return [type, number].filter(Boolean).join(" ");
+}
+
+function routeSegmentsFromStop(transport, stop) {
+  const segments = transport?.segments || [];
+  if (!segments.length) return [];
+  if (!stop) return segments;
+  const index = Number.isInteger(stop?.segmentIndex) ? stop.segmentIndex : 0;
+  return transport?.direction === "retour"
+    ? segments.slice(0, index + 1)
+    : segments.slice(index);
+}
+
+function routeTrainSummary(transport, stop) {
+  const labels = routeSegmentsFromStop(transport, stop)
+    .map((segment) => trainLabelForSegment(segment, transport))
+    .filter(Boolean);
+  const uniqueLabels = labels.filter((label, index) => labels.indexOf(label) === index);
+  return uniqueLabels.join(" puis ") || trainLabelForSegment(null, transport);
+}
+
+function routeDepartureTimeFromStop(transport, stop) {
+  const segments = routeSegmentsFromStop(transport, stop);
+  const firstSegment = segments[0] || null;
+  if (stop?.type === "sub") return routeStopTime(stop, transport, "departure") || firstSegment?.departureTime || transport?.departureTime || "";
+  return firstSegment?.departureTime || transport?.departureTime || routeStopTime(stop, transport, "departure") || "";
+}
+
+function routeArrivalTimeFromStop(transport, stop) {
+  if (transport?.direction === "retour" && stop) {
+    return routeStopTime(stop, transport, "arrival") || "";
+  }
+  const segments = routeSegmentsFromStop(transport, stop);
+  const lastSegment = segments[segments.length - 1] || null;
+  return lastSegment?.arrivalTime || transport?.arrivalTime || routeStopTime(stop, transport, "arrival") || "";
+}
+
 function stopActionLabel(transport) {
   return transport.direction === "retour" ? "Descendent ici" : "Montent ici";
 }
@@ -649,6 +689,37 @@ function timeToMinutes(value) {
   const minutes = Number(match[2]);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
   return hours * 60 + minutes;
+}
+
+function isBeforeNoon(value) {
+  const minutes = timeToMinutes(value);
+  return minutes !== null && minutes < 12 * 60;
+}
+
+function isAfterDinnerTime(value) {
+  const minutes = timeToMinutes(value);
+  return minutes !== null && minutes >= 19 * 60;
+}
+
+function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepartureTime, returnArrivalTime }) {
+  const needsLunch = isBeforeNoon(departureTime) || isBeforeNoon(returnDepartureTime);
+  const needsDinner = isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnArrivalTime);
+  return [
+    needsLunch ? "Pensez à prévoir un pique-nique pour le déjeuner." : null,
+    needsDinner ? "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "Merci de prévoir de l'eau et un goûter pour le trajet.",
+    "Le rendez-vous est fixé au moins 45 minutes avant le départ du train.",
+    "L'animateur prendra ensuite en charge le groupe et assurera un trajet encadré et sécurisé jusqu'au centre de vacances.",
+    "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance, et de prévenir l'animateur au moment du rendez-vous.",
+    "Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'accompagnateur.",
+    "Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'accompagnateur.",
+  ].filter(Boolean);
+}
+
+function buildReminderListHtml(items) {
+  return `<ul style="margin:0;padding:0;list-style:none;font-size:14px;color:#374151;line-height:1.75;">
+    ${items.map((item) => `<li style="margin:0 0 8px;padding-left:18px;position:relative;"><span style="position:absolute;left:0;color:#B8336A;">●</span>${item}</li>`).join("")}
+  </ul>`;
 }
 
 function formatDurationFromMinutes(minutes) {
@@ -1222,6 +1293,13 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
       <td style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;">${aller}</td>
       <td style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;">${retour}</td>
     </tr>`;
+  const onSiteReminderItems = [
+    isBeforeNoon(arrivalTime) ? "Pensez à prévoir un pique-nique pour le déjeuner." : null,
+    isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnTime) ? "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "Merci de prévoir de l'eau et un goûter.",
+    "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance, et de prévenir l'équipe au moment du rendez-vous.",
+    "Si votre enfant arrive seul, repart seul ou est récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe.",
+  ].filter(Boolean);
 
   return `
 <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
@@ -1250,6 +1328,10 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "")
         ${row("Consigne", "Remise de l'enfant directement à l'équipe ColoCrew sur le lieu du séjour.", "Reprise de l'enfant directement auprès de l'équipe ColoCrew sur le lieu du séjour.", true)}
       </tbody>
     </table>
+    <div style="margin-top:18px;padding:16px 18px;background:#fdf8fc;border:1.5px solid #f3d0e6;border-radius:10px;">
+      <h2 style="font-size:14px;font-weight:900;color:#1e1040;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #f5f0ff;">À prévoir</h2>
+      ${buildReminderListHtml(onSiteReminderItems)}
+    </div>
     <p style="margin:18px 0 0;font-size:13px;line-height:1.65;color:#64748b;">En cas d'imprévu, contactez-nous rapidement : <strong>${EMERGENCY_PHONES.join(" / ")}</strong>.</p>
   </div>
 </div>`;
@@ -5112,10 +5194,12 @@ function getEmailRdvInfo(transport, passenger) {
   const city = passengerCity(transport, passenger);
   const routeStop = routeStopForCity(transport, city);
   const seg = routeStop?.segment || null;
-  const trainTime = routeStopTime(routeStop, transport, transport.direction === "retour" ? "arrival" : "departure")
+  const trainTime = routeDepartureTimeFromStop(transport, routeStop)
+    || routeStopTime(routeStop, transport, transport.direction === "retour" ? "arrival" : "departure")
     || seg?.departureTime
     || transport.departureTime
     || null;
+  const arrivalTime = routeArrivalTimeFromStop(transport, routeStop) || transport.arrivalTime || "";
   let rdvTime = seg?.meetingTime || null;
   if (!rdvTime && trainTime) {
     const [h, m] = trainTime.split(":").map(Number);
@@ -5125,7 +5209,8 @@ function getEmailRdvInfo(transport, passenger) {
   const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || transport.meetingPoint || "";
   const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || transport.stopType || "rdv";
   const platform = routeStop?.stop?.platform || seg?.platform || transport.platform || "";
-  return { city, rdvTime, trainTime, meetingPoint, stopType, platform };
+  const trainLabel = routeTrainSummary(transport, routeStop);
+  return { city, rdvTime, trainTime, departureTime: trainTime, arrivalTime, trainLabel, meetingPoint, stopType, platform };
 }
 
 function getRetourInfo(transport, passenger, allTransports) {
@@ -5141,11 +5226,13 @@ function getRetourInfo(transport, passenger, allTransports) {
       const routeStop = retourCity ? routeStopForCity(rt, retourCity) : null;
       const seg = routeStop?.segment || null;
       const arrivalTime = routeStopTime(routeStop, rt, "arrival") || seg?.arrivalTime || rt.arrivalTime || "";
+      const departureTime = routeDepartureTimeFromStop(rt, routeStop) || rt.departureTime || "";
       const arrivalCity = routeStop?.city || seg?.to || rt.arrivalCity || passenger.returnCity || "";
       const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || rt.meetingPoint || "";
       const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || rt.stopType || "rdv";
       const platform = routeStop?.stop?.platform || seg?.platform || rt.platform || "";
-      return { date: rt.date, arrivalTime, arrivalCity, meetingPoint, stopType, platform };
+      const trainLabel = routeTrainSummary(rt, routeStop);
+      return { date: rt.date, departureTime, arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel };
     }
   }
   return null;
@@ -5173,17 +5260,26 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
     `Trajet : ${transport.departureCity} → ${transport.arrivalCity}`,
     `Ville d'embarquement : ${city}`,
     rdvTime ? `Heure de RDV : ${rdvTime}${trainTime ? ` (départ train prévu ${trainTime})` : ""}` : null,
+    rdvInfo.trainLabel ? `Train : ${rdvInfo.trainLabel}` : null,
+    rdvInfo.arrivalTime ? `Arrivée prévue : ${rdvInfo.arrivalTime}` : null,
     stopType === "quai" ? `Rendez-vous directement sur le quai${platform ? ` - voie ${platform}` : ""}.` : (meetingPoint ? `Lieu de RDV : ${meetingPoint}` : null),
     ``,
     retourInfo ? `- RETOUR -` : null,
     retourInfo ? `Date de retour : ${fmtDateLong(retourInfo.date)}` : null,
+    retourInfo?.trainLabel ? `Train retour : ${retourInfo.trainLabel}` : null,
+    retourInfo?.departureTime ? `Départ retour prévu : ${retourInfo.departureTime}` : null,
     retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
     retourInfo?.meetingPoint ? `Lieu de récupération : ${retourInfo.meetingPoint}` : null,
     retourInfo ? `` : null,
     `- CONSIGNES -`,
-    `• Merci d'être présent(e) à l'heure de RDV, le train ne peut pas vous attendre.`,
-    `• Munissez-vous d'une pièce d'identité et du numéro de réservation.`,
-    `" En cas d'urgence ou d'imprévu, contactez-nous immédiatement :`,
+    ...buildConvocationReminderItems({
+      departureTime: rdvInfo.departureTime || trainTime,
+      arrivalTime: rdvInfo.arrivalTime,
+      returnDepartureTime: retourInfo?.departureTime,
+      returnArrivalTime: retourInfo?.arrivalTime,
+      city,
+    }).map((item) => `• ${item}`),
+    `• En cas d'urgence ou d'imprévu, contactez-nous immédiatement :`,
     ...EMERGENCY_PHONES.map((n) => `  ${n}`),
     ``,
     `La convocation individuelle est jointe à cet email (document PDF à imprimer).`,
@@ -5224,10 +5320,18 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     ? `<strong>${fmtDateLong(transport.date)}</strong>${rdvTime ? `<br><span style="color:#16a34a;font-weight:700;">RDV à ${rdvTime}</span>` : ""}`
     : TBC;
 
-  const allerTrain = trainTime ? `Départ train : <strong>${trainTime}</strong>` : TBC;
+  const trainDetailHtml = (label, departure, arrival, arrivalCity = "") => {
+    const lines = [
+      label ? `<strong>${label}</strong>` : "",
+      departure ? `Départ train : <strong>${departure}</strong>` : "",
+      arrival ? `Arrivée prévue : <strong>${arrival}</strong>${arrivalCity ? ` à <strong>${arrivalCity}</strong>` : ""}` : "",
+    ].filter(Boolean);
+    return lines.length ? lines.join("<br>") : TBC;
+  };
+  const allerTrain = trainDetailHtml(rdvInfo.trainLabel, rdvInfo.departureTime || trainTime, rdvInfo.arrivalTime, transport.arrivalCity);
   const retourDate = retourInfo?.date ? `<strong>${fmtDateLong(retourInfo.date)}</strong>` : TBC;
-  const retourArrivee = retourInfo?.arrivalTime
-    ? `Arrivée <strong>${retourInfo.arrivalTime}</strong>${retourInfo.arrivalCity ? ` à <strong>${retourInfo.arrivalCity}</strong>` : ""}`
+  const retourTrain = retourInfo
+    ? trainDetailHtml(retourInfo.trainLabel, retourInfo.departureTime, retourInfo.arrivalTime, retourInfo.arrivalCity)
     : TBC;
   const retourLieu = (() => {
     if (!retourInfo) return TBC;
@@ -5244,6 +5348,13 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   const td2 = (last) => `style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
 
   const phones = EMERGENCY_PHONES.join(" / ");
+  const reminderItems = buildConvocationReminderItems({
+    departureTime: rdvInfo.departureTime || trainTime,
+    arrivalTime: rdvInfo.arrivalTime,
+    returnDepartureTime: retourInfo?.departureTime,
+    returnArrivalTime: retourInfo?.arrivalTime,
+    city,
+  });
   const introHtml = customIntro && customIntro.trim()
     ? customIntro.trim().split(/\n\n+/).map((para) => `<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">${para.replace(/\n/g, "<br/>")}</p>`).join("")
     : `<p style="margin:0 0 18px;font-size:14px;color:#374151;line-height:1.75;"><strong>${firstNames || children}</strong> ${nbChildren > 1 ? "sont inscrits" : "est inscrit(e)"} au séjour <strong>${sejourShort}</strong>${weekInfo ? ` du <strong>${fmtDateLong(weekInfo.aller)}</strong> au <strong>${fmtDateLong(weekInfo.retour)}</strong>` : ""}.</p>`;
@@ -5297,7 +5408,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
         <tr>
           <td ${td0(true)}>Infos train</td>
           <td ${td1(true)}>${allerTrain}</td>
-          <td ${td2(true)}>${retourArrivee}</td>
+          <td ${td2(true)}>${retourTrain}</td>
         </tr>
       </tbody>
     </table>
@@ -5307,12 +5418,8 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   </div>
   <div style="padding:0 28px 28px;">
     <h2 style="font-size:14px;font-weight:900;color:#1e1040;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid #f5f0ff;">Déroulement du transport encadré</h2>
-    <ul style="margin:0;padding-left:18px;font-size:14px;color:#374151;line-height:1.9;">
-      <li>Le rendez-vous est fixe <strong>1h avant le départ du train.</strong></li>
-      <li>Un animateur vous attendra avec un <strong>écriteau COLOCREW.</strong></li>
-      <li>Merci de vous présenter à l'animateur.</li>
-      <li>En cas d'urgence : <strong>${phones}</strong></li>
-    </ul>
+    ${buildReminderListHtml(reminderItems)}
+    <p style="margin:14px 0 0;font-size:14px;color:#374151;line-height:1.7;">En cas d'urgence ou d'imprévu : <strong>${phones}</strong></p>
   </div>
   <div style="border-top:2px solid #f5f0ff;padding:16px 28px;text-align:center;background:#fdf8fc;">
     <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Association ColoCrew — SIRET : 9 3 2 1 7 1 4 3 2 0 0 0 1 0</p>
@@ -5374,6 +5481,7 @@ function ConvocEmailSender({ transport, allTransports }) {
         html,
         from_name: "ColoCrew Inscriptions",
         from_email: "inscriptions@colocrew.com",
+        includeDecharge: true,
       }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
@@ -5742,7 +5850,7 @@ function ConvocationsTab({ transports, reservations }) {
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com" }),
+      body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     await markAllSent(passengers.map((p) => p.reservationId));
@@ -5762,7 +5870,7 @@ function ConvocationsTab({ transports, reservations }) {
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com" }),
+      body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
     await markAllSent([reservation.id]);

@@ -1,8 +1,10 @@
+import fs from "fs/promises";
+import path from "path";
 import nodemailer from "nodemailer";
 
 export async function POST(request) {
   try {
-    const { to, subject, html, from_name, from_email } = await request.json();
+    const { to, subject, html, from_name, from_email, includeDecharge } = await request.json();
 
     if (!to || !subject || !html) {
       return Response.json({ error: "Paramètres manquants (to, subject, html)" }, { status: 400 });
@@ -18,12 +20,24 @@ export async function POST(request) {
       },
     });
 
+    const attachments = [];
+    if (includeDecharge) {
+      const dechargePath = path.join(process.cwd(), "public", "documents", "decharge-responsabilite-colocrew.pdf");
+      const content = await fs.readFile(dechargePath);
+      attachments.push({
+        filename: "Décharge de responsabilité ColoCrew.pdf",
+        content,
+        contentType: "application/pdf",
+      });
+    }
+
     const info = await transporter.sendMail({
       from: `"${from_name || "ColoCrew"}" <${from_email || "contact@colocrew.com"}>`,
       to,
       bcc: "contact@colocrew.com",
       subject,
       html,
+      attachments: attachments.length ? attachments : undefined,
     });
 
     return Response.json({ success: true, messageId: info.messageId });

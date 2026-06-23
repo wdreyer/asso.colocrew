@@ -1,8 +1,10 @@
+import fs from "fs/promises";
+import path from "path";
 import nodemailer from "nodemailer";
 
 export async function POST(request) {
   try {
-    const { to, subject, body, bodyHtml, attachment } = await request.json();
+    const { to, subject, body, bodyHtml, attachment, includeDecharge } = await request.json();
 
     if (!to || !subject || (!body && !bodyHtml)) {
       return new Response(
@@ -11,17 +13,27 @@ export async function POST(request) {
       );
     }
 
-    let attachments;
+    const attachments = [];
     if (attachment?.contentBase64) {
       const content = Buffer.from(attachment.contentBase64, "base64");
       if (content.length > 8 * 1024 * 1024) {
         return new Response(JSON.stringify({ error: "Pièce jointe trop volumineuse (8 Mo maximum)" }), { status: 413 });
       }
-      attachments = [{
+      attachments.push({
         filename: String(attachment.filename || "document.pdf").replace(/[^\w.\-À-ÿ]/g, "-"),
         content,
         contentType: attachment.contentType || "application/pdf",
-      }];
+      });
+    }
+
+    if (includeDecharge) {
+      const dechargePath = path.join(process.cwd(), "public", "documents", "decharge-responsabilite-colocrew.pdf");
+      const content = await fs.readFile(dechargePath);
+      attachments.push({
+        filename: "Décharge de responsabilité ColoCrew.pdf",
+        content,
+        contentType: "application/pdf",
+      });
     }
 
     const transporter = nodemailer.createTransport({
@@ -45,7 +57,7 @@ export async function POST(request) {
   <div style="padding:28px 32px;">
     ${bodyHtml || body
       .split("\n")
-      .map(line => {
+      .map((line) => {
         const trimmed = line.trim();
         if (urlLineRegex.test(trimmed)) {
           return `<div style="text-align:center;margin:8px 0 18px;">
@@ -64,22 +76,23 @@ export async function POST(request) {
   </div>
 </div>`;
 
+    const mailAttachments = attachments.length ? attachments : undefined;
+
     await transporter.sendMail({
       from: `"ColoCrew" <contact@colocrew.com>`,
       to,
       subject,
       html: htmlBody,
       replyTo: "contact@colocrew.com",
-      attachments,
+      attachments: mailAttachments,
     });
 
-    // Copie admin
     await transporter.sendMail({
       from: `"ColoCrew Admin" <contact@colocrew.com>`,
       to: "contact@colocrew.com",
       subject: `[COPIE ADMIN] ${subject} → ${to}`,
       html: htmlBody,
-      attachments,
+      attachments: mailAttachments,
     });
 
     return new Response(JSON.stringify({ message: "Email envoyé avec succès" }), { status: 200 });

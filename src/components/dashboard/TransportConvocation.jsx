@@ -25,6 +25,37 @@ function normalizeCity(v) {
   return String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 }
 
+function minutesFromTime(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function legacyConvocationReminderItems({ departureTime, returnDepartureTime, returnArrivalTime }) {
+  const departureMinutes = minutesFromTime(departureTime);
+  const returnDepartureMinutes = minutesFromTime(returnDepartureTime);
+  const returnArrivalMinutes = minutesFromTime(returnArrivalTime);
+  const needsLunch = (departureMinutes !== null && departureMinutes < 12 * 60)
+    || (returnDepartureMinutes !== null && returnDepartureMinutes < 12 * 60);
+  const needsDinner = returnArrivalMinutes !== null && returnArrivalMinutes >= 19 * 60;
+  return [
+    needsLunch ? "Pensez à prévoir un pique-nique pour le déjeuner." : null,
+    needsDinner ? "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "Merci de prévoir de l'eau et un goûter pour le trajet.",
+    "Le rendez-vous est fixé au moins 45 minutes avant le départ du train.",
+    "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance.",
+  ].filter(Boolean);
+}
+
+function legacyReminderHtml(items) {
+  return `<ul style="margin:12px 0 0;padding:0;list-style:none;font-size:14px;color:#374151;line-height:1.75;">
+    ${items.map((item) => `<li style="margin:0 0 8px;padding-left:18px;position:relative;"><span style="position:absolute;left:0;color:#B8336A;">●</span>${item}</li>`).join("")}
+  </ul>`;
+}
+
 function transportAllCities(transport) {
   const cities = new Set();
   for (const seg of transport.segments || []) {
@@ -122,6 +153,12 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport) {
   const verb       = children.length > 1 ? "sont inscrits" : "est inscrit(e)";
 
   const TBC = `<span style="color:#94a3b8;font-style:italic;">À confirmer.</span>`;
+
+  const legacyReminderItems = legacyConvocationReminderItems({
+    departureTime: allerM?.departureTime,
+    returnDepartureTime: retourM?.departureTime,
+    returnArrivalTime: retourTransport?.arrivalTime,
+  });
 
   const mkRdv = (m, city) => m?.meetingPoint
     ? `<strong>${m.meetingPoint}</strong>${m.platform ? `<br><span style="font-size:12px;color:#64748b;">Voie / quai ${m.platform}</span>` : ""}`
@@ -244,6 +281,7 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport) {
       <li>L'animateur prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au lieu de séjour.</li>
       <li>Pour le retour, si l'enfant doit rentrer seul(e) ou être récupéré(e) par une tierce personne, merci de nous fournir <strong>la décharge de responsabilité</strong> (ci-jointe) qu'il/elle remettra directement à l'animateur.</li>
     </ul>
+    ${legacyReminderHtml(legacyReminderItems)}
   </div>
 
   <!-- FOOTER -->
@@ -350,6 +388,7 @@ export default function TransportConvocation() {
         html,
         from_name: "ColoCrew Inscriptions",
         from_email: "inscriptions@colocrew.com",
+        includeDecharge: true,
       }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }

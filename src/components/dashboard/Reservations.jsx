@@ -109,6 +109,28 @@ function normalizePlace(value) {
     .toLowerCase();
 }
 
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function reservationTransportReminderLines(extra) {
+  const departureMinutes = timeToMinutes(extra.departureTime);
+  const returnMinutes = timeToMinutes(extra.returnTime);
+  return [
+    departureMinutes !== null && departureMinutes < 12 * 60 ? "• Pensez à prévoir un pique-nique pour le déjeuner." : null,
+    returnMinutes !== null && returnMinutes >= 19 * 60 ? "• Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
+    "• Merci de prévoir de l'eau et un goûter pour le trajet.",
+    "• Le rendez-vous est fixé au moins 45 minutes avant le départ du train.",
+    "• Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance.",
+    "• Si votre enfant se rend seul au point de rendez-vous, rentre seul ou est récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe.",
+  ].filter(Boolean);
+}
+
 function weekFromStartDate(value) {
   const date = String(value || "").slice(0, 10);
   return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
@@ -1473,6 +1495,28 @@ function DocumentsTab({ item, onSave }) {
     try {
       const pdfBytes = await buildConvocationPdf(item, extra);
       const childFirstName = item.children?.[0]?.firstName || item.childName || "votre enfant";
+      const trainLabel = [extra.trainType, extra.trainNumber].filter(Boolean).join(" ");
+      const reminderLines = reservationTransportReminderLines(extra).join("\n");
+      const trainLines = [
+        trainLabel ? `Train : ${trainLabel}` : null,
+        extra.departureTime ? `Départ prévu : ${extra.departureTime}` : null,
+        extra.returnTime ? `Retour / arrivée prévue : ${extra.returnTime}` : null,
+      ].filter(Boolean).join("\n");
+      const familyMailBody = `Bonjour ${item.nom},
+
+Vous trouverez en pièce jointe la convocation de transport de ${childFirstName} pour le séjour « ${item.sejourName} ».
+
+${trainLines ? `${trainLines}\n\n` : ""}Merci de vérifier les horaires et le point de rendez-vous.
+
+À prévoir :
+${reminderLines}
+
+La décharge de responsabilité est également jointe à cet email.
+
+En cas de question ou d'empêchement, contactez-nous rapidement.
+
+Cordialement,
+L'équipe ColoCrew`;
       const response = await fetch("/api/send-admin-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1485,6 +1529,8 @@ function DocumentsTab({ item, onSave }) {
             contentBase64: bytesToBase64(pdfBytes),
             contentType: "application/pdf",
           },
+          body: familyMailBody,
+          includeDecharge: true,
         }),
       });
       if (!response.ok) throw new Error(await response.text());
