@@ -1,11 +1,146 @@
 import fs from "fs/promises";
 import path from "path";
 import nodemailer from "nodemailer";
-import puppeteer from "puppeteer";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+
+const PURPLE     = rgb(0.72, 0.2,  0.41);
+const DARK       = rgb(0.12, 0.06, 0.25);
+const GREY       = rgb(0.4,  0.4,  0.4);
+const LIGHT_GREY = rgb(0.97, 0.97, 0.97);
+const GREEN      = rgb(0.09, 0.64, 0.27);
+
+function truncate(text, maxLen) {
+  if (!text) return "";
+  return text.length > maxLen ? text.slice(0, maxLen - 1) + "…" : text;
+}
+
+async function generateConvocPdf(convocData) {
+  const { sejourName, responsable, children, rdvInfo, retour, emergencyPhones } = convocData;
+  const pdfDoc = await PDFDocument.create();
+  const font     = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const allChildren = (children?.length ? children : [{ firstName: responsable?.nom || "", lastName: "" }]);
+
+  for (const child of allChildren) {
+    const page   = pdfDoc.addPage([595.28, 841.89]); // A4
+    const W      = page.getWidth();
+    const margin = 45;
+    let   y      = page.getHeight() - 45;
+
+    const draw  = (text, x, yy, size, f, color) => page.drawText(String(text || ""), { x, y: yy, size, font: f, color: color || DARK });
+    const line  = (x1, yy, x2, color, w) => page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness: w || 1, color: color || GREY });
+    const rect  = (x, yy, w, h, col) => page.drawRectangle({ x, y: yy - h, width: w, height: h, color: col });
+
+    // ── En-tête ──
+    draw("ColoCrew", margin, y, 22, fontBold, PURPLE);
+    draw("Association de séjours éducatifs", margin, y - 16, 9, font, GREY);
+    draw("CONVOCATION DE TRANSPORT", W - margin - 200, y, 11, fontBold, DARK);
+    draw(new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }), W - margin - 200, y - 14, 9, font, GREY);
+    y -= 38;
+    line(margin, y, W - margin, PURPLE, 1.5);
+    y -= 16;
+
+    // ── Séjour badge ──
+    const sejourLabel = truncate(sejourName || "Séjour ColoCrew", 60);
+    rect(margin, y + 4, W - margin * 2, 22, LIGHT_GREY);
+    draw(sejourLabel, margin + 10, y - 4, 11, fontBold, DARK);
+    y -= 28;
+
+    // ── Jeune ──
+    const childName = `${child.firstName || ""} ${child.lastName || ""}`.trim() || "—";
+    draw("PARTICIPANT", margin, y, 8, fontBold, GREY);
+    y -= 14;
+    draw(childName, margin, y, 15, fontBold, PURPLE);
+    if (child.birthDate) { draw(`Né(e) le ${child.birthDate}`, margin, y - 13, 9, font, GREY); y -= 13; }
+    y -= 20;
+    line(margin, y, W - margin, LIGHT_GREY);
+    y -= 14;
+
+    // ── Responsable ──
+    draw("RESPONSABLE LÉGAL", margin, y, 8, fontBold, GREY);
+    y -= 14;
+    draw(responsable?.nom || "—", margin, y, 11, fontBold);
+    draw(responsable?.phone || "", margin + 250, y, 11, font);
+    y -= 22;
+    line(margin, y, W - margin, LIGHT_GREY);
+    y -= 14;
+
+    // ── Transport aller ──
+    draw("INFORMATIONS DE TRANSPORT — ALLER", margin, y, 8, fontBold, GREY);
+    y -= 16;
+
+    const rows = [
+      ["Date", convocData.dateLabel || "—"],
+      ["Ville de départ", truncate(rdvInfo?.city || convocData.departureCity || "—", 50)],
+      rdvInfo?.rdvTime  ? ["Heure de RDV",     rdvInfo.rdvTime + (rdvInfo.trainTime ? ` (train ${rdvInfo.trainTime})` : "")] : null,
+      rdvInfo?.meetingPoint && rdvInfo.stopType !== "quai" ? ["Point de RDV", truncate(rdvInfo.meetingPoint, 50)] : null,
+      rdvInfo?.stopType === "quai" ? ["Lieu", "Directement sur le quai" + (rdvInfo.platform ? ` — voie ${rdvInfo.platform}` : "")] : null,
+      rdvInfo?.trainLabel ? ["Train", truncate(rdvInfo.trainLabel, 50)] : null,
+      rdvInfo?.arrivalTime ? ["Arrivée prévue", rdvInfo.arrivalTime + (rdvInfo.arrivalCity ? ` à ${rdvInfo.arrivalCity}` : "")] : null,
+    ].filter(Boolean);
+
+    for (const [label, value] of rows) {
+      rect(margin, y + 3, 130, 16, LIGHT_GREY);
+      draw(label, margin + 6, y - 5, 9, fontBold, GREY);
+      draw(value, margin + 140, y - 5, 10, font);
+      y -= 18;
+    }
+
+    // ── Retour ──
+    if (retour) {
+      y -= 8;
+      line(margin, y, W - margin, LIGHT_GREY);
+      y -= 14;
+      draw("INFORMATIONS DE RETOUR", margin, y, 8, fontBold, GREY);
+      y -= 16;
+
+      const retourRows = [
+        retour.dateLabel ? ["Date", retour.dateLabel] : null,
+        ["Lieu de récupération", "À la descente du quai — communiqué par l'animateur·ice"],
+        retour.trainLabel ? ["Train", truncate(retour.trainLabel, 50)] : null,
+        retour.arrivalTime ? ["Heure d'arrivée", retour.arrivalTime + (retour.arrivalCity ? ` à ${retour.arrivalCity}` : "")] : null,
+      ].filter(Boolean);
+
+      for (const [label, value] of retourRows) {
+        rect(margin, y + 3, 130, 16, LIGHT_GREY);
+        draw(label, margin + 6, y - 5, 9, fontBold, GREY);
+        draw(truncate(value, 70), margin + 140, y - 5, 10, font);
+        y -= 18;
+      }
+    }
+
+    // ── Contacts urgence ──
+    y -= 12;
+    line(margin, y, W - margin, LIGHT_GREY);
+    y -= 14;
+    draw("CONTACTS D'URGENCE", margin, y, 8, fontBold, GREY);
+    y -= 14;
+    const phones = emergencyPhones?.length ? emergencyPhones : ["Marion Errard : 06 11 91 37 64", "William Dreyer : 06 87 91 68 97"];
+    for (const p of phones) { draw(p, margin, y, 10, font); y -= 14; }
+
+    // ── Zone signature ──
+    y -= 10;
+    line(margin, y, W - margin, LIGHT_GREY);
+    y -= 20;
+    const sigW = (W - margin * 2 - 20) / 2;
+    rect(margin, y, sigW, 50, LIGHT_GREY);
+    rect(margin + sigW + 20, y, sigW, 50, LIGHT_GREY);
+    draw("Signature responsable légal", margin + 8, y - 10, 8, font, GREY);
+    draw("(remise de l'enfant)", margin + 8, y - 21, 8, font, GREY);
+    draw("Signature convoyeur", margin + sigW + 28, y - 10, 8, font, GREY);
+    draw("(prise en charge)", margin + sigW + 28, y - 21, 8, font, GREY);
+
+    // ── Pied de page ──
+    draw("Association ColoCrew · SIRET : 932 171 432 00010 · contact@colocrew.com · 01 84 21 02 30", margin, 25, 7.5, font, GREY);
+  }
+
+  return pdfDoc.save();
+}
 
 export async function POST(request) {
   try {
-    const { to, subject, html, from_name, from_email, includeDecharge, convocHtml } = await request.json();
+    const { to, subject, html, from_name, from_email, includeDecharge, convocData } = await request.json();
 
     if (!to || !subject || !html) {
       return Response.json({ error: "Paramètres manquants (to, subject, html)" }, { status: 400 });
@@ -33,23 +168,13 @@ export async function POST(request) {
       });
     }
 
-    if (convocHtml) {
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    if (convocData) {
+      const pdfBytes = await generateConvocPdf(convocData);
+      attachments.push({
+        filename: "Convocation ColoCrew.pdf",
+        content: Buffer.from(pdfBytes),
+        contentType: "application/pdf",
       });
-      try {
-        const page = await browser.newPage();
-        await page.setContent(convocHtml, { waitUntil: "networkidle0" });
-        const pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
-        attachments.push({
-          filename: "Convocation ColoCrew.pdf",
-          content: Buffer.from(pdfBuffer),
-          contentType: "application/pdf",
-        });
-      } finally {
-        await browser.close();
-      }
     }
 
     const info = await transporter.sendMail({

@@ -725,6 +725,7 @@ const DEFAULT_REMINDER_ITEMS = [
   { id: "tshirt",           condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "👕",  defaultText: "Un animateur ou animatrice ColoCrew vous attendra au point de rendez-vous, reconnaissable à son t-shirt ColoCrew." },
   { id: "group",            condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "👥",  defaultText: "L'animateur ou animatrice prendra en charge le groupe et assurera un trajet encadré et sécurisé jusqu'au centre de vacances." },
   { id: "meds",             condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "💊",  defaultText: "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance, et de prévenir l'animateur ou animatrice au moment du rendez-vous." },
+  { id: "bedding",          condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "🛏️", defaultText: "Pensez à apporter des draps, un sac de couchage ou un sac à viande pour votre enfant." },
   { id: "liability_go",     condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "📝",  defaultText: "Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'animateur ou animatrice." },
   { id: "liability_return", condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "📝",  defaultText: "Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'animateur ou animatrice." },
 ];
@@ -737,6 +738,7 @@ const DEFAULT_HTML_REMINDER = {
   tshirt:           "👕 Un animateur ou animatrice ColoCrew vous attendra au point de rendez-vous, reconnaissable à son <strong>t-shirt ColoCrew</strong>.",
   group:            "👥 L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au centre de vacances.",
   meds:             "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'animateur ou animatrice au moment du rendez-vous.",
+  bedding:          "🛏️ Pensez à apporter des <strong>draps, un sac de couchage ou un sac à viande</strong> pour votre enfant.",
   liability_go:     "📝 Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
   liability_return: "📝 Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
 };
@@ -5530,8 +5532,35 @@ function ConvocEmailSender({ transport, allTransports }) {
     const primary  = groupPax[0];
     const merged   = mergeFamily(groupPax);
     const rdvInfo  = getEmailRdvInfo(transport, primary);
+    const retourInfo = getRetourInfo(transport, primary, allTransports);
     const html     = buildConvocEmailHtml(transport, merged, rdvInfo, allTransports, customIntro);
-    const convocHtml = buildGroupConvocHTML({ ...transport, passengers: groupPax });
+    const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(transport.sejourName);
+    const convocData = {
+      sejourName: sejourReal,
+      departureCity: transport.departureCity,
+      dateLabel: fmtDateLong(transport.date),
+      responsable: { nom: primary.nom, phone: primary.phone },
+      children: merged.children?.length ? merged.children : [{ firstName: primary.childName || "", lastName: "" }],
+      rdvInfo: {
+        city: rdvInfo.city,
+        rdvTime: rdvInfo.rdvTime,
+        trainTime: rdvInfo.trainTime || rdvInfo.departureTime,
+        meetingPoint: rdvInfo.meetingPoint,
+        platform: rdvInfo.platform,
+        stopType: rdvInfo.stopType,
+        trainLabel: rdvInfo.trainLabel,
+        arrivalTime: rdvInfo.arrivalTime,
+        arrivalCity: transport.arrivalCity,
+      },
+      retour: retourInfo ? {
+        dateLabel: fmtDateLong(retourInfo.date),
+        trainLabel: retourInfo.trainLabel,
+        departureTime: retourInfo.departureTime,
+        arrivalTime: retourInfo.arrivalTime,
+        arrivalCity: retourInfo.arrivalCity,
+      } : null,
+      emergencyPhones: convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : null,
+    };
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -5542,12 +5571,12 @@ function ConvocEmailSender({ transport, allTransports }) {
         from_name: "ColoCrew Inscriptions",
         from_email: "inscriptions@colocrew.com",
         includeDecharge: true,
-        convocHtml,
+        convocData,
       }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     await Promise.all(groupPax.map((p) => p.reservationId ? markSent(p.reservationId) : null));
-  }, [transport, allTransports, emailSubject, customIntro, markSent]);
+  }, [transport, allTransports, emailSubject, customIntro, convocSettings, markSent]);
 
   const handleSendAll = useCallback(async () => {
     const groups  = groupPassengersByFamily(passengers);
