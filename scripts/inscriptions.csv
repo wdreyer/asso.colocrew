@@ -1,0 +1,124 @@
+Date,source,nom enfant,prenom enfant,date de naissance,age,sexe,nom responsable,prenom responsable,Relation,tel,mail,adresse,n caf,qf,n dossier,sejour,date sejour,transport aller,transport retour,assurance,Montant total,Total-CAF,montant sejour,montant transport,aide caf,montant regle,facture,conf inscri,dossier inscri,vaccins,conv transport,infos
+05/02/2026,resa site,Lautier,Noemie,21/02/2014,12,F,Lautier,Guillaume,pere,0684568242,guillaumelautier@yahoo.fr,"8 bd perier, Marseille 13008",,,MCSC-203126-LAU,MCSC,S2,Lyon,Lyon,FALSE,1045,1045,895,150,0,1045,TRUE,TRUE,Envoye,,,TOUT PAYE
+11/02/2026,resa site,Depalle,Nilo,20/10/2011,14,M,DEPRADEUX,Aude,mere,0645995285,shirinne@hotmail.fr,"191 Avenue Felix Faure, Lyon 69003",3456536 P,958,MCSC-031426-DE2,MCSC,S3,Lyon,Lyon,FALSE,1000,1000,850,150,0,780,TRUE,TRUE,Envoye,,,reste a payer : 220
+11/02/2026,resa site,Depalle,Ethan,08/05/2009,17,M,DEPRADEUX,Aude,mere,0645995285,shirinne@hotmail.fr,"191 Avenue Felix Faure, Lyon 69003",3456536 P,958,MCSC-031426-DE1,MCSC,S3,Lyon,Lyon,FALSE,1000,1000,850,150,0,780,TRUE,TRUE,Envoye,,,reste a payer : 220
+02/03/2026,totemia,Aubrun,Egon,02/11/2008,17,M,Balustre,Sylviane,autre,686273220,,,,,MCSC-031426-AUB,MCSC,S3,Paris,Paris,FALSE,1155.60,1155.60,1027.20,128.4,0,0,TRUE,TRUE,Complete,Complete,,,
+02/03/2026,amis,Javon Robellet,Mael,,,F,ROBELLET,Laetitia,mere,475485142,laetitia.robellet@gmail.com,"10 avenue de la foret de Lente, 26190 St Jean en Royans",,,MCSC-031426-JAV,MCSC,S3,Lyon,Lyon,FALSE,1438.80,838.80,1288.80,150,600,838.8,TRUE,TRUE,Envoye,,,voir cb on la remb
+07/03/2026,resa site,Courjaud,Marie,12/02/2013,13,F,Fleuranceau,Fabienne,autre,689774927,fleuranceau.fabienne@orange.fr,"1900 route du grand lopin, VAL DE LIVENNE 33860",0395294H,848,MCSC-061726-CO3,MCSC,S1,Sur Place,Sur Place,FALSE,960,360,960,0,600,0,TRUE,TRUE,Envoye,,,TOUT PAYE
+07/03/2026,resa site,Courjaud,Gabriel,20/02/2011,15,M,Fleuranceau,Fabienne,autre,689774927,fleuranceau.fabienne@orange.fr,"1900 route du grand lopin, VAL DE LIVENNE 33860",0395294H,848,MCSC-061726-CO2,MCSC,S1,Sur Place,Sur Place,FALSE,960,360,960,0,600,360,TRUE,TRUE,Envoye,,,TOUT PAYE
+07/03/2026,resa site,Courjaud,Laura,13/12/2009,16,F,Fleuranceau,Fabienne,autre,689774927,fleuranceau.fabienne@orange.fr,"1900 route du grand lopin, VAL DE LIVENNE 33860",0395294H,848,MCSC-061726-CO1,MCSC,S1,Sur Place,Sur Place,FALSE,960,360,960,0,600,360,TRUE,TRUE,Envoye,,,TOUT PAYE
+25/03/2026,totemia,Pascot,Colin,03/07/2012,13,M,Pascot,Regis,pere,629776402,,"17 Rue Francois Croizier, Riom 63200 France",,,EVCC-031426-PAS,EVCC,S3,Lyon,Lyon,FALSE,1155.60,1155.60,1027.20,128.4,0,0,TRUE,TRUE,Complete,Complete,,,
+28/03/2026,resa site,Heffer,Aaron,13/12/2010,15,M,Kapitho,Oriane,mere,611049671,ekoumekapitho@yahoo.com,"3 villa saint Fargeau 75020 Paris",7474277,362,MCSC-061726-HEF,MCSC,S1,Paris,Paris,FALSE,1250,850,1100,150,400,850,TRUE,TRUE,Envoye,,,TOUT PAYE
+28/03/2026,resa site,Heffer,Aaron,13/12/2010,15,M,Kapitho,Oriane,mere,611049671,ekoumekapitho@yahoo.com,"3 villa saint Fargeau 75020 Paris",7474277,362,EVCC-031426-HEF,EVCC,S3,Paris,Paris,FALSE,1250,900,1100,150,350,600,TRUE,FALSE,Envoye,,,reste a payer : 300 (baptiste heffer)
+08/04/2026,totemia,Bernier,Alix,16/11/2010,15,F,Bernier,Juliette,mere,33662189942,,"1300 rue Jean de Gingins, Divonne-les-Bains 01220 France",,,MCSC-172826-BER,MCSC,S4,Lyon,Lyon,FALSE,1155.60,1155.60,1027.20,128.4,0,0,TRUE,TRUE,Complete,Complete,,,
+08/04/2026,totemia,Clement,Lila,16/09/2010,15,F,,,mere,33662189942,,"1300 rue Jean de Gingins, Divonne-les-Bains 01220 France",,,MCSC-172826-CLE,MCSC,S4,Lyon,Lyon,FALSE,1155.60,1155.60,1027.20,128.4,0,0,TRUE,TRUE,Complete,Complete,,,
+09/04/2026,anciens,SARR,Jasmine,14/09/2010,15,F,MEGUENINE,Touatia,mere,749813239,touatiaevajasmegue@gmail.com,"22 chemin des martinettes, 73000 CHAMBERY",1035547,357,MCSC-061726-SAR,MCSC,S1,Lyon,Lyon,FALSE,1200,600,1050,150,600,0,FALSE,FALSE,Envoye,,,reste a payer : 300
+14/04/2026,groupe,MATHURIN,Jah Nah,03/06/2014,12,F,Marsille,Lys,autre,0784851962,lys.marsille@hotmail.com,,,,MCSC-031426-MA1,MCSC,S3,Paris,Paris,FALSE,1100,1100,950,150,0,0,FALSE,FALSE,Envoye,,,,
+14/04/2026,groupe,RAMATCHANDIRIN,Rachel,27/01/2012,14,F,Marsille,Lys,autre,0784851962,lys.marsille@hotmail.com,,,,MCSC-031426-RAM,MCSC,S3,Paris,Paris,FALSE,1100,1100,950,150,0,0,FALSE,FALSE,Envoye,,,,
+14/04/2026,groupe,MATHURIN,Jah-Lya,30/09/2010,15,F,Marsille,Lys,autre,0784851962,lys.marsille@hotmail.com,,,,MCSC-031426-MA2,MCSC,S3,Paris,Paris,FALSE,1100,1100,950,150,0,0,FALSE,FALSE,Envoye,,,,
+16/04/2026,anciens,Baudin,Thelma,14/04/2011,15,F,Guerry,Stephanie,mere,681034608,famillebaudin85@gmail.com,,,,MCSC-061726-BAU,MCSC,S1,Nantes,Nantes,FALSE,987.50,987.50,807.50,180,0,660,TRUE,TRUE,Envoye,,,"reste a payer : 327,5"
+21/04/2026,anciens,BASSON,Anaelle,,,F,BASSON,Rokiatou,mere,0652789445,rokiatou.basson@gmail.com,"30 rue Claude Jusseaud, 69110 sainte foy les lyon",,,MCSC-203126-BAS,MCSC,S2,Sur Place,Sur Place,FALSE,475,475,475,0,0,320,TRUE,TRUE,Complete,,,"le 5/7 : 155 euro"
+21/04/2026,anciens,Bioulac,Zoe,04/06/2013,13,F,Sarret,Juliette,mere,644187644,juliettesarret@gmail.com,"41 Rue Du College, Aurillac 15000",0153284C,858,MCSC-031426-BIO,MCSC,S3,Sur Place,Sur Place,FALSE,1050,450,900,150,600,300,TRUE,TRUE,,,,"reste a payer : 150 euro 25/6"
+22/04/2026,bouche a oreille,MELIET,Diane,04/03/2012,14,F,MELIET,Jean Charles,pere,615213314,jcmeliet@yahoo.fr,"990 Chemin Pique, 64290 Aubertin",1072111 M,2337,MCSC-203126-MEL,MCSC,S2,Sur Place,Sur Place,FALSE,1140,1140,1140,0,0,1140,TRUE,TRUE,Envoye,,,TOUT PAYE
+22/04/2026,bouche a oreille,Bachache,Lydia,04/10/2011,14,F,Arc en ciel action enfance,,autre,,arc-en-ciel.vill@actionenfance.org,,,,MCSC-031426-BAC,MCSC,S3,Paris,Paris,FALSE,1324.10,1324.10,1174.10,150,0,1324.1,FALSE,FALSE,,,,,
+23/04/2026,groupe,FAHIM,Salma,16/06/2011,15,F,FAHIM,,mere,0658576429,fahimyamina37@gmail.com,,,,EVCC-031426-FA1,EVCC,S3,Paris,Paris,FALSE,1250,650,1100,150,600,0,FALSE,FALSE,,,,"Groupe ROUEN - manque date de naissance pr vacaf"
+23/04/2026,groupe,FAHIM,Asma,04/09/2009,16,F,FAHIM,,mere,0658576429,fahimyamina37@gmail.com,,,,EVCC-031426-FA2,EVCC,S3,Paris,Paris,FALSE,1250,650,1100,150,600,0,FALSE,FALSE,,,,"Groupe ROUEN"
+24/04/2026,anciens,ACOUMIEN,Marie-Olivia,17/09/2009,16,F,DANHI,Viviane,mere,650851201,magny7acou@hotmail.fr,"359 rue des hortensias, 33230 Les Eglisottes",1224291,647,MCSC-203126-ACO,MCSC,S2,Bordeaux,Bordeaux,FALSE,960,360,900,60,600,240,TRUE,TRUE,Envoye,,,"01/07 : 240 euro"
+24/04/2026,bouche a oreille,EDJEHOU,Paule-Iris,03/01/2010,16,F,DANHI,Viviane,mere,650851201,magny7acou@hotmail.fr,"359 rue des hortensias, 33230 Les Eglisottes",1224291,647,MCSC-031426-EDJ,MCSC,S3,Bordeaux,Bordeaux,FALSE,960,360,900,60,600,240,TRUE,TRUE,Envoye,,,,
+27/04/2026,anciens,BALA-HAETTIGER,Heloise,17/07/2012,13,F,HAETTIGER,Yehve,mere,659736114,haettiger@yahoo.fr,"15 rue du meunier, 31790 Saint-Jory",,,MCSC-203126-BAL,MCSC,S2,Toulouse,Toulouse,FALSE,1160,1160,1050,110,0,1160,TRUE,TRUE,Envoye,,,,
+01/05/2026,totemia,HACCART GODINO,Rose,16/10/2013,12,F,Godino,Stephanie,mere,688016845,,"19 Rue Charles Baudelaire, Nailloux 31560 France",,,MCSC-172826-HAC,MCSC,S4,Toulouse,Toulouse,FALSE,1121.36,1121.36,1027.20,94.16,0,0,TRUE,TRUE,Complete,Complete,,,
+03/05/2026,anciens,LIGNIEZ,Julia,23/07/2010,15,F,Ligniez,Carole,mere,662443263,xligniez@gmail.com,,,,MCSC-061726-LIG,MCSC,S1,Nantes,Nantes,FALSE,987.50,987.50,807.50,180,0,987.5,TRUE,TRUE,Complete,Complete,,,
+07/05/2026,amis,benghine van stpidonk,Ludmila,02/05/2014,12,F,Van Stpidonk,Didi,mere,0687892948,didi@ilio.org,"11 chemin de la Roche, Forcalquier 04300",1065343,801,MCSC-203126-BEN,MCSC,S2,Marseille,Marseille,FALSE,1300,400,1150,150,900,0,TRUE,FALSE,Envoye,,,"Reste a payer : 400 euro"
+11/05/2026,resa site,Faramond,Charlotte,26/12/2012,13,F,Faramond,Melissa,mere,651242146,melissa.faramond@gmail.com,"14 Impasse Du Quercy, Blagnac 31700",1634305,1778,EVCC-031426-FA3,EVCC,S3,Sur Place,Sur Place,FALSE,1045,1045,1045,0,0,350,TRUE,FALSE,Envoye,,,"Reste a payer : 1390 euro"
+11/05/2026,resa site,Faramond,Timothe,29/01/2010,16,M,Faramond,Melissa,mere,651242146,melissa.faramond@gmail.com,"14 Impasse Du Quercy, Blagnac 31700",1634305,1778,EVCC-031426-FA4,EVCC,S3,Sur Place,Sur Place,FALSE,1045,1045,1045,0,0,350,TRUE,FALSE,Envoye,,,,
+15/05/2026,totemia,Icick,Anna,12/02/2012,14,F,2000Ain,Rom,pere,,,,,,MCSC-172826-ICI,MCSC,S4,Paris,Paris,FALSE,1155.60,1155.60,1027.20,128.4,0,0,TRUE,TRUE,,,,,
+18/05/2026,totemia,Renault Debecker,Yugo,21/02/2013,13,M,Renault Debecker,Lise-marie,mere,,,,,,MCSC-061726-REN,MCSC,S1,Toulouse,Toulouse,FALSE,1035.76,1035.76,941.60,94.16,0,0,TRUE,TRUE,Complete,Complete,,,
+18/05/2026,totemia,Gilardi,Noemie,18/10/2009,16,F,Gilardi,Christel,mere,171355172,,,,,MCSC-031426-GIL,MCSC,S3,Paris,Paris,FALSE,1155.60,1155.60,1027.20,128.4,0,0,TRUE,TRUE,Complete,Complete,,,
+20/05/2026,anciens,Subal,Maelle,28/08/2011,14,,,,,,c.cornil@lesdecisifs.com,,,,MCSC-061726-SUB,MCSC,S1,Lyon,Lyon,FALSE,997.50,997.50,847.50,150,0,997.5,FALSE,FALSE,,,,,
+20/05/2026,juvigo,Lecuyer,Johan,,,,,,,,,,,,,MCSC-203126-LEC,MCSC,S2,Paris,Sur Place,FALSE,1122,1122,1047,75,0,374,TRUE,TRUE,Complete,Complete,,"reste a payer 748"
+20/05/2026,anciens,Buisson,Ninon,,,,,,,,,,,,,MCSC-203126-BUI,MCSC,S2,Lyon,Lyon,FALSE,950,950,800,150,0,950,TRUE,FALSE,,,,,
+20/05/2026,anciens,Raylat,Martin,,,,,,,,,,,,,MCSC-203126-RA1,MCSC,S2,Lyon,Lyon,FALSE,1050,1050,900,150,0,0,TRUE,FALSE,Envoye,,,,
+20/05/2026,bouche a oreille,Raylat,Louise,,,,,,,,,,,,,MCSC-203126-RA2,MCSC,S2,Lyon,Lyon,FALSE,1050,1050,900,150,0,0,TRUE,FALSE,Envoye,,,,
+20/05/2026,anciens,Hermosilla,Ines,,,,,,,,,,,,,EVCC-031426-HE1,EVCC,S3,Sur Place,Sur Place,FALSE,800,800,800,0,0,,FALSE,FALSE,,,,"payent la moitie 1 mois avant et le reste apres"
+20/05/2026,anciens,Hermosilla,Leo,,,,,,,,,,,,,EVCC-031426-HE2,EVCC,S3,Sur Place,Sur Place,FALSE,800,800,800,0,0,,FALSE,FALSE,,,,,
+21/05/2026,juvigo,Kaptur,Nils,09/03/2010,16,M,Galon,Emmanuelle,mere,622480328,emmanuellegalon@gmail.com,"37 allee du chateau, Tresses, 33370",870865,,MCSC-061726-KAP,MCSC,S1,Bordeaux,Bordeaux,FALSE,1020.80,1020.80,960.80,60,0,0,TRUE,FALSE,Envoye,,,,
+22/05/2026,totemia,BERTRAND,Matthias,19/09/2012,13,M,Bertrand,Caroline,mere,664968162,,"1 rue Albert 1er, Asnieres sur seine 92600 France",,,EVCC-031426-BER,EVCC,S3,Paris,Paris,FALSE,1027.20,1027.20,898.80,128.4,0,,TRUE,TRUE,Complete,Complete,,,
+23/05/2026,totemia,Sillas,Vadim,08/08/2008,17,M,Silas,Julien,pere,,,,,,MCSC-203126-SIL,MCSC,S2,Paris,Paris,FALSE,1155.60,1155.60,1027.20,128.4,0,,TRUE,TRUE,Complete,Complete,,,
+26/05/2026,juvigo,Mallet,Lucile,30/05/2013,13,F,Mallet,Nicolas,pere,33659037793,njfsmallet@gmail.com,"15 Chemin de la Butte du Diable, Bievres, 91570",,,EVCC-203126-MAL,EVCC,S2,Paris,Paris,FALSE,1003.20,1003.20,853.20,150,0,1003.2,TRUE,TRUE,Envoye,,,,
+27/05/2026,anciens,PROCACCI,Lola,03/05/2014,12,F,Grivel,Sundari,mere,613376866,sundarinardone@yahoo.fr,"3 Allee Du Picvert, Ecully 69130",3181886,4487,,MCSC,S2,Lyon,Marseille,FALSE,1290,1290,1140,150,0,1271,TRUE,TRUE,Envoye,,,,
+27/05/2026,groupe,Rippling,Typhaine,,,,Arc en ciel,Nahed,pere,,,,,,,MCSC,S3,Paris,Paris,FALSE,1200,1200,1050,150,0,0,FALSE,FALSE,,,,,
+30/05/2026,resa site,ALLIOUD,Louisa,06/11/2014,11,,CALLENS,Marie,mere,650020630,mariecallens1407@gmail.com,"53 chemin de Montbel, 69390 Vourles",3481335,403,,MCSC,S2,Lyon,Lyon,FALSE,1320,420,1170,150,900,0,TRUE,FALSE,Envoye,,,,
+30/05/2026,resa site,ALLIOUD,Sara-Clemence,29/12/2013,12,,CALLENS,Marie,mere,650020630,mariecallens1407@gmail.com,"53 chemin de Montbel, 69390 Vourles",3481335,403,,MCSC,S2,Lyon,Lyon,FALSE,1320,720,1170,150,600,0,TRUE,FALSE,Envoye,,,,
+30/05/2026,bouche a oreille,Touzaine,Louise,,,Ratte Vilasis,Audrey,mere,,audreyrattevilasis@wanadoo.fr,,,,,MCSC,S2,Lyon,Lyon,FALSE,1200,1200,1050,150,0,1200,TRUE,FALSE,Envoye,,,,
+01/06/2026,groupe,Fontaine,Camelia,21/12/2009,16,,,,,,,,,,,,EVCC,S2,Lyon,Lyon,,1050,450,900,150,600,0,,,,,,,
+02/06/2026,totemia,FAYE,Kalilou,21/04/2012,14,,Michiels,Vanessa,mere,,,,,,,EVCC,S2,Sur Place,Sur Place,FALSE,847.44,847.44,847.44,0,0,,TRUE,TRUE,,Relance,,,
+02/06/2026,mailing,LUCIEN,Lohan,22/09/2010,15,M,GAUBERT,Marie,autre,638983675,marie.gaubert@kalyva.fr,"22 rue Bergeaud, 31600 SEYSSES",,,MCSC-172826-LUC,MCSC,S4,Toulouse,Toulouse,,1210,1210,1100,110,0,1210,TRUE,TRUE,Complete,Complete,,,
+03/06/2026,groupe,Aldgig,Jabran,16/10/2013,12,M,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Benbouzid,Maysan,17/04/2010,16,F,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Laouail,Rabah,04/11/2010,15,M,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Laouail,Mohamed,25/06/2012,13,M,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Vanhee,Leena,02/12/2011,14,F,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Benkuider,Lyna,14/05/2010,16,F,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Naghmouchi,Iliana,18/10/2011,14,F,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,Naghmouchi,Maylis,01/02/2013,13,F,,Nagib,autre,,,,,,,MCSC,S2,Lille,Lille,FALSE,1300,1300,1150,150,0,,FALSE,FALSE,,,,,
+03/06/2026,groupe,BAKAYOKO,Soualio,,,,,,,,,celine.lelouet@neuillysurmarne.fr,"2 rue du President John Kennedy 93330 Neuilly-sur-Marne",,,,MCSC,S1,Paris,Paris,FALSE,1200,600,1050,150,600,,FALSE,FALSE,,,,,
+03/06/2026,groupe,MAKITA,El Gloria,07/12/2011,14,F,MAKITA,Wallitride,mere,658560929,,"8 place jean Bart, 93330 Neuilly sur Marne",,,,EVCC,S2,Paris,Paris,FALSE,1140,1140,990,150,0,0,TRUE,FALSE,Complete,,,,
+03/06/2026,groupe,DINDANGILA,Jahyan,20/10/2012,13,M,,,,,,"18 avenue Winston Churchill 93330 Neuilly-sur-Marne",7912523,,,,EVCC,S3,Paris,Paris,FALSE,1150,1150,1000,150,0,,FALSE,FALSE,,,,,
+05/06/2026,groupe,GASPARD,Elie-Emmanuel,13/03/2013,13,M,GASPARD,Claudette,mere,,celine.lelouet@neuillysurmarne.fr,"80 avenue du 8 mai 1945 93330 Neuilly-sur-Marne",7561214,,,,MCSC,S1,Paris,Paris,FALSE,1200,600,1050,150,600,,FALSE,FALSE,,,,,
+05/06/2026,bouche a oreille,GIRARDOT,Emma,11/10/2011,14,F,Girardot,Thibaut,pere,646718669,thibaut.girardot@bbox.fr,,,,,MCSC,S1,Lyon,Lyon,FALSE,1195,1195,1045,150,0,400,TRUE,FALSE,Complete,Complete,,,
+08/06/2026,groupe,PACHOT,Ethan,29/09/2013,12,,,,,,,,,,,,EVCC,S2,Valence,Valence,FALSE,850,850,700,150,0,,FALSE,FALSE,,,,Groupe de valence
+08/06/2026,groupe,CLAIN,Audric,31/01/2014,12,,,,,,,,,,,,MCSC,S1,Valence,Valence,FALSE,1100,650,950,150,450,,FALSE,FALSE,,,,Groupe de valence
+09/06/2026,totemia,Chalmet,Maxime,04/06/2012,14,F,Chalmet,Marie,mere,620598248,,,,,,EVCC,S2,Sur Place,Sur Place,FALSE,847.44,847.44,847.44,0,0,,TRUE,TRUE,Complete,Complete,,,
+09/06/2026,totemia,RAUDE,Oceane,26/09/2014,11,F,,,,,,,,,,MCSC,S1,Nantes,Nantes,FALSE,1087.12,1087.12,933.04,154.08,0,,TRUE,TRUE,Complete,Complete,,,
+10/06/2026,resa site,BALLET,Kingslay,03/03/2014,12,M,BALLET,Zeinabou,mere,661029913,zenab2252017@outlook.fr,"13 Rue eugene varlin, 92290 chatenay malabry",7059667,419,,EVCC,S2,Paris,Paris,FALSE,1050,450,900,150,600,50,TRUE,FALSE,Envoye,,,,
+10/06/2026,resa site,DIONE,Ismael,12/02/2015,11,M,,,mere,660830914,bayzi@hotmail.fr,"2 Allee Franklin Dalibard, 95670 Marly la ville",7911483,540,MCSC-172826-DIO,MCSC,S4,Paris,Paris,FALSE,908.75,8.75,758.75,150,900,0,TRUE,FALSE,Envoye,,,"Paye en 5 x 187 euro"
+10/06/2026,resa site,DIONE,Rokhaya,02/03/2013,13,F,,,mere,660830914,bayzi@hotmail.fr,"2 Allee Franklin Dalibard, 95670 Marly la ville",7911483,540,MCSC-172826-DIO,MCSC,S4,Paris,Paris,FALSE,908.75,308.75,758.75,150,600,187,TRUE,FALSE,Envoye,,,"Paye en 5 x 187 euro"
+10/06/2026,resa site,DIONE,Babacar,30/08/2019,6,M,,,mere,660830914,bayzi@hotmail.fr,"2 Allee Franklin Dalibard, 95670 Marly la ville",7911483,540,MCSC-172826-DIO,MCSC,S4,Paris,Paris,FALSE,908.75,308.75,758.75,150,600,0,TRUE,FALSE,Envoye,,,"Paye en 5 x 187 euro"
+10/06/2026,resa site,DIONE,Amadou,30/08/2019,6,M,,,mere,660830914,bayzi@hotmail.fr,"2 Allee Franklin Dalibard, 95670 Marly la ville",7911483,540,MCSC-172826-DIO,MCSC,S4,Paris,Paris,FALSE,908.75,308.75,758.75,150,600,0,TRUE,FALSE,Envoye,,,"Paye en 5 x 187 euro"
+10/06/2026,totemia,HERVY,Dimitri,16/08/2013,12,M,,,,,,,,,,MCSC,S1,Paris,Paris,FALSE,1061.44,1061.44,933.04,128.4,0,,TRUE,TRUE,Complete,Complete,,,
+10/06/2026,totemia,HERVY,Stanislas,11/06/2010,16,M,,,,,,,,,,MCSC,S1,Paris,Paris,FALSE,1061.44,1061.44,933.04,128.4,0,,TRUE,TRUE,Complete,Complete,,,
+12/06/2026,groupe,Robin,Julie,24/10/2013,12,F,,,,"06 01 43 28 57",veroniquepetit1980@gmail.com,"5 rue d Artois 93330 Neuilly-sur-Marne",7195145,,,,EVCC,S2,Paris,Paris,FALSE,1140,540,990,150,600,,FALSE,FALSE,,,,,
+12/06/2026,groupe,BERTHE,Keyla,04/10/2013,12,F,,,,,"06 34 57 36 56","5 esplanade de Maux, 93330 Neuilly-sur-Marne",,,,MCSC,S4,Paris,Paris,FALSE,1250,1250,1100,150,0,,FALSE,FALSE,,,,
+12/06/2026,groupe,DRAME,Soumaila,04/09/2010,15,M,,,,651269548,,"2a rue Jacques Cartier, 93330 Neuilly-sur-Marne",7559651,,,,MCSC,S4,Paris,Paris,FALSE,1250,650,1100,150,600,,FALSE,FALSE,,,,,
+12/06/2026,resa site,Barvaut,Orlane,,,F,Melane,Francesca,mere,"06 73 77 36 14",bellaceska@gmail.com,"18 ter rue de Germigny, 77470 TRILPORT",,,,MCSC,S3,Paris,Paris,FALSE,1170,1170,1020,150,0,890,TRUE,FALSE,Envoye,,,"En 2x automatique par cb"
+12/06/2026,resa site,Eridan,Mayline,,,F,Eridan,Christelle,mere,"06 51 79 15 13",cricrieridan@gmail.com,"55 quai du Halage, 94000 Creteil",,,,MCSC,S3,Paris,Paris,FALSE,1170,1170,1020,150,0,,TRUE,FALSE,Envoye,,,"en 3x automatique par CB"
+12/06/2026,resa site,Gustave Dit Duflo,Maelys,,,F,Begue,Alexandra,mere,"06 21 46 22 79",guad-m.alexandry@hotmail.fr,"41 boulevard du Segrais, 77185 Lognes",,,,MCSC,S3,Paris,Paris,FALSE,1050,1050,900,150,0,175,TRUE,FALSE,Envoye,,,,
+15/06/2026,resa site,Ye Wei,Lina,29/05/2010,16,F,Wei,Lifen,mere,624797243,lifenwei1976@gmail.com,"131 Rue Nationale, 75013 Paris",988699,770,,MCSC,S1,Paris,Paris,FALSE,1100,500,950,150,600,,TRUE,FALSE,Envoye,,,"en 3x automatique par CB"
+16/06/2026,resa site,Thouard,Maxime,,,,,,,,,,,,,EVCC,S3,Bordeaux,Bordeaux,FALSE,919.20,775.20,859.20,60,144,,FALSE,FALSE,,,,,
+16/06/2026,resa site,Boscher,Kyle,,,,,,,,,,,,,EVCC,S3,Bordeaux,Bordeaux,FALSE,919.20,775.20,859.20,60,144,100,FALSE,FALSE,,,,,
+17/06/2026,resa site,Boete,Timoe,,,,,,,,,,,,,EVCC,S2,Nantes,Nantes,FALSE,1130,230,950,180,900,,FALSE,FALSE,,,,,
+17/06/2026,resa site,Boete,Iloan,,,,,,,,,,,,,EVCC,S2,Nantes,Nantes,FALSE,1130,230,950,180,900,,FALSE,FALSE,,,,,
+17/06/2026,resa site,Gleize,Logan,,,M,CHAUMES,Charlene,mere,"06 42 15 99 47",chcaumes@gmail.com,"13 boulevard Victor Hugo, 12400 Sainte Afrique",2921012208022,159,,MCSC,S1,Montpellier,Montpellier,FALSE,1010,842,900,110,168,,TRUE,FALSE,Envoye,,,,
+17/06/2026,resa site,Boete,Maodan,,,,,,,,,,,,,EVCC,S2,Nantes,Nantes,FALSE,1130,530,950,180,600,,FALSE,FALSE,,,,,
+17/06/2026,resa site,Luro,Apolline,20/07/2011,14,F,Luro,Leslie,,662256601,leslie20m@hotmail.com,"57 rue de rosny Batiment A, 93100 Montreuil",7800342N,,,EVCC,S3,Paris,Paris,FALSE,1000,1000,850,150,0,100,FALSE,FALSE,,,,,
+17/06/2026,totemia,Stein,Leane,09/04/2011,15,,Stein,Sophie,mere,675056432,,,,,,MCSC,S1,Paris,Paris,FALSE,1061.44,1061.44,933.04,128.4,0,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Kone,Mohamed,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Diawara,Diahouba,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Macaronus,Samy,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Soumare,Mokhtar,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Soumare,Djibril,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Camara,Goundo,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Hamidou,Nazad,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,groupe,Diabate,Makhan,,,,,,,,,jeunesse@csrigoles.fr,,,,,EVCC,S2,Paris,Paris,FALSE,1000,400,900,100,600,,FALSE,FALSE,,,,,
+18/06/2026,anciens,Kehlaoui,Mohamed,,,,,,,,,,,,,MCSC,S2,Paris,Paris,FALSE,950,950,800,150,0,0,FALSE,FALSE,,,,,
+18/06/2026,resa site,Fernandez-cano,Christina,05/04/2010,16,,FERNANDEZ,Angeliya,mere,611945659,angeliya007@hotmail.com,"6 rue du docteur bioules, 84310 MORIERES LES AVIGNON",1203773,575,,EVCC,S2,Montpellier,Montpellier,FALSE,1080,480,950,130,600,,FALSE,FALSE,,,,,
+18/06/2026,totemia,FRANCZAK,YZA,25/08/2012,13,,FRANCZAK,MAX,pere,667774262,,,,,,EVCC,S2,Bordeaux,Bordeaux,FALSE,821.76,821.76,770.40,51.36,0,,FALSE,FALSE,,,,,
+18/06/2026,totemia,Fourcade,Zelie,15/03/2012,14,,Seguier,Marie,mere,670751399,,,,,,EVCC,S2,Sur Place,Sur Place,FALSE,770.40,770.40,770.40,0,0,,FALSE,FALSE,,,,,
+19/06/2026,google,Ballester,Mila,,,F,TAGLANG,Nicole,autre,698953821,nicoletaglang40@gmail.com,,,,,MCSC,S2,Marseille,Marseille,FALSE,1200,1200,1050,150,0,,FALSE,FALSE,,,,,
+19/06/2026,resa site,PEDRON MALARTRE,Gabriel,05/08/2011,14,M,Malartre,Delphine,mere,769801007,malartre.delphine@gmail.com,"11 b rue circulaire, 30800 St Gilles",1074443,,,,EVCC,S3,Montpellier,Montpellier,FALSE,1180,340,1050,130,840,,FALSE,FALSE,,,,,
+19/06/2026,groupe,COULIBALY,Zainab,,,F,,,,,celine.lelouet@neuillysurmarne.fr,"2 rue des Halles 93160 Noisy le Grand",7318100,,,,MCSC,S1,Paris,Paris,FALSE,1200,600,1050,150,600,,FALSE,FALSE,,,,,
+19/06/2026,groupe,,Denzel,,,,,Saint Michel,xxxx,autre,,,,,,,EVCC,S3,Marseille,Marseille,FALSE,850,850,750,100,0,,FALSE,FALSE,,,,,
+21/06/2026,groupe,BELKACEM,Mohamed,13/02/2014,12,,AMAPE-URGENCE,,,,,,77304,,,,MCSC,S3,Valence,Valence,FALSE,1250,350,1100,150,900,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 1,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 2,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 3,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 4,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 5,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 6,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 7,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 8,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 9,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,groupe,Nagib 10,xxx,,,,,,,,,,,,,EVCC,S3,Lille,Lille,FALSE,1325,725,1150,175,600,,FALSE,FALSE,,,,,
+23/06/2026,google,NDOUKOBO NYANSI,NOAM,22/12/2015,10,M,cheron,viviane,mere,662050078,vivianecheron@gmail.com,"14 avenue Aristide Briand 27930 gravigny",516193,,,,MCSC,S1,Paris,Paris,FALSE,750,500,600,150,250,,FALSE,FALSE,,,,,
+23/06/2026,resa site,Mia,Lina,12/08/2012,13,F,Lin,Jiuchun,mere,768898557,jiuchun.lin89@gmail.com,"19av du general pierre billot, 94000 Creteil",,,,MCSC,S1,Paris,Paris,FALSE,1100,1100,950,150,0,,FALSE,FALSE,,,,,
+23/06/2026,totemia,BATTUT,Cloe,06/10/2010,15,F,Conche,Beatrice,mere,682047347,,"24 Rue de Beulet, Echenevex 01170 France",,,,MCSC,S4,Lyon,Lyon,FALSE,1155.60,1155.60,1027.20,128.40,,,FALSE,FALSE,,,,,

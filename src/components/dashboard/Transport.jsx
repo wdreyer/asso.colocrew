@@ -717,20 +717,42 @@ function isAfterDinnerTime(value) {
   return minutes !== null && minutes >= 19 * 60;
 }
 
-function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepartureTime, returnArrivalTime }) {
-  const needsLunch = isBeforeNoon(departureTime) || isBeforeNoon(returnDepartureTime);
+const DEFAULT_REMINDER_ITEMS = [
+  { id: "picnic",           condition: "picnic",  conditionLabel: "Si départ avant midi (aller ou retour)",   emoji: "🥪",  defaultText: "Pensez à prévoir un pique-nique pour le déjeuner." },
+  { id: "dinner",           condition: "dinner",  conditionLabel: "Si arrivée après 19h00 (aller ou retour)", emoji: "🍽️", defaultText: "Un repas sera prévu sur place, mais l'arrivée étant tardive, pensez à prévoir un encas pour le dîner." },
+  { id: "water",            condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "💧",  defaultText: "Merci de prévoir de l'eau et un goûter pour le trajet." },
+  { id: "timing",           condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "⏱️", defaultText: "Le rendez-vous est fixé au moins 45 minutes avant le départ du train." },
+  { id: "tshirt",           condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "👕",  defaultText: "Un animateur ou animatrice ColoCrew vous attendra au point de rendez-vous, reconnaissable à son t-shirt ColoCrew." },
+  { id: "group",            condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "👥",  defaultText: "L'animateur ou animatrice prendra en charge le groupe et assurera un trajet encadré et sécurisé jusqu'au centre de vacances." },
+  { id: "meds",             condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "💊",  defaultText: "Si votre enfant a un traitement médical, merci de prévoir les médicaments dans leur emballage d'origine avec l'ordonnance, et de prévenir l'animateur ou animatrice au moment du rendez-vous." },
+  { id: "liability_go",     condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "📝",  defaultText: "Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'animateur ou animatrice." },
+  { id: "liability_return", condition: "always",  conditionLabel: "Toujours affiché",                         emoji: "📝",  defaultText: "Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la décharge de responsabilité ci-jointe, qu'il remettra directement à l'animateur ou animatrice." },
+];
+
+const DEFAULT_HTML_REMINDER = {
+  picnic:           "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>.",
+  dinner:           "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner.",
+  water:            "💧 Merci de prévoir <strong>de l'eau et un goûter</strong> pour le trajet.",
+  timing:           "⏱️ Le rendez-vous est fixé <strong>au moins 45 minutes avant le départ du train</strong>.",
+  tshirt:           "👕 Un animateur ou animatrice ColoCrew vous attendra au point de rendez-vous, reconnaissable à son <strong>t-shirt ColoCrew</strong>.",
+  group:            "👥 L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au centre de vacances.",
+  meds:             "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'animateur ou animatrice au moment du rendez-vous.",
+  liability_go:     "📝 Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
+  liability_return: "📝 Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
+};
+
+function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepartureTime, returnArrivalTime }, convocSettings = {}) {
+  const needsLunch  = isBeforeNoon(departureTime) || isBeforeNoon(returnDepartureTime);
   const needsDinner = isAfterDinnerTime(arrivalTime) || isAfterDinnerTime(returnArrivalTime);
-  return [
-    needsLunch ? "🥪 Pensez à prévoir un <strong>pique-nique pour le déjeuner</strong>." : null,
-    needsDinner ? "🍽️ Un <strong>repas sera prévu sur place</strong>, mais l'arrivée étant tardive, pensez à prévoir un pique-nique ou un encas pour le dîner." : null,
-    "💧 Merci de prévoir <strong>de l'eau et un goûter</strong> pour le trajet.",
-    "⏱️ Le rendez-vous est fixé <strong>au moins 45 minutes avant le départ du train</strong>.",
-    "👕 Un animateur ou animatrice ColoCrew vous attendra au point de rendez-vous, reconnaissable à son <strong>t-shirt ColoCrew</strong>.",
-    "👥 L'animateur ou animatrice prendra ensuite en charge le groupe et assurera un <strong>trajet encadré et sécurisé</strong> jusqu'au centre de vacances.",
-    "💊 Si votre enfant a un traitement médical, merci de prévoir les <strong>médicaments dans leur emballage d'origine avec l'ordonnance</strong>, et de prévenir l'animateur ou animatrice au moment du rendez-vous.",
-    "📝 Si votre enfant se rend seul au point de rendez-vous, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
-    "📝 Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
-  ].filter(Boolean);
+  const items = convocSettings.items || {};
+  const condMet = (c) => c === "always" || (c === "picnic" && needsLunch) || (c === "dinner" && needsDinner);
+  return DEFAULT_REMINDER_ITEMS.map((item) => {
+    if (!condMet(item.condition)) return null;
+    const s = items[item.id];
+    if (s?.enabled === false) return null;
+    if (s?.text) return `${item.emoji} ${s.text}`;
+    return DEFAULT_HTML_REMINDER[item.id];
+  }).filter(Boolean);
 }
 
 function buildReminderListHtml(items) {
@@ -3609,6 +3631,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
               {segTix.map((ticket) => {
                 const usedSeats = ticketUsedSeats(ticket, segPassengers, assignedStaff);
                 const freeSeats = ticketFreeSeats(ticket, segPassengers, assignedStaff);
+                const tCoveredIds = new Set(ticket.coveredReservationIds || []);
+                const tPax = tCoveredIds.size > 0
+                  ? segPassengers.filter(p => tCoveredIds.has(p.reservationId))
+                  : segPassengers;
+                const tSegChildCount = countChildren(tPax);
+                const tChildCount = tCoveredIds.size > 0 ? tSegChildCount : Math.min(tSegChildCount, ticket.seats);
+                const tStaffCount = ticket.seats > 1 ? Math.min(assignedStaff.length, Math.max(0, ticket.seats - tChildCount)) : 0;
                 return (
                   <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
                     <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
@@ -3616,7 +3645,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                       <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
                       <div className="tr-ticket-card-meta">
                         {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
-                        {ticket.purchased && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""} ({childCount} enf. + {staffCount} anim.)</span>}
+                        {ticket.purchased && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""} ({tChildCount} enf. + {tStaffCount} anim.)</span>}
                         {ticket.purchased && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
                         {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
                         {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
@@ -5274,7 +5303,7 @@ function getRetourInfo(transport, passenger, allTransports) {
   return null;
 }
 
-function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
+function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSettings = {}) {
   const children = passenger.children?.length
     ? passenger.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
     : passenger.childName;
@@ -5314,9 +5343,9 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
       returnDepartureTime: retourInfo?.departureTime,
       returnArrivalTime: retourInfo?.arrivalTime,
       city,
-    }).map((item) => `• ${plainReminderText(item)}`),
+    }, convocSettings).map((item) => `• ${plainReminderText(item)}`),
     `• En cas d'urgence ou d'imprévu, contactez-nous immédiatement :`,
-    ...EMERGENCY_PHONES.map((n) => `  ${n}`),
+    ...(convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : EMERGENCY_PHONES).map((n) => `  ${n}`),
     ``,
     `La convocation individuelle est jointe à cet email (document PDF à imprimer).`,
     ``,
@@ -5326,7 +5355,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports) {
   return lines.join("\n");
 }
 
-function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, customIntro, animInfo = {}) {
+function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, customIntro, animInfo = {}, convocSettings = {}) {
   const children = passenger.children?.length
     ? passenger.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
     : passenger.childName || "";
@@ -5383,14 +5412,14 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   const td1 = (last) => `style="padding:13px 16px;border-right:1px solid #f0f0f0;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
   const td2 = (last) => `style="padding:13px 16px;${last ? "" : "border-bottom:1px solid #f0f0f0;"}vertical-align:top;line-height:1.6;font-size:14px;color:#1e1040;"`;
 
-  const phones = EMERGENCY_PHONES.join(" / ");
+  const phones = (convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : EMERGENCY_PHONES).join(" / ");
   const reminderItems = buildConvocationReminderItems({
     departureTime: rdvInfo.departureTime || trainTime,
     arrivalTime: rdvInfo.arrivalTime,
     returnDepartureTime: retourInfo?.departureTime,
     returnArrivalTime: retourInfo?.arrivalTime,
     city,
-  });
+  }, convocSettings);
   const introHtml = customIntro && customIntro.trim()
     ? customIntro.trim().split(/\n\n+/).map((para) => `<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">${para.replace(/\n/g, "<br/>")}</p>`).join("")
     : `<p style="margin:0 0 18px;font-size:14px;color:#374151;line-height:1.75;"><strong>${firstNames || children}</strong> ${nbChildren > 1 ? "sont inscrits" : "est inscrit(e)"} au séjour <strong>${sejourShort}</strong>${weekInfo ? ` du <strong>${fmtDateLong(weekInfo.aller)}</strong> au <strong>${fmtDateLong(weekInfo.retour)}</strong>` : ""}.</p>`;
@@ -5803,8 +5832,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [preview, setPreview]           = useState(null);
   const [showEditor, setShowEditor]     = useState(false);
   const [customIntro, setCustomIntro]   = useState("");
-  const [onSiteConfigs, setOnSiteConfigs] = useState({});
-  const [onSiteModal, setOnSiteModal]     = useState(null); // sejourName en cours d'édition
+  const [onSiteConfigs, setOnSiteConfigs]       = useState({});
+  const [onSiteModal, setOnSiteModal]           = useState(null);
+  const [savingOnSiteModal, setSavingOnSiteModal] = useState(false);
+  const [convocSettings, setConvocSettings]     = useState({ items: {}, emergencyPhones: [] });
+  const [showConvocSettings, setShowConvocSettings] = useState(false);
+  const [savingConvocSettings, setSavingConvocSettings] = useState(false);
 
   const getAnimForTrip = useCallback((trip) => {
     const s = trip?.staff?.[0];
@@ -5846,6 +5879,26 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
 
   const onSiteSejourNames = useMemo(() => Array.from(onSiteBySejourMap.keys()), [onSiteBySejourMap]);
 
+  // Chargement des configs Firestore (sur place par semaine, réglages messages globaux)
+  useEffect(() => {
+    getDoc(doc(db, COLLECTIONS.TRANSPORT_SETTINGS, "onsite_configs")).then((snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const cfgs = {};
+      Object.entries(data).forEach(([key, val]) => {
+        const idx = key.indexOf("_");
+        if (idx !== -1 && key.slice(0, idx) === selectedWeek) {
+          cfgs[key.slice(idx + 1)] = val;
+        }
+      });
+      setOnSiteConfigs(cfgs);
+    }).catch(() => {});
+
+    getDoc(doc(db, COLLECTIONS.TRANSPORT_SETTINGS, "convoc_messages")).then((snap) => {
+      if (snap.exists()) setConvocSettings(snap.data());
+    }).catch(() => {});
+  }, [selectedWeek]);
+
   const getOnSiteConfig = useCallback((sejourName) => ({
     arrivalTime: onSiteConfigs[sejourName]?.arrivalTime || "14:00",
     returnTime:  onSiteConfigs[sejourName]?.returnTime  || "14:00",
@@ -5857,6 +5910,34 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const setOnSiteConfig = useCallback((sejourName, field, value) => {
     setOnSiteConfigs((prev) => ({ ...prev, [sejourName]: { ...prev[sejourName], [field]: value } }));
   }, []);
+
+  const saveOnSiteModal = useCallback(async () => {
+    if (!onSiteModal) return;
+    setSavingOnSiteModal(true);
+    try {
+      const key = `${selectedWeek}_${onSiteModal}`;
+      const cfg = onSiteConfigs[onSiteModal] || {};
+      await setDoc(doc(db, COLLECTIONS.TRANSPORT_SETTINGS, "onsite_configs"), { [key]: cfg }, { merge: true });
+      showToast("Configuration sauvegardée", "success");
+      setOnSiteModal(null);
+    } catch {
+      showToast("Erreur lors de la sauvegarde", "error");
+    } finally {
+      setSavingOnSiteModal(false);
+    }
+  }, [onSiteModal, onSiteConfigs, selectedWeek, showToast]);
+
+  const saveConvocSettings = useCallback(async () => {
+    setSavingConvocSettings(true);
+    try {
+      await setDoc(doc(db, COLLECTIONS.TRANSPORT_SETTINGS, "convoc_messages"), convocSettings);
+      showToast("Réglages des messages sauvegardés", "success");
+    } catch {
+      showToast("Erreur lors de la sauvegarde", "error");
+    } finally {
+      setSavingConvocSettings(false);
+    }
+  }, [convocSettings, showToast]);
 
   useEffect(() => {
     const m = {};
@@ -5899,7 +5980,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
     const animInfo = getAnimForTrip(trip);
-    const html     = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo);
+    const html     = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo, convocSettings);
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
     const wi = WEEK_INFO[trip.week];
     const subject  = `Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
@@ -6052,6 +6133,10 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
           </svg>
           {showEditor ? "Fermer éditeur" : "Éditer le message"}
         </button>
+        <button type="button" className="dash-btn" onClick={() => setShowConvocSettings((v) => !v)}
+          style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
+          ⚙ {showConvocSettings ? "Fermer réglages" : "Réglages messages"}
+        </button>
         {sendingAll ? (
           <div style={{ minWidth: 170 }}>
             <div style={{ fontSize: 12, color: "#374151", marginBottom: 3 }}>
@@ -6088,6 +6173,101 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
           />
           <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 5 }}>
             Ce texte remplace l&rsquo;introduction par défaut dans tous les emails. Le tableau ALLER/RETOUR est généré automatiquement.
+          </div>
+        </div>
+      )}
+
+      {/* Réglages des messages de convocation */}
+      {showConvocSettings && (
+        <div style={{ marginBottom: 14, padding: "18px 20px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 8 }}>
+            ⚙ Réglages des messages de convocation transport
+            <span style={{ fontWeight: 400, textTransform: "none", color: "#94a3b8", letterSpacing: 0 }}>— Sauvegardés globalement (toutes les semaines)</span>
+          </div>
+
+          {/* Téléphones d'urgence */}
+          <div style={{ marginBottom: 16, padding: "12px 14px", background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", marginBottom: 8, textTransform: "uppercase" }}>🚨 Téléphones d'urgence</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {(convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : EMERGENCY_PHONES).map((phone, i) => (
+                <div key={i} style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={phone}
+                    onChange={(e) => {
+                      const phones = [...(convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : [...EMERGENCY_PHONES])];
+                      phones[i] = e.target.value;
+                      setConvocSettings((prev) => ({ ...prev, emergencyPhones: phones }));
+                    }}
+                    style={{ flex: 1, padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 13 }}
+                  />
+                  <button type="button" onClick={() => {
+                    const phones = (convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : [...EMERGENCY_PHONES]).filter((_, j) => j !== i);
+                    setConvocSettings((prev) => ({ ...prev, emergencyPhones: phones }));
+                  }} style={{ padding: "4px 10px", background: "#fee2e2", border: "none", borderRadius: 6, color: "#dc2626", cursor: "pointer", fontSize: 13 }}>×</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setConvocSettings((prev) => ({ ...prev, emergencyPhones: [...(prev.emergencyPhones?.length ? prev.emergencyPhones : [...EMERGENCY_PHONES]), ""] }))}
+                style={{ padding: "5px 12px", background: "none", border: "1.5px dashed #fca5a5", borderRadius: 6, color: "#dc2626", fontSize: 12, cursor: "pointer", textAlign: "left" }}>
+                + Ajouter un téléphone
+              </button>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {DEFAULT_REMINDER_ITEMS.map((item) => {
+              const s = convocSettings.items?.[item.id] || {};
+              const enabled = s.enabled !== false;
+              return (
+                <div key={item.id} style={{ padding: "10px 14px", background: "#fff", border: `1.5px solid ${enabled ? "#e2e8f0" : "#f3f4f6"}`, borderRadius: 8, opacity: enabled ? 1 : 0.55 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", flexShrink: 0, marginTop: 2 }}>
+                      <input type="checkbox" checked={enabled}
+                        onChange={(e) => setConvocSettings((prev) => ({
+                          ...prev,
+                          items: { ...prev.items, [item.id]: { ...prev.items?.[item.id], enabled: e.target.checked } }
+                        }))}
+                        style={{ width: 15, height: 15, cursor: "pointer" }}
+                      />
+                    </label>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{item.emoji} {item.id.replace(/_/g, " ")}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: item.condition === "always" ? "#f0fdf4" : "#fef3c7", color: item.condition === "always" ? "#15803d" : "#92400e" }}>
+                          {item.conditionLabel}
+                        </span>
+                      </div>
+                      <textarea
+                        value={s.text !== undefined ? s.text : item.defaultText}
+                        onChange={(e) => setConvocSettings((prev) => ({
+                          ...prev,
+                          items: { ...prev.items, [item.id]: { ...prev.items?.[item.id], text: e.target.value } }
+                        }))}
+                        rows={2}
+                        disabled={!enabled}
+                        placeholder={item.defaultText}
+                        style={{ width: "100%", padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 12, color: "#374151", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", outline: "none", background: enabled ? "#fff" : "#f9fafb" }}
+                      />
+                      {s.text !== undefined && s.text !== item.defaultText && (
+                        <button type="button" onClick={() => setConvocSettings((prev) => ({
+                          ...prev,
+                          items: { ...prev.items, [item.id]: { ...prev.items?.[item.id], text: undefined } }
+                        }))} style={{ fontSize: 10, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: "2px 0", marginTop: 2 }}>
+                          ↺ Rétablir le message par défaut
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+            <button type="button" onClick={saveConvocSettings} disabled={savingConvocSettings}
+              style={{ padding: "9px 22px", background: "#B8336A", border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: savingConvocSettings ? 0.7 : 1 }}>
+              {savingConvocSettings ? "Sauvegarde…" : "✓ Enregistrer les réglages"}
+            </button>
           </div>
         </div>
       )}
@@ -6441,10 +6621,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               </label>
             </div>
             {/* Footer */}
-            <div style={{ padding: "14px 24px", borderTop: "1px solid #f0fdf4", display: "flex", justifyContent: "flex-end", background: "#fafafa" }}>
+            <div style={{ padding: "14px 24px", borderTop: "1px solid #f0fdf4", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fafafa" }}>
               <button type="button" onClick={() => setOnSiteModal(null)}
-                style={{ padding: "9px 22px", background: "#15803d", border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                Valider
+                style={{ padding: "9px 18px", background: "none", border: "1.5px solid #d1d5db", borderRadius: 8, color: "#374151", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                Annuler
+              </button>
+              <button type="button" onClick={saveOnSiteModal} disabled={savingOnSiteModal}
+                style={{ padding: "9px 22px", background: "#15803d", border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: savingOnSiteModal ? 0.7 : 1 }}>
+                {savingOnSiteModal ? "Sauvegarde…" : "✓ Valider & Sauvegarder"}
               </button>
             </div>
           </div>

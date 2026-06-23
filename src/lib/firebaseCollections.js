@@ -4,6 +4,7 @@
   FINANCE_SUMMARIES: "finance_summaries",
   TRANSPORTS: "transports",
   TRANSPORT_RDV_POINTS: "transport_rdv_points",
+  TRANSPORT_SETTINGS: "transport_settings",
   STAFF_MEMBERS: "staff_members",
   STAFF_CONTRACTS: "staff_contracts",
   PAGES: "pages",
