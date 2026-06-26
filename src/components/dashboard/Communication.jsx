@@ -23,9 +23,7 @@ const WEEK_LABELS = {
 };
 
 const SENDERS = [
-  { name: "ColoCrew Inscriptions", email: "inscriptions@colocrew.com" },
-  { name: "Equipe ColoCrew",       email: "equipe@colocrew.com" },
-  { name: "William Dreyer",        email: "w.dreyer@colocrew.com" },
+  { name: "ColoCrew", email: "contact@colocrew.com" },
 ];
 
 const MISSING_DOCS_OPTIONS = [
@@ -72,6 +70,31 @@ Afin de finaliser l'inscription, il nous manque les documents suivants :
 Merci de nous les transmettre dans les meilleurs délais par retour de mail ou directement sur votre espace en ligne.
 
 Pour toute question, nous restons disponibles.
+
+À très bientôt,
+L'équipe ColoCrew`,
+  },
+  {
+    key: "lancement_sejours",
+    label: "Lancement des séjours",
+    defaultSubject: "ColoCrew — Lancement des séjours {{nom_sejour}} ({{semaine}})",
+    defaultBody: `Bonjour {{prenom_parent}},
+
+Le départ approche pour {{prenom_enfants}} : nous sommes très heureux de bientôt accueillir les jeunes sur le séjour {{nom_sejour}} — {{semaine}} ({{dates_sejour}}).
+
+Avant le départ, merci de bien vérifier que les documents demandés ont été transmis à l'équipe ColoCrew.
+
+Pour rappel, selon les situations et les séjours, les documents peuvent notamment concerner :
+
+• les vaccins / le carnet de santé ;
+• la carte d'identité ;
+• le test nautique.
+
+Ce rappel est générique : tous les documents ne concernent pas forcément tous les enfants. Si un document ne s'applique pas à votre situation, vous pouvez simplement ne pas en tenir compte.
+
+Merci de nous envoyer les éléments manquants par retour de mail dès que possible, afin que les dossiers soient bien complets avant le départ.
+
+Nous reviendrons vers vous avec les dernières informations pratiques si nécessaire.
 
 À très bientôt,
 L'équipe ColoCrew`,

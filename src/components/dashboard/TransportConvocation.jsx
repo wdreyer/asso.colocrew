@@ -406,8 +406,8 @@ export default function TransportConvocation() {
         to: res.legal.email,
         subject: subject || `ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`,
         html,
-        from_name: "ColoCrew Inscriptions",
-        from_email: "inscriptions@colocrew.com",
+        from_name: "ColoCrew",
+        from_email: "contact@colocrew.com",
         includeDecharge: true,
       }),
     });

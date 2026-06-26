@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/convocations/j7-reminder",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

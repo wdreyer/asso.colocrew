@@ -280,6 +280,22 @@ function segmentSubStops(segment) {
   return Array.isArray(segment?.stops) ? segment.stops : [];
 }
 
+function transportBranches(transport) {
+  return Array.isArray(transport?.branches) ? transport.branches : [];
+}
+
+function branchStopCity(transport, branch) {
+  return transport.direction === "retour" ? branch?.to : branch?.from;
+}
+
+function branchJoinCity(transport, branch) {
+  return branch?.joinsAt || (transport.direction === "retour" ? branch?.from : branch?.to) || "";
+}
+
+function isBranchSegment(segment) {
+  return segment?.kind === "branch" || segment?.routeKind === "branch";
+}
+
 function segmentStopType(segment) {
   return segment?.stopType || "rdv";
 }
@@ -298,11 +314,66 @@ function segmentMeetingLabel(segment) {
   return segment.meetingPoint || "Point de rendez-vous à compléter";
 }
 
+function mainJoinIndexForBranch(transport, branch) {
+  const segments = transport?.segments || [];
+  const joinKey = normalizePlace(branchJoinCity(transport, branch));
+  if (!joinKey) return transport?.direction === "retour" ? segments.length - 1 : 0;
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (transport?.direction === "retour") {
+      if (normalizePlace(segment.to) === joinKey) return index;
+      if (normalizePlace(segment.from) === joinKey) return Math.max(0, index - 1);
+      continue;
+    }
+    if (normalizePlace(segment.from) === joinKey) return index;
+    if (normalizePlace(segment.to) === joinKey) return Math.min(index + 1, segments.length);
+  }
+
+  return transport?.direction === "retour" ? segments.length - 1 : segments.length;
+}
+
+function ticketPortionEntries(transport) {
+  const segments = (transport?.segments || []).map((segment, index) => ({
+    portion: segment,
+    index,
+    type: "segment",
+  }));
+  const branches = transportBranches(transport).map((branch, index) => ({
+    portion: { ...branch, kind: branch.kind || "branch" },
+    index,
+    type: "branch",
+  }));
+  return [...segments, ...branches];
+}
+
+function ticketPortions(transport) {
+  return ticketPortionEntries(transport).map((entry) => entry.portion);
+}
+
+function routePortionCount(transport) {
+  return ticketPortionEntries(transport).length;
+}
+
+function missingTicketPortionCount(transport) {
+  return ticketPortionEntries(transport).filter(({ portion }) =>
+    !purchasedTicketsForSegment(transport.tickets || [], portion.id).length,
+  ).length;
+}
+
+function ticketPortionEntryById(transport, portionId) {
+  return ticketPortionEntries(transport).find((entry) => entry.portion?.id === portionId) || null;
+}
+
 function transportStopCities(transport) {
   const cities = new Set();
   (transport.segments || []).forEach((segment) => {
     [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
     segmentSubStops(segment).forEach((stop) => stop.city && cities.add(stop.city));
+  });
+  transportBranches(transport).forEach((branch) => {
+    [branch.from, branch.to, branch.joinsAt].filter(Boolean).forEach((city) => cities.add(city));
+    segmentSubStops(branch).forEach((stop) => stop.city && cities.add(stop.city));
   });
   if (transport.departureCity) cities.add(transport.departureCity);
   if (transport.arrivalCity) cities.add(transport.arrivalCity);
@@ -346,7 +417,43 @@ function routeBoardingStops(transport) {
     addMainStop();
     addSubStops();
   });
-  return stops;
+  const mainStops = [...stops];
+  transportBranches(transport).forEach((branch, branchIndex) => {
+    const joinCity = branchJoinCity(transport, branch);
+    const joinIndex = mainJoinIndexForBranch(transport, branch);
+    const joinStop = mainStops.find((stop) => normalizePlace(stop.city) === normalizePlace(joinCity));
+    const baseOrder = Number.isFinite(joinStop?.order)
+      ? joinStop.order - 0.35 + branchIndex * 0.01
+      : stops.length + branchIndex;
+    const city = branchStopCity(transport, branch);
+    if (city) {
+      stops.push({
+        city,
+        segment: { ...branch, kind: branch.kind || "branch" },
+        branch,
+        branchIndex,
+        segmentIndex: joinIndex,
+        stopIndex: -1,
+        type: "branch",
+        order: baseOrder,
+      });
+    }
+    segmentSubStops(branch).forEach((stop, stopIndex) => {
+      if (!stop.city) return;
+      stops.push({
+        city: stop.city,
+        segment: { ...branch, kind: branch.kind || "branch" },
+        branch,
+        branchIndex,
+        segmentIndex: joinIndex,
+        stopIndex,
+        stop,
+        type: "branch-sub",
+        order: baseOrder + (stopIndex + 1) * 0.005,
+      });
+    });
+  });
+  return stops.sort((a, b) => a.order - b.order);
 }
 
 function routeStopTime(stop, transport, kind = "arrival") {
@@ -355,6 +462,12 @@ function routeStopTime(stop, transport, kind = "arrival") {
     return kind === "departure"
       ? stop.stop?.departureTime || stop.stop?.arrivalTime || ""
       : stop.stop?.arrivalTime || stop.stop?.departureTime || "";
+  }
+  if (stop.type === "branch" || stop.type === "branch-sub") {
+    const item = stop.type === "branch-sub" ? stop.stop : stop.branch;
+    return kind === "departure"
+      ? item?.departureTime || item?.arrivalTime || ""
+      : item?.arrivalTime || item?.departureTime || "";
   }
   if (transport?.direction === "retour") {
     return stop.segment?.arrivalTime || stop.segment?.departureTime || "";
@@ -366,7 +479,8 @@ function routeStopTime(stop, transport, kind = "arrival") {
 
 function routeStopMeetingPoint(stop) {
   if (!stop) return "";
-  return stop.type === "sub" ? segmentMeetingLabel(stop.stop) : segmentMeetingLabel(stop.segment);
+  if (stop.type === "sub" || stop.type === "branch-sub") return segmentMeetingLabel(stop.stop);
+  return segmentMeetingLabel(stop.branch || stop.segment);
 }
 
 function trainLabelForSegment(segment, transport) {
@@ -379,6 +493,13 @@ function routeSegmentsFromStop(transport, stop) {
   const segments = transport?.segments || [];
   if (!segments.length) return [];
   if (!stop) return segments;
+  if (stop.type === "branch" || stop.type === "branch-sub") {
+    const branch = { ...(stop.branch || stop.segment), kind: "branch" };
+    const joinIndex = mainJoinIndexForBranch(transport, branch);
+    return transport?.direction === "retour"
+      ? [...segments.slice(0, joinIndex + 1), branch]
+      : [branch, ...segments.slice(joinIndex)];
+  }
   const index = Number.isInteger(stop?.segmentIndex) ? stop.segmentIndex : 0;
   return transport?.direction === "retour"
     ? segments.slice(0, index + 1)
@@ -474,7 +595,7 @@ function cityStopSegment(transport, city) {
 function isQuaiCity(transport, city) {
   const normalizedCity = normalizePlace(city);
   const stop = routeBoardingStops(transport).find((item) => normalizePlace(item.city) === normalizedCity);
-  if (stop?.type === "sub") return segmentStopType(stop.stop) === "quai";
+  if (stop?.type === "sub" || stop?.type === "branch-sub") return segmentStopType(stop.stop) === "quai";
   return segmentStopType(stop?.segment) === "quai";
 }
 
@@ -535,6 +656,16 @@ function passengersAtStop(transport, city) {
   );
 }
 
+function passengersOnBranch(transport, branch) {
+  const branchCities = new Set([
+    branchStopCity(transport, branch),
+    ...segmentSubStops(branch).map((stop) => stop.city),
+  ].map((city) => normalizePlace(city)).filter(Boolean));
+  return (transport.passengers || []).filter((passenger) =>
+    branchCities.has(normalizePlace(passengerCity(transport, passenger))),
+  );
+}
+
 function passengersBeforeStop(transport, stopOrder) {
   return (transport.passengers || []).filter((passenger) => {
     const boarding = passengerBoardingStop(transport, passenger);
@@ -552,10 +683,22 @@ function passengersOnSegment(transport, segmentIndex) {
   return (transport.passengers || []).filter((passenger) => {
     const boarding = passengerBoardingStop(transport, passenger);
     if (!boarding) return false;
+    if (boarding.type === "branch" || boarding.type === "branch-sub") {
+      const joinIndex = mainJoinIndexForBranch(transport, boarding.branch || boarding.segment);
+      return transport.direction === "retour"
+        ? segmentIndex <= joinIndex
+        : segmentIndex >= joinIndex;
+    }
     return transport.direction === "retour"
       ? segmentIndex <= boarding.segmentIndex
       : segmentIndex >= boarding.segmentIndex;
   });
+}
+
+function passengersOnTicketPortion(transport, portion, index) {
+  return isBranchSegment(portion)
+    ? passengersOnBranch(transport, portion)
+    : passengersOnSegment(transport, index);
 }
 
 function purchasedTicketsForSegment(tickets, segmentId) {
@@ -563,7 +706,7 @@ function purchasedTicketsForSegment(tickets, segmentId) {
 }
 
 function ticketsLinkedToSegments(transport) {
-  const segmentIds = new Set((transport.segments || []).map((segment) => segment.id).filter(Boolean));
+  const segmentIds = new Set(ticketPortions(transport).map((segment) => segment.id).filter(Boolean));
   return (transport.tickets || []).filter((ticket) => ticket.segmentId && segmentIds.has(ticket.segmentId));
 }
 
@@ -581,7 +724,7 @@ function directionIcon(direction) {
 
 function requiredSeatsForSegment(transport, segment, segmentIndex) {
   if (!segment) return 0;
-  return countChildren(passengersOnSegment(transport, segmentIndex)) + (segment.assignedStaffIds || []).length;
+  return countChildren(passengersOnTicketPortion(transport, segment, segmentIndex)) + (segment.assignedStaffIds || []).length;
 }
 
 function purchasedSeatsForSegmentTickets(tickets) {
@@ -615,11 +758,13 @@ function displayTicketForSegment(ticket, transport, segment, segmentIndex, segme
 }
 
 function ticketRowsForTransport(transport, { includeMissingSegments = true } = {}) {
-  const segments = transport.segments || [];
+  const segments = ticketPortions(transport);
+  const entries = ticketPortionEntries(transport);
   const linkedTickets = ticketsLinkedToSegments(transport);
   const rows = linkedTickets.map((ticket) => {
-    const segmentIndex = segments.findIndex((segment) => segment.id === ticket.segmentId);
-    const seg = segmentIndex >= 0 ? segments[segmentIndex] : null;
+    const entry = entries.find((item) => item.portion?.id === ticket.segmentId);
+    const segmentIndex = entry?.index ?? -1;
+    const seg = entry?.portion || null;
     const segmentTickets = seg ? linkedTickets.filter((item) => item.segmentId === seg.id) : [];
     return {
       type: "ticket",
@@ -631,7 +776,7 @@ function ticketRowsForTransport(transport, { includeMissingSegments = true } = {
 
   if (!includeMissingSegments) return rows;
 
-  segments.forEach((segment, segmentIndex) => {
+  entries.forEach(({ portion: segment, index: segmentIndex }) => {
     const segmentTickets = linkedTickets.filter((ticket) => ticket.segmentId === segment.id);
     const hasPendingTicket = segmentTickets.some((ticket) => !ticket.purchased);
     const purchasedSeats = purchasedSeatsForSegmentTickets(segmentTickets);
@@ -689,7 +834,7 @@ function ticketSegmentLabel(ticket, segments) {
 }
 
 function accountingTicketLabel(ticket, transport) {
-  const segmentLabel = ticketSegmentLabel(ticket, transport.segments || []);
+  const segmentLabel = ticketSegmentLabel(ticket, ticketPortions(transport));
   const directionLabel = transport.direction === "retour" ? "Retour" : "Aller";
   return `${segmentLabel || transportRouteLabel(transport)} (${directionLabel} ${fmtDate(transport.date)})`;
 }
@@ -823,6 +968,7 @@ function mapTransport(snap) {
     routeGroup:      d.routeGroup      || "direct",
     week:            d.week            || "",
     segments:        Array.isArray(d.segments) ? d.segments : [],
+    branches:        Array.isArray(d.branches) ? d.branches : [],
     staff:           Array.isArray(d.staff) ? d.staff : [],
     tickets:         Array.isArray(d.tickets) ? d.tickets : [],
     emergencyContact: d.emergencyContact || "",
@@ -1400,6 +1546,7 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "",
 function buildStaffBriefingHTML(transport) {
   const staff = transport.staff || [];
   const segments = transport.segments || [];
+  const portions = ticketPortions(transport);
   const tickets = transport.tickets || [];
   const routeLabel = ROUTE_GROUPS.find((item) => item.value === transport.routeGroup)?.label || "Direct";
   const passengerRows = groupPassengersByCity(transport).map(({ city, passengers }) => `
@@ -1454,7 +1601,7 @@ function buildStaffBriefingHTML(transport) {
     <tr><td><strong>${member.name || "-"}</strong></td><td>${member.role || "Animateur convoyeur"}</td>
     <td>${member.phone || "-"}</td><td>${member.boardingCity || "-"}</td></tr>`).join("");
   const ticketRows = tickets.map((ticket) => `
-    <li><strong>${ticket.name || "Billet"}</strong> - ${ticketSegmentLabel(ticket, segments) || "segment non affecté"}
+    <li><strong>${ticket.name || "Billet"}</strong> - ${ticketSegmentLabel(ticket, portions) || "segment non affecté"}
     - ${formatMoney(ticket.price)} - ${ticket.departureTime || "?"} / ${ticket.arrivalTime || "?"}
     - <strong>${ticket.purchased ? "ACHETÉ" : "À ACHETER"}</strong>${ticket.url ? ` - <a href="${ticket.url}">ouvrir</a>` : ""}</li>
   `).join("");
@@ -1612,8 +1759,7 @@ function AllTransportsList({ transports, selectedId, onSelectTrip }) {
               const trips = transports.filter((t) => t.date === date);
               const totalChildren = trips.reduce((s, t) => s + countChildren(t.passengers), 0);
               const totalStaff = trips.reduce((s, t) => s + (t.staff || []).length, 0);
-              const missingTix = trips.reduce((s, t) =>
-                s + (t.segments || []).filter((seg) => !purchasedTicketsForSegment(t.tickets || [], seg.id).length).length, 0);
+              const missingTix = trips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
               return (
                 <div key={date} className="tr-all-day">
                   <div className="tr-all-day-label">
@@ -1642,7 +1788,7 @@ function AllTransportsList({ transports, selectedId, onSelectTrip }) {
                           <span className="tr-all-trip-route">{trip.departureCity || "?"} → {trip.arrivalCity || "?"}</span>
                           <div className="tr-all-trip-meta">
                             <span>{countChildren(trip.passengers)} enf.</span>
-                            <span>{(trip.segments || []).length} étape{(trip.segments || []).length !== 1 ? "s" : ""}</span>
+                            <span>{routePortionCount(trip)} étape{routePortionCount(trip) !== 1 ? "s" : ""}</span>
                             {trip.departureTime && <span>{trip.departureTime}</span>}
                           </div>
                           <Badge label={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).label} variant={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).variant} />
@@ -1683,14 +1829,10 @@ function WeeksOverview({ transports, selectedId, onSelectTrip }) {
               ].map(({ dir, date, label, icon }) => {
                 const trips = transports.filter((t) => t.date === date);
                 const totalChildren = trips.reduce((s, t) => s + countChildren(t.passengers), 0);
-                const totalSegs = trips.reduce((s, t) => s + (t.segments || []).length, 0);
+                const totalSegs = trips.reduce((s, t) => s + routePortionCount(t), 0);
                 const boughtTickets = trips.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
                 const totalTickets = trips.reduce((s, t) => s + (t.tickets || []).length, 0);
-                const missingSegs = trips.reduce((s, t) =>
-                  s + (t.segments || []).filter((seg) =>
-                    !(t.tickets || []).some((tk) => tk.segmentId === seg.id),
-                  ).length, 0,
-                );
+                const missingSegs = trips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
                 const tickPct = totalTickets > 0 ? Math.round((boughtTickets / totalTickets) * 100) : 0;
                 const allOk = missingSegs === 0 && totalTickets > 0 && boughtTickets === totalTickets;
 
@@ -1730,7 +1872,7 @@ function WeeksOverview({ transports, selectedId, onSelectTrip }) {
                       {trips.length === 0 ? (
                         <div className="wo-trip-empty">Aucun trajet configuré</div>
                       ) : trips.map((trip) => {
-                        const segs = trip.segments || [];
+                        const segs = ticketPortions(trip);
                         const tix = trip.tickets || [];
                         const tripBought = tix.filter((tk) => tk.purchased).length;
                         const tripMissing = segs.filter((seg) => !tix.some((tk) => tk.segmentId === seg.id)).length;
@@ -1790,6 +1932,7 @@ function WeeksOverview({ transports, selectedId, onSelectTrip }) {
 
 function TripTimeline({ transport, onToggleStaff }) {
   const segments  = transport.segments || [];
+  const branches  = transportBranches(transport);
   const staffPool = transport.staff    || [];
   if (segments.length === 0) return null;
 
@@ -1805,6 +1948,7 @@ function TripTimeline({ transport, onToggleStaff }) {
           const action = timelineActionInfo(transport, seg.from, { isFirst: i === 0 });
           const connectionDuration = previous ? durationBetween(previous.arrivalTime, seg.departureTime) : "";
           const trainDuration = durationBetween(seg.departureTime, seg.arrivalTime);
+          const joiningBranches = branches.filter((branch) => mainJoinIndexForBranch(transport, branch) === i);
 
           return [
             /* Stop node */
@@ -1824,6 +1968,21 @@ function TripTimeline({ transport, onToggleStaff }) {
                     {action.count} {action.label}
                   </span>
                 )}
+                {joiningBranches.map((branch) => {
+                  const branchDuration = durationBetween(branch.departureTime, branch.arrivalTime);
+                  const branchCount = countChildren(passengersOnBranch(transport, branch));
+                  return (
+                    <span key={branch.id} className="tl-branch-chip">
+                      <strong>{branch.from || "Branche"} → {branch.to || seg.from}</strong>
+                      <small>
+                        {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
+                        {branch.arrivalTime && <span>Arr. {branch.arrivalTime}</span>}
+                        {branchDuration && <span>{branchDuration}</span>}
+                        {branchCount > 0 && <span>{branchCount} enfant{branchCount > 1 ? "s" : ""}</span>}
+                      </small>
+                    </span>
+                  );
+                })}
               </div>
             </div>,
 
@@ -1883,6 +2042,24 @@ function TripTimeline({ transport, onToggleStaff }) {
           ];
         })}
 
+        {branches.filter((branch) => mainJoinIndexForBranch(transport, branch) >= segments.length).map((branch) => {
+          const branchDuration = durationBetween(branch.departureTime, branch.arrivalTime);
+          const branchCount = countChildren(passengersOnBranch(transport, branch));
+          return (
+            <div key={`branch-arr-${branch.id}`} className="tl-branch-arrival" style={{ "--i": segments.length }}>
+              <span className="tl-branch-chip">
+                <strong>{branch.from || "Branche"} → {branch.to || last?.to}</strong>
+                <small>
+                  {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
+                  {branch.arrivalTime && <span>Arr. {branch.arrivalTime}</span>}
+                  {branchDuration && <span>{branchDuration}</span>}
+                  {branchCount > 0 && <span>{branchCount} enfant{branchCount > 1 ? "s" : ""}</span>}
+                </small>
+              </span>
+            </div>
+          );
+        })}
+
         {/* Arrival node */}
         <div className="tl-stop tl-stop-arr" style={{ "--i": segments.length }}>
           <div className="tl-dot tl-dot-arrival" />
@@ -1907,9 +2084,8 @@ function TripTimeline({ transport, onToggleStaff }) {
 function DaySummary({ transports, date }) {
   const totalChildren = transports.reduce((s, t) => s + countChildren(t.passengers), 0);
   const totalStaff    = transports.reduce((s, t) => s + (t.staff || []).length, 0);
-  const totalSegs     = transports.reduce((s, t) => s + (t.segments || []).length, 0);
-  const missingTix    = transports.reduce((s, t) =>
-    s + (t.segments || []).filter((seg) => !purchasedTicketsForSegment(t.tickets || [], seg.id).length).length, 0);
+  const totalSegs     = transports.reduce((s, t) => s + routePortionCount(t), 0);
+  const missingTix    = transports.reduce((s, t) => s + missingTicketPortionCount(t), 0);
   const totalCost     = transports.reduce((s, t) =>
     s + (t.tickets || []).filter((tk) => tk.purchased).reduce((ts, tk) => ts + Number(tk.price || 0), 0), 0);
 
@@ -1970,10 +2146,7 @@ function TransportHomeHeader({ reservations, transports, onCreate }) {
     const retour = weekReservations.reduce((sum, reservation) =>
       sum + (normalizePlace(reservation.returnCity) !== "sur place" ? reservation.childCount : 0), 0);
     const trips = transports.filter((transport) => transport.week === week);
-    const missingTickets = trips.reduce((sum, transport) =>
-      sum + (transport.segments || []).filter((segment) =>
-        !(transport.tickets || []).some((ticket) => ticket.segmentId === segment.id),
-      ).length, 0);
+    const missingTickets = trips.reduce((sum, transport) => sum + missingTicketPortionCount(transport), 0);
     return { week, info, children, aller, retour, trips: trips.length, missingTickets };
   }), [reservations, transports]);
 
@@ -2069,8 +2242,8 @@ function TransportBudgetOverview({ reservations, transports }) {
           url: ticket.url || null,
           virtual: Boolean(ticket.virtual),
           type,
-          segmentLabel: seg ? segmentRouteLabel(seg) : ticketSegmentLabel(ticket, t.segments || []),
-          sortKey: `${seg ? (t.segments || []).findIndex((segment) => segment.id === seg.id) : 999}-${ticket.name || ""}`,
+          segmentLabel: seg ? segmentRouteLabel(seg) : ticketSegmentLabel(ticket, ticketPortions(t)),
+          sortKey: `${ticketPortionEntryById(t, ticket.segmentId)?.index ?? 999}-${ticket.name || ""}`,
         };
         d.tickets.push(row);
         day.tickets.push(row);
@@ -2421,7 +2594,7 @@ function DateTripCards({ transports, selectedId, onSelectTrip, onEditSegment }) 
               <h2>{trip.departureCity || "Départ à compléter"} → {trip.arrivalCity || "Arrivée à compléter"}</h2>
               <div className="tr-principal-stats is-compact">
                 <div><strong>{countChildren(trip.passengers)}</strong><span>enfants</span></div>
-                <div><strong>{(trip.segments || []).length}</strong><span>étapes</span></div>
+                <div><strong>{routePortionCount(trip)}</strong><span>étapes</span></div>
                 <div><strong>{trip.departureTime || "-"}</strong><span>départ</span></div>
                 <div><strong>{trip.arrivalTime || "-"}</strong><span>arrivée</span></div>
               </div>
@@ -2843,6 +3016,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
                       <option value="">Ville à préciser</option>
                       {[...new Set([
                         ...(transport.segments || []).map((segment) => segment.from),
+                        ...transportBranches(transport).map((branch) => branchStopCity(transport, branch)),
                         transport.arrivalCity,
                       ].filter(Boolean))].map((optionCity) => (
                         <option key={optionCity} value={optionCity}>
@@ -2896,6 +3070,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
 function OperationsTab({ transport, allReservations, staffMembers, staffContracts, onUpdate, focusSegmentId, cityOptions = [] }) {
   const { showToast } = useToast();
   const [segments, setSegments] = useState(transport.segments || []);
+  const [branches, setBranches] = useState(transport.branches || []);
   const [staff, setStaff] = useState(transport.staff || []);
   const [tickets, setTickets] = useState(transport.tickets || []);
   const [meta, setMeta] = useState({
@@ -2970,6 +3145,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
 
   useEffect(() => {
     setSegments(transport.segments || []);
+    setBranches(transport.branches || []);
     setStaff(transport.staff || []);
     setTickets(transport.tickets || []);
     setMeta({
@@ -3083,6 +3259,42 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     if (editingSegmentId === segmentId) setEditingSegmentId("__bilan__");
   };
 
+  const addBranch = () => {
+    const newId = crypto.randomUUID();
+    setBranches((items) => {
+      const mainJoin = segments.find((segment) => normalizePlace(segment.from) === "paris")
+        || segments.find((segment) => normalizePlace(segment.to) === "paris")
+        || segments[1]
+        || segments[0];
+      const to = mainJoin?.from || mainJoin?.to || transport.arrivalCity || "";
+      const choices = cityChoicesFor("Rouen", to, transport.departureCity, transport.arrivalCity);
+      const from = choices.find((city) => normalizePlace(city) === "rouen") || choices[0] || "";
+      return [...items, {
+        id: newId,
+        kind: "branch",
+        label: "",
+        from,
+        to,
+        joinsAt: to,
+        meetingTime: "",
+        meetingPoint: "",
+        departureTime: "",
+        arrivalTime: "",
+        mode: "TER",
+        number: "",
+        platform: "",
+        stopType: "rdv",
+        instructions: "",
+        assignedStaffIds: [],
+      }];
+    });
+  };
+
+  const removeBranch = (branchId) => {
+    setBranches((items) => items.filter((branch) => branch.id !== branchId));
+    setTickets((items) => items.filter((ticket) => ticket.segmentId !== branchId));
+  };
+
   const addStaff = () => setStaff((items) => [...items, {
     id: crypto.randomUUID(),
     name: "",
@@ -3137,12 +3349,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
 
   const addPlannedTicket = () => {
     const newId = crypto.randomUUID();
-    const firstSegment = segments[0];
+    const firstEntry = ticketPortionEntries({ ...transport, segments, branches })[0];
+    const firstSegment = firstEntry?.portion || null;
     setTickets((items) => [...items, {
       id: newId,
       name: firstSegment ? `Billet à acheter - ${segmentRouteLabel(firstSegment)}` : "Billet à acheter",
       segmentId: firstSegment?.id || "",
-      seats: firstSegment ? requiredSeatsForSegment({ ...transport, segments }, firstSegment, 0) || 1 : 1,
+      seats: firstEntry ? requiredSeatsForSegment({ ...transport, segments, branches }, firstSegment, firstEntry.index) || 1 : 1,
       price: "",
       departureTime: "",
       arrivalTime: "",
@@ -3218,25 +3431,38 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const save = async () => {
     setSaving(true);
     try {
-      const knownCityKeys = new Set(cityChoicesFor(transport.departureCity, transport.arrivalCity).map((city) => normalizePlace(city)).filter(Boolean));
+      const knownCityKeys = new Set(cityChoicesFor(
+        transport.departureCity,
+        transport.arrivalCity,
+        ...segments.flatMap((segment) => [segment.from, segment.to, ...segmentSubStops(segment).map((stop) => stop.city)]),
+        ...branches.flatMap((branch) => [branch.from, branch.to, branch.joinsAt, ...segmentSubStops(branch).map((stop) => stop.city)]),
+      ).map((city) => normalizePlace(city)).filter(Boolean));
       const invalidSegment = segments.find((segment) =>
         !knownCityKeys.has(normalizePlace(segment.from)) || !knownCityKeys.has(normalizePlace(segment.to)),
       );
+      const invalidBranch = branches.find((branch) =>
+        !knownCityKeys.has(normalizePlace(branch.from))
+        || !knownCityKeys.has(normalizePlace(branch.to))
+        || (branch.joinsAt && !knownCityKeys.has(normalizePlace(branch.joinsAt))),
+      );
       const invalidStop = segments.flatMap((segment) => segmentSubStops(segment)).find((stop) =>
         !knownCityKeys.has(normalizePlace(stop.city)),
+      ) || branches.flatMap((branch) => segmentSubStops(branch)).find((stop) =>
+        !knownCityKeys.has(normalizePlace(stop.city)),
       );
-      if (invalidSegment || invalidStop) {
+      if (invalidSegment || invalidBranch || invalidStop) {
         showToast("Chaque segment doit utiliser une ville présente dans Points de RDV.", "error");
         return;
       }
 
       const first = segments[0];
       const last = segments.at(-1);
-      const segmentIds = new Set(segments.map((segment) => segment.id).filter(Boolean));
+      const segmentIds = new Set([...segments, ...branches].map((segment) => segment.id).filter(Boolean));
       const linkedTickets = tickets.filter((ticket) => ticket.segmentId && segmentIds.has(ticket.segmentId));
       const patch = {
         ...meta,
         segments,
+        branches,
         staff,
         tickets: linkedTickets,
         ...(first ? {
@@ -3311,19 +3537,20 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     }
   };
 
-  const activeT = { ...transport, segments };
+  const activeT = { ...transport, segments, branches };
   const activeSegIdx = segments.findIndex((s) => s.id === editingSegmentId);
   const activeSeg = (activeSegIdx >= 0 && editingSegmentId !== "__bilan__") ? segments[activeSegIdx] : null;
 
   const addTicketForSegment = (segmentId) => {
     const newId = crypto.randomUUID();
-    const segIdx = segments.findIndex((s) => s.id === segmentId);
+    const entry = ticketPortionEntryById(activeT, segmentId);
+    const segIdx = entry?.index ?? -1;
     const segmentTickets = tickets.filter((ticket) => ticket.segmentId === segmentId);
-    const autoSeats = segIdx >= 0
-      ? missingSeatsForSegment(activeT, segments[segIdx], segIdx, segmentTickets)
+    const autoSeats = entry
+      ? missingSeatsForSegment(activeT, entry.portion, segIdx, segmentTickets)
       : 1;
     setTickets((items) => [...items, {
-      id: newId, name: `Billet à acheter - ${segIdx >= 0 ? segmentRouteLabel(segments[segIdx]) : "segment"}`, segmentId, seats: autoSeats || 1,
+      id: newId, name: `Billet à acheter - ${entry ? segmentRouteLabel(entry.portion) : "portion"}`, segmentId, seats: autoSeats || 1,
       price: "", departureTime: "", arrivalTime: "", bookingReference: "", purchased: false, url: "",
     }]);
     setEditingTicketId(newId);
@@ -3665,7 +3892,174 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         );
       })}
 
+      {branches.length > 0 && (
+        <div className="tr-ops-branch-list">
+          <div className="tr-ops-branch-title">Branches de rattachement</div>
+          {branches.map((branch, branchIndex) => {
+            const branchPortion = { ...branch, kind: branch.kind || "branch" };
+            const rawBranchTix = tickets.filter((ticket) => ticket.segmentId === branch.id);
+            const branchTix = rawBranchTix.map((ticket) =>
+              displayTicketForSegment(ticket, activeT, branchPortion, branchIndex, rawBranchTix),
+            );
+            const branchPassengers = passengersOnBranch(activeT, branchPortion);
+            const branchKids = branchPassengers.flatMap((p) =>
+              (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
+                .map((c) => ({ ...c, reservationId: p.reservationId })),
+            );
+            const assignedStaff = staff.filter((member) => (branch.assignedStaffIds || []).includes(member.id));
+            const needed = branchKids.length + assignedStaff.length;
+            const bought = purchasedSeatsForSegmentTickets(rawBranchTix);
+            const seatsOk = needed === 0 || bought >= needed;
+            const trainLabel = `${branch.mode || "Transport"}${branch.number ? ` ${branch.number}` : ""}`;
+            const branchCityChoices = cityChoicesFor(branch.from, branch.to, branch.joinsAt);
+
+            return (
+              <div key={branch.id} className="tr-ops-seg tr-ops-branch">
+                <div className="tr-ops-seg-head">
+                  <span className="tr-ops-seg-num">B{branchIndex + 1}</span>
+                  <div className="tr-ops-seg-main">
+                    <span className="tr-ops-seg-title">
+                      {branch.from || "Départ branche"} → {branch.to || branch.joinsAt || "Jonction"}
+                    </span>
+                    <div className="tr-ops-seg-summary">
+                      <span>Rejoint à <strong>{branch.joinsAt || branch.to || "à compléter"}</strong></span>
+                      <span><strong>{branch.departureTime || "--:--"}</strong> → <strong>{branch.arrivalTime || "--:--"}</strong></span>
+                      <span>{trainLabel}</span>
+                      <span>{branchKids.length} enfant{branchKids.length !== 1 ? "s" : ""}</span>
+                      <span className={seatsOk ? "is-ok" : "is-short"}>Billets {bought}/{needed || 0}</span>
+                    </div>
+                  </div>
+                  <button type="button" className="tr-ops-seg-del" onClick={() => removeBranch(branch.id)}>
+                    Supprimer
+                  </button>
+                </div>
+
+                <details className="tr-ops-details">
+                  <summary>Détails de la branche</summary>
+                  <div className="tr-ops-train-row">
+                    <label className="tr-ops-field-sm">
+                      <span>De</span>
+                      <select className="dash-input" value={branch.from || ""} onChange={(e) => updateItem(setBranches, branch.id, "from", e.target.value)}>
+                        <option value="">Ville RDV...</option>
+                        {branchCityChoices.map((city) => <option key={`branch-from-${branch.id}-${city}`} value={city}>{city}</option>)}
+                      </select>
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>À</span>
+                      <select className="dash-input" value={branch.to || ""} onChange={(e) => updateItem(setBranches, branch.id, "to", e.target.value)}>
+                        <option value="">Ville RDV...</option>
+                        {branchCityChoices.map((city) => <option key={`branch-to-${branch.id}-${city}`} value={city}>{city}</option>)}
+                      </select>
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>Jonction</span>
+                      <select className="dash-input" value={branch.joinsAt || ""} onChange={(e) => updateItem(setBranches, branch.id, "joinsAt", e.target.value)}>
+                        <option value="">Ville de jonction...</option>
+                        {branchCityChoices.map((city) => <option key={`branch-join-${branch.id}-${city}`} value={city}>{city}</option>)}
+                      </select>
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>Mode</span>
+                      <select className="dash-input" value={branch.mode || "TER"} onChange={(e) => updateItem(setBranches, branch.id, "mode", e.target.value)}>
+                        {TRAIN_TYPES.map((type) => <option key={type}>{type}</option>)}
+                      </select>
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>N° train</span>
+                      <input className="dash-input" value={branch.number || ""} onChange={(e) => updateItem(setBranches, branch.id, "number", e.target.value)} placeholder="Train" />
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>RDV</span>
+                      <input className="dash-input" type="time" value={branch.meetingTime || ""} onChange={(e) => updateItem(setBranches, branch.id, "meetingTime", e.target.value)} />
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>Départ</span>
+                      <input className="dash-input" type="time" value={branch.departureTime || ""} onChange={(e) => updateItem(setBranches, branch.id, "departureTime", e.target.value)} />
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>Arrivée</span>
+                      <input className="dash-input" type="time" value={branch.arrivalTime || ""} onChange={(e) => updateItem(setBranches, branch.id, "arrivalTime", e.target.value)} />
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>Quai</span>
+                      <input className="dash-input" value={branch.platform || ""} onChange={(e) => updateItem(setBranches, branch.id, "platform", e.target.value)} placeholder="Voie" />
+                    </label>
+                    <label className="tr-ops-field-sm">
+                      <span>Type arrêt</span>
+                      <select className="dash-input" value={segmentStopType(branch)} onChange={(e) => updateItem(setBranches, branch.id, "stopType", e.target.value)}>
+                        <option value="rdv">RDV organisé</option>
+                        <option value="quai">Quai uniquement</option>
+                      </select>
+                    </label>
+                  </div>
+                </details>
+
+                {branchKids.length > 0 && (
+                  <details className="tr-ops-details">
+                    <summary>Enfants <span>{branchKids.length}</span></summary>
+                    <div className="tr-ops-enfants">
+                      <div className="tr-ops-stop-group">
+                        <span className="tr-ops-stop-title">{stopActionText(activeT, branchStopCity(activeT, branch))}</span>
+                        <div className="tr-ops-stop-kids">
+                          {branchKids.map((child, childIndex) => (
+                            <ChildChip key={`branch-child-${branch.id}-${childIndex}`} child={child} missingTicketIds={new Set()} openReservation={openReservation} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                )}
+
+                <details className="tr-ops-details">
+                  <summary>
+                    Billets
+                    <span className={seatsOk ? "is-ok" : "is-short"}>{bought}/{needed || 0}</span>
+                  </summary>
+                  <div className="tr-ops-tix">
+                    <div className="tr-ops-tix-head">
+                      <span className="tr-ops-anims-label">Billets branche</span>
+                      {needed > 0 && (
+                        <span className={`tr-seats-badge${seatsOk ? " is-ok" : " is-short"}`}>
+                          {bought}/{needed} places
+                        </span>
+                      )}
+                      <button type="button" className="dash-btn" onClick={() => addTicketForSegment(branch.id)}>+ Billet</button>
+                    </div>
+                    {branchTix.length === 0 && (
+                      <p className="tr-add-empty">Aucun billet pour cette branche.</p>
+                    )}
+                    {branchTix.map((ticket) => {
+                      const usedSeats = ticketUsedSeats(ticket, branchPassengers, assignedStaff);
+                      const freeSeats = ticketFreeSeats(ticket, branchPassengers, assignedStaff);
+                      return (
+                        <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
+                          <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
+                          <div className="tr-ticket-card-info">
+                            <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
+                            <div className="tr-ticket-card-meta">
+                              {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
+                              {ticket.purchased && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""}</span>}
+                              {ticket.purchased && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
+                              {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
+                              {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
+                            </div>
+                          </div>
+                          {ticket.url && <a href={ticket.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
+                          <button type="button" className="tr-pax-remove" title="Supprimer"
+                            onClick={(e) => { e.stopPropagation(); setTickets((items) => items.filter((it) => it.id !== ticket.id)); }}>×</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <button type="button" className="tr-ops-add-seg" onClick={addSegment}>+ Ajouter un segment</button>
+      <button type="button" className="tr-ops-add-seg tr-ops-add-branch" onClick={addBranch}>+ Ajouter une branche</button>
 
       {/* Équipe du convoi */}
       <div className="tr-ops-team">
@@ -3756,14 +4150,18 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                     <span>Portion concernée</span>
                     <select className="dash-input" value={ticket.segmentId || ""} onChange={(e) => {
                       const segId = e.target.value;
-                      const segIdx = segments.findIndex((s) => s.id === segId);
-                      const autoSeats = segIdx >= 0
-                        ? countChildren(passengersOnSegment(activeT, segIdx)) + (segments[segIdx].assignedStaffIds || []).length
+                      const entry = ticketPortionEntryById(activeT, segId);
+                      const autoSeats = entry
+                        ? countChildren(passengersOnTicketPortion(activeT, entry.portion, entry.index)) + (entry.portion.assignedStaffIds || []).length
                         : ticket.seats ?? 1;
                       setTickets((items) => items.map((item) => item.id === ticket.id ? { ...item, segmentId: segId, seats: autoSeats } : item));
                     }}>
                       <option value="">- Affecter à une portion -</option>
-                      {segments.map((s) => <option key={s.id} value={s.id}>{s.from} → {s.to}</option>)}
+                      {ticketPortionEntries(activeT).map(({ portion, type }) => (
+                        <option key={portion.id} value={portion.id}>
+                          {type === "branch" ? "Branche - " : ""}{portion.from} → {portion.to}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label>
@@ -4067,8 +4465,7 @@ function TransportEditTab({ transport, onSave }) {
 
 function cityRowsFromTransport(transport) {
   const rows = new Map();
-  (transport.segments || []).forEach((segment) => {
-    const city = segmentStopCity(transport, segment);
+  const ingestSegment = (segment, city) => {
     const key = normalizePlace(city);
     if (!key || rows.has(key)) return;
     rows.set(key, {
@@ -4079,6 +4476,12 @@ function cityRowsFromTransport(transport) {
       stopType: segmentStopType(segment),
       instructions: segment.instructions || "",
     });
+  };
+  (transport.segments || []).forEach((segment) => {
+    ingestSegment(segment, segmentStopCity(transport, segment));
+  });
+  transportBranches(transport).forEach((branch) => {
+    ingestSegment(branch, branchStopCity(transport, branch));
   });
   return [...rows.values()].sort((a, b) => cityRouteOrder(transport, a.city) - cityRouteOrder(transport, b.city));
 }
@@ -4103,6 +4506,11 @@ function CityStopsTab({ transport, onUpdate }) {
       const patch = cityMap.get(normalizePlace(city));
       return patch ? { ...segment, ...patch } : segment;
     }),
+    branches: transportBranches(targetTransport).map((branch) => {
+      const city = branchStopCity(targetTransport, branch);
+      const patch = cityMap.get(normalizePlace(city));
+      return patch ? { ...branch, ...patch } : branch;
+    }),
   });
 
   const save = async () => {
@@ -4122,13 +4530,17 @@ function CityStopsTab({ transport, onUpdate }) {
       for (const transportDoc of snap.docs) {
         const current = { id: transportDoc.id, ...transportDoc.data() };
         const patched = patchSegmentsWithRows(current, cityMap);
-        if (JSON.stringify(current.segments || []) === JSON.stringify(patched.segments || [])) continue;
+        if (
+          JSON.stringify(current.segments || []) === JSON.stringify(patched.segments || [])
+          && JSON.stringify(transportBranches(current)) === JSON.stringify(patched.branches || [])
+        ) continue;
         await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, current.id), {
           segments: patched.segments,
+          branches: patched.branches,
           updatedAt: serverTimestamp(),
         });
         updatedCount += 1;
-        if (current.id === transport.id) updatedCurrent = { ...transport, segments: patched.segments };
+        if (current.id === transport.id) updatedCurrent = { ...transport, segments: patched.segments, branches: patched.branches };
       }
 
       onUpdate(updatedCurrent);
@@ -4225,6 +4637,14 @@ function cityRowsFromAllTransports(transports, cityStops = []) {
       ingestCity(transport, segment, segment.from);
       ingestCity(transport, segment, segment.to);
       segmentSubStops(segment).forEach((stop) => ingestCity(transport, { ...segment, ...stop }, stop.city, true));
+    });
+    transportBranches(transport).forEach((branch) => {
+      ingestCity(transport, branch, branch.from);
+      ingestCity(transport, branch, branch.to);
+      if (branch.joinsAt && normalizePlace(branch.joinsAt) !== normalizePlace(branch.to)) {
+        ingestCity(transport, branch, branch.joinsAt);
+      }
+      segmentSubStops(branch).forEach((stop) => ingestCity(transport, { ...branch, ...stop }, stop.city, true));
     });
   });
   (cityStops || []).forEach((stop) => {
@@ -4337,8 +4757,8 @@ function BilletsTab({ transports, onBulkUpdate }) {
       if (dateOrder !== 0) return dateOrder;
       const routeOrder = transportRouteLabel(a.transport).localeCompare(transportRouteLabel(b.transport), "fr");
       if (routeOrder !== 0) return routeOrder;
-      const aSegmentIndex = (a.transport.segments || []).findIndex((segment) => segment.id === a.ticket.segmentId);
-      const bSegmentIndex = (b.transport.segments || []).findIndex((segment) => segment.id === b.ticket.segmentId);
+      const aSegmentIndex = ticketPortionEntryById(a.transport, a.ticket.segmentId)?.index ?? 999;
+      const bSegmentIndex = ticketPortionEntryById(b.transport, b.ticket.segmentId)?.index ?? 999;
       return aSegmentIndex - bSegmentIndex;
     });
   }, [transports]);
@@ -4598,8 +5018,8 @@ function BilletsTab({ transports, onBulkUpdate }) {
                                           <span>Portion</span>
                                           <select className="dash-input" value={ticketDraft?.segmentId || ""} onChange={(event) => setTicketField("segmentId", event.target.value)}>
                                             <option value="">Non définie</option>
-                                            {(transport.segments || []).map((segment) => (
-                                              <option key={segment.id} value={segment.id}>{segmentRouteLabel(segment)}</option>
+                                            {ticketPortionEntries(transport).map(({ portion, type }) => (
+                                              <option key={portion.id} value={portion.id}>{type === "branch" ? "Branche - " : ""}{segmentRouteLabel(portion)}</option>
                                             ))}
                                           </select>
                                         </label>
@@ -4770,12 +5190,28 @@ function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsCh
           if (patchedStops.length) patchedSegment = { ...patchedSegment, stops: patchedStops };
           return patchedSegment;
         });
-        if (JSON.stringify(transport.segments || []) === JSON.stringify(patchedSegments)) continue;
+        const patchedBranches = transportBranches(transport).map((branch) => {
+          let patchedBranch = branch;
+          const patch = cityMap.get(normalizePlace(branchStopCity(transport, branch)));
+          if (patch) {
+            patchedBranch = { ...patchedBranch, meetingPoint: patch.meetingPoint, stopType: patch.stopType };
+          }
+          const joinPatch = cityMap.get(normalizePlace(branchJoinCity(transport, branch)));
+          if (joinPatch && normalizePlace(branchJoinCity(transport, branch)) === normalizePlace(branch.to)) {
+            patchedBranch = { ...patchedBranch, meetingPoint: patchedBranch.meetingPoint || joinPatch.meetingPoint };
+          }
+          return patchedBranch;
+        });
+        if (
+          JSON.stringify(transport.segments || []) === JSON.stringify(patchedSegments)
+          && JSON.stringify(transportBranches(transport)) === JSON.stringify(patchedBranches)
+        ) continue;
         await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
           segments: patchedSegments,
+          branches: patchedBranches,
           updatedAt: serverTimestamp(),
         });
-        updatedTransports.push({ ...transport, segments: patchedSegments });
+        updatedTransports.push({ ...transport, segments: patchedSegments, branches: patchedBranches });
         updatedCount += 1;
       }
 
@@ -4953,6 +5389,16 @@ function TripDetail({
           ...s, id: crypto.randomUUID(), from: s.to, to: s.from,
           departureTime: "", arrivalTime: "", platform: "",
         })),
+        branches: transportBranches(transport).map((branch) => ({
+          ...branch,
+          id: crypto.randomUUID(),
+          from: branch.to,
+          to: branch.from,
+          joinsAt: branch.to,
+          departureTime: "",
+          arrivalTime: "",
+          platform: "",
+        })),
         staff: transport.staff || [], tickets: [],
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       };
@@ -5054,12 +5500,10 @@ function TripDetail({
 
 function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staffContracts, cityOptions, onSave, onDelete, onCreated, zoneName }) {
   const childCount  = countChildren(trip.passengers);
-  const segCount    = (trip.segments || []).length;
+  const segCount    = routePortionCount(trip);
   const totalTix    = (trip.tickets || []).length;
   const boughtTix   = (trip.tickets || []).filter((tk) => tk.purchased).length;
-  const missingTix  = (trip.segments || []).filter(
-    (seg) => !(trip.tickets || []).some((tk) => tk.segmentId === seg.id),
-  ).length;
+  const missingTix  = missingTicketPortionCount(trip);
   const sCfg = STATUS_CFG[trip.status] || STATUS_CFG.brouillon;
 
   return (
@@ -5152,8 +5596,7 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
       ].map(({ dir, date, label }) => {
         const dayTrips  = weekTransports.filter((t) => t.date === date);
         const dayKids   = dayTrips.reduce((s, t) => s + countChildren(t.passengers), 0);
-        const missingSegTix = dayTrips.reduce((s, t) =>
-          s + (t.segments || []).filter((seg) => !(t.tickets || []).some((tk) => tk.segmentId === seg.id)).length, 0);
+        const missingSegTix = dayTrips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
 
         return (
           <section key={dir} className={`tr-day-section tr-day-${dir}`}>
@@ -5569,8 +6012,8 @@ function ConvocEmailSender({ transport, allTransports }) {
         to: primary.email,
         subject: emailSubject,
         html,
-        from_name: "ColoCrew Inscriptions",
-        from_email: "inscriptions@colocrew.com",
+        from_name: "ColoCrew",
+        from_email: "contact@colocrew.com",
         includeDecharge: true,
         convocData,
       }),
@@ -6032,7 +6475,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com", includeDecharge: true }),
+      body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     await markAllSent(passengers.map((p) => p.reservationId));
@@ -6053,7 +6496,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew Inscriptions", from_email: "inscriptions@colocrew.com", includeDecharge: true }),
+      body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
     await markAllSent([reservation.id]);
@@ -6934,8 +7377,7 @@ export default function Transport({ focusDate = "" }) {
     const ticketCost     = transports.reduce((s, t) => s + (t.tickets || []).reduce((ts, tk) => ts + Number(tk.price || 0), 0), 0);
     const purchasedTix   = transports.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
     const totalTix       = transports.reduce((s, t) => s + (t.tickets || []).length, 0);
-    const missingSegTix  = transports.reduce((s, t) =>
-      s + (t.segments || []).filter((seg) => !(t.tickets || []).some((tk) => tk.segmentId === seg.id)).length, 0);
+    const missingSegTix  = transports.reduce((s, t) => s + missingTicketPortionCount(t), 0);
     const transportRevenue = reservations.filter((r) => r.status === "validated" && r.isImported2026)
       .reduce((s, r) => s + Number(r.transportAmount || 0), 0);
     return { totalChildren, transportChildren, unassigned, ticketCost, purchasedTix, totalTix, missingSegTix, trips: transports.length, transportRevenue };

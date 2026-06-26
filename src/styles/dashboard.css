@@ -6654,6 +6654,42 @@
 .tl-count.is-down { background: #fff0f0; color: #a32222; }
 .tl-count.is-neutral { background: #ede8f5; color: #4a2f6d; }
 
+.tl-branch-chip {
+  display: grid;
+  gap: 3px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px dashed rgba(184, 51, 106, 0.34);
+  border-radius: 8px;
+  background: #fff7fb;
+  color: #7c2450;
+  font-size: 9.5px;
+  font-weight: 800;
+  max-width: 150px;
+}
+
+.tl-branch-chip strong {
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.tl-branch-chip small {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px 6px;
+  color: #9a426a;
+  font-size: 8.5px;
+  font-weight: 800;
+}
+
+.tl-branch-arrival {
+  align-self: flex-start;
+  margin-top: 48px;
+  min-width: 150px;
+  flex-shrink: 0;
+}
+
 .tl-time {
   font-size: 14px;
   font-weight: 800;
@@ -6865,6 +6901,33 @@
   border: 1px solid rgba(120, 90, 160, 0.12);
   border-radius: 12px;
   overflow: hidden;
+}
+
+.tr-ops-branch-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tr-ops-branch-title {
+  color: #7c2450;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tr-ops-branch {
+  border-color: rgba(184, 51, 106, 0.22);
+}
+
+.tr-ops-branch .tr-ops-seg-head {
+  background: linear-gradient(135deg, #fff7fb 0%, #fdf0f7 100%);
+}
+
+.tr-ops-branch .tr-ops-seg-num {
+  background: #b8336a;
+  width: 30px;
 }
 
 .tr-ops-seg-head {
@@ -7392,6 +7455,13 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .tr-ops-add-seg:hover { background: #f4effb; border-color: rgba(184, 51, 106, 0.3); color: var(--dash-accent); }
+
+.tr-ops-add-branch {
+  margin-top: 8px;
+  border-style: dashed;
+  color: #7c2450;
+  background: #fff7fb;
+}
 
 /* Team section */
 .tr-ops-team {
