@@ -3,11 +3,14 @@ import path from "path";
 import nodemailer from "nodemailer";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
+export const runtime = "nodejs";
+
 const PURPLE     = rgb(0.72, 0.2,  0.41);
 const DARK       = rgb(0.12, 0.06, 0.25);
 const GREY       = rgb(0.4,  0.4,  0.4);
 const LIGHT_GREY = rgb(0.97, 0.97, 0.97);
 const GREEN      = rgb(0.09, 0.64, 0.27);
+const MAX_UPLOAD_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 function truncate(text, maxLen) {
   if (!text) return "";
@@ -138,9 +141,56 @@ async function generateConvocPdf(convocData) {
   return pdfDoc.save();
 }
 
+async function parseSendRequest(request) {
+  const contentType = request.headers.get("content-type") || "";
+
+  if (!contentType.includes("multipart/form-data")) {
+    const body = await request.json();
+    return { ...body, uploadedAttachments: [] };
+  }
+
+  const form = await request.formData();
+  const uploadedAttachments = [];
+  let totalBytes = 0;
+
+  for (const file of form.getAll("attachments")) {
+    if (!file || typeof file.arrayBuffer !== "function" || !file.size) continue;
+    totalBytes += Number(file.size || 0);
+    if (totalBytes > MAX_UPLOAD_ATTACHMENT_BYTES) {
+      throw new Error("Les pièces jointes dépassent 20 Mo au total.");
+    }
+    uploadedAttachments.push({
+      filename: file.name || "piece-jointe",
+      content: Buffer.from(await file.arrayBuffer()),
+      contentType: file.type || "application/octet-stream",
+    });
+  }
+
+  let convocData = null;
+  const rawConvocData = form.get("convocData");
+  if (rawConvocData) {
+    try {
+      convocData = JSON.parse(String(rawConvocData));
+    } catch {
+      throw new Error("convocData invalide.");
+    }
+  }
+
+  return {
+    to: String(form.get("to") || ""),
+    subject: String(form.get("subject") || ""),
+    html: String(form.get("html") || ""),
+    from_name: String(form.get("from_name") || ""),
+    from_email: String(form.get("from_email") || ""),
+    includeDecharge: String(form.get("includeDecharge") || "") === "true",
+    convocData,
+    uploadedAttachments,
+  };
+}
+
 export async function POST(request) {
   try {
-    const { to, subject, html, from_name, from_email, includeDecharge, convocData } = await request.json();
+    const { to, subject, html, from_name, from_email, includeDecharge, convocData, uploadedAttachments = [] } = await parseSendRequest(request);
 
     if (!to || !subject || !html) {
       return Response.json({ error: "Paramètres manquants (to, subject, html)" }, { status: 400 });
@@ -157,6 +207,7 @@ export async function POST(request) {
     });
 
     const attachments = [];
+    attachments.push(...uploadedAttachments);
 
     if (includeDecharge) {
       const dechargePath = path.join(process.cwd(), "public", "documents", "decharge-responsabilite-colocrew.pdf");

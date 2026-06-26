@@ -26,6 +26,8 @@ const SENDERS = [
   { name: "ColoCrew", email: "contact@colocrew.com" },
 ];
 
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
 const MISSING_DOCS_OPTIONS = [
   { key: "fiche_sanitaire",      label: "Fiche sanitaire de liaison" },
   { key: "fiche_medicale",       label: "Fiche médicale" },
@@ -187,6 +189,12 @@ function isValidatedReservation(reservation) {
 function reservationChildCount(reservation) {
   const count = Array.isArray(reservation?.minor?.children) ? reservation.minor.children.length : 0;
   return count > 0 ? count : 1;
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes || 0);
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} Ko`;
+  return `${(value / (1024 * 1024)).toFixed(1).replace(".", ",")} Mo`;
 }
 
 function formatDateRange(startDate, endDate) {
@@ -360,6 +368,7 @@ export default function Communication() {
   const [body, setBody] = useState(TEMPLATES[0].defaultBody);
   const [sender, setSender] = useState(SENDERS[0]);
   const [missingDocs, setMissingDocs] = useState(new Set());
+  const [attachments, setAttachments] = useState([]);
 
   // Send state
   const [sendState, setSendState] = useState("idle");
@@ -371,6 +380,7 @@ export default function Communication() {
 
   const subjectRef = useRef(null);
   const bodyRef = useRef(null);
+  const attachmentInputRef = useRef(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -478,6 +488,37 @@ export default function Communication() {
     });
   }, []);
 
+  const handleAttachmentChange = useCallback((event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    let rejected = 0;
+    const next = [...attachments];
+    let total = next.reduce((sum, file) => sum + Number(file.size || 0), 0);
+    files.forEach((file) => {
+      const duplicate = next.some((item) =>
+        item.name === file.name && item.size === file.size && item.lastModified === file.lastModified,
+      );
+      if (duplicate) return;
+      if (total + Number(file.size || 0) > MAX_ATTACHMENT_BYTES) {
+        rejected += 1;
+        return;
+      }
+      total += Number(file.size || 0);
+      next.push(file);
+    });
+
+    setAttachments(next);
+    event.target.value = "";
+    if (rejected > 0) {
+      showToast("Pièces jointes limitées à 20 Mo au total par email", "warning");
+    }
+  }, [attachments, showToast]);
+
+  const removeAttachment = useCallback((index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   // ── Extra vars ────────────────────────────────────────────────────────────
 
   const getExtraVars = useCallback(() => {
@@ -525,16 +566,27 @@ export default function Communication() {
     for (let i = 0; i < selectedList.length; i++) {
       const res = selectedList[i];
       try {
+        const payload = {
+          to: res.legal.email,
+          subject: resolveVars(subject, res, extraVars),
+          html: bodyToHtml(resolveVars(body, res, extraVars)),
+          from_name: sender.name,
+          from_email: sender.email,
+        };
+        const requestOptions = attachments.length > 0
+          ? (() => {
+              const formData = new FormData();
+              Object.entries(payload).forEach(([key, value]) => formData.append(key, value));
+              attachments.forEach((file) => formData.append("attachments", file, file.name));
+              return { method: "POST", body: formData };
+            })()
+          : {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            };
         const resp = await fetch("/api/communication/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: res.legal.email,
-            subject: resolveVars(subject, res, extraVars),
-            html: bodyToHtml(resolveVars(body, res, extraVars)),
-            from_name: sender.name,
-            from_email: sender.email,
-          }),
+          ...requestOptions,
         });
         if (!resp.ok) {
           const text = await resp.text();
@@ -554,7 +606,7 @@ export default function Communication() {
     } else {
       showToast(`${selectedList.length - errors.length} succès, ${errors.length} erreur(s)`, "error");
     }
-  }, [selectedList, subject, body, sender, getExtraVars, showToast]);
+  }, [selectedList, subject, body, sender, attachments, getExtraVars, showToast]);
 
   const resetSend = useCallback(() => {
     setSendState("idle");
@@ -829,6 +881,55 @@ export default function Communication() {
                   Cliquez sur un badge pour insérer une variable. Le texte sera automatiquement mis en forme dans l&apos;email.
                 </p>
               </div>
+
+              {/* Pièces jointes */}
+              <div style={{ marginTop: 16, marginBottom: 8 }}>
+                <label style={labelStyle}>Pièces jointes</label>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleAttachmentChange}
+                  style={{ display: "none" }}
+                />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => attachmentInputRef.current?.click()}
+                    style={{ ...btnSmallStyle, padding: "7px 12px", background: "#f5f0ff", color: "#7c3aed", border: "1.5px solid #d4c0e8" }}
+                  >
+                    + Ajouter des fichiers
+                  </button>
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                    {attachments.length === 0
+                      ? "Aucune pièce jointe"
+                      : `${attachments.length} fichier(s) · ${formatFileSize(attachments.reduce((sum, file) => sum + Number(file.size || 0), 0))}`}
+                  </span>
+                </div>
+                {attachments.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                    {attachments.map((file, index) => (
+                      <div key={`${file.name}-${file.size}-${file.lastModified}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 700, color: "#1e1040" }}>
+                          {file.name}
+                        </span>
+                        <span style={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{formatFileSize(file.size)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          title="Retirer la pièce jointe"
+                          style={{ border: "none", background: "#fee2e2", color: "#b91c1c", borderRadius: 6, width: 24, height: 24, cursor: "pointer", fontWeight: 900, flexShrink: 0 }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p style={{ margin: "6px 0 0", fontSize: 11, color: "#94a3b8" }}>
+                  Les fichiers seront ajoutés à chaque email envoyé. Limite : 20 Mo au total par email.
+                </p>
+              </div>
             </div>
 
             {/* ── Footer ── */}
@@ -927,6 +1028,15 @@ export default function Communication() {
             </div>
             <div style={{ padding: "8px 18px", background: "#fafafa", borderBottom: "1px solid #f0e8f5" }}>
               <span style={{ fontSize: 12, color: "#374151" }}><strong>Objet :</strong> {previewSubject}</span>
+              {attachments.length > 0 && (
+                <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  {attachments.map((file) => (
+                    <span key={`${file.name}-${file.size}-${file.lastModified}`} style={{ padding: "3px 7px", borderRadius: 999, background: "#f5f0ff", color: "#7c3aed", fontSize: 11, fontWeight: 700 }}>
+                      {file.name} · {formatFileSize(file.size)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", background: "#f8f9fa" }}>
               <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
