@@ -356,9 +356,11 @@ function routePortionCount(transport) {
 }
 
 function missingTicketPortionCount(transport) {
-  return ticketPortionEntries(transport).filter(({ portion }) =>
-    !purchasedTicketsForSegment(transport.tickets || [], portion.id).length,
-  ).length;
+  return ticketPortionEntries(transport).reduce((count, { portion, index }) => {
+    const tickets = (transport.tickets || []).filter((ticket) => ticket.segmentId === portion.id);
+    return count + segmentLegCoverage(transport, portion, index, tickets)
+      .filter((leg) => leg.missingSeats > 0).length;
+  }, 0);
 }
 
 function ticketPortionEntryById(transport, portionId) {
@@ -733,10 +735,75 @@ function purchasedSeatsForSegmentTickets(tickets) {
     .reduce((sum, ticket) => sum + Number(ticket.seats || 0), 0);
 }
 
+function portionRoutePoints(portion) {
+  const points = [portion?.from, ...segmentSubStops(portion).map((stop) => stop.city), portion?.to]
+    .filter(Boolean);
+  return points.filter((city, index) => index === 0 || normalizePlace(city) !== normalizePlace(points[index - 1]));
+}
+
+function ticketCoverageIndexes(ticket, routePoints) {
+  const findIndex = (city) => routePoints.findIndex((point) => normalizePlace(point) === normalizePlace(city));
+  const from = ticket?.coverageFrom || ticket?.from;
+  const to = ticket?.coverageTo || ticket?.to;
+  const fromIndex = findIndex(from);
+  const toIndex = findIndex(to);
+  return {
+    fromIndex: fromIndex >= 0 ? fromIndex : 0,
+    toIndex: toIndex >= 0 ? toIndex : routePoints.length - 1,
+  };
+}
+
+function passengerUsesPortionLeg(transport, passenger, portionIndex, routePoints, legIndex) {
+  const boarding = passengerBoardingStop(transport, passenger);
+  if (!boarding) return false;
+
+  if (isBranchSegment(boarding.branch || boarding.segment)) return true;
+  if (boarding.segmentIndex !== portionIndex) {
+    return transport.direction === "retour"
+      ? boarding.segmentIndex > portionIndex
+      : boarding.segmentIndex < portionIndex;
+  }
+
+  const cityIndex = routePoints.findIndex((city) =>
+    normalizePlace(city) === normalizePlace(passengerCity(transport, passenger)),
+  );
+  if (cityIndex < 0) return true;
+  return transport.direction === "retour" ? cityIndex > legIndex : cityIndex <= legIndex;
+}
+
+function segmentLegCoverage(transport, segment, segmentIndex, segmentTickets = []) {
+  const routePoints = portionRoutePoints(segment);
+  if (routePoints.length < 2) return [];
+  const assignedStaffCount = (segment.assignedStaffIds || []).length;
+
+  return routePoints.slice(0, -1).map((from, legIndex) => {
+    const passengers = isBranchSegment(segment)
+      ? passengersOnBranch(transport, segment)
+      : (transport.passengers || []).filter((passenger) =>
+        passengerUsesPortionLeg(transport, passenger, segmentIndex, routePoints, legIndex),
+      );
+    const neededSeats = countChildren(passengers) + assignedStaffCount;
+    const purchasedSeats = segmentTickets
+      .filter((ticket) => {
+        if (!ticket.purchased) return false;
+        const { fromIndex, toIndex } = ticketCoverageIndexes(ticket, routePoints);
+        return fromIndex <= legIndex && toIndex >= legIndex + 1;
+      })
+      .reduce((sum, ticket) => sum + Number(ticket.seats || 0), 0);
+
+    return {
+      from,
+      to: routePoints[legIndex + 1],
+      neededSeats,
+      purchasedSeats,
+      missingSeats: Math.max(0, neededSeats - purchasedSeats),
+    };
+  });
+}
+
 function missingSeatsForSegment(transport, segment, segmentIndex, segmentTickets = []) {
-  const neededSeats = requiredSeatsForSegment(transport, segment, segmentIndex);
-  const purchasedSeats = purchasedSeatsForSegmentTickets(segmentTickets);
-  return Math.max(0, neededSeats - purchasedSeats);
+  return segmentLegCoverage(transport, segment, segmentIndex, segmentTickets)
+    .reduce((maximum, leg) => Math.max(maximum, leg.missingSeats), 0);
 }
 
 function normalizeSegmentLabel(value) {
@@ -779,10 +846,14 @@ function ticketRowsForTransport(transport, { includeMissingSegments = true } = {
   entries.forEach(({ portion: segment, index: segmentIndex }) => {
     const segmentTickets = linkedTickets.filter((ticket) => ticket.segmentId === segment.id);
     const hasPendingTicket = segmentTickets.some((ticket) => !ticket.purchased);
-    const purchasedSeats = purchasedSeatsForSegmentTickets(segmentTickets);
-    const neededSeats = requiredSeatsForSegment(transport, segment, segmentIndex);
+    const coverage = segmentLegCoverage(transport, segment, segmentIndex, segmentTickets);
+    const neededSeats = Math.max(0, ...coverage.map((leg) => leg.neededSeats));
+    const missingSeats = Math.max(0, ...coverage.map((leg) => leg.missingSeats));
     if (neededSeats <= 0) return;
-    if (segmentTickets.length > 0 && (purchasedSeats >= neededSeats || hasPendingTicket)) return;
+    if (missingSeats <= 0 || hasPendingTicket) return;
+
+    const missingLegs = coverage.filter((leg) => leg.missingSeats > 0);
+    const missingLabel = missingLegs.map((leg) => `${leg.from} → ${leg.to}`).join(", ");
 
     rows.push({
       type: "segment-missing-ticket",
@@ -790,9 +861,9 @@ function ticketRowsForTransport(transport, { includeMissingSegments = true } = {
       seg: segment,
       ticket: {
         id: `segment-missing-${transport.id}-${segment.id}`,
-        name: `Billet à acheter - ${segmentRouteLabel(segment)}`,
+        name: `Billet à acheter - ${missingLabel || segmentRouteLabel(segment)}`,
         segmentId: segment.id,
-        seats: Math.max(1, neededSeats - purchasedSeats),
+        seats: Math.max(1, missingSeats),
         price: "",
         departureTime: segment.departureTime || "",
         arrivalTime: segment.arrivalTime || "",
@@ -1938,9 +2009,10 @@ function TripTimeline({ transport, onToggleStaff }) {
 
   const last = segments[segments.length - 1];
   const finalAction = timelineActionInfo(transport, last?.to);
+  const hasForks = branches.some((b) => mainJoinIndexForBranch(transport, b) < segments.length);
 
   return (
-    <div className="tl-wrap">
+    <div className={`tl-wrap${hasForks ? " tl-wrap--has-forks" : ""}`}>
       <div className="tl-track">
         {segments.flatMap((seg, i) => {
           const assignedIds = seg.assignedStaffIds || [];
@@ -1949,8 +2021,39 @@ function TripTimeline({ transport, onToggleStaff }) {
           const connectionDuration = previous ? durationBetween(previous.arrivalTime, seg.departureTime) : "";
           const trainDuration = durationBetween(seg.departureTime, seg.arrivalTime);
           const joiningBranches = branches.filter((branch) => mainJoinIndexForBranch(transport, branch) === i);
+          const sortedJoiningBranches = [...joiningBranches].sort(
+            (a, b) => (a.departureTime || "").localeCompare(b.departureTime || "")
+          );
 
           return [
+            /* Fork node — shown BEFORE the joining stop when branches merge here */
+            sortedJoiningBranches.length > 0 && (
+              <div key={`fork-${seg.id}`} className="tl-fork-node" style={{ "--i": i }}>
+                <div className="tl-fork-branches">
+                  {sortedJoiningBranches.map((branch) => {
+                    const bDur   = durationBetween(branch.departureTime, branch.arrivalTime);
+                    const bCount = countChildren(passengersOnBranch(transport, branch));
+                    return (
+                      <div key={branch.id} className="tl-fork-branch">
+                        <span className="tl-fork-branch-chip">
+                          <strong>{branch.from || "Branche"}</strong>
+                          <small>
+                            {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
+                            {branch.arrivalTime   && <span>Arr. {branch.arrivalTime}</span>}
+                            {bDur                 && <span>{bDur}</span>}
+                            {bCount > 0           && <span>{bCount} enf.</span>}
+                          </small>
+                        </span>
+                        <div className="tl-fork-branch-stem" />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="tl-fork-node-junction" />
+                <div className="tl-fork-node-track" />
+              </div>
+            ),
+
             /* Stop node */
             <div key={`stop-${seg.id}`} className="tl-stop" style={{ "--i": i }}>
               <div className="tl-dot" />
@@ -1968,21 +2071,6 @@ function TripTimeline({ transport, onToggleStaff }) {
                     {action.count} {action.label}
                   </span>
                 )}
-                {joiningBranches.map((branch) => {
-                  const branchDuration = durationBetween(branch.departureTime, branch.arrivalTime);
-                  const branchCount = countChildren(passengersOnBranch(transport, branch));
-                  return (
-                    <span key={branch.id} className="tl-branch-chip">
-                      <strong>{branch.from || "Branche"} → {branch.to || seg.from}</strong>
-                      <small>
-                        {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
-                        {branch.arrivalTime && <span>Arr. {branch.arrivalTime}</span>}
-                        {branchDuration && <span>{branchDuration}</span>}
-                        {branchCount > 0 && <span>{branchCount} enfant{branchCount > 1 ? "s" : ""}</span>}
-                      </small>
-                    </span>
-                  );
-                })}
               </div>
             </div>,
 
@@ -2197,7 +2285,7 @@ function TransportHomeHeader({ reservations, transports, onCreate }) {
   );
 }
 
-function TransportBudgetOverview({ reservations, transports }) {
+function TransportBudgetOverview({ reservations, transports, financeSummary }) {
   const [openLedgerGroups, setOpenLedgerGroups] = useState(new Set());
   const [openLedgerTrips,  setOpenLedgerTrips]  = useState(new Set());
   const weekData = useMemo(() => {
@@ -2231,7 +2319,7 @@ function TransportBudgetOverview({ reservations, transports }) {
         day.trips.set(t.id, { transport: t, tickets: [] });
       }
       const trip = day.trips.get(t.id);
-      ticketRowsForTransport(t).forEach(({ ticket, seg, type }) => {
+      ticketRowsForTransport(t, { includeMissingSegments: false }).forEach(({ ticket, seg, type }) => {
         const row = {
           id: ticket.id,
           name: ticket.name || "Billet",
@@ -2251,6 +2339,13 @@ function TransportBudgetOverview({ reservations, transports }) {
       });
     });
 
+    const accountingByWeek = financeSummary?.transportAccounting?.byWeek || {};
+    Object.entries(accountingByWeek).forEach(([week, accounting]) => {
+      const row = ensure(week);
+      const amount = Number(accounting?.transportAmount);
+      if (Number.isFinite(amount)) row.revenue = amount;
+    });
+
     return [...byWeek.values()]
       .map((week) => ({
         ...week,
@@ -2262,7 +2357,7 @@ function TransportBudgetOverview({ reservations, transports }) {
           .sort((a, b) => a.date.localeCompare(b.date, "fr")),
       }))
       .sort((a, b) => a.week.localeCompare(b.week, "fr"));
-  }, [reservations, transports]);
+  }, [financeSummary, reservations, transports]);
 
   const toggleLedgerTrip = (id) => {
     setOpenLedgerTrips((cur) => {
@@ -2490,6 +2585,8 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
               const alreadyPassengers = passengersBeforeStop(transport, mainStop?.order ?? index);
               const onboardPassengers = passengersOnSegment(transport, index);
               const segmentTickets = purchasedTicketsForSegment(transport.tickets, segment.id);
+              const legCoverage = segmentLegCoverage(transport, segment, index, segmentTickets);
+              const firstLegCoverage = legCoverage[0];
               const assignedStaff = (transport.staff || []).filter((member) =>
                 (segment.assignedStaffIds || []).includes(member.id),
               );
@@ -2513,8 +2610,10 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                     {segment.platform && <small>Voie {segment.platform}</small>}
                   </td>
                   <td>
-                    <span className={`tr-summary-ticket ${segmentTickets.length ? "is-bought" : "is-missing"}`}>
-                      {segmentTickets.length ? "Acheté" : "À acheter"}
+                    <span className={`tr-summary-ticket ${firstLegCoverage?.missingSeats ? "is-missing" : "is-bought"}`}>
+                      {firstLegCoverage
+                        ? `${firstLegCoverage.purchasedSeats}/${firstLegCoverage.neededSeats}${firstLegCoverage.missingSeats ? ` · ${firstLegCoverage.missingSeats} manq.` : " · OK"}`
+                        : "À vérifier"}
                     </span>
                   </td>
                   <td>
@@ -2533,6 +2632,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                 );
                 const alreadyAtSubStop = passengersBeforeStop(transport, routeStop?.order ?? index);
                 const onboardAfterSubStop = passengersAfterStop(transport, routeStop?.order ?? index);
+                const nextLegCoverage = legCoverage[stopIndex + 1];
                 rows.push(
                   <tr key={`${segment.id}-stop-${stop.id || stop.city || stopIndex}`} className="is-quai-stop is-sub-stop" onClick={() => onEditSegment(transport, segment.id)}>
                     <td><span className="tr-segment-step is-small">{index + 1}.{stopIndex + 1}</span></td>
@@ -2551,7 +2651,13 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                       <span>{stop.mode || segment.mode || "-"} {stop.number || segment.number || ""}</span>
                       {stop.platform && <small>Voie {stop.platform}</small>}
                     </td>
-                    <td><span className="tr-summary-ticket is-neutral">Même billet</span></td>
+                    <td>
+                      <span className={`tr-summary-ticket ${nextLegCoverage?.missingSeats ? "is-missing" : "is-bought"}`}>
+                        {nextLegCoverage
+                          ? `${nextLegCoverage.purchasedSeats}/${nextLegCoverage.neededSeats}${nextLegCoverage.missingSeats ? ` · ${nextLegCoverage.missingSeats} manq.` : " · OK"}`
+                          : "Arrivée"}
+                      </span>
+                    </td>
                     <td>
                       {assignedStaff.length
                         ? assignedStaff.map((member) => member.name || "Animateur").join(", ")
@@ -3590,9 +3696,10 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         const childCount = segKids.length;
         const assignedStaff = staff.filter(m => (seg.assignedStaffIds || []).includes(m.id));
         const staffCount = assignedStaff.length;
-        const needed = childCount + staffCount;
-        const bought = purchasedSeatsForSegmentTickets(rawSegTix);
-        const seatsOk = needed === 0 || bought >= needed;
+        const legCoverage = segmentLegCoverage(activeT, seg, i, rawSegTix);
+        const needed = Math.max(0, ...legCoverage.map((leg) => leg.neededSeats));
+        const seatsOk = legCoverage.every((leg) => leg.missingSeats === 0);
+        const incompleteLegs = legCoverage.filter((leg) => leg.missingSeats > 0);
         const missingTicketIds = new Set(segTix.flatMap((ticket) => ticket.missingReservationIds || []));
         const segmentStops = segmentSubStops(seg);
         const trainLabel = `${seg.mode || "Transport"}${seg.number ? ` ${seg.number}` : ""}`;
@@ -3613,9 +3720,21 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <span>{trainLabel}</span>
                   <span>{childCount} enfant{childCount !== 1 ? "s" : ""}</span>
                   <span>{staffCount} anim.</span>
-                  <span className={seatsOk ? "is-ok" : "is-short"}>Billets {bought}/{needed || 0}</span>
+                  <span className={seatsOk ? "is-ok" : "is-short"}>
+                    {seatsOk ? "Tous les tronçons couverts" : `${incompleteLegs.length} tronçon${incompleteLegs.length > 1 ? "s" : ""} incomplet${incompleteLegs.length > 1 ? "s" : ""}`}
+                  </span>
                   {segmentStops.length > 0 && <span>{segmentStops.length} étape{segmentStops.length > 1 ? "s" : ""}</span>}
                 </div>
+                {legCoverage.length > 1 && (
+                  <div className="tr-ops-seg-summary">
+                    {legCoverage.map((leg) => (
+                      <span key={`${seg.id}-${leg.from}-${leg.to}`} className={leg.missingSeats ? "is-short" : "is-ok"}>
+                        {leg.from} → {leg.to} : {leg.purchasedSeats}/{leg.neededSeats}
+                        {leg.missingSeats ? ` (${leg.missingSeats} manquante${leg.missingSeats > 1 ? "s" : ""})` : " (OK)"}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <button type="button" className="tr-ops-seg-del"
                 onClick={() => removeSegment(seg.id)}>
@@ -3842,14 +3961,14 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             <details className="tr-ops-details">
               <summary>
                 Billets
-                <span className={seatsOk ? "is-ok" : "is-short"}>{bought}/{needed || 0}</span>
+                <span className={seatsOk ? "is-ok" : "is-short"}>{seatsOk ? "Couvert" : `${incompleteLegs.length} incomplet${incompleteLegs.length > 1 ? "s" : ""}`}</span>
               </summary>
               <div className="tr-ops-tix">
               <div className="tr-ops-tix-head">
                 <span className="tr-ops-anims-label">Billets</span>
                 {needed > 0 && (
                   <span className={`tr-seats-badge${seatsOk ? " is-ok" : " is-short"}`}>
-                    {bought}/{needed} places
+                    {seatsOk ? "Tous les tronçons couverts" : `${incompleteLegs.length} tronçon${incompleteLegs.length > 1 ? "s" : ""} à compléter`}
                   </span>
                 )}
                 <button type="button" className="dash-btn" onClick={() => addTicketForSegment(seg.id)}>+ Billet</button>
@@ -7318,6 +7437,7 @@ export default function Transport({ focusDate = "" }) {
   const [staffMembers, setStaffMembers]     = useState([]);
   const [staffContracts, setStaffContracts] = useState([]);
   const [cityStops, setCityStops]           = useState([]);
+  const [financeSummary, setFinanceSummary] = useState(null);
   const [loading, setLoading]               = useState(true);
   const [showNew, setShowNew]               = useState(false);
   const [activeTab, setActiveTab]           = useState("overview");
@@ -7326,12 +7446,13 @@ export default function Transport({ focusDate = "" }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [tSnap, rSnap, staffSnap, contractsSnap, cityStopsSnap] = await Promise.all([
+      const [tSnap, rSnap, staffSnap, contractsSnap, cityStopsSnap, financeSnap] = await Promise.all([
         getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "desc"))),
         getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
         getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
         getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
         getDocs(collection(db, COLLECTIONS.TRANSPORT_RDV_POINTS)),
+        getDoc(doc(db, COLLECTIONS.FINANCE_SUMMARIES, "ete-2026")),
       ]);
       const reservationRows = rSnap.docs.map(mapReservationForTransport);
       const transportRows = tSnap.docs.map(mapTransport);
@@ -7340,6 +7461,7 @@ export default function Transport({ focusDate = "" }) {
       setStaffMembers(staffSnap.docs.map(mapStaffMember).filter((m) => m.active));
       setStaffContracts(contractsSnap.docs.map(mapStaffContract).filter((c) => c.status !== "cancelled"));
       setCityStops(cityStopsSnap.docs.map(mapCityStop).filter((row) => row.city));
+      setFinanceSummary(financeSnap.exists() ? financeSnap.data() : null);
     } catch { showToast("Erreur de chargement", "error"); }
     finally { setLoading(false); }
   }, [showToast]);
@@ -7378,10 +7500,13 @@ export default function Transport({ focusDate = "" }) {
     const purchasedTix   = transports.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
     const totalTix       = transports.reduce((s, t) => s + (t.tickets || []).length, 0);
     const missingSegTix  = transports.reduce((s, t) => s + missingTicketPortionCount(t), 0);
-    const transportRevenue = reservations.filter((r) => r.status === "validated" && r.isImported2026)
-      .reduce((s, r) => s + Number(r.transportAmount || 0), 0);
+    const summaryTransportRevenue = Number(financeSummary?.transportAccounting?.transportAmount ?? financeSummary?.transportAmount);
+    const transportRevenue = Number.isFinite(summaryTransportRevenue)
+      ? summaryTransportRevenue
+      : reservations.filter((r) => r.status === "validated" && r.isImported2026)
+        .reduce((s, r) => s + Number(r.transportAmount || 0), 0);
     return { totalChildren, transportChildren, unassigned, ticketCost, purchasedTix, totalTix, missingSegTix, trips: transports.length, transportRevenue };
-  }, [reservations, transports]);
+  }, [financeSummary, reservations, transports]);
 
   return (
     <div className="tr-main-page">
@@ -7495,7 +7620,7 @@ export default function Transport({ focusDate = "" }) {
 
           {/* Budget & Compta */}
           {activeTab === "budget" && (
-            <TransportBudgetOverview reservations={reservations} transports={transports} />
+            <TransportBudgetOverview reservations={reservations} transports={transports} financeSummary={financeSummary} />
           )}
 
           {/* Convocations */}

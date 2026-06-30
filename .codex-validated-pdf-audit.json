@@ -1,0 +1,4600 @@
+{
+  "mode": "dry-run",
+  "source": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+  "extractedRows": 32,
+  "matched": 32,
+  "missing": 0,
+  "ambiguous": 0,
+  "rowsWithFinanceDiffs": 21,
+  "rowsWithTransportIssues": 0,
+  "totals": {
+    "stayAmount": 29072.06,
+    "transportAmount": 3813.44,
+    "grossAmount": 32885.5,
+    "cafAidAmount": 9068,
+    "netAmount": 23817.5,
+    "paidAmount": 10726.37,
+    "remainingAmount": 13091.13
+  },
+  "cities": {
+    "Bordeaux / Bordeaux": 3,
+    "Lyon / Lyon": 3,
+    "Montpellier / Montpellier": 1,
+    "Nantes / Nantes": 3,
+    "Paris / Paris": 17,
+    "Sur Place / Sur Place": 3,
+    "Toulouse / Toulouse": 1,
+    "Valence / Valence": 1
+  },
+  "mismatchPreview": [
+    {
+      "rowNumber": 3,
+      "child": "Marie Courjaud",
+      "reference": "MCSC-061726-CO3",
+      "email": "fleuranceaufabienneautre689774927fleuranceau.fabienne@orange.fr",
+      "phone": "0689774927",
+      "birthDate": "2013-02-12",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Sur Place",
+        "retour": "Sur Place",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 960,
+        "totalAfterCaf": 360,
+        "stay": 960,
+        "transport": 0,
+        "caf": 600,
+        "paid": 360,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "PUGZ0yFsoiE7OYHurtOD",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-CO3"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 360
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "message": "Sur Place"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "message": "Sur Place"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 960,
+          "transportAmount": 0,
+          "grossAmount": 960,
+          "cafAidAmount": 600,
+          "netAmount": 360,
+          "paidAmount": 360,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Sur Place",
+          "returnCity": "Sur Place",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 960,
+          "transportFee": 0,
+          "cafAmount": 600,
+          "resteACharge": 360,
+          "alreadyPaid": 360,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 6,
+      "child": "Thelma Baudin",
+      "reference": "MCSC-061726-BAU",
+      "email": "famillebaudin85@gmail.commcsc",
+      "phone": "0681034608",
+      "birthDate": "2011-04-14",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Nantes",
+        "retour": "Nantes",
+        "amount": 180
+      },
+      "amounts": {
+        "total": 987.5,
+        "totalAfterCaf": 987.5,
+        "stay": 807.5,
+        "transport": 180,
+        "caf": 0,
+        "paid": 987.5,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "DFTYJGAoLM8QEzO93L8y",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-BAU"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 660,
+          "next": 987.5
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 807.5,
+          "transportAmount": 180,
+          "grossAmount": 987.5,
+          "cafAidAmount": 0,
+          "netAmount": 987.5,
+          "paidAmount": 987.5,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Nantes",
+          "returnCity": "Nantes",
+          "fee": 180
+        },
+        "payment": {
+          "validatedPrice": 987.5,
+          "transportFee": 180,
+          "cafAmount": 0,
+          "resteACharge": 987.5,
+          "alreadyPaid": 987.5,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 8,
+      "child": "Yugo Renault Debecker",
+      "reference": "MCSC-061726-REN",
+      "email": "",
+      "phone": "",
+      "birthDate": "2013-02-21",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Toulouse",
+        "retour": "Toulouse",
+        "amount": 94.16
+      },
+      "amounts": {
+        "total": 1035.76,
+        "totalAfterCaf": 1035.76,
+        "stay": 941.6,
+        "transport": 94.16,
+        "caf": 0,
+        "paid": 1035.76,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "fOWImoIKOdZMYShPikDQ",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-REN"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1035.76
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Toulouse",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Toulouse",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 941.6,
+          "transportAmount": 94.16,
+          "grossAmount": 1035.76,
+          "cafAidAmount": 0,
+          "netAmount": 1035.76,
+          "paidAmount": 1035.76,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Toulouse",
+          "returnCity": "Toulouse",
+          "fee": 94.16
+        },
+        "payment": {
+          "validatedPrice": 1035.76,
+          "transportFee": 94.16,
+          "cafAmount": 0,
+          "resteACharge": 1035.76,
+          "alreadyPaid": 1035.76,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 9,
+      "child": "Maëlle Subal",
+      "reference": "MCSC-061726-SUB",
+      "email": "c.cornil@lesdecisifs.commcsc",
+      "phone": "0664254436",
+      "birthDate": "2011-08-28",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Lyon",
+        "retour": "Lyon",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1147.5,
+        "totalAfterCaf": 1147.5,
+        "stay": 997.5,
+        "transport": 150,
+        "caf": 0,
+        "paid": 1147.5,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "c93BXlpnajNpyx0xVDZq",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-SUB"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 997.5,
+          "next": 1147.5
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 997.5,
+          "next": 1147.5
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 847.5,
+          "next": 997.5
+        },
+        {
+          "field": "finance.paidAmount",
+          "current": 997.5,
+          "next": 1147.5
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 997.5,
+          "transportAmount": 150,
+          "grossAmount": 1147.5,
+          "cafAidAmount": 0,
+          "netAmount": 1147.5,
+          "paidAmount": 1147.5,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Lyon",
+          "returnCity": "Lyon",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1147.5,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1147.5,
+          "alreadyPaid": 1147.5,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 10,
+      "child": "Nils Kaptur",
+      "reference": "MCSC-061726-KAP",
+      "email": "emmanuellegalon@gmail.com",
+      "phone": "0622480328",
+      "birthDate": "",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Bordeaux",
+        "retour": "Bordeaux",
+        "amount": 60
+      },
+      "amounts": {
+        "total": 1020.8,
+        "totalAfterCaf": 1020.8,
+        "stay": 960.8,
+        "transport": 60,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1020.8
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "0FaBByqSYpAMMfBaIa9T",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-KAP"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 340.27,
+          "next": 0
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 960.8,
+          "transportAmount": 60,
+          "grossAmount": 1020.8,
+          "cafAidAmount": 0,
+          "netAmount": 1020.8,
+          "paidAmount": 0,
+          "remainingAmount": 1020.8
+        },
+        "transport": {
+          "departureCity": "Bordeaux",
+          "returnCity": "Bordeaux",
+          "fee": 60
+        },
+        "payment": {
+          "validatedPrice": 1020.8,
+          "transportFee": 60,
+          "cafAmount": 0,
+          "resteACharge": 1020.8,
+          "alreadyPaid": 0,
+          "remainingValue": 1020.8
+        }
+      }
+    },
+    {
+      "rowNumber": 11,
+      "child": "Soualio BAKAYOKO",
+      "reference": "MCSC-061726-BAK",
+      "email": "mahouadiomande9@gmail.com",
+      "phone": "0605973317",
+      "birthDate": "2015-03-07",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 450,
+        "totalAfterCaf": 450,
+        "stay": 300,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 450
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "PzVeB55uMZM0zB6YW0wy",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-069-BAK"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 1200,
+          "next": 450
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 600,
+          "next": 450
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 1050,
+          "next": 300
+        },
+        {
+          "field": "finance.cafAidAmount",
+          "current": 600,
+          "next": 0
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 300,
+          "transportAmount": 150,
+          "grossAmount": 450,
+          "cafAidAmount": 0,
+          "netAmount": 450,
+          "paidAmount": 0,
+          "remainingAmount": 450
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 450,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 450,
+          "alreadyPaid": 0,
+          "remainingValue": 450
+        }
+      }
+    },
+    {
+      "rowNumber": 15,
+      "child": "Océane RAUDE",
+      "reference": "",
+      "email": "",
+      "phone": "",
+      "birthDate": "2014-09-26",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Nantes",
+        "retour": "Nantes",
+        "amount": 154.08
+      },
+      "amounts": {
+        "total": 1087.12,
+        "totalAfterCaf": 1087.12,
+        "stay": 933.04,
+        "transport": 154.08,
+        "caf": 0,
+        "paid": 1087.12,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_stay_week",
+        "reservationId": "XumQTtpu9pLIMCs0206k",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-073-RAU"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1087.12
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 154.08,
+          "grossAmount": 1087.12,
+          "cafAidAmount": 0,
+          "netAmount": 1087.12,
+          "paidAmount": 1087.12,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Nantes",
+          "returnCity": "Nantes",
+          "fee": 154.08
+        },
+        "payment": {
+          "validatedPrice": 1087.12,
+          "transportFee": 154.08,
+          "cafAmount": 0,
+          "resteACharge": 1087.12,
+          "alreadyPaid": 1087.12,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 16,
+      "child": "Stanislas HERVY",
+      "reference": "",
+      "email": "",
+      "phone": "",
+      "birthDate": "2010-06-11",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 128.4
+      },
+      "amounts": {
+        "total": 1061.44,
+        "totalAfterCaf": 1061.44,
+        "stay": 933.04,
+        "transport": 128.4,
+        "caf": 0,
+        "paid": 1061.44,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "lLeAMm5YUJ4Meu9FJCZM",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-080-HER"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1061.44
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 128.4,
+          "grossAmount": 1061.44,
+          "cafAidAmount": 0,
+          "netAmount": 1061.44,
+          "paidAmount": 1061.44,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 128.4
+        },
+        "payment": {
+          "validatedPrice": 1061.44,
+          "transportFee": 128.4,
+          "cafAmount": 0,
+          "resteACharge": 1061.44,
+          "alreadyPaid": 1061.44,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 17,
+      "child": "Dimitri HERVY",
+      "reference": "",
+      "email": "",
+      "phone": "",
+      "birthDate": "2013-08-16",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 128.4
+      },
+      "amounts": {
+        "total": 1061.44,
+        "totalAfterCaf": 1061.44,
+        "stay": 933.04,
+        "transport": 128.4,
+        "caf": 0,
+        "paid": 1061.44,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "sgdDGQomVxE9P57mOYTq",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-079-HER"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1061.44
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 128.4,
+          "grossAmount": 1061.44,
+          "cafAidAmount": 0,
+          "netAmount": 1061.44,
+          "paidAmount": 1061.44,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 128.4
+        },
+        "payment": {
+          "validatedPrice": 1061.44,
+          "transportFee": 128.4,
+          "cafAmount": 0,
+          "resteACharge": 1061.44,
+          "alreadyPaid": 1061.44,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 20,
+      "child": "Léane Stein",
+      "reference": "",
+      "email": "",
+      "phone": "0675056432",
+      "birthDate": "2011-04-09",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 128.4
+      },
+      "amounts": {
+        "total": 1061.44,
+        "totalAfterCaf": 1061.44,
+        "stay": 933.04,
+        "transport": 128.4,
+        "caf": 0,
+        "paid": 1061.44,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "rFLVIF8ARfhfu6dFpNki",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-095-STE"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1061.44
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 128.4,
+          "grossAmount": 1061.44,
+          "cafAidAmount": 0,
+          "netAmount": 1061.44,
+          "paidAmount": 1061.44,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 128.4
+        },
+        "payment": {
+          "validatedPrice": 1061.44,
+          "transportFee": 128.4,
+          "cafAmount": 0,
+          "resteACharge": 1061.44,
+          "alreadyPaid": 1061.44,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 22,
+      "child": "NOAM NDOUKOBO NYANSI",
+      "reference": "",
+      "email": "vivianecheron@gmail.com",
+      "phone": "0662050078",
+      "birthDate": "2015-12-22",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 750,
+        "totalAfterCaf": 500,
+        "stay": 600,
+        "transport": 150,
+        "caf": 250,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "MpCziw2toPDnBCgHdYpz",
+        "currentStatus": "validated",
+        "currentReference": ""
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 0,
+          "next": 750
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 0,
+          "next": 500
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 600
+        },
+        {
+          "field": "finance.cafAidAmount",
+          "current": 0,
+          "next": 250
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 600,
+          "transportAmount": 150,
+          "grossAmount": 750,
+          "cafAidAmount": 250,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 750,
+          "transportFee": 150,
+          "cafAmount": 250,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 23,
+      "child": "Teng Yang Lin",
+      "reference": "",
+      "email": "jiuchun.lin89@gmail.com",
+      "phone": "0768898557",
+      "birthDate": "2010-09-03",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 1100,
+        "stay": 950,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1100
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "y6ozEeYyw0F8pU7cpisT",
+        "currentStatus": "validated",
+        "currentReference": "RES-1706LIN"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 0,
+          "netAmount": 1100,
+          "paidAmount": 0,
+          "remainingAmount": 1100
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1100,
+          "alreadyPaid": 0,
+          "remainingValue": 1100
+        }
+      }
+    },
+    {
+      "rowNumber": 24,
+      "child": "Arushni Dharmenthira",
+      "reference": "",
+      "email": "secretariat@mariedeluze.fr",
+      "phone": "33749161843",
+      "birthDate": "2008-08-27",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Bordeaux",
+        "retour": "Bordeaux",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 750,
+        "totalAfterCaf": 150,
+        "stay": 750,
+        "transport": 0,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 150
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "2lKVSOXqwlWbttCcKILI",
+        "currentStatus": "validated",
+        "currentReference": ""
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 0,
+          "next": 750
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 0,
+          "next": 150
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 750
+        },
+        {
+          "field": "finance.cafAidAmount",
+          "current": 0,
+          "next": 600
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 750,
+          "transportAmount": 0,
+          "grossAmount": 750,
+          "cafAidAmount": 600,
+          "netAmount": 150,
+          "paidAmount": 0,
+          "remainingAmount": 150
+        },
+        "transport": {
+          "departureCity": "Bordeaux",
+          "returnCity": "Bordeaux",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 750,
+          "transportFee": 0,
+          "cafAmount": 600,
+          "resteACharge": 150,
+          "alreadyPaid": 0,
+          "remainingValue": 150
+        }
+      }
+    },
+    {
+      "rowNumber": 25,
+      "child": "Sofia Latrache",
+      "reference": "",
+      "email": "secretariat@mariedeluze.fr",
+      "phone": "33749161843",
+      "birthDate": "2010-08-12",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Bordeaux",
+        "retour": "Bordeaux",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 700,
+        "totalAfterCaf": 700,
+        "stay": 700,
+        "transport": 0,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 700
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "TyRrdznXv7vIPX2DSen1",
+        "currentStatus": "validated",
+        "currentReference": ""
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 0,
+          "next": 700
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 0,
+          "next": 700
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 700
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 700,
+          "transportAmount": 0,
+          "grossAmount": 700,
+          "cafAidAmount": 0,
+          "netAmount": 700,
+          "paidAmount": 0,
+          "remainingAmount": 700
+        },
+        "transport": {
+          "departureCity": "Bordeaux",
+          "returnCity": "Bordeaux",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 700,
+          "transportFee": 0,
+          "cafAmount": 0,
+          "resteACharge": 700,
+          "alreadyPaid": 0,
+          "remainingValue": 700
+        }
+      }
+    },
+    {
+      "rowNumber": 26,
+      "child": "Paul-Louis Hazoumé",
+      "reference": "MCSC-061726-HAZ",
+      "email": "nhazoume@yahoo.com",
+      "phone": "0607635790",
+      "birthDate": "2012-09-25",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 1100,
+        "stay": 950,
+        "transport": 150,
+        "caf": 0,
+        "paid": 366.67,
+        "remaining": 733.33
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "FmF0nGclrivo8oMOKHWa",
+        "currentStatus": "validated",
+        "currentReference": "RES-2706647"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        },
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 366.67
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 0,
+          "netAmount": 1100,
+          "paidAmount": 366.67,
+          "remainingAmount": 733.33
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1100,
+          "alreadyPaid": 366.67,
+          "remainingValue": 733.33
+        }
+      }
+    },
+    {
+      "rowNumber": 27,
+      "child": "Léa COLONETTE",
+      "reference": "",
+      "email": "sidonie.marieanne@yahoo.fr",
+      "phone": "0669462445",
+      "birthDate": "",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 1100,
+        "stay": 950,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1100
+      },
+      "match": {
+        "status": "matched",
+        "method": "email",
+        "reservationId": "TcGzrg2KDB60kS6qvrAa",
+        "currentStatus": "validated",
+        "currentReference": "RES-2706MAR"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 0,
+          "netAmount": 1100,
+          "paidAmount": 0,
+          "remainingAmount": 1100
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1100,
+          "alreadyPaid": 0,
+          "remainingValue": 1100
+        }
+      }
+    },
+    {
+      "rowNumber": 28,
+      "child": "Nawad MOHAMED SAID",
+      "reference": "",
+      "email": "abdallahmariame@hotmail.fr",
+      "phone": "0744877796",
+      "birthDate": "2011-07-20",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1050,
+        "totalAfterCaf": 450,
+        "stay": 900,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 450
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "Ip5FZbMPBj08gi86bJJI",
+        "currentStatus": "validated",
+        "currentReference": "RES-2806922"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 900
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 900,
+          "transportAmount": 150,
+          "grossAmount": 1050,
+          "cafAidAmount": 600,
+          "netAmount": 450,
+          "paidAmount": 0,
+          "remainingAmount": 450
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1050,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 450,
+          "alreadyPaid": 0,
+          "remainingValue": 450
+        }
+      }
+    },
+    {
+      "rowNumber": 29,
+      "child": "Haroun LANSEUR",
+      "reference": "",
+      "email": "umendes@free.fr",
+      "phone": "0652408084",
+      "birthDate": "2011-01-17",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "DdXIUp5j9leKd8ZvDJfq",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906556"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 30,
+      "child": "Ismael SANOGO",
+      "reference": "",
+      "email": "alimadu20@icloud.com",
+      "phone": "0745219071",
+      "birthDate": "2010-09-27",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "XsF8N1nxdJ9kdtJdiv7T",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906291"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 31,
+      "child": "NGueya NZOUENDZI",
+      "reference": "",
+      "email": "tonalie@yahoo.frm",
+      "phone": "0614833568",
+      "birthDate": "2009-01-05",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "P2zw7GZMzrrMVgvblyLy",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906767"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 32,
+      "child": "Aaron OLIVIER",
+      "reference": "",
+      "email": "aneliahair@gmail.com",
+      "phone": "0651289705",
+      "birthDate": "2010-05-31",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 100
+      },
+      "amounts": {
+        "total": 1000,
+        "totalAfterCaf": 400,
+        "stay": 900,
+        "transport": 100,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 400
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "lxB4xNJsnWI0zIKBZYz5",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906OLI"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 900
+        },
+        {
+          "field": "finance.paidAmount",
+          "current": 133.33,
+          "next": 0
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 900,
+          "transportAmount": 100,
+          "grossAmount": 1000,
+          "cafAidAmount": 600,
+          "netAmount": 400,
+          "paidAmount": 0,
+          "remainingAmount": 400
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 100
+        },
+        "payment": {
+          "validatedPrice": 1000,
+          "transportFee": 100,
+          "cafAmount": 600,
+          "resteACharge": 400,
+          "alreadyPaid": 0,
+          "remainingValue": 400
+        }
+      }
+    }
+  ],
+  "allRows": [
+    {
+      "rowNumber": 1,
+      "child": "Laura Courjaud",
+      "reference": "MCSC-061726-CO1",
+      "email": "fleuranceaufabienneautre689774927fleuranceau.fabienne@orange.fr",
+      "phone": "0689774927",
+      "birthDate": "2009-12-13",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Sur Place",
+        "retour": "Sur Place",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 960,
+        "totalAfterCaf": 360,
+        "stay": 960,
+        "transport": 0,
+        "caf": 600,
+        "paid": 360,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "XIJz8XIhSO664breOcYJ",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-CO1"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "message": "Sur Place"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "message": "Sur Place"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 960,
+          "transportAmount": 0,
+          "grossAmount": 960,
+          "cafAidAmount": 600,
+          "netAmount": 360,
+          "paidAmount": 360,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Sur Place",
+          "returnCity": "Sur Place",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 960,
+          "transportFee": 0,
+          "cafAmount": 600,
+          "resteACharge": 360,
+          "alreadyPaid": 360,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 2,
+      "child": "Gabriel Courjaud",
+      "reference": "MCSC-061726-CO2",
+      "email": "fleuranceaufabienneautre689774927fleuranceau.fabienne@orange.fr",
+      "phone": "0689774927",
+      "birthDate": "2011-02-20",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Sur Place",
+        "retour": "Sur Place",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 960,
+        "totalAfterCaf": 360,
+        "stay": 960,
+        "transport": 0,
+        "caf": 600,
+        "paid": 360,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "lmBmIGVV4QHrGR1mWF0N",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-CO2"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "message": "Sur Place"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "message": "Sur Place"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 960,
+          "transportAmount": 0,
+          "grossAmount": 960,
+          "cafAidAmount": 600,
+          "netAmount": 360,
+          "paidAmount": 360,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Sur Place",
+          "returnCity": "Sur Place",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 960,
+          "transportFee": 0,
+          "cafAmount": 600,
+          "resteACharge": 360,
+          "alreadyPaid": 360,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 3,
+      "child": "Marie Courjaud",
+      "reference": "MCSC-061726-CO3",
+      "email": "fleuranceaufabienneautre689774927fleuranceau.fabienne@orange.fr",
+      "phone": "0689774927",
+      "birthDate": "2013-02-12",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Sur Place",
+        "retour": "Sur Place",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 960,
+        "totalAfterCaf": 360,
+        "stay": 960,
+        "transport": 0,
+        "caf": 600,
+        "paid": 360,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "PUGZ0yFsoiE7OYHurtOD",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-CO3"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 360
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "message": "Sur Place"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "message": "Sur Place"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 960,
+          "transportAmount": 0,
+          "grossAmount": 960,
+          "cafAidAmount": 600,
+          "netAmount": 360,
+          "paidAmount": 360,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Sur Place",
+          "returnCity": "Sur Place",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 960,
+          "transportFee": 0,
+          "cafAmount": 600,
+          "resteACharge": 360,
+          "alreadyPaid": 360,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 4,
+      "child": "Aaron Heffer",
+      "reference": "MCSC-061726-HEF",
+      "email": "ekoumekapitho@yahoo.com",
+      "phone": "0611049671",
+      "birthDate": "2010-12-13",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1250,
+        "totalAfterCaf": 850,
+        "stay": 1100,
+        "transport": 150,
+        "caf": 400,
+        "paid": 850,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "Ft94oIZOyEQ62PAyw877",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-HEF"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 1100,
+          "transportAmount": 150,
+          "grossAmount": 1250,
+          "cafAidAmount": 400,
+          "netAmount": 850,
+          "paidAmount": 850,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1250,
+          "transportFee": 150,
+          "cafAmount": 400,
+          "resteACharge": 850,
+          "alreadyPaid": 850,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 5,
+      "child": "Jasmine SARR",
+      "reference": "MCSC-061726-SAR",
+      "email": "touatiaevajasmegue@gmail.com",
+      "phone": "0749813239",
+      "birthDate": "2010-09-14",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Lyon",
+        "retour": "Lyon",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1200,
+        "totalAfterCaf": 600,
+        "stay": 1050,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 600
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "cz4Qa87XSxgKFGzTOllf",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-SAR"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 1050,
+          "transportAmount": 150,
+          "grossAmount": 1200,
+          "cafAidAmount": 600,
+          "netAmount": 600,
+          "paidAmount": 0,
+          "remainingAmount": 600
+        },
+        "transport": {
+          "departureCity": "Lyon",
+          "returnCity": "Lyon",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1200,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 600,
+          "alreadyPaid": 0,
+          "remainingValue": 600
+        }
+      }
+    },
+    {
+      "rowNumber": 6,
+      "child": "Thelma Baudin",
+      "reference": "MCSC-061726-BAU",
+      "email": "famillebaudin85@gmail.commcsc",
+      "phone": "0681034608",
+      "birthDate": "2011-04-14",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Nantes",
+        "retour": "Nantes",
+        "amount": 180
+      },
+      "amounts": {
+        "total": 987.5,
+        "totalAfterCaf": 987.5,
+        "stay": 807.5,
+        "transport": 180,
+        "caf": 0,
+        "paid": 987.5,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "DFTYJGAoLM8QEzO93L8y",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-BAU"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 660,
+          "next": 987.5
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 807.5,
+          "transportAmount": 180,
+          "grossAmount": 987.5,
+          "cafAidAmount": 0,
+          "netAmount": 987.5,
+          "paidAmount": 987.5,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Nantes",
+          "returnCity": "Nantes",
+          "fee": 180
+        },
+        "payment": {
+          "validatedPrice": 987.5,
+          "transportFee": 180,
+          "cafAmount": 0,
+          "resteACharge": 987.5,
+          "alreadyPaid": 987.5,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 7,
+      "child": "Julia LIGNIEZ",
+      "reference": "MCSC-061726-LIG",
+      "email": "xligniez@gmail.com",
+      "phone": "0662443263",
+      "birthDate": "2010-07-23",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Nantes",
+        "retour": "Nantes",
+        "amount": 180
+      },
+      "amounts": {
+        "total": 987.5,
+        "totalAfterCaf": 987.5,
+        "stay": 807.5,
+        "transport": 180,
+        "caf": 0,
+        "paid": 987.5,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "kyFNkjabLWUEjQSwlxSa",
+        "currentStatus": "validated",
+        "currentReference": "RES-2303LIG"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 807.5,
+          "transportAmount": 180,
+          "grossAmount": 987.5,
+          "cafAidAmount": 0,
+          "netAmount": 987.5,
+          "paidAmount": 987.5,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Nantes",
+          "returnCity": "Nantes",
+          "fee": 180
+        },
+        "payment": {
+          "validatedPrice": 987.5,
+          "transportFee": 180,
+          "cafAmount": 0,
+          "resteACharge": 987.5,
+          "alreadyPaid": 987.5,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 8,
+      "child": "Yugo Renault Debecker",
+      "reference": "MCSC-061726-REN",
+      "email": "",
+      "phone": "",
+      "birthDate": "2013-02-21",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Toulouse",
+        "retour": "Toulouse",
+        "amount": 94.16
+      },
+      "amounts": {
+        "total": 1035.76,
+        "totalAfterCaf": 1035.76,
+        "stay": 941.6,
+        "transport": 94.16,
+        "caf": 0,
+        "paid": 1035.76,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "fOWImoIKOdZMYShPikDQ",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-REN"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1035.76
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Toulouse",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Toulouse",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 941.6,
+          "transportAmount": 94.16,
+          "grossAmount": 1035.76,
+          "cafAidAmount": 0,
+          "netAmount": 1035.76,
+          "paidAmount": 1035.76,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Toulouse",
+          "returnCity": "Toulouse",
+          "fee": 94.16
+        },
+        "payment": {
+          "validatedPrice": 1035.76,
+          "transportFee": 94.16,
+          "cafAmount": 0,
+          "resteACharge": 1035.76,
+          "alreadyPaid": 1035.76,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 9,
+      "child": "Maëlle Subal",
+      "reference": "MCSC-061726-SUB",
+      "email": "c.cornil@lesdecisifs.commcsc",
+      "phone": "0664254436",
+      "birthDate": "2011-08-28",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Lyon",
+        "retour": "Lyon",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1147.5,
+        "totalAfterCaf": 1147.5,
+        "stay": 997.5,
+        "transport": 150,
+        "caf": 0,
+        "paid": 1147.5,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "c93BXlpnajNpyx0xVDZq",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-SUB"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 997.5,
+          "next": 1147.5
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 997.5,
+          "next": 1147.5
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 847.5,
+          "next": 997.5
+        },
+        {
+          "field": "finance.paidAmount",
+          "current": 997.5,
+          "next": 1147.5
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 997.5,
+          "transportAmount": 150,
+          "grossAmount": 1147.5,
+          "cafAidAmount": 0,
+          "netAmount": 1147.5,
+          "paidAmount": 1147.5,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Lyon",
+          "returnCity": "Lyon",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1147.5,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1147.5,
+          "alreadyPaid": 1147.5,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 10,
+      "child": "Nils Kaptur",
+      "reference": "MCSC-061726-KAP",
+      "email": "emmanuellegalon@gmail.com",
+      "phone": "0622480328",
+      "birthDate": "",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Bordeaux",
+        "retour": "Bordeaux",
+        "amount": 60
+      },
+      "amounts": {
+        "total": 1020.8,
+        "totalAfterCaf": 1020.8,
+        "stay": 960.8,
+        "transport": 60,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1020.8
+      },
+      "match": {
+        "status": "matched",
+        "method": "reference",
+        "reservationId": "0FaBByqSYpAMMfBaIa9T",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-061726-KAP"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 340.27,
+          "next": 0
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 960.8,
+          "transportAmount": 60,
+          "grossAmount": 1020.8,
+          "cafAidAmount": 0,
+          "netAmount": 1020.8,
+          "paidAmount": 0,
+          "remainingAmount": 1020.8
+        },
+        "transport": {
+          "departureCity": "Bordeaux",
+          "returnCity": "Bordeaux",
+          "fee": 60
+        },
+        "payment": {
+          "validatedPrice": 1020.8,
+          "transportFee": 60,
+          "cafAmount": 0,
+          "resteACharge": 1020.8,
+          "alreadyPaid": 0,
+          "remainingValue": 1020.8
+        }
+      }
+    },
+    {
+      "rowNumber": 11,
+      "child": "Soualio BAKAYOKO",
+      "reference": "MCSC-061726-BAK",
+      "email": "mahouadiomande9@gmail.com",
+      "phone": "0605973317",
+      "birthDate": "2015-03-07",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 450,
+        "totalAfterCaf": 450,
+        "stay": 300,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 450
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "PzVeB55uMZM0zB6YW0wy",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-069-BAK"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 1200,
+          "next": 450
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 600,
+          "next": 450
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 1050,
+          "next": 300
+        },
+        {
+          "field": "finance.cafAidAmount",
+          "current": 600,
+          "next": 0
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 300,
+          "transportAmount": 150,
+          "grossAmount": 450,
+          "cafAidAmount": 0,
+          "netAmount": 450,
+          "paidAmount": 0,
+          "remainingAmount": 450
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 450,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 450,
+          "alreadyPaid": 0,
+          "remainingValue": 450
+        }
+      }
+    },
+    {
+      "rowNumber": 12,
+      "child": "Emma GIRARDOT",
+      "reference": "MCSC-061726-GIR",
+      "email": "thibaut.girardot@bbox.fr",
+      "phone": "0646718669",
+      "birthDate": "2011-10-11",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Lyon",
+        "retour": "Lyon",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1195,
+        "totalAfterCaf": 1195,
+        "stay": 1045,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1195
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "zqmf5w1nUCNkSx6kB6GJ",
+        "currentStatus": "validated",
+        "currentReference": "RES-1805GIR"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Lyon",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 1045,
+          "transportAmount": 150,
+          "grossAmount": 1195,
+          "cafAidAmount": 0,
+          "netAmount": 1195,
+          "paidAmount": 0,
+          "remainingAmount": 1195
+        },
+        "transport": {
+          "departureCity": "Lyon",
+          "returnCity": "Lyon",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1195,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1195,
+          "alreadyPaid": 0,
+          "remainingValue": 1195
+        }
+      }
+    },
+    {
+      "rowNumber": 13,
+      "child": "GASPARD Elie-Emmanuel",
+      "reference": "MCSC-061726-GAS",
+      "email": "claudette.renel@gmail.com",
+      "phone": "0768359368",
+      "birthDate": "2013-03-13",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1200,
+        "totalAfterCaf": 600,
+        "stay": 1050,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 600
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "e5Kjjpa8u6bAPBLFPMma",
+        "currentStatus": "validated",
+        "currentReference": "ETE26-067"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 1050,
+          "transportAmount": 150,
+          "grossAmount": 1200,
+          "cafAidAmount": 600,
+          "netAmount": 600,
+          "paidAmount": 0,
+          "remainingAmount": 600
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1200,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 600,
+          "alreadyPaid": 0,
+          "remainingValue": 600
+        }
+      }
+    },
+    {
+      "rowNumber": 14,
+      "child": "Audric CLAIN",
+      "reference": "",
+      "email": "matoka.urgence@amape.fr",
+      "phone": "",
+      "birthDate": "2014-01-31",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Valence",
+        "retour": "Valence",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 650,
+        "stay": 950,
+        "transport": 150,
+        "caf": 450,
+        "paid": 0,
+        "remaining": 650
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "jrqNTPda8DCtENJBe0CA",
+        "currentStatus": "validated",
+        "currentReference": "ETE26-071"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Valence",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Valence",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 450,
+          "netAmount": 650,
+          "paidAmount": 0,
+          "remainingAmount": 650
+        },
+        "transport": {
+          "departureCity": "Valence",
+          "returnCity": "Valence",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 450,
+          "resteACharge": 650,
+          "alreadyPaid": 0,
+          "remainingValue": 650
+        }
+      }
+    },
+    {
+      "rowNumber": 15,
+      "child": "Océane RAUDE",
+      "reference": "",
+      "email": "",
+      "phone": "",
+      "birthDate": "2014-09-26",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Nantes",
+        "retour": "Nantes",
+        "amount": 154.08
+      },
+      "amounts": {
+        "total": 1087.12,
+        "totalAfterCaf": 1087.12,
+        "stay": 933.04,
+        "transport": 154.08,
+        "caf": 0,
+        "paid": 1087.12,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_stay_week",
+        "reservationId": "XumQTtpu9pLIMCs0206k",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-073-RAU"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1087.12
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Nantes",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 154.08,
+          "grossAmount": 1087.12,
+          "cafAidAmount": 0,
+          "netAmount": 1087.12,
+          "paidAmount": 1087.12,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Nantes",
+          "returnCity": "Nantes",
+          "fee": 154.08
+        },
+        "payment": {
+          "validatedPrice": 1087.12,
+          "transportFee": 154.08,
+          "cafAmount": 0,
+          "resteACharge": 1087.12,
+          "alreadyPaid": 1087.12,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 16,
+      "child": "Stanislas HERVY",
+      "reference": "",
+      "email": "",
+      "phone": "",
+      "birthDate": "2010-06-11",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 128.4
+      },
+      "amounts": {
+        "total": 1061.44,
+        "totalAfterCaf": 1061.44,
+        "stay": 933.04,
+        "transport": 128.4,
+        "caf": 0,
+        "paid": 1061.44,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "lLeAMm5YUJ4Meu9FJCZM",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-080-HER"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1061.44
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 128.4,
+          "grossAmount": 1061.44,
+          "cafAidAmount": 0,
+          "netAmount": 1061.44,
+          "paidAmount": 1061.44,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 128.4
+        },
+        "payment": {
+          "validatedPrice": 1061.44,
+          "transportFee": 128.4,
+          "cafAmount": 0,
+          "resteACharge": 1061.44,
+          "alreadyPaid": 1061.44,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 17,
+      "child": "Dimitri HERVY",
+      "reference": "",
+      "email": "",
+      "phone": "",
+      "birthDate": "2013-08-16",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 128.4
+      },
+      "amounts": {
+        "total": 1061.44,
+        "totalAfterCaf": 1061.44,
+        "stay": 933.04,
+        "transport": 128.4,
+        "caf": 0,
+        "paid": 1061.44,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "sgdDGQomVxE9P57mOYTq",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-079-HER"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1061.44
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 128.4,
+          "grossAmount": 1061.44,
+          "cafAidAmount": 0,
+          "netAmount": 1061.44,
+          "paidAmount": 1061.44,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 128.4
+        },
+        "payment": {
+          "validatedPrice": 1061.44,
+          "transportFee": 128.4,
+          "cafAmount": 0,
+          "resteACharge": 1061.44,
+          "alreadyPaid": 1061.44,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 18,
+      "child": "Lina Ye Wei",
+      "reference": "",
+      "email": "lifenwei1976@gmail.com",
+      "phone": "0624797243",
+      "birthDate": "",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "hAcjPSugaLaS8H5DDDjJ",
+        "currentStatus": "validated",
+        "currentReference": "RES-1306WEI"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 19,
+      "child": "Logan Gleize",
+      "reference": "",
+      "email": "chcaumes@gmail.com",
+      "phone": "0642159947",
+      "birthDate": "2013-02-12",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Montpellier",
+        "retour": "Montpellier",
+        "amount": 110
+      },
+      "amounts": {
+        "total": 1010,
+        "totalAfterCaf": 842,
+        "stay": 900,
+        "transport": 110,
+        "caf": 168,
+        "paid": 0,
+        "remaining": 842
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "4EiLDAz7IyS996olXsXL",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-092-GLE"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Montpellier",
+          "transportIds": [
+            "GXvhfCTPBcKdnIFHHZIe"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Montpellier",
+          "transportIds": [
+            "mqhiRrp6KjvJZF8FQhsO"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 900,
+          "transportAmount": 110,
+          "grossAmount": 1010,
+          "cafAidAmount": 168,
+          "netAmount": 842,
+          "paidAmount": 0,
+          "remainingAmount": 842
+        },
+        "transport": {
+          "departureCity": "Montpellier",
+          "returnCity": "Montpellier",
+          "fee": 110
+        },
+        "payment": {
+          "validatedPrice": 1010,
+          "transportFee": 110,
+          "cafAmount": 168,
+          "resteACharge": 842,
+          "alreadyPaid": 0,
+          "remainingValue": 842
+        }
+      }
+    },
+    {
+      "rowNumber": 20,
+      "child": "Léane Stein",
+      "reference": "",
+      "email": "",
+      "phone": "0675056432",
+      "birthDate": "2011-04-09",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 128.4
+      },
+      "amounts": {
+        "total": 1061.44,
+        "totalAfterCaf": 1061.44,
+        "stay": 933.04,
+        "transport": 128.4,
+        "caf": 0,
+        "paid": 1061.44,
+        "remaining": 0
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "rFLVIF8ARfhfu6dFpNki",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-095-STE"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 1061.44
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 933.04,
+          "transportAmount": 128.4,
+          "grossAmount": 1061.44,
+          "cafAidAmount": 0,
+          "netAmount": 1061.44,
+          "paidAmount": 1061.44,
+          "remainingAmount": 0
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 128.4
+        },
+        "payment": {
+          "validatedPrice": 1061.44,
+          "transportFee": 128.4,
+          "cafAmount": 0,
+          "resteACharge": 1061.44,
+          "alreadyPaid": 1061.44,
+          "remainingValue": 0
+        }
+      }
+    },
+    {
+      "rowNumber": 21,
+      "child": "Zainab COULIBALY",
+      "reference": "",
+      "email": "khoudjedji.ci1988@gmail.com",
+      "phone": "0784785345",
+      "birthDate": "2010-08-27",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1200,
+        "totalAfterCaf": 600,
+        "stay": 1050,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 600
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "ePJScSnRl6xY67aidONl",
+        "currentStatus": "validated",
+        "currentReference": "MCSC-S1-064-COU"
+      },
+      "financeDiffs": [],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 1050,
+          "transportAmount": 150,
+          "grossAmount": 1200,
+          "cafAidAmount": 600,
+          "netAmount": 600,
+          "paidAmount": 0,
+          "remainingAmount": 600
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1200,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 600,
+          "alreadyPaid": 0,
+          "remainingValue": 600
+        }
+      }
+    },
+    {
+      "rowNumber": 22,
+      "child": "NOAM NDOUKOBO NYANSI",
+      "reference": "",
+      "email": "vivianecheron@gmail.com",
+      "phone": "0662050078",
+      "birthDate": "2015-12-22",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 750,
+        "totalAfterCaf": 500,
+        "stay": 600,
+        "transport": 150,
+        "caf": 250,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "MpCziw2toPDnBCgHdYpz",
+        "currentStatus": "validated",
+        "currentReference": ""
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 0,
+          "next": 750
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 0,
+          "next": 500
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 600
+        },
+        {
+          "field": "finance.cafAidAmount",
+          "current": 0,
+          "next": 250
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 600,
+          "transportAmount": 150,
+          "grossAmount": 750,
+          "cafAidAmount": 250,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 750,
+          "transportFee": 150,
+          "cafAmount": 250,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 23,
+      "child": "Teng Yang Lin",
+      "reference": "",
+      "email": "jiuchun.lin89@gmail.com",
+      "phone": "0768898557",
+      "birthDate": "2010-09-03",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 1100,
+        "stay": 950,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1100
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "y6ozEeYyw0F8pU7cpisT",
+        "currentStatus": "validated",
+        "currentReference": "RES-1706LIN"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 0,
+          "netAmount": 1100,
+          "paidAmount": 0,
+          "remainingAmount": 1100
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1100,
+          "alreadyPaid": 0,
+          "remainingValue": 1100
+        }
+      }
+    },
+    {
+      "rowNumber": 24,
+      "child": "Arushni Dharmenthira",
+      "reference": "",
+      "email": "secretariat@mariedeluze.fr",
+      "phone": "33749161843",
+      "birthDate": "2008-08-27",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Bordeaux",
+        "retour": "Bordeaux",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 750,
+        "totalAfterCaf": 150,
+        "stay": 750,
+        "transport": 0,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 150
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "2lKVSOXqwlWbttCcKILI",
+        "currentStatus": "validated",
+        "currentReference": ""
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 0,
+          "next": 750
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 0,
+          "next": 150
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 750
+        },
+        {
+          "field": "finance.cafAidAmount",
+          "current": 0,
+          "next": 600
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 750,
+          "transportAmount": 0,
+          "grossAmount": 750,
+          "cafAidAmount": 600,
+          "netAmount": 150,
+          "paidAmount": 0,
+          "remainingAmount": 150
+        },
+        "transport": {
+          "departureCity": "Bordeaux",
+          "returnCity": "Bordeaux",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 750,
+          "transportFee": 0,
+          "cafAmount": 600,
+          "resteACharge": 150,
+          "alreadyPaid": 0,
+          "remainingValue": 150
+        }
+      }
+    },
+    {
+      "rowNumber": 25,
+      "child": "Sofia Latrache",
+      "reference": "",
+      "email": "secretariat@mariedeluze.fr",
+      "phone": "33749161843",
+      "birthDate": "2010-08-12",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Bordeaux",
+        "retour": "Bordeaux",
+        "amount": 0
+      },
+      "amounts": {
+        "total": 700,
+        "totalAfterCaf": 700,
+        "stay": 700,
+        "transport": 0,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 700
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "TyRrdznXv7vIPX2DSen1",
+        "currentStatus": "validated",
+        "currentReference": ""
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.grossAmount",
+          "current": 0,
+          "next": 700
+        },
+        {
+          "field": "finance.netAmount",
+          "current": 0,
+          "next": 700
+        },
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 700
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Bordeaux",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 700,
+          "transportAmount": 0,
+          "grossAmount": 700,
+          "cafAidAmount": 0,
+          "netAmount": 700,
+          "paidAmount": 0,
+          "remainingAmount": 700
+        },
+        "transport": {
+          "departureCity": "Bordeaux",
+          "returnCity": "Bordeaux",
+          "fee": 0
+        },
+        "payment": {
+          "validatedPrice": 700,
+          "transportFee": 0,
+          "cafAmount": 0,
+          "resteACharge": 700,
+          "alreadyPaid": 0,
+          "remainingValue": 700
+        }
+      }
+    },
+    {
+      "rowNumber": 26,
+      "child": "Paul-Louis Hazoumé",
+      "reference": "MCSC-061726-HAZ",
+      "email": "nhazoume@yahoo.com",
+      "phone": "0607635790",
+      "birthDate": "2012-09-25",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 1100,
+        "stay": 950,
+        "transport": 150,
+        "caf": 0,
+        "paid": 366.67,
+        "remaining": 733.33
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "FmF0nGclrivo8oMOKHWa",
+        "currentStatus": "validated",
+        "currentReference": "RES-2706647"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        },
+        {
+          "field": "finance.paidAmount",
+          "current": 0,
+          "next": 366.67
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 0,
+          "netAmount": 1100,
+          "paidAmount": 366.67,
+          "remainingAmount": 733.33
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1100,
+          "alreadyPaid": 366.67,
+          "remainingValue": 733.33
+        }
+      }
+    },
+    {
+      "rowNumber": 27,
+      "child": "Léa COLONETTE",
+      "reference": "",
+      "email": "sidonie.marieanne@yahoo.fr",
+      "phone": "0669462445",
+      "birthDate": "",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 1100,
+        "stay": 950,
+        "transport": 150,
+        "caf": 0,
+        "paid": 0,
+        "remaining": 1100
+      },
+      "match": {
+        "status": "matched",
+        "method": "email",
+        "reservationId": "TcGzrg2KDB60kS6qvrAa",
+        "currentStatus": "validated",
+        "currentReference": "RES-2706MAR"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 0,
+          "netAmount": 1100,
+          "paidAmount": 0,
+          "remainingAmount": 1100
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 0,
+          "resteACharge": 1100,
+          "alreadyPaid": 0,
+          "remainingValue": 1100
+        }
+      }
+    },
+    {
+      "rowNumber": 28,
+      "child": "Nawad MOHAMED SAID",
+      "reference": "",
+      "email": "abdallahmariame@hotmail.fr",
+      "phone": "0744877796",
+      "birthDate": "2011-07-20",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1050,
+        "totalAfterCaf": 450,
+        "stay": 900,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 450
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "Ip5FZbMPBj08gi86bJJI",
+        "currentStatus": "validated",
+        "currentReference": "RES-2806922"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 900
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 900,
+          "transportAmount": 150,
+          "grossAmount": 1050,
+          "cafAidAmount": 600,
+          "netAmount": 450,
+          "paidAmount": 0,
+          "remainingAmount": 450
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1050,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 450,
+          "alreadyPaid": 0,
+          "remainingValue": 450
+        }
+      }
+    },
+    {
+      "rowNumber": 29,
+      "child": "Haroun LANSEUR",
+      "reference": "",
+      "email": "umendes@free.fr",
+      "phone": "0652408084",
+      "birthDate": "2011-01-17",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "DdXIUp5j9leKd8ZvDJfq",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906556"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 30,
+      "child": "Ismael SANOGO",
+      "reference": "",
+      "email": "alimadu20@icloud.com",
+      "phone": "0745219071",
+      "birthDate": "2010-09-27",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "XsF8N1nxdJ9kdtJdiv7T",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906291"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 31,
+      "child": "NGueya NZOUENDZI",
+      "reference": "",
+      "email": "tonalie@yahoo.frm",
+      "phone": "0614833568",
+      "birthDate": "2009-01-05",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 150
+      },
+      "amounts": {
+        "total": 1100,
+        "totalAfterCaf": 500,
+        "stay": 950,
+        "transport": 150,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 500
+      },
+      "match": {
+        "status": "matched",
+        "method": "child_birth_stay_week",
+        "reservationId": "P2zw7GZMzrrMVgvblyLy",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906767"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 950
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 950,
+          "transportAmount": 150,
+          "grossAmount": 1100,
+          "cafAidAmount": 600,
+          "netAmount": 500,
+          "paidAmount": 0,
+          "remainingAmount": 500
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 150
+        },
+        "payment": {
+          "validatedPrice": 1100,
+          "transportFee": 150,
+          "cafAmount": 600,
+          "resteACharge": 500,
+          "alreadyPaid": 0,
+          "remainingValue": 500
+        }
+      }
+    },
+    {
+      "rowNumber": 32,
+      "child": "Aaron OLIVIER",
+      "reference": "",
+      "email": "aneliahair@gmail.com",
+      "phone": "0651289705",
+      "birthDate": "2010-05-31",
+      "stay": "MCSC",
+      "week": "S1",
+      "transport": {
+        "aller": "Paris",
+        "retour": "Paris",
+        "amount": 100
+      },
+      "amounts": {
+        "total": 1000,
+        "totalAfterCaf": 400,
+        "stay": 900,
+        "transport": 100,
+        "caf": 600,
+        "paid": 0,
+        "remaining": 400
+      },
+      "match": {
+        "status": "matched",
+        "method": "email_child",
+        "reservationId": "lxB4xNJsnWI0zIKBZYz5",
+        "currentStatus": "validated",
+        "currentReference": "RES-2906OLI"
+      },
+      "financeDiffs": [
+        {
+          "field": "finance.stayAmount",
+          "current": 0,
+          "next": 900
+        },
+        {
+          "field": "finance.paidAmount",
+          "current": 133.33,
+          "next": 0
+        }
+      ],
+      "transportChecks": [
+        {
+          "direction": "aller",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "ylEcqHnDCCneUQqejLis"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        },
+        {
+          "direction": "retour",
+          "level": "ok",
+          "city": "Paris",
+          "transportIds": [
+            "2lVN1Zxd05fzbm71WzBG"
+          ],
+          "message": "Convoi et segment/ville couverts"
+        }
+      ],
+      "proposedPatch": {
+        "status": "validated",
+        "validationSource": "ete26_validated_pdf",
+        "validationWorkbook": "ETE 26 - Inscriptions validées - Suivi inscris (2).pdf",
+        "finance": {
+          "stayAmount": 900,
+          "transportAmount": 100,
+          "grossAmount": 1000,
+          "cafAidAmount": 600,
+          "netAmount": 400,
+          "paidAmount": 0,
+          "remainingAmount": 400
+        },
+        "transport": {
+          "departureCity": "Paris",
+          "returnCity": "Paris",
+          "fee": 100
+        },
+        "payment": {
+          "validatedPrice": 1000,
+          "transportFee": 100,
+          "cafAmount": 600,
+          "resteACharge": 400,
+          "alreadyPaid": 0,
+          "remainingValue": 400
+        }
+      }
+    }
+  ]
+}

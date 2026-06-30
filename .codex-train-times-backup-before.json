@@ -1,0 +1,607 @@
+{
+  "GXvhfCTPBcKdnIFHHZIe": {
+    "id": "GXvhfCTPBcKdnIFHHZIe",
+    "status": "confirmé",
+    "capacity": 0,
+    "from": "Lyon",
+    "emergencyPhone": "",
+    "staff": [
+      {
+        "birthDate": "",
+        "name": "Romane Kerveillant",
+        "phone": "",
+        "week": "S1",
+        "stayCode": "MCSC",
+        "boardingCity": "",
+        "id": "0deed4e1-8ef0-4053-a7b2-648dfa551aa1",
+        "email": "",
+        "memberId": "romane-kerveillant",
+        "contractId": "rh-2026-row-4",
+        "role": "DSA"
+      }
+    ],
+    "arrivalCity": "Dax",
+    "segments": [
+      {
+        "arrivalTime": "14:03",
+        "stops": [
+          {
+            "stopType": "quai",
+            "instructions": "Montée sur le quai uniquement, pas de rendez-vous organisé.",
+            "meetingTime": "",
+            "departureTime": "12:53",
+            "meetingPoint": "Quai et voiture communiqué par l'animateur.ice",
+            "city": "Valence",
+            "id": "6f9c811e-7b53-4d69-bb83-c7236f1bafee",
+            "mode": "TGV INOUI",
+            "number": "9812",
+            "platform": "",
+            "arrivalTime": "12:47"
+          }
+        ],
+        "number": "9812",
+        "assignedStaffIds": [
+          "0deed4e1-8ef0-4053-a7b2-648dfa551aa1"
+        ],
+        "departureTime": "12:07",
+        "stopType": "rdv",
+        "from": "Lyon",
+        "mode": "TGV INOUI",
+        "platform": "",
+        "to": "Montpellier",
+        "id": "f25e4d8d-d7d9-4d3f-959a-ad17e936f51d",
+        "meetingPoint": "Gare SNCF Lyon-Part Dieu - Place Charles Baraudier, Lyon 3 - Devant la boutique Fnac, galerie Villette",
+        "meetingTime": "",
+        "instructions": ""
+      },
+      {
+        "instructions": "",
+        "meetingPoint": "Gare SNCF Montpellier - Sortie Pont de Sète - A coté de Quick",
+        "meetingTime": "",
+        "platform": "",
+        "mode": "SNCF",
+        "id": "2be9e49e-38c2-4038-b9ac-4b152c636c3c",
+        "to": "Bordeaux",
+        "from": "Montpellier",
+        "stopType": "rdv",
+        "assignedStaffIds": [
+          "0deed4e1-8ef0-4053-a7b2-648dfa551aa1"
+        ],
+        "departureTime": "15:05",
+        "arrivalTime": "19:54",
+        "number": "JTYFKY",
+        "stops": [
+          {
+            "departureTime": "17:26",
+            "meetingTime": "",
+            "meetingPoint": "Quai et voiture communiqué par l'animateur.ice",
+            "stopType": "quai",
+            "instructions": "Montée sur le quai uniquement, pas de rendez-vous organisé.",
+            "city": "Toulouse",
+            "id": "segment-163b4e1e-0b6f-4338-82ad-31cd1e07ae41",
+            "mode": "SNCF",
+            "number": "JTYFKY",
+            "platform": "",
+            "arrivalTime": "17:18"
+          }
+        ]
+      },
+      {
+        "number": "8551",
+        "stops": [],
+        "arrivalTime": "22:06",
+        "stopType": "quai",
+        "assignedStaffIds": [
+          "0deed4e1-8ef0-4053-a7b2-648dfa551aa1"
+        ],
+        "departureTime": "20:53",
+        "mode": "TGV INOUI",
+        "platform": "",
+        "to": "Dax",
+        "id": "9aac5f16-a2ee-4bcc-aa09-ae1ad9516527",
+        "from": "Bordeaux",
+        "instructions": "Dernier segment du convoi Lyon S1 vers Dax.",
+        "meetingPoint": "\tQuai et voiture communiqué par l'animateur.ice",
+        "meetingTime": ""
+      }
+    ],
+    "convoyeur": "Romane Kerveillant",
+    "trainNumber": "9812",
+    "createdAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1781367394,
+      "nanoseconds": 320000000
+    },
+    "updatedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1782821932,
+      "nanoseconds": 150000000
+    },
+    "notes": "Récapitulatif automatique des enfants hors « Sur place ». Horaires, points de rendez-vous, équipe et billets à compléter.",
+    "childCount": 7,
+    "meetingTime": "",
+    "convoyeurPhone": "",
+    "meetingPoint": "",
+    "week": "S1",
+    "to": "Bordeaux",
+    "platform": "",
+    "departureTime": "12:07",
+    "passengers": [
+      {
+        "pickupCity": "Lyon",
+        "reservationId": "c93BXlpnajNpyx0xVDZq"
+      },
+      {
+        "pickupCity": "Lyon",
+        "reservationId": "cz4Qa87XSxgKFGzTOllf"
+      },
+      {
+        "pickupCity": "Toulouse",
+        "reservationId": "fOWImoIKOdZMYShPikDQ"
+      },
+      {
+        "pickupCity": "Lyon",
+        "reservationId": "zqmf5w1nUCNkSx6kB6GJ"
+      },
+      {
+        "reservationId": "jrqNTPda8DCtENJBe0CA",
+        "pickupCity": "Valence"
+      },
+      {
+        "pickupCity": "Montpellier",
+        "reservationId": "4EiLDAz7IyS996olXsXL"
+      }
+    ],
+    "direction": "aller",
+    "departureCity": "Lyon",
+    "route": "Lyon > Dax",
+    "sejourName": "Été 2026 - S1 - Convoi Sud / Ouest",
+    "passengerCount": 7,
+    "routeGroup": "sud-ouest",
+    "date": "2026-07-06",
+    "trainType": "TGV INOUI",
+    "emergencyContact": "ColoCrew",
+    "tickets": [
+      {
+        "coveredReservationIds": [
+          "zqmf5w1nUCNkSx6kB6GJ"
+        ],
+        "segmentLabel": "Lyon > Montpellier",
+        "bookingReference": "9P9M46",
+        "price": 77,
+        "purchased": true,
+        "id": "41a371ff-07bf-4e84-80f0-71d092088916",
+        "uploadedAt": "2026-06-19T22:07:36.205Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906851440-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_GIRARDOT_EMMA_9P9M46_RDMd3YUfGqWOxyG4ke2I.pdf?alt=media&token=02a73e96-4059-40d9-abf0-f9549fe3655c",
+        "seats": 1,
+        "segmentId": "f25e4d8d-d7d9-4d3f-959a-ad17e936f51d",
+        "name": "TGV INOUI 9812 - Emma Girardot - Lyon > Montpellier",
+        "departureTime": "12:07",
+        "notes": "Voiture 8 place 815",
+        "arrivalTime": "",
+        "missingReservationIds": [],
+        "storagePath": "transports/s1-convoyages/1781906851440-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_GIRARDOT_EMMA_9P9M46_RDMd3YUfGqWOxyG4ke2I.pdf"
+      },
+      {
+        "name": "TGV INOUI 9812 - Jasmine SARR - Lyon > Montpellier",
+        "segmentId": "f25e4d8d-d7d9-4d3f-959a-ad17e936f51d",
+        "departureTime": "12:07",
+        "notes": "Voiture 8 place 810",
+        "arrivalTime": "",
+        "missingReservationIds": [],
+        "storagePath": "transports/s1-convoyages/1781906852935-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SARR_JASMINE_9P9M46_CT7faslhR2evjqqVvgrq.pdf",
+        "bookingReference": "9P9M46",
+        "segmentLabel": "Lyon > Montpellier",
+        "coveredReservationIds": [
+          "cz4Qa87XSxgKFGzTOllf"
+        ],
+        "price": 77,
+        "uploadedAt": "2026-06-19T22:07:36.205Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906852935-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SARR_JASMINE_9P9M46_CT7faslhR2evjqqVvgrq.pdf?alt=media&token=da78da11-831d-4d14-bf9c-9fa08363fd24",
+        "purchased": true,
+        "id": "da4720c4-ed7a-4879-9c67-da5310ae89ac",
+        "seats": 1
+      },
+      {
+        "notes": "Voiture 8 place 811",
+        "missingReservationIds": [],
+        "arrivalTime": "",
+        "storagePath": "transports/s1-convoyages/1781906853586-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SUBAL_MAELLE_9P9M46_HtDOcS9pbwBpaUCahciN.pdf",
+        "segmentId": "f25e4d8d-d7d9-4d3f-959a-ad17e936f51d",
+        "name": "TGV INOUI 9812 - Maëlle Subal - Lyon > Montpellier",
+        "departureTime": "12:07",
+        "purchased": true,
+        "id": "7406a3c8-26f8-4c70-bd94-512d24e8eee4",
+        "uploadedAt": "2026-06-19T22:07:36.205Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906853586-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SUBAL_MAELLE_9P9M46_HtDOcS9pbwBpaUCahciN.pdf?alt=media&token=ce457f39-4c08-4148-aab0-eb809d919824",
+        "seats": 1,
+        "coveredReservationIds": [
+          "c93BXlpnajNpyx0xVDZq"
+        ],
+        "bookingReference": "9P9M46",
+        "segmentLabel": "Lyon > Montpellier",
+        "price": 77
+      },
+      {
+        "name": "TGV INOUI 9812 - Romane Kerveillant - Lyon > Montpellier",
+        "segmentId": "f25e4d8d-d7d9-4d3f-959a-ad17e936f51d",
+        "departureTime": "12:07",
+        "missingReservationIds": [],
+        "arrivalTime": "",
+        "notes": "Voiture 8 place 814",
+        "storagePath": "transports/s1-convoyages/1781906852318-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_KERVEILLANT_ROMANE_9P9M46_z3NbVlZrf5X1js1ILSbc.pdf",
+        "bookingReference": "9P9M46",
+        "segmentLabel": "Lyon > Montpellier",
+        "coveredReservationIds": [],
+        "price": 53,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906852318-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_KERVEILLANT_ROMANE_9P9M46_z3NbVlZrf5X1js1ILSbc.pdf?alt=media&token=e3735a77-2e89-4034-8ed5-d61d7a094cca",
+        "uploadedAt": "2026-06-19T22:07:36.205Z",
+        "id": "35455128-9c04-4c78-8131-36c78fc5b332",
+        "purchased": true,
+        "seats": 1
+      },
+      {
+        "notes": "Places 6-47, 6-48, 6-46, 6-41, 6-42, 6-45, 6-44, 6-43, 6-57, 6-58",
+        "missingReservationIds": [],
+        "arrivalTime": "19:54",
+        "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821888407-tickets_RR1J6R_Dreyer_WKFJNJ.pdf",
+        "sourceFile": "tickets_RR1J6R_Dreyer_WKFJNJ.pdf",
+        "trainType": "INTERCITÉS",
+        "segmentId": "2be9e49e-38c2-4038-b9ac-4b152c636c3c",
+        "name": "INTERCITÉS 4762 - Montpellier > Bordeaux - groupe 10 places",
+        "trainNumber": "4762",
+        "departureTime": "15:05",
+        "replacedAt": "2026-06-30T12:18:09.961Z",
+        "purchased": true,
+        "to": "Bordeaux",
+        "id": "a1d0ebd4-b27e-42b8-abe7-04c1cb1b4725",
+        "uploadedAt": "2026-06-19T22:07:36.206Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821888407-tickets_RR1J6R_Dreyer_WKFJNJ.pdf?alt=media&token=c81c26dd-b90d-4dbc-8f84-0447a701d501",
+        "from": "Montpellier",
+        "seats": 10,
+        "coveredReservationIds": [
+          "zqmf5w1nUCNkSx6kB6GJ",
+          "cz4Qa87XSxgKFGzTOllf",
+          "c93BXlpnajNpyx0xVDZq",
+          "jrqNTPda8DCtENJBe0CA",
+          "4EiLDAz7IyS996olXsXL"
+        ],
+        "bookingReference": "WKFJNJ",
+        "segmentLabel": "Montpellier > Bordeaux",
+        "price": 379
+      },
+      {
+        "id": "759f4a50-6fcf-451c-b369-c007c3a07887",
+        "purchased": true,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781978956162-VALENCE_TGV_RH_NE-ALPES_SUD-MONTPELLIER_SAINT-ROCH_06-07-26_CLAIN_AUDRIC_QCA8GZ_jFvJI10xJJy7wg6qYiDY.pdf?alt=media&token=3487e0b2-7b1a-47b3-a8dd-ee886a6f69fa",
+        "uploadedAt": "2026-06-20T18:09:17.293Z",
+        "seats": 1,
+        "coveredReservationIds": [
+          "jrqNTPda8DCtENJBe0CA"
+        ],
+        "bookingReference": "QCA8GZ",
+        "segmentLabel": "Valence > Montpellier",
+        "price": 55,
+        "missingReservationIds": [],
+        "arrivalTime": "14:03",
+        "notes": "Voiture 8 place 823 - billet individuel Audric, montée quai Valence, trajet Valence > Montpellier.",
+        "storagePath": "transports/s1-convoyages/1781978956162-VALENCE_TGV_RH_NE-ALPES_SUD-MONTPELLIER_SAINT-ROCH_06-07-26_CLAIN_AUDRIC_QCA8GZ_jFvJI10xJJy7wg6qYiDY.pdf",
+        "segmentId": "f25e4d8d-d7d9-4d3f-959a-ad17e936f51d",
+        "name": "TGV INOUI 9812 - Audric CLAIN - Valence > Montpellier",
+        "departureTime": "12:52"
+      },
+      {
+        "trainType": "TGV INOUI",
+        "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821890177-tickets_RU7X8R_Dreyer_FZC4JS.pdf",
+        "arrivalTime": "22:06",
+        "departureTime": "20:53",
+        "uploadedAt": "2026-06-22T14:32:20.428Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821890177-tickets_RU7X8R_Dreyer_FZC4JS.pdf?alt=media&token=4ac821f2-375c-4186-9e4e-c4419b2f8681",
+        "to": "Dax",
+        "purchased": true,
+        "segmentLabel": "Bordeaux > Dax",
+        "bookingReference": "FZC4JS",
+        "coveredReservationIds": [
+          "4EiLDAz7IyS996olXsXL",
+          "c93BXlpnajNpyx0xVDZq",
+          "cz4Qa87XSxgKFGzTOllf",
+          "fOWImoIKOdZMYShPikDQ",
+          "jrqNTPda8DCtENJBe0CA",
+          "zqmf5w1nUCNkSx6kB6GJ"
+        ],
+        "sourceFile": "tickets_RU7X8R_Dreyer_FZC4JS.pdf",
+        "notes": "TGV INOUI 8551 - Bordeaux Saint-Jean 20:53 > Dax 22:06 - 10 places - sièges 17-723, 17-722, 17-721, 17-720, 17-724, 17-725, 17-726, 17-727, 17-731, 17-730. Dossier LFNZ3T.",
+        "missingReservationIds": [],
+        "replacedAt": "2026-06-30T12:18:11.291Z",
+        "name": "TGV INOUI 8551 - Bordeaux > Dax - groupe 10 places",
+        "trainNumber": "8551",
+        "segmentId": "9aac5f16-a2ee-4bcc-aa09-ae1ad9516527",
+        "seats": 10,
+        "coverageFrom": "Bordeaux",
+        "from": "Bordeaux",
+        "coverageTo": "Dax",
+        "id": "78bd680b-d89d-4944-ae83-8860e648e2f1",
+        "price": 169.5,
+        "status": "purchased",
+        "coveredStaffIds": [
+          "0deed4e1-8ef0-4053-a7b2-648dfa551aa1"
+        ],
+        "fileName": "BDX DAX 2.pdf"
+      }
+    ],
+    "arrivalTime": "22:06"
+  },
+  "mqhiRrp6KjvJZF8FQhsO": {
+    "id": "mqhiRrp6KjvJZF8FQhsO",
+    "status": "confirmé",
+    "capacity": 0,
+    "emergencyPhone": "",
+    "from": "Messanges",
+    "arrivalCity": "Lyon",
+    "staff": [],
+    "convoyeur": "",
+    "trainNumber": "6AGY85",
+    "segments": [
+      {
+        "arrivalTime": "",
+        "number": "",
+        "assignedStaffIds": [],
+        "departureTime": "",
+        "stopType": "rdv",
+        "from": "DAX",
+        "mode": "TGV",
+        "platform": "",
+        "to": "Bordeaux",
+        "id": "fce25b35-cb78-4fed-8d7b-7f20f847a5e9",
+        "meetingPoint": "",
+        "meetingTime": "",
+        "instructions": ""
+      },
+      {
+        "arrivalTime": "14:54",
+        "number": "6AGY85",
+        "stops": [
+          {
+            "mode": "SNCF",
+            "arrivalTime": "",
+            "platform": "",
+            "number": "6AGY85",
+            "city": "Toulouse",
+            "id": "9faf87c9-a964-4e88-9697-d1a737a9abec",
+            "instructions": "Descente sur le quai uniquement, pas de rendez-vous organisé.",
+            "stopType": "quai",
+            "meetingPoint": "Quai et voiture communiqué par l'animateur.ice",
+            "meetingTime": "",
+            "departureTime": ""
+          }
+        ],
+        "assignedStaffIds": [],
+        "departureTime": "10:09",
+        "stopType": "rdv",
+        "from": "Bordeaux",
+        "mode": "SNCF",
+        "platform": "",
+        "to": "Montpellier",
+        "id": "7675a653-1dfb-48b0-bd50-4532761d44d9",
+        "meetingPoint": "Gare SNCF Montpellier - Sortie Pont de Sète - A coté de Quick",
+        "meetingTime": "",
+        "instructions": ""
+      },
+      {
+        "stopType": "rdv",
+        "assignedStaffIds": [],
+        "departureTime": "16:41",
+        "arrivalTime": "18:20",
+        "stops": [
+          {
+            "mode": "TGV INOUI",
+            "number": "5358",
+            "arrivalTime": "17:41",
+            "platform": "",
+            "city": "Valence",
+            "id": "segment-5098dd49-76d0-49cd-a9e1-1be7b4c00307",
+            "meetingPoint": "Quai et voiture communiqué par l'animateur.ice",
+            "meetingTime": "",
+            "departureTime": "17:46",
+            "instructions": "Descente sur le quai uniquement, pas de rendez-vous organisé.",
+            "stopType": "quai"
+          }
+        ],
+        "number": "5358",
+        "instructions": "",
+        "meetingPoint": "Gare SNCF Lyon-Part Dieu - Place Charles Baraudier, Lyon 3 - Devant la boutique Fnac, galerie Villette",
+        "meetingTime": "",
+        "platform": "",
+        "mode": "TGV INOUI",
+        "id": "segment-0b38ab04-7bed-4618-8420-7512dcd881b0",
+        "to": "Lyon",
+        "from": "Montpellier"
+      }
+    ],
+    "branches": [],
+    "createdAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1781367832,
+      "nanoseconds": 979000000
+    },
+    "notes": "Récapitulatif automatique des enfants hors « Sur place ». Horaires, points de rendez-vous, équipe et billets à compléter.",
+    "updatedAt": {
+      "type": "firestore/timestamp/1.0",
+      "seconds": 1782818087,
+      "nanoseconds": 492000000
+    },
+    "convoyeurPhone": "",
+    "meetingPoint": "",
+    "childCount": 7,
+    "meetingTime": "",
+    "week": "S1",
+    "platform": "",
+    "to": "Lyon",
+    "passengers": [
+      {
+        "pickupCity": "Lyon",
+        "reservationId": "c93BXlpnajNpyx0xVDZq"
+      },
+      {
+        "pickupCity": "Lyon",
+        "reservationId": "cz4Qa87XSxgKFGzTOllf"
+      },
+      {
+        "pickupCity": "Toulouse",
+        "reservationId": "fOWImoIKOdZMYShPikDQ"
+      },
+      {
+        "pickupCity": "Lyon",
+        "reservationId": "zqmf5w1nUCNkSx6kB6GJ"
+      },
+      {
+        "reservationId": "jrqNTPda8DCtENJBe0CA",
+        "pickupCity": "Valence"
+      },
+      {
+        "pickupCity": "Montpellier",
+        "reservationId": "4EiLDAz7IyS996olXsXL"
+      }
+    ],
+    "direction": "retour",
+    "departureTime": "10:09",
+    "sejourName": "Été 2026 - S1 - Convoi Sud / Ouest",
+    "route": "Dax > Lyon",
+    "departureCity": "DAX",
+    "date": "2026-07-17",
+    "trainType": "TGV",
+    "passengerCount": 7,
+    "routeGroup": "sud-ouest",
+    "arrivalTime": "18:20",
+    "emergencyContact": "ColoCrew",
+    "tickets": [
+      {
+        "segmentId": "7675a653-1dfb-48b0-bd50-4532761d44d9",
+        "name": "SNCF Connect - Bordeaux > Montpellier - groupe 10 places",
+        "departureTime": "10:09",
+        "notes": "Billet groupe 10 places - sièges 5-42, 5-45, 5-44, 5-43, 5-57, 5-58, 5-56, 5-51, 5-52, 5-55.",
+        "missingReservationIds": [],
+        "arrivalTime": "14:54",
+        "storagePath": "transports/s1-convoyages/1781906855179-TicketsRetour.pdf",
+        "coveredReservationIds": [
+          "zqmf5w1nUCNkSx6kB6GJ",
+          "cz4Qa87XSxgKFGzTOllf",
+          "c93BXlpnajNpyx0xVDZq",
+          "jrqNTPda8DCtENJBe0CA",
+          "4EiLDAz7IyS996olXsXL"
+        ],
+        "fileName": "TicketsRetour.pdf",
+        "segmentLabel": "Bordeaux > Montpellier",
+        "bookingReference": "6AGY85",
+        "status": "purchased",
+        "price": 373,
+        "capacity": 10,
+        "purchased": true,
+        "id": "d6e51adc-277b-4b14-81d0-1825abb8e176",
+        "uploadedAt": "2026-06-19T22:07:36.206Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781979505627-TicketsRetour.pdf?alt=media&token=4ce176e8-e127-4138-9b10-46d436787b64",
+        "seats": 10
+      },
+      {
+        "price": 45,
+        "coveredReservationIds": [
+          "zqmf5w1nUCNkSx6kB6GJ"
+        ],
+        "bookingReference": "9P9M46",
+        "segmentLabel": "Montpellier > Lyon",
+        "seats": 1,
+        "id": "34613442-1a6f-4d7f-8297-e8421dfe42d5",
+        "purchased": true,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906851440-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_GIRARDOT_EMMA_9P9M46_RDMd3YUfGqWOxyG4ke2I.pdf?alt=media&token=02a73e96-4059-40d9-abf0-f9549fe3655c",
+        "uploadedAt": "2026-06-19T22:07:36.206Z",
+        "departureTime": "16:41",
+        "segmentId": "segment-0b38ab04-7bed-4618-8420-7512dcd881b0",
+        "name": "TGV INOUI 5358 - Emma Girardot - Montpellier > Lyon",
+        "storagePath": "transports/s1-convoyages/1781906851440-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_GIRARDOT_EMMA_9P9M46_RDMd3YUfGqWOxyG4ke2I.pdf",
+        "arrivalTime": "",
+        "missingReservationIds": [],
+        "notes": "Voiture 7 haut place 763"
+      },
+      {
+        "seats": 1,
+        "id": "e43f9641-a549-4566-a129-a9ff92328de0",
+        "purchased": true,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906852935-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SARR_JASMINE_9P9M46_CT7faslhR2evjqqVvgrq.pdf?alt=media&token=da78da11-831d-4d14-bf9c-9fa08363fd24",
+        "uploadedAt": "2026-06-19T22:07:36.206Z",
+        "price": 45,
+        "coveredReservationIds": [
+          "cz4Qa87XSxgKFGzTOllf"
+        ],
+        "bookingReference": "9P9M46",
+        "segmentLabel": "Montpellier > Lyon",
+        "storagePath": "transports/s1-convoyages/1781906852935-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SARR_JASMINE_9P9M46_CT7faslhR2evjqqVvgrq.pdf",
+        "arrivalTime": "",
+        "missingReservationIds": [],
+        "notes": "Voiture 7 haut place 766",
+        "departureTime": "16:41",
+        "segmentId": "segment-0b38ab04-7bed-4618-8420-7512dcd881b0",
+        "name": "TGV INOUI 5358 - Jasmine SARR - Montpellier > Lyon"
+      },
+      {
+        "departureTime": "16:41",
+        "name": "TGV INOUI 5358 - Maëlle Subal - Montpellier > Lyon",
+        "segmentId": "segment-0b38ab04-7bed-4618-8420-7512dcd881b0",
+        "storagePath": "transports/s1-convoyages/1781906853586-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SUBAL_MAELLE_9P9M46_HtDOcS9pbwBpaUCahciN.pdf",
+        "missingReservationIds": [],
+        "arrivalTime": "",
+        "notes": "Voiture 7 haut place 767",
+        "price": 45,
+        "segmentLabel": "Montpellier > Lyon",
+        "bookingReference": "9P9M46",
+        "coveredReservationIds": [
+          "c93BXlpnajNpyx0xVDZq"
+        ],
+        "seats": 1,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906853586-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_SUBAL_MAELLE_9P9M46_HtDOcS9pbwBpaUCahciN.pdf?alt=media&token=ce457f39-4c08-4148-aab0-eb809d919824",
+        "uploadedAt": "2026-06-19T22:07:36.206Z",
+        "id": "96184e1e-e64d-4b89-b6a9-9469107f4ee5",
+        "purchased": true
+      },
+      {
+        "departureTime": "16:41",
+        "segmentId": "segment-0b38ab04-7bed-4618-8420-7512dcd881b0",
+        "name": "TGV INOUI 5358 - Audric CLAIN - Montpellier > Valence",
+        "storagePath": "",
+        "missingReservationIds": [],
+        "arrivalTime": "17:41",
+        "notes": "Voiture 7 Haut place 765 - billet individuel Audric, descente quai Valence, trajet Montpellier > Valence. Page 2 du PDF.",
+        "status": "purchased",
+        "price": 35,
+        "coveredReservationIds": [
+          "jrqNTPda8DCtENJBe0CA"
+        ],
+        "fileName": "VALENCE_TGV_RH_NE-ALPES_SUD-MONTPELLIER_SAINT-ROCH_06-07-26_CLAIN_AUDRIC_QCA8GZ.pdf",
+        "segmentLabel": "Montpellier > Valence",
+        "bookingReference": "QCA8GZ",
+        "seats": 1,
+        "id": "0f03f872-6889-48f0-bd89-985465391306",
+        "purchased": true,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781978956162-VALENCE_TGV_RH_NE-ALPES_SUD-MONTPELLIER_SAINT-ROCH_06-07-26_CLAIN_AUDRIC_QCA8GZ_jFvJI10xJJy7wg6qYiDY.pdf?alt=media&token=3487e0b2-7b1a-47b3-a8dd-ee886a6f69fa",
+        "uploadedAt": "2026-06-19T22:07:36.206Z"
+      },
+      {
+        "coveredReservationIds": [],
+        "bookingReference": "9P9M46",
+        "segmentLabel": "Montpellier > Lyon",
+        "price": 31,
+        "id": "6f5ddac9-5b77-4a69-91b8-3b8cefcf19fd",
+        "purchased": true,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906852318-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_KERVEILLANT_ROMANE_9P9M46_z3NbVlZrf5X1js1ILSbc.pdf?alt=media&token=e3735a77-2e89-4034-8ed5-d61d7a094cca",
+        "uploadedAt": "2026-06-19T22:18:42.786Z",
+        "seats": 1,
+        "segmentId": "segment-0b38ab04-7bed-4618-8420-7512dcd881b0",
+        "name": "TGV INOUI 5358 - Romane Kerveillant - Montpellier > Lyon",
+        "departureTime": "16:41",
+        "arrivalTime": "",
+        "missingReservationIds": [],
+        "notes": "Voiture 7 haut place 762.",
+        "storagePath": "transports/s1-convoyages/1781906852318-LYON_PART_DIEU-MONTPELLIER_SAINT-ROCH_06-07-26_KERVEILLANT_ROMANE_9P9M46_z3NbVlZrf5X1js1ILSbc.pdf"
+      }
+    ]
+  }
+}

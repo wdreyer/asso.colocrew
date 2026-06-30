@@ -6690,6 +6690,113 @@
   flex-shrink: 0;
 }
 
+/* ── Fork / intersection visual ── */
+.tl-wrap--has-forks {
+  padding-top: 68px;
+}
+
+/* Fork node sits in the horizontal track between a leg and the joining stop */
+.tl-fork-node {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  padding-top: 7px; /* aligns junction with leg-line center */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: visible;
+  animation: tl-in 0.3s ease both;
+  animation-delay: calc(var(--i, 0) * 80ms + 20ms);
+}
+
+/* Branch chips float ABOVE the main track (absolute, anchored at track level) */
+.tl-fork-branches {
+  position: absolute;
+  /* bottom of this element sits at track level (7px from node top) */
+  bottom: calc(100% - 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  pointer-events: none;
+}
+
+.tl-fork-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.tl-fork-branch-chip {
+  display: grid;
+  gap: 3px;
+  padding: 5px 9px;
+  border: 1.5px dashed rgba(184, 51, 106, 0.55);
+  border-radius: 8px;
+  background: #fff7fb;
+  color: #7c2450;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(184, 51, 106, 0.12);
+  pointer-events: auto;
+}
+
+.tl-fork-branch-chip strong {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.tl-fork-branch-chip small {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px 5px;
+  color: #9a426a;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+/* Dashed vertical stem from chip down to junction */
+.tl-fork-branch-stem {
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(184, 51, 106, 0.7) 0px, rgba(184, 51, 106, 0.7) 3px,
+    transparent 3px, transparent 7px
+  );
+}
+
+/* Circle at the merge point on the track */
+.tl-fork-node-junction {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2.5px solid #B8336A;
+  background: #fff7fb;
+  box-shadow: 0 0 0 2.5px #faf7ff;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+/* Horizontal track line continuation within the fork node */
+.tl-fork-node-track {
+  width: 100%;
+  height: 2.5px;
+  border-radius: 2px;
+  background: rgba(120, 90, 160, 0.2);
+}
+
 .tl-time {
   font-size: 14px;
   font-weight: 800;

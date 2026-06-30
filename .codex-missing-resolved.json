@@ -1,0 +1,247 @@
+[
+  {
+    "pdfChild": "Soualio BAKAYOKO",
+    "pdfRef": "MCSC-061726-BAK",
+    "pdfTotal": 450,
+    "pdfTransport": 150,
+    "chosenId": "PzVeB55uMZM0zB6YW0wy",
+    "chosenRef": "MCSC-S1-069-BAK",
+    "status": "validated",
+    "currentTotal": 1200,
+    "currentTransport": 150,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "pdfChild": "GASPARD Elie-Emmanuel",
+    "pdfRef": "MCSC-061726-GAS",
+    "pdfTotal": 1200,
+    "pdfTransport": 150,
+    "chosenId": "e5Kjjpa8u6bAPBLFPMma",
+    "chosenRef": "ETE26-067",
+    "status": "validated",
+    "currentTotal": 1200,
+    "currentTransport": 150,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "pdfChild": "Océane RAUDE",
+    "pdfRef": "",
+    "pdfTotal": 1087.12,
+    "pdfTransport": 154.08,
+    "chosenId": "XumQTtpu9pLIMCs0206k",
+    "chosenRef": "MCSC-S1-073-RAU",
+    "status": "validated",
+    "currentTotal": 1087.12,
+    "currentTransport": 154.08,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "pdfChild": "Zainab COULIBALY",
+    "pdfRef": "",
+    "pdfTotal": 1200,
+    "pdfTransport": 150,
+    "chosenId": "ePJScSnRl6xY67aidONl",
+    "chosenRef": "MCSC-S1-064-COU",
+    "status": "validated",
+    "currentTotal": 1200,
+    "currentTransport": 150,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "pdfChild": "Léa COLONETTE",
+    "pdfRef": "",
+    "pdfTotal": 1100,
+    "pdfTransport": 150,
+    "chosenId": "GGaLZplvbwRiSbpDF4dD",
+    "chosenRef": "RES-2604MAR",
+    "status": "pending",
+    "currentTotal": 1050,
+    "currentTransport": 150,
+    "transportCount": 0,
+    "transports": [],
+    "notes": "plusieurs dossiers candidats"
+  },
+  {
+    "pdfChild": "Haroun LANSEUR",
+    "pdfRef": "",
+    "pdfTotal": 1100,
+    "pdfTransport": 150,
+    "chosenId": "DdXIUp5j9leKd8ZvDJfq",
+    "chosenRef": "RES-2906556",
+    "status": "validated",
+    "currentTotal": 1100,
+    "currentTransport": 150,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "pdfChild": "NGueya NZOUENDZI",
+    "pdfRef": "",
+    "pdfTotal": 1100,
+    "pdfTransport": 150,
+    "chosenId": "P2zw7GZMzrrMVgvblyLy",
+    "chosenRef": "RES-2906767",
+    "status": "validated",
+    "currentTotal": 1100,
+    "currentTransport": 150,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": "plusieurs dossiers candidats"
+  },
+  {
+    "pdfChild": "OLIVIER",
+    "pdfRef": "",
+    "pdfTotal": 1000,
+    "pdfTransport": 100,
+    "chosenId": "lxB4xNJsnWI0zIKBZYz5",
+    "chosenRef": "RES-2906OLI",
+    "status": "validated",
+    "currentTotal": 1000,
+    "currentTransport": 100,
+    "transportCount": 2,
+    "transports": [
+      {
+        "id": "2lVN1Zxd05fzbm71WzBG",
+        "date": "2026-07-17",
+        "direction": "retour",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "DAX",
+        "to": "Nantes",
+        "city": ""
+      },
+      {
+        "id": "ylEcqHnDCCneUQqejLis",
+        "date": "2026-07-06",
+        "direction": "aller",
+        "route": "Été 2026 - S1 - Convoi Nord",
+        "from": "Nantes",
+        "to": "Dax",
+        "city": ""
+      }
+    ],
+    "notes": "plusieurs dossiers candidats"
+  }
+]

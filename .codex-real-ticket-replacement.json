@@ -1,0 +1,269 @@
+{
+  "createdAt": "2026-06-30T12:18:14.376Z",
+  "uploaded": [
+    {
+      "bookingReference": "WKFJNJ",
+      "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821888407-tickets_RR1J6R_Dreyer_WKFJNJ.pdf",
+      "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821888407-tickets_RR1J6R_Dreyer_WKFJNJ.pdf?alt=media&token=c81c26dd-b90d-4dbc-8f84-0447a701d501"
+    },
+    {
+      "bookingReference": "FZC4JS",
+      "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821890177-tickets_RU7X8R_Dreyer_FZC4JS.pdf",
+      "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821890177-tickets_RU7X8R_Dreyer_FZC4JS.pdf?alt=media&token=4ac821f2-375c-4186-9e4e-c4419b2f8681"
+    },
+    {
+      "bookingReference": "RWJ9TV",
+      "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821891500-tickets_RDG2AS_Dreyer_RWJ9TV.pdf",
+      "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821891500-tickets_RDG2AS_Dreyer_RWJ9TV.pdf?alt=media&token=379c7cd5-a5d2-41c4-b6c5-a157fc37f32a"
+    },
+    {
+      "bookingReference": "UPGY83",
+      "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821892616-tickets_RU5V3Z_Dreyer_UPGY83.pdf",
+      "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821892616-tickets_RU5V3Z_Dreyer_UPGY83.pdf?alt=media&token=28c7f85b-4c6c-45ac-85d8-dade5ef70c84"
+    },
+    {
+      "bookingReference": "RKY46J",
+      "storagePath": "transports/s1-convoyages/real-tickets-2026-07-06/1782821893524-tickets_R46PR9_Dreyer_RKY46J.pdf",
+      "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2Freal-tickets-2026-07-06%2F1782821893524-tickets_R46PR9_Dreyer_RKY46J.pdf?alt=media&token=61af756c-5154-4949-94fb-0bf5a7e2d955"
+    }
+  ],
+  "backup": [
+    {
+      "transportId": "GXvhfCTPBcKdnIFHHZIe",
+      "ticketId": "a1d0ebd4-b27e-42b8-abe7-04c1cb1b4725",
+      "previous": {
+        "bookingReference": "JTYFKY",
+        "segmentId": "2be9e49e-38c2-4038-b9ac-4b152c636c3c",
+        "purchased": true,
+        "price": 379,
+        "uploadedAt": "2026-06-19T22:07:36.206Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781906854258-Tickets.pdf?alt=media&token=f71bd569-84c1-46e5-b44a-3ee4d280de29",
+        "seats": 10,
+        "missingReservationIds": [],
+        "coveredReservationIds": [
+          "zqmf5w1nUCNkSx6kB6GJ",
+          "cz4Qa87XSxgKFGzTOllf",
+          "c93BXlpnajNpyx0xVDZq",
+          "jrqNTPda8DCtENJBe0CA",
+          "4EiLDAz7IyS996olXsXL"
+        ],
+        "storagePath": "transports/s1-convoyages/1781906854258-Tickets.pdf",
+        "arrivalTime": "",
+        "notes": "Places 6-47, 6-48, 6-46, 6-41, 6-42, 6-45, 6-44, 6-43, 6-57, 6-58",
+        "name": "SNCF Connect JTYFKY - Montpellier > Bordeaux - groupe 10 places",
+        "id": "a1d0ebd4-b27e-42b8-abe7-04c1cb1b4725",
+        "departureTime": "15:05",
+        "segmentLabel": "Montpellier > Bordeaux"
+      }
+    },
+    {
+      "transportId": "GXvhfCTPBcKdnIFHHZIe",
+      "ticketId": "78bd680b-d89d-4944-ae83-8860e648e2f1",
+      "previous": {
+        "coverageTo": "Dax",
+        "coveredReservationIds": [
+          "4EiLDAz7IyS996olXsXL",
+          "c93BXlpnajNpyx0xVDZq",
+          "cz4Qa87XSxgKFGzTOllf",
+          "fOWImoIKOdZMYShPikDQ",
+          "jrqNTPda8DCtENJBe0CA",
+          "zqmf5w1nUCNkSx6kB6GJ"
+        ],
+        "storagePath": "transports/s1-convoyages/1782138739651-BDX-DAX-2.pdf",
+        "notes": "TGV INOUI 8551 - Bordeaux Saint-Jean 20:53 > Dax 22:06 - 10 places - sièges 17-723, 17-722, 17-721, 17-720, 17-724, 17-725, 17-726, 17-727, 17-731, 17-730. Dossier LFNZ3T.",
+        "arrivalTime": "22:06",
+        "status": "purchased",
+        "name": "SNCF Connect - Bordeaux > Dax - groupe 10 places",
+        "id": "78bd680b-d89d-4944-ae83-8860e648e2f1",
+        "departureTime": "20:53",
+        "segmentLabel": "Bordeaux > Dax",
+        "bookingReference": "LFNZ3T",
+        "coveredStaffIds": [
+          "0deed4e1-8ef0-4053-a7b2-648dfa551aa1"
+        ],
+        "segmentId": "9aac5f16-a2ee-4bcc-aa09-ae1ad9516527",
+        "fileName": "BDX DAX 2.pdf",
+        "purchased": true,
+        "price": 169.5,
+        "uploadedAt": "2026-06-22T14:32:20.428Z",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1782138739651-BDX-DAX-2.pdf?alt=media&token=f2470ab4-9e00-45ac-bc99-f91303fea6d6",
+        "coverageFrom": "Bordeaux",
+        "seats": 10,
+        "missingReservationIds": []
+      }
+    },
+    {
+      "transportId": "ylEcqHnDCCneUQqejLis",
+      "ticketId": "fbc0ddb2-6676-4b7a-970a-b5d4d37914a7",
+      "previous": {
+        "bookingReference": "",
+        "segmentId": "b7758e04-d670-4d08-87bb-853f368d1f98",
+        "purchased": true,
+        "price": 570,
+        "uploadedAt": "2026-06-19T22:21:01.199Z",
+        "coverageFrom": "Paris",
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1781907660375-TicketsParis-BDX.pdf?alt=media&token=24ddfd45-e3db-469d-b755-b68939eaa97f",
+        "seats": 10,
+        "missingReservationIds": [],
+        "coveredReservationIds": [],
+        "coverageTo": "Bordeaux",
+        "notes": "PDF TicketsParis BDX. Sieges 17-723, 17-722, 17-721, 17-720, 17-724, 17-725, 17-726, 17-727, 17-731, 17-730. Prix et numero de reservation non extraits du PDF.",
+        "storagePath": "transports/s1-convoyages/1781907660375-TicketsParis-BDX.pdf",
+        "arrivalTime": "18:12",
+        "name": "SNCF Connect - Paris > Bordeaux - groupe 10 places",
+        "id": "fbc0ddb2-6676-4b7a-970a-b5d4d37914a7",
+        "departureTime": "15:56",
+        "segmentLabel": "Paris > Bordeaux"
+      }
+    },
+    {
+      "transportId": "ylEcqHnDCCneUQqejLis",
+      "ticketId": "c53651de-6571-46f2-8308-e9be3c79afa1",
+      "previous": {
+        "seats": 14,
+        "url": "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/transports%2Fs1-convoyages%2F1782131923578-BdxDAX.pdf?alt=media&token=361789c7-2f7a-477a-9f89-1d1a6fcc68b8",
+        "coverageFrom": "Bordeaux",
+        "uploadedAt": "2026-06-22T12:38:44.565Z",
+        "missingReservationIds": [],
+        "coveredStaffIds": [
+          "871193ed-6fda-4eb2-b5c2-6fff829f6f5d"
+        ],
+        "bookingReference": "53L3VH",
+        "price": 237.3,
+        "purchased": true,
+        "fileName": "BdxDAX.pdf",
+        "segmentId": "b7758e04-d670-4d08-87bb-853f368d1f98",
+        "name": "SNCF Connect - Bordeaux > Dax - groupe 14 places",
+        "segmentLabel": "Bordeaux > Dax",
+        "departureTime": "18:18",
+        "id": "c53651de-6571-46f2-8308-e9be3c79afa1",
+        "coverageTo": "Dax",
+        "coveredReservationIds": [
+          "DFTYJGAoLM8QEzO93L8y",
+          "Ft94oIZOyEQ62PAyw877",
+          "PzVeB55uMZM0zB6YW0wy",
+          "e5Kjjpa8u6bAPBLFPMma",
+          "ePJScSnRl6xY67aidONl",
+          "hAcjPSugaLaS8H5DDDjJ",
+          "kyFNkjabLWUEjQSwlxSa",
+          "lLeAMm5YUJ4Meu9FJCZM",
+          "rFLVIF8ARfhfu6dFpNki",
+          "sgdDGQomVxE9P57mOYTq",
+          "0FaBByqSYpAMMfBaIa9T",
+          "XumQTtpu9pLIMCs0206k",
+          "5f9GpZnXRfFNJ8Zn4iD9"
+        ],
+        "status": "purchased",
+        "arrivalTime": "19:31",
+        "notes": "TGV INOUI 8549 - Bordeaux Saint-Jean 18:18 > Dax 19:31 - 14 places - sièges 16-612, 16-613, 16-623, 16-622, 16-621, 16-620, 16-624, 16-625, 16-626, 16-627, 16-631, 16-630, 16-629, 16-628. Dossier 53L3VH.",
+        "storagePath": "transports/s1-convoyages/1782131923578-BdxDAX.pdf"
+      }
+    },
+    {
+      "transportId": "ylEcqHnDCCneUQqejLis",
+      "ticketId": "a1ce081a-cbf2-4842-9057-89db1e44f5f3",
+      "previous": {
+        "seats": 3,
+        "coverageFrom": "Paris",
+        "url": "",
+        "uploadedAt": "2026-06-19T22:26:36.729Z",
+        "missingReservationIds": [],
+        "bookingReference": "",
+        "price": 0,
+        "purchased": false,
+        "segmentId": "b7758e04-d670-4d08-87bb-853f368d1f98",
+        "name": "À vérifier - 3 places manquantes - Paris → Bordeaux",
+        "segmentLabel": "Paris > Bordeaux",
+        "departureTime": "15:56",
+        "id": "a1ce081a-cbf2-4842-9057-89db1e44f5f3",
+        "coverageTo": "Bordeaux",
+        "coveredReservationIds": [],
+        "arrivalTime": "18:12",
+        "notes": "Le segment Paris → Bordeaux compte 13 places à couvrir avant l'étape Bordeaux, dont 10 déjà achetées. Il reste 3 places à acheter sur cette portion.",
+        "storagePath": ""
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "transportId": "GXvhfCTPBcKdnIFHHZIe",
+      "ticketId": "a1d0ebd4-b27e-42b8-abe7-04c1cb1b4725",
+      "bookingReference": "WKFJNJ",
+      "name": "INTERCIT?S 4762 - Montpellier > Bordeaux - groupe 10 places",
+      "segmentId": "2be9e49e-38c2-4038-b9ac-4b152c636c3c",
+      "seats": 10,
+      "price": 379,
+      "trainType": "INTERCIT?S",
+      "trainNumber": "4762",
+      "departureTime": "15:05",
+      "arrivalTime": "19:54",
+      "from": "Montpellier",
+      "to": "Bordeaux",
+      "file": "tickets_RR1J6R_Dreyer_WKFJNJ.pdf"
+    },
+    {
+      "transportId": "GXvhfCTPBcKdnIFHHZIe",
+      "ticketId": "78bd680b-d89d-4944-ae83-8860e648e2f1",
+      "bookingReference": "FZC4JS",
+      "name": "TGV INOUI 8551 - Bordeaux > Dax - groupe 10 places",
+      "segmentId": "9aac5f16-a2ee-4bcc-aa09-ae1ad9516527",
+      "seats": 10,
+      "price": 169.5,
+      "trainType": "TGV INOUI",
+      "trainNumber": "8551",
+      "departureTime": "20:53",
+      "arrivalTime": "22:06",
+      "from": "Bordeaux",
+      "to": "Dax",
+      "file": "tickets_RU7X8R_Dreyer_FZC4JS.pdf"
+    },
+    {
+      "transportId": "ylEcqHnDCCneUQqejLis",
+      "ticketId": "fbc0ddb2-6676-4b7a-970a-b5d4d37914a7",
+      "bookingReference": "RWJ9TV",
+      "name": "TGV INOUI 8549 - Paris > Bordeaux - groupe 10 places",
+      "segmentId": "b7758e04-d670-4d08-87bb-853f368d1f98",
+      "seats": 10,
+      "price": 570,
+      "trainType": "TGV INOUI",
+      "trainNumber": "8549",
+      "departureTime": "15:56",
+      "arrivalTime": "18:12",
+      "from": "Paris",
+      "to": "Bordeaux",
+      "file": "tickets_RDG2AS_Dreyer_RWJ9TV.pdf"
+    },
+    {
+      "transportId": "ylEcqHnDCCneUQqejLis",
+      "ticketId": "c53651de-6571-46f2-8308-e9be3c79afa1",
+      "bookingReference": "UPGY83",
+      "name": "TGV INOUI 8549 - Bordeaux > Dax - groupe 14 places",
+      "segmentId": "b7758e04-d670-4d08-87bb-853f368d1f98",
+      "seats": 14,
+      "price": 237.3,
+      "trainType": "TGV INOUI",
+      "trainNumber": "8549",
+      "departureTime": "18:18",
+      "arrivalTime": "19:31",
+      "from": "Bordeaux",
+      "to": "Dax",
+      "file": "tickets_RU5V3Z_Dreyer_UPGY83.pdf"
+    },
+    {
+      "transportId": "ylEcqHnDCCneUQqejLis",
+      "ticketId": "a1ce081a-cbf2-4842-9057-89db1e44f5f3",
+      "bookingReference": "RKY46J",
+      "name": "TGV INOUI 8549 - Paris > Dax - groupe 10 places",
+      "segmentId": "b7758e04-d670-4d08-87bb-853f368d1f98",
+      "seats": 10,
+      "price": 785,
+      "trainType": "TGV INOUI",
+      "trainNumber": "8549",
+      "departureTime": "15:56",
+      "arrivalTime": "19:31",
+      "from": "Paris",
+      "to": "Dax",
+      "file": "tickets_R46PR9_Dreyer_RKY46J.pdf"
+    }
+  ]
+}
