@@ -170,6 +170,13 @@ function childFullName(child) {
   return `${child?.firstName || ""} ${child?.lastName || ""}`.trim();
 }
 
+function shortStayCode(value) {
+  const normalized = normalizeSearchText(value);
+  if (normalized.includes("eaux vives") || normalized.includes("eaux-vives")) return "EVCC";
+  if (normalized.includes("surf") || normalized.includes("my creative")) return "MCSC";
+  return String(value || "Séjour").trim();
+}
+
 function legalPassengerName(legal, children = []) {
   const name = `${legal?.firstName || legal?.prenom || ""} ${legal?.lastName || legal?.nom || ""}`.trim();
   if (!name) return "";
@@ -270,6 +277,17 @@ function passengerCity(transport, passenger) {
   return passenger.pickupCity
     || (transport.direction === "aller" ? passenger.departureCity : passenger.returnCity)
     || "Ville à préciser";
+}
+
+function passengerDropoffCity(passenger) {
+  return passenger.dropoffCity || "";
+}
+
+function passengersLeavingAtStop(transport, city) {
+  const normalizedCity = normalizePlace(city);
+  return (transport.passengers || []).filter((passenger) =>
+    normalizePlace(passengerDropoffCity(passenger)) === normalizedCity,
+  );
 }
 
 function segmentStopCity(transport, segment) {
@@ -762,17 +780,25 @@ function passengerUsesPortionLeg(transport, passenger, portionIndex, routePoints
   if (!boarding) return false;
 
   if (isBranchSegment(boarding.branch || boarding.segment)) return true;
+  let usesLeg;
   if (boarding.segmentIndex !== portionIndex) {
-    return transport.direction === "retour"
+    usesLeg = transport.direction === "retour"
       ? boarding.segmentIndex > portionIndex
       : boarding.segmentIndex < portionIndex;
+  } else {
+    const cityIndex = routePoints.findIndex((city) =>
+      normalizePlace(city) === normalizePlace(passengerCity(transport, passenger)),
+    );
+    usesLeg = cityIndex < 0
+      ? true
+      : transport.direction === "retour" ? cityIndex > legIndex : cityIndex <= legIndex;
   }
+  if (!usesLeg || transport.direction === "retour") return usesLeg;
 
-  const cityIndex = routePoints.findIndex((city) =>
-    normalizePlace(city) === normalizePlace(passengerCity(transport, passenger)),
+  const dropoffIndex = routePoints.findIndex((city) =>
+    normalizePlace(city) === normalizePlace(passengerDropoffCity(passenger)),
   );
-  if (cityIndex < 0) return true;
-  return transport.direction === "retour" ? cityIndex > legIndex : cityIndex <= legIndex;
+  return dropoffIndex < 0 || dropoffIndex > legIndex;
 }
 
 function segmentLegCoverage(transport, segment, segmentIndex, segmentTickets = []) {
@@ -1105,6 +1131,8 @@ function compactTransportPassengers(passengers = []) {
     .map((passenger) => {
       const entry = { reservationId: passenger.reservationId };
       if (passenger.pickupCity) entry.pickupCity = passenger.pickupCity;
+      if (passenger.dropoffCity) entry.dropoffCity = passenger.dropoffCity;
+      if (passenger.stayCode) entry.stayCode = passenger.stayCode;
       if (typeof passenger.convocationSent === "boolean") entry.convocationSent = passenger.convocationSent;
       if (passenger.convocationSentAt) entry.convocationSentAt = passenger.convocationSentAt;
       return entry;
@@ -1122,6 +1150,8 @@ function hydrateTransportPassenger(passenger, reservation, transport) {
     children: reservation.children || [],
     childName: reservation.childName || "",
     sejourName: reservation.sejourName || "",
+    stayCode: passenger.stayCode || shortStayCode(reservation.sejourName),
+    dropoffCity: passenger.dropoffCity || "",
     departureCity: reservation.departureCity || "",
     returnCity: reservation.returnCity || "",
     transportAmount: reservation.transportAmount || 0,
@@ -1208,7 +1238,7 @@ function buildPassengerListHTML(transport) {
 
   let rowNumber = 0;
   const rows = groupPassengersByCity(transport).map(({ city, passengers }) => `
-    <tr class="city-row"><td colspan="7">Ville : ${city} · ${countChildren(passengers)} enfant${countChildren(passengers) !== 1 ? "s" : ""}</td></tr>
+    <tr class="city-row"><td colspan="8">Ville : ${city} · ${countChildren(passengers)} enfant${countChildren(passengers) !== 1 ? "s" : ""}</td></tr>
     ${passengers.map((p) => {
       rowNumber += 1;
       const children = p.children || [];
@@ -1219,12 +1249,13 @@ function buildPassengerListHTML(transport) {
         <td><strong>${p.nom}</strong></td>
         <td><strong>${p.phone}</strong></td>
         <td>${childStr}</td>
+        <td><strong>${p.stayCode || shortStayCode(p.sejourName)}</strong>${p.dropoffCity ? `<br><span class="sub">↓ ${p.dropoffCity}</span>` : ""}</td>
         <td>${birthStr}</td>
         <td style="font-family:monospace;font-size:11.5px;color:#888">${p.numeroDeReservation || "-"}</td>
         <td style="text-align:center;font-size:16px">→</td>
       </tr>`;
     }).join("")}
-  `).join("") || `<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa;font-style:italic">Aucun passager assigné</td></tr>`;
+  `).join("") || `<tr><td colspan="8" style="text-align:center;padding:20px;color:#aaa;font-style:italic">Aucun passager assigné</td></tr>`;
 
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
 <title>Liste passagers - ${transport.sejourName}</title>
@@ -1259,7 +1290,7 @@ function buildPassengerListHTML(transport) {
   </div>
   <div class="sec">Passagers <span class="cap">${transport.passengers.length}${transport.capacity ? " / " + transport.capacity : ""}</span></div>
   <table>
-    <thead><tr><th style="width:32px">#</th><th>Responsable légal</th><th>Téléphone</th><th>Enfant(s)</th><th>Date naissance</th><th>N° réservation</th><th style="width:32px">✓</th></tr></thead>
+    <thead><tr><th style="width:32px">#</th><th>Responsable légal</th><th>Téléphone</th><th>Enfant(s)</th><th>Séjour / descente</th><th>Date naissance</th><th>N° réservation</th><th style="width:32px">✓</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <div class="sig-grid" style="grid-template-columns:1fr 1fr;margin-top:28px">
@@ -1625,13 +1656,14 @@ function buildStaffBriefingHTML(transport) {
   const tickets = transport.tickets || [];
   const routeLabel = ROUTE_GROUPS.find((item) => item.value === transport.routeGroup)?.label || "Direct";
   const passengerRows = groupPassengersByCity(transport).map(({ city, passengers }) => `
-    <tr class="city-row"><td colspan="5">Ville : ${city} · ${countChildren(passengers)} enfant${countChildren(passengers) !== 1 ? "s" : ""}</td></tr>
+    <tr class="city-row"><td colspan="6">Ville : ${city} · ${countChildren(passengers)} enfant${countChildren(passengers) !== 1 ? "s" : ""}</td></tr>
     ${passengers.flatMap((passenger) => {
       const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
       return children.map((child) => `
         <tr>
           <td><strong>${child.firstName || ""} ${child.lastName || ""}</strong></td>
           <td><strong>${city}</strong></td>
+          <td><strong>${passenger.stayCode || shortStayCode(passenger.sejourName)}</strong>${passenger.dropoffCity ? ` · ↓ ${passenger.dropoffCity}` : ""}</td>
           <td>${passenger.nom || "-"}</td><td>${passenger.phone || "-"}</td><td>→</td>
         </tr>`);
     }).join("")}
@@ -1646,12 +1678,13 @@ function buildStaffBriefingHTML(transport) {
       return passengerCity(transport, a).localeCompare(passengerCity(transport, b), "fr", { sensitivity: "base" });
     });
     const childRows = groupPassengersByCity(transport, sortedStopPassengers).flatMap(({ city, passengers: cp }) => {
-      const hdr = `<tr class="city-row"><td colspan="6">` + city + ` — ${countChildren(cp)} enfant${countChildren(cp) !== 1 ? "s" : ""}</td></tr>`;
+      const hdr = `<tr class="city-row"><td colspan="7">` + city + ` — ${countChildren(cp)} enfant${countChildren(cp) !== 1 ? "s" : ""}</td></tr>`;
       const rows = cp.flatMap((passenger) => {
         const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
         return children.map((child) => `
           <tr><td><strong>${child.firstName || ""} ${child.lastName || ""}</strong></td>
           <td>${city}</td>
+          <td><strong>${passenger.stayCode || shortStayCode(passenger.sejourName)}</strong>${passenger.dropoffCity ? ` · ↓ ${passenger.dropoffCity}` : ""}</td>
           <td>${passenger.nom || "-"}</td><td><strong>${passenger.phone || "-"}</strong></td>
           <td>${passenger.numeroDeReservation || "-"}</td><td>→</td></tr>
         `);
@@ -1668,8 +1701,8 @@ function buildStaffBriefingHTML(transport) {
         <div class="stop-trip">${segment.mode || ""} ${segment.number || ""} vers <strong>${segment.to || "destination à compléter"}</strong> · arrivée ${segment.arrivalTime || "à compléter"}</div>
         <div class="stop-place"><strong>Animateurs sur cette portion :</strong> ${assignedStaff.length ? assignedStaff.map((member) => `${member.name || "Nom à compléter"} (${member.phone || "téléphone manquant"})`).join(", ") : "Aucun animateur affecté"}</div>
         ${segment.instructions ? `<div class="stop-note">${segment.instructions}</div>` : ""}
-        <table><thead><tr><th>Enfant</th><th>Ville</th><th>Responsable</th><th>Téléphone</th><th>Dossier</th><th>Présent</th></tr></thead>
-        <tbody>${childRows || "<tr><td colspan='6'>Aucun enfant affecté à cet arrêt.</td></tr>"}</tbody></table>
+        <table><thead><tr><th>Enfant</th><th>Ville</th><th>Séjour / descente</th><th>Responsable</th><th>Téléphone</th><th>Dossier</th><th>Présent</th></tr></thead>
+        <tbody>${childRows || "<tr><td colspan='7'>Aucun enfant affecté à cet arrêt.</td></tr>"}</tbody></table>
       </section>`;
   }).join("");
   const staffRows = staff.map((member) => `
@@ -2569,7 +2602,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
               <th>Ville</th>
               <th>Trajet</th>
               <th>À bord avant arrêt</th>
-              <th>{isRetour ? "Descendent ici" : "Montent ici"}</th>
+              <th>Mouvement à l'arrêt</th>
               <th>Cumul à bord</th>
               <th>RDV</th>
               <th>Départ</th>
@@ -2631,6 +2664,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
               segmentSubStops(segment).forEach((stop, stopIndex) => {
                 const stopCity = stop.city;
                 const stopPassengersAtCity = passengersAtStop(transport, stopCity);
+                const leavingPassengersAtCity = passengersLeavingAtStop(transport, stopCity);
                 const routeStop = routeBoardingStops(transport).find((item) =>
                   item.type === "sub" && item.segmentIndex === index && item.stopIndex === stopIndex,
                 );
@@ -2646,8 +2680,14 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                     </td>
                     <td><span className="tr-summary-empty">Sous-étape du billet {segment.from || "-"} → {segment.to || "-"}</span></td>
                     <td><strong>{countChildren(alreadyAtSubStop)}</strong></td>
-                    <td><strong>{countChildren(stopPassengersAtCity)}</strong></td>
-                    <td><strong>{countChildren(onboardAfterSubStop)}</strong></td>
+                    <td>
+                      <strong>
+                        {leavingPassengersAtCity.length > 0
+                          ? `↓ ${countChildren(leavingPassengersAtCity)}`
+                          : `↑ ${countChildren(stopPassengersAtCity)}`}
+                      </strong>
+                    </td>
+                    <td><strong>{nextLegCoverage ? Math.max(0, nextLegCoverage.neededSeats - assignedStaff.length) : countChildren(onboardAfterSubStop)}</strong></td>
                     <td>Quai</td>
                     <td>{stop.departureTime || "-"}</td>
                     <td>{stop.arrivalTime || "-"}</td>
@@ -3116,6 +3156,10 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
                           {c.birthDate && <span className="tr-pax-dob">{fmtBirthDate(c.birthDate)}</span>}
                         </span>
                       ))}
+                      <span className="tr-pax-parent">
+                        Séjour : <strong>{p.stayCode || shortStayCode(p.sejourName)}</strong>
+                        {p.dropoffCity ? ` · Descente ${p.dropoffCity}` : ""}
+                      </span>
                       <span className="tr-pax-parent">{p.nom} · {p.phone}</span>
                     </div>
                     <select
@@ -3685,24 +3729,31 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
           ? passengersAfterStop(activeT, mainStopOrder)
           : passengersBeforeStop(activeT, mainStopOrder);
         const passengersBoardingHere = passengersAtStop(activeT, segmentStopCity(activeT, seg));
+        const passengerChildren = (passenger) =>
+          (passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "", birthDate: "" }])
+            .map((child) => ({
+              ...child,
+              reservationId: passenger.reservationId,
+              sejourName: passenger.sejourName,
+              stayCode: passenger.stayCode || shortStayCode(passenger.sejourName),
+              dropoffCity: passenger.dropoffCity || "",
+            }));
         const segKids = segPassengers.flatMap(p =>
-          (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
-            .map(c => ({ ...c, reservationId: p.reservationId }))
+          passengerChildren(p)
         );
         const kidsAlreadyHere = passengersAlreadyHere.flatMap(p =>
-          (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
-            .map(c => ({ ...c, reservationId: p.reservationId }))
+          passengerChildren(p)
         );
         const kidsBoardingHere = passengersBoardingHere.flatMap(p =>
-          (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
-            .map(c => ({ ...c, reservationId: p.reservationId }))
+          passengerChildren(p)
         );
         const childCount = segKids.length;
         const assignedStaff = staff.filter(m => (seg.assignedStaffIds || []).includes(m.id));
         const staffCount = assignedStaff.length;
         const legCoverage = segmentLegCoverage(activeT, seg, i, rawSegTix);
         const needed = Math.max(0, ...legCoverage.map((leg) => leg.neededSeats));
-        const seatsOk = legCoverage.every((leg) => leg.missingSeats === 0);
+        const sharedCapacityShortage = Number(seg.capacityShortage || 0);
+        const seatsOk = legCoverage.every((leg) => leg.missingSeats === 0) && sharedCapacityShortage <= 0;
         const incompleteLegs = legCoverage.filter((leg) => leg.missingSeats > 0);
         const missingTicketIds = new Set(segTix.flatMap((ticket) => ticket.missingReservationIds || []));
         const segmentStops = segmentSubStops(seg);
@@ -3725,7 +3776,11 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <span>{childCount} enfant{childCount !== 1 ? "s" : ""}</span>
                   <span>{staffCount} anim.</span>
                   <span className={seatsOk ? "is-ok" : "is-short"}>
-                    {seatsOk ? "Tous les tronçons couverts" : `${incompleteLegs.length} tronçon${incompleteLegs.length > 1 ? "s" : ""} incomplet${incompleteLegs.length > 1 ? "s" : ""}`}
+                    {seatsOk
+                      ? "Tous les tronçons couverts"
+                      : sharedCapacityShortage > 0
+                        ? `Bus partagé : ${sharedCapacityShortage} place${sharedCapacityShortage > 1 ? "s" : ""} manquante${sharedCapacityShortage > 1 ? "s" : ""} avant les anims`
+                        : `${incompleteLegs.length} tronçon${incompleteLegs.length > 1 ? "s" : ""} incomplet${incompleteLegs.length > 1 ? "s" : ""}`}
                   </span>
                   {segmentStops.length > 0 && <span>{segmentStops.length} étape{segmentStops.length > 1 ? "s" : ""}</span>}
                 </div>
@@ -3924,13 +3979,12 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                     ? passengersAfterStop(activeT, stopOrder)
                     : passengersBeforeStop(activeT, stopOrder);
                   const alreadyAtStop = alreadyAtStopPassengers.flatMap(p =>
-                    (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
-                      .map(c => ({ ...c, reservationId: p.reservationId }))
+                    passengerChildren(p)
                   );
                   const boardingAtStop = passengersAtStop(activeT, stop.city).flatMap(p =>
-                    (p.children?.length ? p.children : [{ firstName: p.childName, lastName: "", birthDate: "" }])
-                      .map(c => ({ ...c, reservationId: p.reservationId }))
+                    passengerChildren(p)
                   );
+                  const leavingAtStop = passengersLeavingAtStop(activeT, stop.city).flatMap(passengerChildren);
                   const stopTimes = [
                     stop.arrivalTime ? `Arrivée ${stop.arrivalTime}` : null,
                     stop.departureTime ? `Départ ${stop.departureTime}` : null,
@@ -3939,13 +3993,14 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   return (
                     <div key={stop.id || `${stop.city}-${stopIndex}`} className="tr-ops-stop-group is-quai-stop is-inline" style={{ order: isRetour ? 1 : 3 }}>
                       <div className="tr-ops-stop-main">
-                        <span className="tr-ops-stop-badge">Étape quai</span>
+                        <span className="tr-ops-stop-badge">Étape</span>
                         <strong>{stop.city || "Ville à compléter"}</strong>
                         <span className="tr-ops-stop-time">{stopTimes.join(" · ") || "Horaires à compléter"}</span>
                       </div>
                       <div className="tr-ops-stop-counts">
                         <span>{isRetour ? "Restent après" : "Déjà présents"} <strong>{alreadyAtStop.length}</strong></span>
                         <span>{stopActionLabel(activeT)} <strong>{boardingAtStop.length}</strong></span>
+                        {leavingAtStop.length > 0 && <span>Descendent <strong>{leavingAtStop.length}</strong></span>}
                       </div>
                       {boardingAtStop.length > 0 && (
                         <div className="tr-ops-stop-kids">
@@ -3954,9 +4009,35 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                           ))}
                         </div>
                       )}
+                      {leavingAtStop.length > 0 && (
+                        <div className="tr-ops-stop-kids">
+                          {leavingAtStop.map((child, childIndex) => (
+                            <ChildChip key={`dropoff-${stopIndex}-${childIndex}`} child={child} missingTicketIds={missingTicketIds} openReservation={openReservation} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
+                {(() => {
+                  const finalDropoffs = passengersLeavingAtStop(activeT, seg.to).flatMap(passengerChildren);
+                  if (!finalDropoffs.length) return null;
+                  return (
+                    <div className="tr-ops-stop-group is-inline" style={{ order: 4 }}>
+                      <div className="tr-ops-stop-main">
+                        <span className="tr-ops-stop-badge">Destination</span>
+                        <strong>{seg.to}</strong>
+                        <span className="tr-ops-stop-time">Arrivée {seg.arrivalTime || "à compléter"}</span>
+                      </div>
+                      <div className="tr-ops-stop-counts"><span>Descendent <strong>{finalDropoffs.length}</strong></span></div>
+                      <div className="tr-ops-stop-kids">
+                        {finalDropoffs.map((child, childIndex) => (
+                          <ChildChip key={`final-dropoff-${childIndex}`} child={child} missingTicketIds={missingTicketIds} openReservation={openReservation} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 </div>
               </details>
             )}
@@ -3965,7 +4046,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             <details className="tr-ops-details">
               <summary>
                 Billets
-                <span className={seatsOk ? "is-ok" : "is-short"}>{seatsOk ? "Couvert" : `${incompleteLegs.length} incomplet${incompleteLegs.length > 1 ? "s" : ""}`}</span>
+                <span className={seatsOk ? "is-ok" : "is-short"}>{seatsOk ? "Couvert" : sharedCapacityShortage > 0 ? `${sharedCapacityShortage} places manquantes` : `${incompleteLegs.length} incomplet${incompleteLegs.length > 1 ? "s" : ""}`}</span>
               </summary>
               <div className="tr-ops-tix">
               <div className="tr-ops-tix-head">
@@ -4334,6 +4415,8 @@ function ChildChip({ child, missingTicketIds, openReservation }) {
       title={missingTicket ? "Billet manquant" : "Ouvrir la réservation"}
     >
       {`${child.firstName || ""} ${child.lastName || ""}`.trim() || "Enfant"}
+      <span className="tr-ops-enfant-dob">{child.stayCode || shortStayCode(child.sejourName)}</span>
+      {child.dropoffCity && <span className="tr-ops-enfant-dob">↓ {child.dropoffCity}</span>}
       {child.birthDate && <span className="tr-ops-enfant-dob">{fmtBirthDate(child.birthDate)}</span>}
       {missingTicket && <span className="tr-ops-enfant-ticket-warn">Billet manquant</span>}
       <svg className="tr-ops-enfant-link" width="10" height="10" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">

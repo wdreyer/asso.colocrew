@@ -52,6 +52,13 @@ function childFullName(c) {
   return `${c?.firstName || ""} ${c?.lastName || ""}`.trim();
 }
 
+function shortStayCode(value) {
+  const normalized = normalizePlace(value);
+  if (normalized.includes("eaux vives") || normalized.includes("eaux-vives")) return "EVCC";
+  if (normalized.includes("surf") || normalized.includes("my creative")) return "MCSC";
+  return String(value || "Séjour").trim();
+}
+
 function legalName(legal = {}) {
   return `${legal.firstName || legal.prenom || ""} ${legal.lastName || legal.nom || ""}`.trim();
 }
@@ -142,6 +149,13 @@ function passengersAtStop(transport, segment) {
     const pCity = normalizePlace(passengerBoardingCity(transport, p));
     return pCity === city || subCities.includes(pCity);
   });
+}
+
+function passengersDroppingAt(transport, city) {
+  const target = normalizePlace(city);
+  return (transport.passengers || []).filter((passenger) =>
+    normalizePlace(passenger.dropoffCity) === target,
+  );
 }
 
 function ticketSegmentLabel(ticket, segments) {
@@ -329,6 +343,12 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
       <p style={{ fontSize: 13, color: "#64748b", margin: "-16px 0 20px" }}>
         {isAller ? "Aller" : "Retour"} · {fmtDate(transport?.date)}
       </p>
+      <button
+        onClick={() => onSelect("__all__")}
+        style={{ width: "100%", marginBottom: 14, padding: "13px 16px", border: "2px solid #B8336A", borderRadius: 12, background: "#fff0f6", color: "#B8336A", fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+      >
+        Voir le trajet complet et toutes les listes
+      </button>
       {staff.length === 0 ? (
         <div style={{ padding: "24px 20px", background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 14, textAlign: "center" }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>🙋</div>
@@ -511,7 +531,8 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
             {mySegments.map((seg, i) => {
               const stopPassengers = passengersAtStop(transport, seg);
-              const childCount = countChildren(stopPassengers);
+              const childCount = Number(seg.sharedChildrenCount || 0) || countChildren(stopPassengers);
+              const finalDropoffs = passengersDroppingAt(transport, seg.to);
               return (
                 <div key={seg.id || i} style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
@@ -548,6 +569,11 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                         📋 {seg.instructions}
                       </div>
                     )}
+                    {Number(seg.capacityShortage || 0) > 0 && (
+                      <div style={{ marginTop: 10, padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: 13, color: "#b91c1c", fontWeight: 800 }}>
+                        Capacité insuffisante : {seg.sharedCapacity} places pour {seg.sharedChildrenCount} enfants, soit {seg.capacityShortage} places manquantes avant les animateurs.
+                      </div>
+                    )}
 
                     {/* Sub-stops */}
                     {(seg.stops || []).length > 0 && (
@@ -555,7 +581,9 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                         <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#94a3b8", marginBottom: 8 }}>
                           Sous-arrêts
                         </div>
-                        {seg.stops.map((stop, si) => (
+                        {seg.stops.map((stop, si) => {
+                          const dropoffs = passengersDroppingAt(transport, stop.city);
+                          return (
                           <div key={si} style={{ padding: "8px 12px", background: "#f9f7ff", border: "1px solid #e9e0f8", borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
                             <div style={{ fontWeight: 700, color: "#1e1040" }}>{stop.city || "Ville inconnue"}</div>
                             {(stop.arrivalTime || stop.departureTime) && (
@@ -565,8 +593,22 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                               </div>
                             )}
                             {stop.meetingPoint && <div style={{ color: "#64748b", marginTop: 2, fontSize: 12 }}>RDV : {stop.meetingPoint}</div>}
+                            {dropoffs.length > 0 && (
+                              <div style={{ marginTop: 6, color: "#b45309", fontWeight: 800, fontSize: 12 }}>
+                                ↓ {countChildren(dropoffs)} enfant{countChildren(dropoffs) > 1 ? "s" : ""} descendent ici · {shortStayCode(dropoffs[0]?.sejourName || dropoffs[0]?.stayCode)}
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          );
+                        })}
+                        {finalDropoffs.length > 0 && (
+                          <div style={{ padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
+                            <div style={{ fontWeight: 700, color: "#166534" }}>{seg.to}</div>
+                            <div style={{ marginTop: 3, color: "#166534", fontWeight: 800, fontSize: 12 }}>
+                              ↓ {countChildren(finalDropoffs)} enfant{countChildren(finalDropoffs) > 1 ? "s" : ""} descendent ici · {shortStayCode(finalDropoffs[0]?.sejourName || finalDropoffs[0]?.stayCode)}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -588,6 +630,9 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                               }}>
                                 <div style={{ fontWeight: 800, fontSize: 14, color: "#1e1040" }}>
                                   {children.map((c) => childFullName(c)).filter(Boolean).join(", ") || p.childName || "—"}
+                                </div>
+                                <div style={{ marginTop: 3, fontSize: 11, fontWeight: 800, color: "#B8336A" }}>
+                                  Séjour : {p.stayCode || shortStayCode(p.sejourName)}{p.dropoffCity ? ` · Descente ${p.dropoffCity}` : ""}
                                 </div>
                                 <div style={{ fontSize: 13, color: "#374151", marginTop: 4 }}>
                                   <strong>{p.nom}</strong>
@@ -747,6 +792,9 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                           <div style={{ fontWeight: 700, fontSize: 13, color: "#1e1040" }}>
                             {children.map((c) => childFullName(c)).filter(Boolean).join(", ") || p.childName || "—"}
                           </div>
+                          <div style={{ marginTop: 2, fontSize: 11, fontWeight: 800, color: "#B8336A" }}>
+                            Séjour : {p.stayCode || shortStayCode(p.sejourName)}{p.dropoffCity ? ` · Descente ${p.dropoffCity}` : ""}
+                          </div>
                           <div style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>
                             {p.nom} ·{" "}
                             <a href={`tel:${(p.phone || "").replace(/\s/g, "")}`} style={{ color: "#7c3aed", textDecoration: "none", fontWeight: 600 }}>
@@ -884,7 +932,9 @@ export default function ConvoyagePage() {
   );
 
   const selectedStaff = useMemo(
-    () => (selectedTransport?.staff || []).find((m) => m.id === staffId) || null,
+    () => staffId === "__all__"
+      ? { id: "__all__", name: "Équipe", role: "Vue complète" }
+      : (selectedTransport?.staff || []).find((m) => m.id === staffId) || null,
     [selectedTransport, staffId],
   );
 
@@ -892,7 +942,7 @@ export default function ConvoyagePage() {
     if (!selectedTransport || !selectedStaff) return [];
     return (selectedTransport.segments || [])
       .map((seg, idx) => ({ ...seg, _index: idx }))
-      .filter((seg) => (seg.assignedStaffIds || []).includes(selectedStaff.id));
+      .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
   }, [selectedTransport, selectedStaff]);
 
   const myTickets = useMemo(() => {
