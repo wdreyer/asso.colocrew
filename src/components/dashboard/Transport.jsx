@@ -743,8 +743,12 @@ function portionRoutePoints(portion) {
 
 function ticketCoverageIndexes(ticket, routePoints) {
   const findIndex = (city) => routePoints.findIndex((point) => normalizePlace(point) === normalizePlace(city));
-  const from = ticket?.coverageFrom || ticket?.from;
-  const to = ticket?.coverageTo || ticket?.to;
+  const labelPoints = String(ticket?.segmentLabel || "")
+    .split(/\s*(?:→|>)\s*/)
+    .map((city) => city.trim())
+    .filter(Boolean);
+  const from = ticket?.coverageFrom || ticket?.from || labelPoints[0];
+  const to = ticket?.coverageTo || ticket?.to || labelPoints.at(-1);
   const fromIndex = findIndex(from);
   const toIndex = findIndex(to);
   return {

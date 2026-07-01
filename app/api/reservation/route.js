@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
-import { collection, addDoc, doc, getDocs, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import crypto from "crypto";
 
@@ -69,6 +69,35 @@ export async function POST(request) {
     // ───────────────────────────────────────────────
     const data = await request.formData();
 
+    const fields = data.get("fields");
+    if (!fields) {
+      return NextResponse.json(
+        { error: "Aucun champ JSON (fields)" },
+        { status: 400 }
+      );
+    }
+    const body = JSON.parse(fields);
+    const requestedSejour = String(body.urlSejour || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-");
+    const requestedStartDate = String(body.urlStartDate || "").slice(0, 10);
+    if (requestedSejour && requestedStartDate) {
+      const sejourSnap = await getDoc(doc(db, "sejours", requestedSejour));
+      const selectedSession = sejourSnap.exists()
+        ? (sejourSnap.data().dates || []).find(
+          (dateEntry) => String(dateEntry.startDate || "").slice(0, 10) === requestedStartDate,
+        )
+        : null;
+      if (selectedSession?.bookingOpen === false || selectedSession?.availabilityStatus === "full") {
+        return NextResponse.json(
+          { error: "Cette session est complète. Choisissez une session disponible en août." },
+          { status: 409 },
+        );
+      }
+    }
+
     // Récupération du PDF (justificatif) s'il est fourni
     const file = data.get("file");
     let pdfUrl = "";
@@ -80,16 +109,6 @@ export async function POST(request) {
       await uploadBytes(fileRef, fileBytes);
       pdfUrl = await getDownloadURL(fileRef);
     }
-
-    // Récupération du champ JSON contenant toutes les infos
-    const fields = data.get("fields");
-    if (!fields) {
-      return NextResponse.json(
-        { error: "Aucun champ JSON (fields)" },
-        { status: 400 }
-      );
-    }
-    const body = JSON.parse(fields);
 
     // ───────────────────────────────────────────────
     // 2) EXTRAIRE LES DONNÉES PASSÉES À L'API

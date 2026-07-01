@@ -30,8 +30,8 @@ const SEJOURS_META = [
     name: "My Creative Surf Camp",
     sub: "Vieux Boucau · Surf & Projet Artistique",
     image: "/mcsc2026.jpg",
-    badge: "Offre juillet",
-    badgeColor: "#B8336A",
+    badge: "Août : dernières places",
+    badgeColor: "#d88700",
   },
   {
     slug: "eaux-vives-creative-camp",
@@ -123,6 +123,14 @@ function formatDateOptionPrice(dateEntry) {
   return ` - Offre ${formatPriceRange(range)}`;
 }
 
+function isSessionFull(dateEntry) {
+  return dateEntry?.bookingOpen === false || dateEntry?.availabilityStatus === "full";
+}
+
+function isSessionLimited(dateEntry) {
+  return dateEntry?.bookingOpen !== false && dateEntry?.availabilityStatus === "limited";
+}
+
 function CatalogNotice({ compact = false }) {
   return (
     <a
@@ -198,7 +206,9 @@ function LandingSelector() {
           const promoEntry = (data.dates || []).find(
             (d) => String(d.startDate || "").slice(0, 10) === promoStart
           );
-          if (promoEntry) setSelectedDateKey(`${promoEntry.startDate}|${promoEntry.endDate}`);
+          if (promoEntry && !isSessionFull(promoEntry)) {
+            setSelectedDateKey(`${promoEntry.startDate}|${promoEntry.endDate}`);
+          }
         }
       }
       setLoadingSejour(false);
@@ -215,7 +225,10 @@ function LandingSelector() {
       : (depStation?.priceExtra ?? 0) / 2 + (retStation?.priceExtra ?? 0) / 2;
 
   const effectiveReturnCity = diffReturn ? returnCity : departureCity;
-  const canContinue = selectedSlug && selectedDateKey && selectedAge;
+  const selectedDateEntry = (sejour?.dates || []).find(
+    (dateEntry) => `${dateEntry.startDate}|${dateEntry.endDate}` === selectedDateKey,
+  );
+  const canContinue = selectedSlug && selectedDateKey && selectedAge && !isSessionFull(selectedDateEntry);
 
   const handleContinue = () => {
     if (!canContinue) return;
@@ -311,15 +324,18 @@ function LandingSelector() {
                       {(sejour.dates || []).map((d, i) => {
                         const key = `${d.startDate}|${d.endDate}`;
                         const isSelected = selectedDateKey === key;
+                        const isFull = isSessionFull(d);
+                        const isLimited = isSessionLimited(d);
                         const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
-                        const isPromo = Boolean(sejour?.promotion?.active && promoStart && String(d.startDate || "").slice(0, 10) === promoStart);
+                        const isPromo = Boolean(!isFull && sejour?.promotion?.active && promoStart && String(d.startDate || "").slice(0, 10) === promoStart);
                         const promoRange = isPromo ? extractPriceRange(d) : null;
                         const promoPrice = promoRange?.min > 0 ? `dès ${formatPriceRange({ min: promoRange.min, max: promoRange.min })}` : "";
                         return (
                           <button
                             key={i}
                             type="button"
-                            onClick={() => setSelectedDateKey(key)}
+                            disabled={isFull}
+                            onClick={() => !isFull && setSelectedDateKey(key)}
                             style={{
                               display: "flex",
                               alignItems: "flex-start",
@@ -327,9 +343,10 @@ function LandingSelector() {
                               gap: 12,
                               padding: "14px 18px",
                               borderRadius: 14,
-                              border: isSelected ? "2px solid #B8336A" : isPromo ? "2px solid #f5c0d5" : "2px solid #e9ddd0",
-                              background: isSelected ? "#fff3f8" : isPromo ? "#fffafc" : "#fff",
-                              cursor: "pointer",
+                              border: isFull ? "2px solid #d7d1dc" : isSelected ? "2px solid #B8336A" : isLimited ? "2px solid #e7a526" : isPromo ? "2px solid #f5c0d5" : "2px solid #e9ddd0",
+                              background: isFull ? "#f4f2f5" : isSelected ? "#fff3f8" : isLimited ? "#fffaf0" : isPromo ? "#fffafc" : "#fff",
+                              cursor: isFull ? "not-allowed" : "pointer",
+                              opacity: isFull ? 0.72 : 1,
                               textAlign: "left",
                               transition: "border-color 0.18s, box-shadow 0.18s",
                               boxShadow: isSelected ? "0 0 0 3px rgba(184,51,106,0.15)" : "none",
@@ -337,6 +354,16 @@ function LandingSelector() {
                             }}
                           >
                             <div style={{ flex: 1 }}>
+                              {isFull && (
+                                <span style={{ display: "inline-block", marginBottom: 7, background: "#514a59", color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.1em", padding: "3px 10px", borderRadius: 100, textTransform: "uppercase" }}>
+                                  Complet
+                                </span>
+                              )}
+                              {isLimited && (
+                                <span style={{ display: "inline-block", marginBottom: 7, background: "#d88700", color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.08em", padding: "3px 10px", borderRadius: 100, textTransform: "uppercase" }}>
+                                  Quelques places restantes - dépêchez-vous !
+                                </span>
+                              )}
                               {isPromo && (
                                 <span style={{
                                   display: "inline-block",
@@ -712,6 +739,9 @@ function ReservationForm({
   const computedTotalPriceMin = computedRange.min;
   const computedTotalPriceMax = computedRange.max;
   const computedTotalPrice = computedTotalPriceMax;
+  const selectedSession = (sejour?.dates || []).find(
+    (dateEntry) => String(dateEntry.startDate || "").slice(0, 10) === String(urlStartDate || "").slice(0, 10),
+  );
 
   const validateForm = () => {
     const errors = [];
@@ -768,6 +798,22 @@ function ReservationForm({
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-100"><Spinner /></div>;
   if (!sejour)  return <div className="p-4">Aucun séjour à afficher.</div>;
+  if (isSessionFull(selectedSession)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fdf8fb] px-4">
+        <div className="w-full max-w-lg bg-white border border-[#e4dce8] rounded-lg p-8 text-center shadow-sm">
+          <span className="inline-flex rounded-full bg-[#514a59] px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white">
+            Complet
+          </span>
+          <h1 className="mt-5 text-2xl font-extrabold text-[#1f1640]">Cette session de juillet est complète</h1>
+          <p className="mt-3 text-[#6b5f82]">Les inscriptions restent ouvertes en août, avec seulement quelques places disponibles.</p>
+          <Link href="/reserver" className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#B8336A] px-5 py-3 font-bold text-white">
+            Voir les sessions d'août <FaArrowRight size={13} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen md:p-6 relative">
