@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { FaCalendarAlt, FaChild, FaMapMarkerAlt, FaMoneyBillWave, FaRegStar, FaStar, FaStarHalfAlt } from "react-icons/fa";
 import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { bookableSessions, isSessionFull, isSessionLimited } from "@/src/lib/availability";
 
 function InfoPill({ icon: Icon, text }) {
   if (!text) return null;
@@ -59,11 +60,17 @@ export default function GenericSejour({ sejourData, feedback }) {
     typeof heroImage === "string" &&
     (heroImage.endsWith("/ovive.png") || heroImage.endsWith("ovive.png"));
 
-  const months = formatMonthRange(dates);
-  const duration = formatDuration(dates);
+  const availableDates = bookableSessions(dates);
+  const months = formatMonthRange(availableDates);
+  const duration = formatDuration(availableDates);
   const priceRange = resolveSejourPriceRange(sejourData);
   const promo = sejourData.promotion && typeof sejourData.promotion === "object" ? sejourData.promotion : null;
-  const promoPriceRange = promo?.active ? resolveLowestSejourPriceRange(sejourData) : null;
+  const promoSession = (dates || []).find((session) =>
+    String(session?.startDate || "").slice(0, 10) === String(promo?.startDate || "").slice(0, 10),
+  );
+  const showPromo = Boolean(promo?.active && !isSessionFull(promoSession));
+  const hasLimitedSessions = (dates || []).some(isSessionLimited);
+  const promoPriceRange = showPromo ? resolveLowestSejourPriceRange(sejourData) : null;
   const promoPriceLabel =
     promoPriceRange && (promoPriceRange.min > 0 || promoPriceRange.max > 0)
       ? formatPriceRange(promoPriceRange)
@@ -112,7 +119,12 @@ export default function GenericSejour({ sejourData, feedback }) {
         <div className="absolute inset-x-0 bottom-0">
           <div className="mx-auto w-full max-w-[1240px] px-5 pb-14 md:px-8 md:pb-20">
             <div className="mb-5 flex flex-wrap gap-2">
-              {promo?.active && promoPriceLabel ? (
+              {hasLimitedSessions ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd58a]/55 bg-[#d88700]/25 px-3 py-1.5 text-xs font-bold text-[#ffe4af] backdrop-blur-sm md:text-sm">
+                  Quelques places restantes en août
+                </span>
+              ) : null}
+              {showPromo && promoPriceLabel ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd7e8]/45 bg-[#ffd7e8]/12 px-3 py-1.5 text-xs font-bold text-[#ffd7e8] backdrop-blur-sm md:text-sm">
                   ✦ Offre juillet · {promoPriceLabel}
                 </span>
@@ -146,7 +158,11 @@ export default function GenericSejour({ sejourData, feedback }) {
             {heroSubtitle ? (
               <p className="mt-4 max-w-3xl text-base font-semibold leading-relaxed text-white/95 md:text-xl">{heroSubtitle}</p>
             ) : null}
-            {promo?.active && (promo?.headline || promo?.body) ? (
+            {hasLimitedSessions ? (
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-relaxed text-[#ffe4af] md:text-[15px]">
+                Les sessions de juillet sont complètes. Dépêchez-vous pour les dernières places d'août.
+              </p>
+            ) : showPromo && (promo?.headline || promo?.body) ? (
               <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-white/65 md:text-[15px]">
                 <span className="mr-1.5 font-black uppercase tracking-[0.1em] text-[#ffd7e8]/80">
                   Offre juillet —

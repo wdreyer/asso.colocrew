@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { resolveSejourPriceRange } from "@/src/lib/pricing";
+import { firstBookableSession, isSessionFull } from "@/src/lib/availability";
 
 import GenericSejour from "@/app/components/sejour/GenericSejour";
 import SejourTabs from "@/app/components/sejour/SejourTabs";
@@ -227,20 +228,20 @@ export default function SejourDetail() {
         setSejour(data);
 
         if (Array.isArray(data.dates) && data.dates.length > 0) {
-          let defaultDateOption = data.dates[0];
+          let defaultDateOption = firstBookableSession(data.dates);
           if (data?.promotion?.active && data.promotion.startDate) {
             const promoStart = String(data.promotion.startDate).slice(0, 10);
             const promoEntry = data.dates.find(
               (d) => typeof d === "object" && String(d.startDate || "").slice(0, 10) === promoStart
             );
-            if (promoEntry) defaultDateOption = promoEntry;
+            if (promoEntry && !isSessionFull(promoEntry)) defaultDateOption = promoEntry;
           }
 
-          if (typeof defaultDateOption === "object") {
+          if (defaultDateOption && typeof defaultDateOption === "object") {
             setSelectedStartDate(defaultDateOption.startDate || "");
             setSelectedEndDate(defaultDateOption.endDate || "");
             setBasePriceRange(resolveSejourPriceRange(data, defaultDateOption.startDate));
-          } else {
+          } else if (defaultDateOption) {
             setSelectedStartDate(defaultDateOption);
             setSelectedEndDate("");
             setBasePriceRange(resolveSejourPriceRange(data, defaultDateOption));
@@ -322,14 +323,14 @@ export default function SejourDetail() {
     if (!sejour) return;
 
     const chosenStartDate = event.target.value;
+    const selectedDateEntry = (sejour.dates || []).find((entry) => {
+      if (typeof entry === "object") return entry.startDate === chosenStartDate;
+      return entry === chosenStartDate;
+    });
+    if (isSessionFull(selectedDateEntry)) return;
     setSelectedStartDate(chosenStartDate);
 
     if (Array.isArray(sejour.dates)) {
-      const selectedDateEntry = sejour.dates.find((entry) => {
-        if (typeof entry === "object") return entry.startDate === chosenStartDate;
-        return entry === chosenStartDate;
-      });
-
       if (selectedDateEntry && typeof selectedDateEntry === "object") {
         setSelectedEndDate(selectedDateEntry.endDate || "");
       } else {
@@ -362,6 +363,10 @@ export default function SejourDetail() {
 
   const handleReservation = () => {
     if (!sejour) return;
+    const selectedSession = (sejour.dates || []).find((entry) =>
+      typeof entry === "object" ? entry.startDate === selectedStartDate : entry === selectedStartDate,
+    );
+    if (!selectedStartDate || isSessionFull(selectedSession)) return;
 
     const queryString =
       `/reserver?sejour=${encodeURIComponent(sejour.id || sejour.name)}` +

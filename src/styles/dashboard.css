@@ -848,113 +848,699 @@
 
 .finance-summary tbody tr:last-child td { border-bottom: 0; }
 
-/* Human resources */
-.hr-page { gap: 16px; }
+/* ═══════════════════════════════════════════════════════════════
+   HUMAN RESOURCES
+   ═══════════════════════════════════════════════════════════════ */
 
-.hr-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+.hr-page { gap: 0; }
+.hr-content { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+.hr-paid    { color: #047857; font-weight: 700; }
+.hr-due     { color: #b45309; font-weight: 700; }
+.hr-missing { color: #b45309; font-size: 11px; font-weight: 600; }
+
+/* ── Navigation principale ── */
+.hr-main-nav {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid rgba(120,90,160,0.12);
+  margin-top: 20px;
+  overflow-x: auto;
 }
 
-.hr-metric {
-  --hr-color: #b8336a;
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid rgba(120, 90, 160, 0.12);
-  border-left: 4px solid var(--hr-color);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.hr-metric.is-people { --hr-color: #4777c8; }
-.hr-metric.is-contracts { --hr-color: #7554b8; }
-.hr-metric.is-salary { --hr-color: #168b9f; }
-.hr-metric.is-due { --hr-color: #e87918; }
-.hr-metric.is-paid { --hr-color: #0f9f6e; }
-
-.hr-metric span,
-.hr-metric small {
-  display: block;
+.hr-main-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  background: transparent;
   color: var(--dash-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
 }
 
-.hr-metric span {
-  font-size: 11px;
-  font-weight: 700;
+.hr-main-tab:hover { color: var(--dash-text); }
+
+.hr-main-tab.is-active {
+  color: var(--dash-accent);
+  border-bottom-color: var(--dash-accent);
+}
+
+.hr-tab-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(120,90,160,0.10);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.hr-main-tab.is-active .hr-tab-count {
+  background: rgba(184,51,106,0.12);
+  color: var(--dash-accent);
+}
+
+/* ── État vide ── */
+.hr-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--dash-muted);
+  background: #faf8fe;
+  border-radius: 10px;
+  border: 1.5px dashed rgba(120,90,160,0.2);
+  font-size: 13px;
+}
+
+/* ── Badge rôle ── */
+.hr-staff-type-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.hr-metric strong {
-  display: block;
-  margin: 7px 0 4px;
-  font-size: 24px;
-  line-height: 1.15;
+/* ═══ TAB: PAR SÉJOUR ═══════════════════════════════════════════ */
+
+.hr-sejour-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.hr-metric small { font-size: 11px; }
-
-.hr-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.hr-summary {
-  min-width: 0;
-  border: 1px solid rgba(120, 90, 160, 0.12);
-  border-radius: 8px;
+.hr-sejour-block {
   background: #fff;
+  border: 1.5px solid rgba(120,90,160,0.13);
+  border-radius: 14px;
   overflow: hidden;
 }
 
-.hr-summary header {
+.hr-sejour-header {
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f5f0ff 0%, #fdf4ff 80%);
+  border-bottom: 1.5px solid rgba(120,90,160,0.12);
+}
+
+.hr-sejour-title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.hr-sejour-week {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: var(--dash-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.hr-sejour-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e1b4b;
+  margin: 0;
+}
+
+.hr-sejour-dates {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hr-sejour-count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(120,90,160,0.10);
+  font-size: 10px;
+  font-weight: 700;
+  color: #7c3aed;
+}
+
+.hr-sejour-team-section { padding: 14px 20px 0; }
+.hr-sejour-team-section:last-child { padding-bottom: 16px; }
+
+.hr-team-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.hr-team-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ── Mini-carte dans la vue séjour ── */
+.hr-mini-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #faf8fe;
+  border: 1px solid rgba(120,90,160,0.12);
+  border-radius: 10px;
+  width: 210px;
+  flex-shrink: 0;
+}
+
+.hr-mini-info { flex: 1; min-width: 0; }
+.hr-mini-name { font-size: 12.5px; color: #1f2937; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hr-mini-role { font-size: 11px; color: #6b7280; margin-top: 1px; }
+.hr-mini-status { margin-top: 3px; font-size: 10px; font-weight: 700; }
+.hr-mini-status.is-paid { color: #047857; }
+.hr-mini-status.is-due  { color: #b45309; }
+
+.hr-mini-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hr-btn-sm {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+.hr-btn-sm.is-contract {
+  background: #f5f0ff;
+  border-color: #d4c0e8;
+  color: #7c3aed;
+}
+
+/* ═══ TAB: ÉQUIPE ════════════════════════════════════════════════ */
+
+.hr-equipe-wrap { display: flex; flex-direction: column; gap: 16px; }
+
+.hr-equipe-toolbar {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 13px 16px;
-  border-bottom: 1px solid rgba(120, 90, 160, 0.1);
+  flex-wrap: wrap;
 }
 
-.hr-summary header h2 {
-  margin: 0;
-  font-size: 15px;
+.hr-equipe-filters {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: #fff;
+  border: 1px solid rgba(120,90,160,0.12);
+  border-radius: 8px;
 }
 
-.hr-summary header span {
+.hr-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--dash-muted);
-  font-size: 11px;
-}
-
-.hr-table-scroll { overflow-x: auto; }
-.hr-summary table { width: 100%; border-collapse: collapse; min-width: 520px; }
-.hr-matrix table { min-width: 620px; }
-
-.hr-summary th,
-.hr-summary td {
-  padding: 9px 12px;
-  border-bottom: 1px solid rgba(120, 90, 160, 0.08);
-  text-align: right;
   font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
   white-space: nowrap;
 }
 
-.hr-summary th:first-child,
-.hr-summary td:first-child { text-align: left; }
+.hr-filter-btn.is-active { background: #f8eaf1; color: var(--dash-accent); }
+.hr-filter-btn span {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(120,90,160,0.09);
+  font-size: 10px;
+  text-align: center;
+}
 
-.hr-summary th {
+.hr-equipe-search {
+  padding: 7px 12px;
+  border: 1.5px solid rgba(120,90,160,0.15);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--dash-text);
+  outline: none;
+  width: 220px;
+  background: #fff;
+}
+
+.hr-equipe-search:focus { border-color: var(--dash-accent); }
+
+.hr-equipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+/* ── Carte membre ── */
+.hr-staff-card {
+  background: #fff;
+  border: 1.5px solid rgba(120,90,160,0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .15s, border-color .15s;
+}
+
+.hr-staff-card:hover {
+  border-color: rgba(120,90,160,0.3);
+  box-shadow: 0 4px 20px rgba(124,58,237,0.08);
+}
+
+.hr-staff-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 14px;
+}
+
+.hr-staff-card-identity { flex: 1; min-width: 0; }
+.hr-staff-card-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e1b4b;
+  line-height: 1.2;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hr-staff-card-body {
+  flex: 1;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid rgba(120,90,160,0.08);
+}
+
+.hr-staff-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.hr-staff-icon { font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+
+.hr-staff-link {
+  color: #1d4ed8;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hr-staff-link:hover { text-decoration: underline; }
+
+.hr-staff-contracts-summary {
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba(120,90,160,0.06);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.hr-staff-contracts-count { font-weight: 800; }
+
+.hr-staff-card-footer {
+  padding: 10px 16px;
+  border-top: 1px solid rgba(120,90,160,0.08);
+  display: flex;
+  gap: 8px;
+}
+
+.hr-card-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid rgba(124,58,237,0.25);
+  background: #7c3aed;
+  color: #fff;
+  transition: background .12s;
+}
+
+.hr-card-btn:hover { background: #6d28d9; }
+
+.hr-card-btn.is-secondary {
+  background: transparent;
+  color: #7c3aed;
+}
+
+.hr-card-btn.is-secondary:hover { background: #f5f0ff; }
+
+/* ── Bouton générer contrat dans table ── */
+.hr-btn-contract {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #f5f0ff;
+  border: 1px solid #d4c0e8;
+  color: #7c3aed;
+  white-space: nowrap;
+}
+
+.hr-btn-contract:hover { background: #ede9fe; }
+
+/* ═══ FICHE MODALE ═══════════════════════════════════════════════ */
+
+.hr-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.hr-fiche-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+}
+
+/* En-tête fiche */
+.hr-fiche-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1.5px solid rgba(120,90,160,0.12);
+  flex-shrink: 0;
+}
+
+.hr-fiche-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.hr-photo-change {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #ddd6fe;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.hr-fiche-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.hr-fiche-name { font-size: 17px; font-weight: 800; color: #1e1b4b; line-height: 1.2; }
+.hr-fiche-contracts-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+.hr-fiche-close {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid #ddd6fe;
+  border-radius: 6px;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+/* Tabs internes de la fiche */
+.hr-fiche-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1.5px solid rgba(120,90,160,0.12);
+  flex-shrink: 0;
+  padding: 0 20px;
+}
+
+.hr-fiche-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1.5px;
+  background: transparent;
   color: var(--dash-muted);
-  background: #faf8fe;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hr-fiche-tabs button.is-active {
+  color: var(--dash-accent);
+  border-bottom-color: var(--dash-accent);
+}
+
+.hr-fiche-tabs span {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(120,90,160,0.09);
+  font-size: 10px;
+}
+
+/* Corps de la fiche */
+.hr-fiche-body {
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Grille infos */
+.hr-info-grid { display: flex; flex-direction: column; gap: 8px; }
+
+.hr-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.hr-info-field.is-sensitive {
+  background: #fef9ff;
+  border-color: #f3e8ff;
+}
+
+.hr-info-label {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
 }
 
-.hr-summary tbody tr:last-child td { border-bottom: 0; }
-.hr-paid { color: #047857; font-weight: 700; }
-.hr-due { color: #b45309; font-weight: 700; }
-.hr-missing { color: #b45309; font-size: 11px; font-weight: 600; }
+.hr-info-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.hr-info-link { color: #1d4ed8; text-decoration: none; }
+.hr-info-link:hover { text-decoration: underline; }
+
+.hr-edit-trigger {
+  align-self: flex-start;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #f5f0ff;
+  border: 1.5px solid #ddd6fe;
+  color: #7c3aed;
+  margin-top: 4px;
+}
+
+/* Formulaire édition */
+.hr-edit-form { display: flex; flex-direction: column; gap: 10px; }
+
+.hr-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-edit-label span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.hr-edit-label input,
+.hr-edit-label select {
+  padding: 8px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+  outline: none;
+}
+
+.hr-edit-label input:focus,
+.hr-edit-label select:focus { border-color: #7c3aed; }
+
+.hr-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.hr-btn-cancel {
+  padding: 8px 16px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.hr-btn-save {
+  padding: 8px 20px;
+  background: #7c3aed;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.hr-btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
+
+/* Documents */
+.hr-docs-section { display: flex; flex-direction: column; gap: 12px; }
+
+.hr-docs-upload { display: flex; flex-direction: column; gap: 6px; }
+
+.hr-upload-btn {
+  align-self: flex-start;
+  padding: 9px 18px;
+  border-radius: 8px;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hr-upload-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+.hr-docs-hint { font-size: 11px; color: #9ca3af; }
+.hr-docs-empty { font-size: 13px; color: #9ca3af; font-style: italic; }
+
+.hr-docs-list { display: flex; flex-direction: column; gap: 8px; }
+
+.hr-doc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f9fafb;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: background .12s;
+}
+
+.hr-doc-item:hover { background: #f0f0fa; }
+.hr-doc-icon { font-size: 18px; flex-shrink: 0; }
+.hr-doc-name { font-size: 13px; font-weight: 600; color: #1f2937; }
+.hr-doc-date { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+.hr-doc-open { margin-left: auto; font-size: 11px; color: #7c3aed; font-weight: 700; white-space: nowrap; }
+
+/* Contrats dans la fiche */
+.hr-fiche-contracts-list { display: flex; flex-direction: column; gap: 12px; }
+
+.hr-fiche-contract-card {
+  padding: 12px 14px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border-left: 3px solid #7c3aed;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hr-fiche-contract-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hr-fiche-contract-meta { font-size: 11px; color: #9ca3af; font-weight: 500; }
+.hr-fiche-contract-dates { font-size: 11.5px; color: #6b7280; }
+.hr-fiche-contract-salary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
 
 /* Dashboard home — occupation des séjours */
 .dash-occupancy-table { width: 100%; border-collapse: collapse; min-width: 480px; }
@@ -995,43 +1581,6 @@
 .dash-occ-badge-red    { background: #fef2f2; color: #b91c1c; }
 .dash-occ-badge-neutral{ background: #f3f4f6; color: var(--dash-muted); }
 
-.hr-view-tabs {
-  display: inline-flex;
-  justify-self: start;
-  gap: 3px;
-  padding: 3px;
-  border: 1px solid rgba(120, 90, 160, 0.12);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.hr-view-tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dash-muted);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.hr-view-tabs button.is-active {
-  background: #f8eaf1;
-  color: var(--dash-accent);
-}
-
-.hr-view-tabs span {
-  min-width: 20px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: rgba(120, 90, 160, 0.09);
-  text-align: center;
-  font-size: 10px;
-}
 
 /* Transport operations */
 .tr-back-link {

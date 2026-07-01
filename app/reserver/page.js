@@ -20,6 +20,7 @@ import {
   resolveSejourPriceRange,
   siblingDiscountFactor,
 } from "@/src/lib/pricing";
+import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
 
@@ -121,14 +122,6 @@ function formatDateOptionPrice(dateEntry) {
   const range = extractPriceRange(dateEntry);
   if (!(range.min > 0 || range.max > 0)) return "";
   return ` - Offre ${formatPriceRange(range)}`;
-}
-
-function isSessionFull(dateEntry) {
-  return dateEntry?.bookingOpen === false || dateEntry?.availabilityStatus === "full";
-}
-
-function isSessionLimited(dateEntry) {
-  return dateEntry?.bookingOpen !== false && dateEntry?.availabilityStatus === "limited";
 }
 
 function CatalogNotice({ compact = false }) {

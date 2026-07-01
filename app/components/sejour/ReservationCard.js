@@ -3,6 +3,7 @@
 import React from "react";
 import { FaCalendarAlt, FaChild, FaCity, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
+import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
 
 const SUR_PLACE_LABEL = "Sur place";
 
@@ -118,6 +119,10 @@ export default function ReservationCard({
     totalMin === totalMax
       ? `${formatPriceNumber(totalMin)} €`
       : `${formatPriceNumber(totalMin)} - ${formatPriceNumber(totalMax)} €`;
+  const selectedSession = (sejour?.dates || []).find((dateOption) =>
+    (typeof dateOption === "object" ? dateOption.startDate : dateOption) === selectedDate,
+  );
+  const canReserve = Boolean(selectedDate) && !isSessionFull(selectedSession);
 
   return (
     <div id="reservation-card" className="rounded-[22px] border border-[#eadfce] bg-[linear-gradient(180deg,#ffffff_0%,#fff8fc_100%)] p-5 shadow-[0_16px_36px_rgba(33,21,55,0.14)] md:p-6">
@@ -135,22 +140,39 @@ export default function ReservationCard({
             {sejour?.dates?.map((dateOption, idx) => {
               const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
               const isSelected = selectedDate === value;
+              const isFull = isSessionFull(dateOption);
+              const isLimited = isSessionLimited(dateOption);
               const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
-              const isPromo = Boolean(sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
+              const isPromo = Boolean(!isFull && sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
               return (
                 <button
                   key={`date-${idx}`}
                   type="button"
-                  onClick={() => handleDateChange({ target: { value } })}
+                  disabled={isFull}
+                  onClick={() => !isFull && handleDateChange({ target: { value } })}
                   className={`relative flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
-                    isSelected
+                    isFull
+                      ? "cursor-not-allowed border-[#d7d1dc] bg-[#f4f2f5] opacity-70"
+                      : isSelected
                       ? "border-[#B8336A] bg-[#fef1f6] shadow-[0_0_0_2px_rgba(184,51,106,0.15)]"
+                      : isLimited
+                      ? "border-[#e7a526] bg-[#fffaf0] hover:border-[#d88700]"
                       : isPromo
                       ? "border-[#f5c0d5] bg-[#fff8fb] hover:border-[#B8336A]"
                       : "border-[#dfd3e8] bg-white hover:border-[#B8336A]"
                   }`}
                 >
                   <div className="flex-1">
+                    {isFull && (
+                      <span className="mb-1.5 inline-block rounded-full bg-[#514a59] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-white">
+                        Complet
+                      </span>
+                    )}
+                    {isLimited && (
+                      <span className="mb-1.5 inline-block rounded-full bg-[#d88700] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-white">
+                        Quelques places restantes - dépêchez-vous !
+                      </span>
+                    )}
                     {isPromo && (
                       <span className="mb-1.5 inline-block rounded-full bg-[#B8336A] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-white">
                         ✦ Offre juillet
@@ -278,7 +300,8 @@ export default function ReservationCard({
 
         <button
           onClick={handleReservation}
-          className="w-full cursor-pointer rounded-full bg-[#B8336A] px-5 py-3 text-sm font-bold uppercase tracking-[0.08em] text-white transition hover:bg-[#982a57]"
+          disabled={!canReserve}
+          className="w-full cursor-pointer rounded-full bg-[#B8336A] px-5 py-3 text-sm font-bold uppercase tracking-[0.08em] text-white transition hover:bg-[#982a57] disabled:cursor-not-allowed disabled:bg-[#8d8792]"
         >
           Estimer votre tarif
         </button>

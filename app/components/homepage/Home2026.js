@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { bookableSessions, isSessionFull, isSessionLimited } from "@/src/lib/availability";
 
 /* ─────────────────────────────────────────
    DONNÉES
@@ -63,11 +64,11 @@ const trips = [
   {
     href: "/sejours/my-creative-surf-camp",
     image: "/mcsc2026.jpg",
-    badge: "Offre juillet",
+    badge: "Quelques places",
     title: "My Creative Surf Camp",
     age: "11-13 / 14-17 ans",
-    dates: "6 - 17 juillet 2026",
-    promo: "350 - 950 €",
+    dates: "3 - 28 août 2026",
+    promo: "",
     cta: "Découvrir le séjour",
   },
   {
@@ -83,13 +84,13 @@ const trips = [
 ];
 
 const julyOffer = {
-  label: "Places disponibles en juillet",
-  title: "Offre exceptionnelle sur deux départs 2026",
+  label: "Surf : dernières places en août",
+  title: "Juillet complet, quelques places en août",
   body:
-    "Pour faciliter les départs, nous ouvrons un tarif ajusté sur My Creative Surf Camp du 6 au 17 juillet et Eaux Vives Creative Camp du 20 au 31 juillet.",
-  price: "350 - 950 €",
-  cta: "Voir les places concernées",
-  href: "/sejours",
+    "Les sessions surf de juillet sont complètes. Quelques places restent disponibles sur les deux départs du mois d'août.",
+  price: "places limitées",
+  cta: "Voir les sessions d'août",
+  href: "/sejours/my-creative-surf-camp",
 };
 
 const homepageTestimonialsManual = [
@@ -476,8 +477,8 @@ function FeaturesAndTrips({ content }) {
             >
               <span className="h-2 w-2 shrink-0 rounded-full bg-[#A45A86]" />
               <p className="flex-1 text-sm font-semibold text-[#5B4B6F]">
-                <span className="font-black text-[#A45A86]">Offre juillet —</span>{" "}
-                2 départs disponibles · dès {julyOffer.price}
+                <span className="font-black text-[#A45A86]">Surf juillet complet —</span>{" "}
+                Quelques places en août · dépêchez-vous !
               </p>
               <span className="shrink-0 text-xs font-bold text-[#A45A86] opacity-50 transition group-hover:opacity-100">
                 Voir →
@@ -671,7 +672,7 @@ function extractSejourIdFromTrip(trip) {
 }
 
 function formatSejourDatesForTrip(sejour) {
-  const entries = Array.isArray(sejour?.dates) ? sejour.dates : [];
+  const entries = bookableSessions(sejour?.dates);
   if (!entries.length) return "";
   const months = entries
     .flatMap((item) => {
@@ -704,6 +705,7 @@ function formatPromoDateForTrip(sejour, fallback = "") {
   const promoDate = (Array.isArray(sejour.dates) ? sejour.dates : []).find((item) =>
     String(item?.startDate || "").startsWith(targetStart.slice(0, 10)),
   );
+  if (isSessionFull(promoDate)) return "";
   if (!promoDate?.startDate || !promoDate?.endDate) return fallback;
   const start = new Date(promoDate.startDate);
   const end = new Date(promoDate.endDate);
@@ -717,6 +719,14 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
     const sejourId = extractSejourIdFromTrip(trip);
     const liveSejour = sejourId ? sejoursById.get(sejourId) : null;
     if (!liveSejour) return trip;
+    const hasLimitedSessions = (liveSejour.dates || []).some(isSessionLimited);
+    const hasActivePromoSession = Boolean(
+      liveSejour?.promotion?.active
+      && (liveSejour.dates || []).some((session) =>
+        !isSessionFull(session)
+        && String(session?.startDate || "").slice(0, 10) === String(liveSejour.promotion.startDate || "").slice(0, 10),
+      ),
+    );
 
     return {
       ...trip,
@@ -725,9 +735,9 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
       title: liveSejour.name || trip.title,
       image: liveSejour.heroImage || trip.image,
       age: formatSejourAgesForTrip(liveSejour) || trip.age,
-      dates: formatPromoDateForTrip(liveSejour, trip.dates) || formatSejourDatesForTrip(liveSejour) || trip.dates,
-      promo: liveSejour?.promotion?.active ? (liveSejour.promotion.priceLabel || trip.promo) : trip.promo,
-      badge: liveSejour?.promotion?.active ? "Offre juillet" : trip.badge,
+      dates: formatPromoDateForTrip(liveSejour) || formatSejourDatesForTrip(liveSejour) || trip.dates,
+      promo: hasActivePromoSession ? (liveSejour.promotion.priceLabel || trip.promo) : "",
+      badge: hasLimitedSessions ? "Quelques places" : hasActivePromoSession ? "Offre juillet" : trip.badge,
     };
   });
 }

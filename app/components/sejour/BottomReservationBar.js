@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import { FaCalendarAlt, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
+import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
 
 const SUR_PLACE_LABEL = "Sur place";
 
@@ -138,11 +139,13 @@ export default function BottomReservationBar({
         >
           {sejour?.dates?.map((dateOption, idx) => {
             const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
+            const isFull = isSessionFull(dateOption);
+            const isLimited = isSessionLimited(dateOption);
             const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
-            const isPromo = Boolean(sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
+            const isPromo = Boolean(!isFull && sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
             return (
-              <option key={`bottom-date-${idx}`} value={value}>
-                {isPromo ? "✦ Offre · " : ""}{dateOptionLabel(dateOption)}
+              <option key={`bottom-date-${idx}`} value={value} disabled={isFull}>
+                {isFull ? "COMPLET · " : isLimited ? "DERNIÈRES PLACES · " : isPromo ? "OFFRE · " : ""}{dateOptionLabel(dateOption)}
               </option>
             );
           })}
