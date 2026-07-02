@@ -959,10 +959,21 @@ export default function ConvoyagePage() {
 
   const mySegments = useMemo(() => {
     if (!selectedTransport || !selectedStaff) return [];
-    return [
-      ...(selectedTransport.segments || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "segment" })),
-      ...(selectedTransport.branches || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "branch" })),
-    ]
+    const mainSegments = (selectedTransport.segments || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "segment" }));
+    const branches = (selectedTransport.branches || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "branch" }));
+    const ordered = selectedTransport.week === "S2"
+      ? mainSegments.flatMap((segment) => {
+          const attachmentCity = normalizePlace(selectedTransport.direction === "retour" ? segment.from : segment.to);
+          return [
+            segment,
+            ...branches.filter((branch) => normalizePlace(branch.joinsAt || (selectedTransport.direction === "retour" ? branch.from : branch.to)) === attachmentCity),
+          ];
+        }).concat(branches.filter((branch) => !mainSegments.some((segment) =>
+          normalizePlace(selectedTransport.direction === "retour" ? segment.from : segment.to)
+            === normalizePlace(branch.joinsAt || (selectedTransport.direction === "retour" ? branch.from : branch.to)),
+        )))
+      : [...mainSegments, ...branches];
+    return ordered
       .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
   }, [selectedTransport, selectedStaff]);
 

@@ -2068,15 +2068,26 @@ function TripTimeline({ transport, onToggleStaff }) {
   const leadStaffId = effectiveLeadStaffId(transport);
   if (segments.length === 0) return null;
 
+  const isS2 = transport.week === "S2";
+  const parallelBranchesForSegment = (segment) => isS2 ? branches.filter((branch) => {
+    const joinCity = normalizePlace(branchJoinCity(transport, branch));
+    const mainCity = normalizePlace(transport.direction === "retour" ? segment.from : segment.to);
+    return joinCity && joinCity === mainCity;
+  }) : [];
+  const parallelBranchIds = new Set(segments.flatMap((segment) =>
+    parallelBranchesForSegment(segment).map((branch) => branch.id),
+  ));
+  const floatingBranches = branches.filter((branch) => !parallelBranchIds.has(branch.id));
+
   const last = segments[segments.length - 1];
   const finalAction = Number(last?.sharedFinalDropoffChildren || 0) > 0
     ? { count: Number(last.sharedFinalDropoffChildren), label: "descendent", tone: "down" }
     : timelineActionInfo(transport, last?.to);
-  const endForkBranches = branches.filter((b) => mainJoinIndexForBranch(transport, b) >= segments.length);
+  const endForkBranches = floatingBranches.filter((b) => mainJoinIndexForBranch(transport, b) >= segments.length);
   const sortedEndForkBranches = [...endForkBranches].sort(
     (a, b) => (a.departureTime || "").localeCompare(b.departureTime || "")
   );
-  const hasForks = branches.length > 0;
+  const hasForks = floatingBranches.length > 0;
 
   return (
     <div className={`tl-wrap${hasForks ? " tl-wrap--has-forks" : ""}`}>
@@ -2087,7 +2098,8 @@ function TripTimeline({ transport, onToggleStaff }) {
           const action = timelineActionInfo(transport, seg.from, { isFirst: i === 0 });
           const connectionDuration = previous ? durationBetween(previous.arrivalTime, seg.departureTime) : "";
           const trainDuration = durationBetween(seg.departureTime, seg.arrivalTime);
-          const joiningBranches = branches.filter((branch) => mainJoinIndexForBranch(transport, branch) === i);
+          const joiningBranches = floatingBranches.filter((branch) => mainJoinIndexForBranch(transport, branch) === i);
+          const parallelBranches = parallelBranchesForSegment(seg);
           const sortedJoiningBranches = [...joiningBranches].sort(
             (a, b) => (a.departureTime || "").localeCompare(b.departureTime || "")
           );
@@ -2142,8 +2154,33 @@ function TripTimeline({ transport, onToggleStaff }) {
             </div>,
 
             /* Leg */
-            <div key={`leg-${seg.id}`} className={`tl-leg${seg.sharedBus ? " is-shared-bus" : ""}`} style={{ "--i": i }}>
+            <div key={`leg-${seg.id}`} className={`tl-leg${seg.sharedBus ? " is-shared-bus" : ""}${parallelBranches.length ? " has-parallel-branches" : ""}`} style={{ "--i": i }}>
               <div className="tl-leg-line" />
+              {parallelBranches.length > 0 && (
+                <div className="tl-parallel-routes">
+                  <div className="tl-parallel-route is-main">
+                    <span className="tl-parallel-route-line" />
+                    <strong>{seg.from} → {seg.to}</strong>
+                    <small>
+                      {seg.departureTime && <span>{seg.departureTime}</span>}
+                      {seg.arrivalTime && <span>→ {seg.arrivalTime}</span>}
+                      <span>{countChildren(passengersOnSegment(transport, i))} enf.</span>
+                    </small>
+                  </div>
+                  {parallelBranches.map((branch) => (
+                    <div key={branch.id} className="tl-parallel-route is-branch">
+                      <span className="tl-parallel-route-line" />
+                      <strong>{branch.from} → {branch.to}</strong>
+                      <small>
+                        {branch.departureTime && <span>{branch.departureTime}</span>}
+                        {branch.arrivalTime && <span>→ {branch.arrivalTime}</span>}
+                        {!branch.departureTime && !branch.arrivalTime && <span>Horaire à compléter</span>}
+                        <span>{countChildren(passengersOnBranch(transport, branch))} enf.</span>
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              )}
               {seg.sharedBus && (
                 <span className="tl-shared-bus-label">
                   Autocar partagé · regroupement de tous les convois
@@ -4002,6 +4039,10 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         const segmentStops = segmentSubStops(seg);
         const trainLabel = `${seg.mode || "Transport"}${seg.number ? ` ${seg.number}` : ""}`;
         const segmentCityChoices = cityChoicesFor(seg.from, seg.to);
+        const attachedBranches = activeT.week === "S2" ? branches.filter((branch) =>
+          normalizePlace(branchJoinCity(activeT, branch))
+            === normalizePlace(activeT.direction === "retour" ? seg.from : seg.to),
+        ) : [];
 
         return (
           <div key={seg.id} className="tr-ops-seg">
@@ -4043,6 +4084,18 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 Supprimer
               </button>
             </div>
+
+            {attachedBranches.length > 0 && (
+              <div className="tr-ops-attached-branches">
+                <span>En parallèle de ce segment</span>
+                {attachedBranches.map((branch) => (
+                  <strong key={branch.id}>
+                    {branch.from} → {branch.to} · {countChildren(passengersOnBranch(activeT, branch))} enf.
+                    {(branch.departureTime || branch.arrivalTime) && ` · ${branch.departureTime || "--:--"} → ${branch.arrivalTime || "--:--"}`}
+                  </strong>
+                ))}
+              </div>
+            )}
 
             {/* Train info inline */}
             <details className="tr-ops-details">

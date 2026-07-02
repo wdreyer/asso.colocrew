@@ -17,6 +17,7 @@ const app = getApps()[0] || initializeApp({
 const db = getFirestore(app);
 
 const IDS = {
+  northAller: "UrYWvoqOWbzNcv53DyCS",
   southAller: "2induumArFBxjVCTLaw0",
   southRetour: "E032d8KCH3OVHdgy5bA5",
   northRetour: "04AhMrhz1dYCHxsI7yJp",
@@ -96,6 +97,7 @@ function upsertBranch(transport, nextBranch) {
 }
 
 const southAller = docs.southAller;
+const northAller = docs.northAller;
 const southRetour = docs.southRetour;
 const northRetour = docs.northRetour;
 const allRetourPassengers = [...(southRetour.passengers || []), ...(northRetour.passengers || [])];
@@ -107,11 +109,20 @@ const retourSharedChildren = childCount(uniqueRetourPassengers);
 const allerMarseille = (southAller.passengers || []).filter((passenger) =>
   normalized(passengerCity(passenger, "aller")) === "marseille",
 );
+const allerNantes = (northAller.passengers || []).filter((passenger) =>
+  normalized(passengerCity(passenger, "aller")) === "nantes",
+);
 const retourMarseille = (southRetour.passengers || []).filter((passenger) =>
   normalized(passengerCity(passenger, "retour")) === "marseille",
 );
 
 const allerBranch = branch("s2-aller-marseille-toulouse", "Marseille", "Toulouse", "12:15", "16:05", "aller");
+const nantesBranch = {
+  ...branch("s2-aller-nantes-paris", "Nantes", "Paris", "", "", "aller"),
+  joinsAt: "Paris",
+  meetingPoint: "Gare de Nantes",
+  instructions: "Embranchement Nantes : rejoindre le convoi principal à Paris. Horaires à compléter après achat des billets.",
+};
 const retourBranch = branch("s2-retour-toulouse-marseille", "Toulouse", "Marseille", "", "", "retour");
 
 const allerSegments = (southAller.segments || []).map((segment) => segment.sharedBus
@@ -216,6 +227,7 @@ const northRetourPassengers = (northRetour.passengers || []).filter((passenger) 
 
 console.log(`${shouldApply ? "APPLICATION" : "SIMULATION"} - mise à jour S2`);
 console.log(`Marseille aller: ${allerMarseille.length} dossiers / ${childCount(allerMarseille)} enfants`);
+console.log(`Nantes aller: ${allerNantes.length} dossiers / ${childCount(allerNantes)} enfants`);
 console.log(`Marseille retour: ${retourMarseille.length} dossiers / ${childCount(retourMarseille)} enfants`);
 console.log("Aller:", [...allerSegments, allerBranch].map((item) => `${item.from}->${item.to}`).join(" | "));
 console.log("Retour:", [...retourSegments, retourBranch].map((item) => `${item.from}->${item.to}`).join(" | "));
@@ -226,6 +238,9 @@ console.log("Billets retour Sud/Ouest:", (southRetour.tickets || []).map((item) 
 console.log("Billets retour Nord:", (northRetour.tickets || []).map((item) => `${item.from || "?"}->${item.to || "?"} (${item.segmentId || "sans segment"}, ${item.seats || 0} places)`).join(" | ") || "aucun");
 
 if (shouldApply) {
+  await updateDoc(doc(db, "transports", IDS.northAller), {
+    branches: upsertBranch(northAller, nantesBranch),
+  });
   await updateDoc(doc(db, "transports", IDS.southAller), {
     segments: allerSegments,
     branches: upsertBranch(southAller, allerBranch),
@@ -248,6 +263,9 @@ const freshTransportSnap = await getDocs(collection(db, "transports"));
 const s2Trips = freshTransportSnap.docs
   .map((item) => ({ id: item.id, ...item.data() }))
   .filter((transport) => transport.week === "S2" && normalized(transport.status) !== "annule");
+const freshNorthAller = s2Trips.find((transport) => transport.id === IDS.northAller);
+const freshNantesBranch = (freshNorthAller?.branches || []).find((item) => item.id === nantesBranch.id);
+console.log(`Branche Nantes -> Paris: ${freshNantesBranch ? "présente" : "absente"} · ${childCount(allerNantes)} enfants`);
 const validatedS2 = reservationSnap.docs
   .map((item) => ({ id: item.id, ...item.data() }))
   .filter((reservation) => reservation.status === "validated" && String(reservation.sejour?.startDate || "").slice(0, 10) === "2026-07-20");
