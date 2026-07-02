@@ -153,8 +153,9 @@ const retourSegments = [
     sharedBus: true,
     sharedBusId: "S2-2026-BIDARRAY-MESSANGES-BORDEAUX",
     sharedChildrenCount: retourSharedChildren,
-    sharedCapacity: 50,
-    capacityShortage: Math.max(0, retourSharedChildren - 50),
+    sharedCapacity: 55,
+    capacity: 55,
+    capacityShortage: Math.max(0, retourSharedChildren - 55),
     sharedStartChildren: retourEvccChildren,
     stops: [{
       id: "s2-retour-stop-messanges",
@@ -196,8 +197,9 @@ const northRetourSegments = (northRetour.segments || []).map((segment, index) =>
       sharedBus: true,
       sharedBusId: "S2-2026-BIDARRAY-MESSANGES-BORDEAUX",
       sharedChildrenCount: retourSharedChildren,
-      sharedCapacity: 50,
-      capacityShortage: Math.max(0, retourSharedChildren - 50),
+      sharedCapacity: 55,
+      capacity: 55,
+      capacityShortage: Math.max(0, retourSharedChildren - 55),
       sharedStartChildren: retourEvccChildren,
       stops: [{
         id: "s2-retour-stop-messanges",

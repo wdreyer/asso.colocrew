@@ -3968,11 +3968,12 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     <div className="tr-ops-simple">
 
       {/* Segments */}
-      {segments.length === 0 && (
-        <div className="tr-seg-empty">Aucun segment. Cliquez sur "+ Segment" pour commencer.</div>
-      )}
+      <div className="tr-ops-route-sequence">
+        {segments.length === 0 && (
+          <div className="tr-seg-empty">Aucun segment. Cliquez sur "+ Segment" pour commencer.</div>
+        )}
 
-      {segments.map((seg, i) => {
+        {segments.map((seg, i) => {
         const isRetour = activeT.direction === "retour";
         const rawSegTix = tickets.filter((t) => t.segmentId === seg.id);
         const segTix = rawSegTix.map((ticket) => displayTicketForSegment(ticket, activeT, seg, i, rawSegTix));
@@ -4019,7 +4020,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         ) : [];
 
         return (
-          <div key={seg.id} className="tr-ops-seg">
+          <div key={seg.id} className="tr-ops-seg" style={{ order: i * 100 }}>
             <div className="tr-ops-seg-head">
               <span className="tr-ops-seg-num">{i + 1}</span>
               <div className="tr-ops-seg-order" aria-label="Ordre du segment">
@@ -4368,7 +4369,6 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
 
       {branches.length > 0 && (
         <div className="tr-ops-branch-list">
-          <div className="tr-ops-branch-title">Branches de rattachement</div>
           {branches.map((branch, branchIndex) => {
             const branchPortion = { ...branch, kind: branch.kind || "branch" };
             const rawBranchTix = tickets.filter((ticket) => ticket.segmentId === branch.id);
@@ -4388,7 +4388,16 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             const branchCityChoices = cityChoicesFor(branch.from, branch.to, branch.joinsAt);
 
             return (
-              <div key={branch.id} className="tr-ops-seg tr-ops-branch">
+              <div
+                key={branch.id}
+                className="tr-ops-seg tr-ops-branch"
+                style={{
+                  order: Math.max(0, Math.min(
+                    segments.length,
+                    mainJoinIndexForBranch(activeT, branch),
+                  )) * 100 - 1 + (branchIndex / 100),
+                }}
+              >
                 <div className="tr-ops-seg-head">
                   <span className="tr-ops-seg-num">B{branchIndex + 1}</span>
                   <div className="tr-ops-seg-main">
@@ -4531,6 +4540,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
           })}
         </div>
       )}
+      </div>
 
       <button type="button" className="tr-ops-add-seg" onClick={addSegment}>+ Ajouter un segment</button>
       <button type="button" className="tr-ops-add-seg tr-ops-add-branch" onClick={addBranch}>+ Ajouter une branche</button>
@@ -6108,15 +6118,6 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
                 )}
               </div>
             </div>
-
-            {dayTrips.length > 0 && (
-              <ConvoyageDayMap
-                transports={dayTrips}
-                reservations={reservations}
-                week={selectedWeek}
-                direction={dir}
-              />
-            )}
 
             <div className="tr-day-trips">
               {ROUTE_GROUPS.filter((g) => g.value !== "direct").map((group) => {

@@ -7848,6 +7848,12 @@
   overflow-y: auto;
 }
 
+.tr-ops-route-sequence {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* Segment card */
 .tr-ops-seg {
   background: #fff;
@@ -7857,17 +7863,7 @@
 }
 
 .tr-ops-branch-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.tr-ops-branch-title {
-  color: #7c2450;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  display: contents;
 }
 
 .tr-ops-branch {
