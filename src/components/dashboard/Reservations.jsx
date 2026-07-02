@@ -149,7 +149,7 @@ function passengerTransportCity(transport, passenger, fallbackItem) {
 function findPassengerSegment(transport, passenger, fallbackItem) {
   const city = normalizePlace(passengerTransportCity(transport, passenger, fallbackItem));
   if (!city) return null;
-  return (transport.segments || []).find((segment) =>
+  return [...(transport.segments || []), ...(transport.branches || [])].find((segment) =>
     normalizePlace(segmentStopCityForReservation(transport, segment)) === city,
   ) || null;
 }
@@ -168,7 +168,7 @@ const WEEK_DATES = {
 
 function transportStopCities(transport) {
   const cities = new Set();
-  (transport.segments || []).forEach((segment) => {
+  [...(transport.segments || []), ...(transport.branches || [])].forEach((segment) => {
     [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
     (segment.stops || []).forEach((stop) => stop.city && cities.add(stop.city));
   });

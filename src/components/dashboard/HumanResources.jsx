@@ -18,6 +18,13 @@ import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSee
 
 const WEEK_ORDER = ["S1", "S2", "S3", "S4"];
 
+// Séjours 2026 — liste fermée pour éviter les doublons dus à des variantes tapées à la main
+// (ex. "mcsc" vs "MCSC") qui casseraient le regroupement "Par séjour".
+const STAYS = [
+  { code: "MCSC", name: "My Creative Surf Camp" },
+  { code: "EVCC", name: "Eaux Vives Creative Camp" },
+];
+
 // Dates de référence des séjours d'été 2026 (pré-remplissage, modifiable dans le formulaire).
 const WEEK_DATES = {
   S1: { startDate: "2026-07-06", endDate: "2026-07-17" },
@@ -789,12 +796,12 @@ function InfoField({ label, value, href, sensitive }) {
 function emptyContractForm(member, contract) {
   const week = contract?.week && WEEK_ORDER.includes(contract.week) ? contract.week : "S1";
   const defaults = WEEK_DATES[week] || {};
+  const matchedStay = STAYS.find((s) => s.code.toLowerCase() === String(contract?.stayCode || "").toLowerCase());
   return {
     memberId: member?.id || contract?.memberId || "",
     newFirstName: "",
     newLastName: "",
-    stayName: contract?.stay && contract.stay !== "Non renseigné" ? contract.stay : "",
-    stayCode: contract?.stayCode || "",
+    stayCode: matchedStay?.code || STAYS[0].code,
     week,
     startDate: contract?.startDate || defaults.startDate || "",
     endDate:   contract?.endDate   || defaults.endDate   || "",
@@ -844,7 +851,8 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       return;
     }
     if (!addingMember && !form.memberId) { showToast("Choisissez un membre.", "error"); return; }
-    if (!form.stayName.trim()) { showToast("Renseignez le nom du séjour.", "error"); return; }
+    const stay = STAYS.find((s) => s.code === form.stayCode);
+    if (!stay) { showToast("Choisissez un séjour.", "error"); return; }
 
     setSaving(true);
     try {
@@ -872,8 +880,8 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       const payload = {
         memberId,
         memberName,
-        stayName: form.stayName.trim(),
-        stayCode: form.stayCode.trim(),
+        stayName: stay.name,
+        stayCode: stay.code,
         week: form.week,
         role: gridRow.label,
         roleKey: gridRow.id,
@@ -941,11 +949,9 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         <div className="hr-form-row">
           <label className="hr-edit-label">
             <span>Séjour</span>
-            <input value={form.stayName} onChange={(e) => set("stayName", e.target.value)} placeholder="Ex. My Creative Surf Camp" />
-          </label>
-          <label className="hr-edit-label">
-            <span>Code séjour</span>
-            <input value={form.stayCode} onChange={(e) => set("stayCode", e.target.value)} placeholder="Ex. MCSC" />
+            <select value={form.stayCode} onChange={(e) => set("stayCode", e.target.value)}>
+              {STAYS.map((s) => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
+            </select>
           </label>
         </div>
 

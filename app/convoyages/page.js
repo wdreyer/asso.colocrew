@@ -133,6 +133,21 @@ function normalizePlace(v) {
     .toLowerCase();
 }
 
+// Où un embranchement se raccorde au tronc commun : index du segment principal juste
+// APRÈS lequel il doit apparaître (ou mainSegments.length si le raccord se fait au tout
+// dernier arrêt, ex. Toulouse -> Marseille/Lyon, Paris -> Lille/Nantes en S2).
+function branchJoinIndex(transport, branch) {
+  const segments = transport.segments || [];
+  const joinKey = normalizePlace(branch.joinsAt || (transport.direction === "retour" ? branch.from : branch.to));
+  if (!joinKey) return transport.direction === "retour" ? segments.length - 1 : 0;
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (normalizePlace(segment.from) === joinKey) return index;
+    if (normalizePlace(segment.to) === joinKey) return Math.min(index + 1, segments.length);
+  }
+  return transport.direction === "retour" ? segments.length - 1 : segments.length;
+}
+
 function passengerBoardingCity(transport, passenger) {
   return (
     passenger.pickupCity ||
@@ -961,18 +976,20 @@ export default function ConvoyagePage() {
     if (!selectedTransport || !selectedStaff) return [];
     const mainSegments = (selectedTransport.segments || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "segment" }));
     const branches = (selectedTransport.branches || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "branch" }));
-    const ordered = selectedTransport.week === "S2"
-      ? mainSegments.flatMap((segment) => {
-          const attachmentCity = normalizePlace(selectedTransport.direction === "retour" ? segment.from : segment.to);
-          return [
-            segment,
-            ...branches.filter((branch) => normalizePlace(branch.joinsAt || (selectedTransport.direction === "retour" ? branch.from : branch.to)) === attachmentCity),
-          ];
-        }).concat(branches.filter((branch) => !mainSegments.some((segment) =>
-          normalizePlace(selectedTransport.direction === "retour" ? segment.from : segment.to)
-            === normalizePlace(branch.joinsAt || (selectedTransport.direction === "retour" ? branch.from : branch.to)),
-        )))
-      : [...mainSegments, ...branches];
+
+    // Chaque embranchement est inséré juste après le point du tronc commun où il se
+    // raccorde (fourche), ou en fin de liste s'il part du tout dernier arrêt.
+    const ordered = [];
+    mainSegments.forEach((segment, i) => {
+      branches
+        .filter((branch) => branchJoinIndex(selectedTransport, branch) === i)
+        .forEach((branch) => ordered.push(branch));
+      ordered.push(segment);
+    });
+    branches
+      .filter((branch) => branchJoinIndex(selectedTransport, branch) >= mainSegments.length)
+      .forEach((branch) => ordered.push(branch));
+
     return ordered
       .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
   }, [selectedTransport, selectedStaff]);

@@ -21,7 +21,7 @@ function weekFromStartDate(value) {
 
 function transportStopCities(transport) {
   const cities = new Set();
-  (transport.segments || []).forEach((segment) => {
+  [...(transport.segments || []), ...(transport.branches || [])].forEach((segment) => {
     [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
     (segment.stops || []).forEach((stop) => stop.city && cities.add(stop.city));
   });

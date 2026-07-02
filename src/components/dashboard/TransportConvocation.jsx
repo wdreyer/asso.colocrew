@@ -58,7 +58,7 @@ function legacyReminderHtml(items) {
 
 function transportAllCities(transport) {
   const cities = new Set();
-  for (const seg of transport.segments || []) {
+  for (const seg of [...(transport.segments || []), ...(transport.branches || [])]) {
     if (seg.from) cities.add(normalizeCity(seg.from));
     if (seg.to)   cities.add(normalizeCity(seg.to));
     for (const stop of seg.stops || []) if (stop.city) cities.add(normalizeCity(stop.city));
@@ -71,7 +71,7 @@ function transportAllCities(transport) {
 function getMeetingInfo(transport, city) {
   if (!transport) return null;
   const nc = normalizeCity(city);
-  for (const seg of transport.segments || []) {
+  for (const seg of [...(transport.segments || []), ...(transport.branches || [])]) {
     const boardCity = transport.direction === "aller" ? seg.from : seg.to;
     if (normalizeCity(boardCity) === nc) {
       return {

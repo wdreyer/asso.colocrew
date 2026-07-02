@@ -2293,31 +2293,6 @@ function TripTimeline({ transport, onToggleStaff }) {
   );
 }
 
-function DaySummary({ transports, date }) {
-  const totalChildren = transports.reduce((s, t) => s + countChildren(t.passengers), 0);
-  const totalStaff    = transports.reduce((s, t) => s + (t.staff || []).length, 0);
-  const totalSegs     = transports.reduce((s, t) => s + routePortionCount(t), 0);
-  const missingTix    = transports.reduce((s, t) => s + missingTicketPortionCount(t), 0);
-  const totalCost     = transports.reduce((s, t) =>
-    s + (t.tickets || []).filter((tk) => tk.purchased).reduce((ts, tk) => ts + Number(tk.price || 0), 0), 0);
-
-  return (
-    <div className="tr-day-summary">
-      <div className="tr-day-sum-stat"><strong>{totalChildren}</strong><span>enfants</span></div>
-      <div className="tr-day-sum-stat"><strong>{transports.length}</strong><span>trajet{transports.length !== 1 ? "s" : ""}</span></div>
-      <div className="tr-day-sum-stat"><strong>{totalStaff}</strong><span>animateurs</span></div>
-      <div className="tr-day-sum-stat"><strong>{totalSegs}</strong><span>étapes</span></div>
-      {totalCost > 0 && <div className="tr-day-sum-stat"><strong>{formatMoney(totalCost)}</strong><span>billets achetés</span></div>}
-      {missingTix > 0 && (
-        <div className="tr-day-sum-warn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          {missingTix} billet{missingTix > 1 ? "s" : ""} manquant{missingTix > 1 ? "s" : ""}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TransportHomeHeader({ reservations, transports, onCreate }) {
   const stats = useMemo(() => {
     const valid = reservations.filter((reservation) => reservation.status === "validated" && reservation.isImported2026);
@@ -3072,7 +3047,6 @@ function DayByDayOverview({ transports, selectedId, onSelectTrip, onEditSegment 
             </div>
             {dayTransports.length ? (
               <>
-                <DaySummary transports={dayTransports} date={day.date} />
                 <DateTripCards
                   transports={dayTransports}
                   selectedId={selectedId}
