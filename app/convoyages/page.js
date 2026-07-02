@@ -111,6 +111,20 @@ function countChildren(passengers) {
   return (passengers || []).reduce((s, p) => s + Math.max(p.children?.length || 0, 1), 0);
 }
 
+function effectiveLeadStaffId(transport) {
+  const assignedIds = [...new Set([
+    ...(transport?.segments || []),
+    ...(transport?.branches || []),
+  ].flatMap((segment) => segment.assignedStaffIds || []).filter(Boolean))];
+  if (assignedIds.length === 1) return assignedIds[0];
+  return assignedIds.includes(transport?.leadStaffId) ? transport.leadStaffId : "";
+}
+
+function leadStaffMember(transport) {
+  const leadId = effectiveLeadStaffId(transport);
+  return (transport?.staff || []).find((member) => member.id === leadId) || null;
+}
+
 function normalizePlace(v) {
   return String(v || "")
     .normalize("NFD")
@@ -336,6 +350,7 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
 function StepStaff({ transport, weekInfo, onBack, onSelect }) {
   const staff = transport?.staff || [];
   const isAller = transport?.direction !== "retour";
+  const leadId = effectiveLeadStaffId(transport);
   return (
     <div style={wrap}>
       <BackBtn onClick={onBack} label={`${transport?.departureCity} → ${transport?.arrivalCity}`} />
@@ -387,7 +402,9 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
                 {(member.name || "?").slice(0, 2).toUpperCase()}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e1040" }}>{member.name || "Animateur"}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e1040" }}>
+                  {member.name || "Animateur"}{member.id === leadId ? " · Chef de convoi" : ""}
+                </div>
                 <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>{member.role || "Animateur convoyeur"}</div>
               </div>
               <span style={{ fontSize: 16, color: "#94a3b8" }}>→</span>
@@ -407,6 +424,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
   const totalChildren = countChildren(transport.passengers || []);
   const passengerGroups = groupPassengersByCity(transport);
   const firstName = firstNameOf(staff?.name);
+  const leadMember = leadStaffMember(transport);
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 60 }}>
@@ -500,6 +518,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               ["Départ train", transport.departureTime || null],
               ["Arrivée", transport.arrivalTime || null],
               ["Passagers", `${totalChildren} enfant${totalChildren > 1 ? "s" : ""}`],
+              ["Chef de convoi", leadMember?.name || "À désigner"],
             ]
               .filter(([, v]) => v)
               .map(([label, value], i, arr) => (
@@ -541,7 +560,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                   }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>
-                      Arrêt {i + 1} — {seg.from || "?"} → {seg.to || "?"}
+                      {seg._type === "branch" ? "Embranchement" : `Arrêt ${i + 1}`} — {seg.from || "?"} → {seg.to || "?"}
                     </div>
                     <div style={{
                       background: "rgba(255,255,255,0.2)", borderRadius: 100,
@@ -940,8 +959,10 @@ export default function ConvoyagePage() {
 
   const mySegments = useMemo(() => {
     if (!selectedTransport || !selectedStaff) return [];
-    return (selectedTransport.segments || [])
-      .map((seg, idx) => ({ ...seg, _index: idx }))
+    return [
+      ...(selectedTransport.segments || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "segment" })),
+      ...(selectedTransport.branches || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "branch" })),
+    ]
       .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
   }, [selectedTransport, selectedStaff]);
 

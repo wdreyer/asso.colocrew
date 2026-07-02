@@ -7,6 +7,7 @@
   TRANSPORT_SETTINGS: "transport_settings",
   STAFF_MEMBERS: "staff_members",
   STAFF_CONTRACTS: "staff_contracts",
+  SALARY_GRID: "salary_grid",
   PAGES: "pages",
   BLOG: "blog",
   TEMOIGNAGES: "temoignages",

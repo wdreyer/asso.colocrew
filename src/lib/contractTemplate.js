@@ -371,12 +371,23 @@ export function generateContractHTML(member, contract) {
 
 export function openContractPrint(member, contract) {
   const html = generateContractHTML(member, contract);
-  const w = window.open("", "_blank", "width=820,height=960");
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+
+  const w = window.open(url, "_blank");
+
   if (!w) {
-    alert("Votre navigateur a bloqué la popup. Autorisez les popups pour ce site.");
-    return;
+    // Popup bloquée par le navigateur : on propose le téléchargement direct.
+    const fullName = `${member?.firstName || ""}-${member?.lastName || ""}`.trim().replace(/\s+/g, "-") || "contrat";
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `CEE-${fullName}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    alert("Votre navigateur a bloqué l'ouverture d'un nouvel onglet : le contrat a été téléchargé à la place. Autorisez les popups pour ce site pour l'ouvrir directement la prochaine fois.");
   }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
+
+  // Laisse le temps au nouvel onglet / au téléchargement de charger le blob avant de le libérer.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

@@ -339,11 +339,6 @@ function mainJoinIndexForBranch(transport, branch) {
 
   for (let index = 0; index < segments.length; index += 1) {
     const segment = segments[index];
-    if (transport?.direction === "retour") {
-      if (normalizePlace(segment.to) === joinKey) return index;
-      if (normalizePlace(segment.from) === joinKey) return Math.max(0, index - 1);
-      continue;
-    }
     if (normalizePlace(segment.from) === joinKey) return index;
     if (normalizePlace(segment.to) === joinKey) return Math.min(index + 1, segments.length);
   }
@@ -706,7 +701,7 @@ function passengersOnSegment(transport, segmentIndex) {
     if (boarding.type === "branch" || boarding.type === "branch-sub") {
       const joinIndex = mainJoinIndexForBranch(transport, boarding.branch || boarding.segment);
       return transport.direction === "retour"
-        ? segmentIndex <= joinIndex
+        ? segmentIndex < joinIndex
         : segmentIndex >= joinIndex;
     }
     return transport.direction === "retour"
@@ -740,6 +735,24 @@ function transportRouteLabel(transport) {
 
 function directionIcon(direction) {
   return direction === "retour" ? "↓" : "↑";
+}
+
+function assignedTransportStaffIds(transport) {
+  return [...new Set([
+    ...(transport?.segments || []).flatMap((segment) => segment.assignedStaffIds || []),
+    ...transportBranches(transport).flatMap((branch) => branch.assignedStaffIds || []),
+  ].filter(Boolean))];
+}
+
+function effectiveLeadStaffId(transport) {
+  const assignedIds = assignedTransportStaffIds(transport);
+  if (assignedIds.length === 1) return assignedIds[0];
+  return assignedIds.includes(transport?.leadStaffId) ? transport.leadStaffId : "";
+}
+
+function leadStaffMember(transport) {
+  const leadId = effectiveLeadStaffId(transport);
+  return (transport?.staff || []).find((member) => member.id === leadId) || null;
 }
 
 function requiredSeatsForSegment(transport, segment, segmentIndex) {
@@ -1031,6 +1044,10 @@ function durationBetween(start, end) {
 }
 
 function timelineActionInfo(transport, city, { isFirst = false } = {}) {
+  const leavingCount = countChildren(passengersLeavingAtStop(transport, city));
+  if (leavingCount > 0) {
+    return { label: "descendent", count: leavingCount, tone: "down" };
+  }
   if (transport.direction === "retour" && isFirst) {
     const count = countChildren(transport.passengers || []);
     return count > 0 ? { label: "À bord", count, tone: "neutral" } : null;
@@ -1062,6 +1079,7 @@ function mapTransport(snap) {
     platform:        d.platform        || "",
     convoyeur:       d.convoyeur       || "",
     convoyeurPhone:  d.convoyeurPhone  || "",
+    leadStaffId:     d.leadStaffId     || "",
     capacity:        Number(d.capacity) || 0,
     status:          d.status          || "brouillon",
     notes:           d.notes           || "",
@@ -1655,6 +1673,7 @@ function buildStaffBriefingHTML(transport) {
   const portions = ticketPortions(transport);
   const tickets = transport.tickets || [];
   const routeLabel = ROUTE_GROUPS.find((item) => item.value === transport.routeGroup)?.label || "Direct";
+  const leadId = effectiveLeadStaffId(transport);
   const passengerRows = groupPassengersByCity(transport).map(({ city, passengers }) => `
     <tr class="city-row"><td colspan="6">Ville : ${city} · ${countChildren(passengers)} enfant${countChildren(passengers) !== 1 ? "s" : ""}</td></tr>
     ${passengers.flatMap((passenger) => {
@@ -1699,14 +1718,14 @@ function buildStaffBriefingHTML(transport) {
         </div>
         <div class="stop-place"><strong>Point de rendez-vous :</strong> ${segment.meetingPoint || "À compléter"}${segment.platform ? ` · Quai/voie ${segment.platform}` : ""}</div>
         <div class="stop-trip">${segment.mode || ""} ${segment.number || ""} vers <strong>${segment.to || "destination à compléter"}</strong> · arrivée ${segment.arrivalTime || "à compléter"}</div>
-        <div class="stop-place"><strong>Animateurs sur cette portion :</strong> ${assignedStaff.length ? assignedStaff.map((member) => `${member.name || "Nom à compléter"} (${member.phone || "téléphone manquant"})`).join(", ") : "Aucun animateur affecté"}</div>
+        <div class="stop-place"><strong>Animateurs sur cette portion :</strong> ${assignedStaff.length ? assignedStaff.map((member) => `${member.name || "Nom à compléter"}${member.id === leadId ? " - CHEF DE CONVOI" : ""} (${member.phone || "téléphone manquant"})`).join(", ") : "Aucun animateur affecté"}</div>
         ${segment.instructions ? `<div class="stop-note">${segment.instructions}</div>` : ""}
         <table><thead><tr><th>Enfant</th><th>Ville</th><th>Séjour / descente</th><th>Responsable</th><th>Téléphone</th><th>Dossier</th><th>Présent</th></tr></thead>
         <tbody>${childRows || "<tr><td colspan='7'>Aucun enfant affecté à cet arrêt.</td></tr>"}</tbody></table>
       </section>`;
   }).join("");
   const staffRows = staff.map((member) => `
-    <tr><td><strong>${member.name || "-"}</strong></td><td>${member.role || "Animateur convoyeur"}</td>
+    <tr><td><strong>${member.name || "-"}${member.id === leadId ? " - CHEF" : ""}</strong></td><td>${member.role || "Animateur convoyeur"}</td>
     <td>${member.phone || "-"}</td><td>${member.boardingCity || "-"}</td></tr>`).join("");
   const ticketRows = tickets.map((ticket) => `
     <li><strong>${ticket.name || "Billet"}</strong> - ${ticketSegmentLabel(ticket, portions) || "segment non affecté"}
@@ -1735,7 +1754,7 @@ function buildStaffBriefingHTML(transport) {
     <div class="sec">Arrêts et prises en charge</div>
     ${stopSections || "<p>Arrêts à compléter.</p>"}
     <div class="sec">Liste générale des jeunes (${(transport.passengers || []).reduce((sum, p) => sum + Math.max(p.children?.length || 0, 1), 0)})</div>
-    <table><thead><tr><th>Jeune</th><th>Ville</th><th>Responsable</th><th>Téléphone</th><th>Présent</th></tr></thead><tbody>${passengerRows || "<tr><td colspan='5'>Aucun jeune assigné</td></tr>"}</tbody></table>
+    <table><thead><tr><th>Jeune</th><th>Ville</th><th>Séjour / descente</th><th>Responsable</th><th>Téléphone</th><th>Présent</th></tr></thead><tbody>${passengerRows || "<tr><td colspan='6'>Aucun jeune assigné</td></tr>"}</tbody></table>
     <div class="sec">Billets et pièces de voyage</div>${ticketRows ? `<ul>${ticketRows}</ul>` : "<p>Aucun billet téléversé.</p>"}
     <div class="sec">Contacts et consignes</div><p><strong>Urgence :</strong> ${transport.emergencyContact || "ColoCrew"} ${transport.emergencyPhone || "-"}</p>
     ${transport.notes ? `<p style="margin-top:8px">${transport.notes}</p>` : ""}
@@ -1769,15 +1788,13 @@ function CapacityBar({ current, total }) {
   );
 }
 
-function TransportCoverage({ reservations, transports }) {
-  const summaries = useMemo(() => {
-    const imported = reservations.filter((reservation) => reservation.isImported2026 && reservation.week);
-    return WEEKS.flatMap((week) => ["aller", "retour"].map((direction) => {
+function coverageSummary(reservations, transports, week, direction) {
+      const validated = reservations.filter((reservation) => reservation.status === "validated" && reservation.week);
       const cityKey = direction === "aller" ? "departureCity" : "returnCity";
-      const expected = imported.filter((reservation) =>
+      const expected = validated.filter((reservation) =>
         reservation.week === week && normalizePlace(reservation[cityKey]) !== "sur place",
       );
-      const onSite = imported.filter((reservation) =>
+      const onSite = validated.filter((reservation) =>
         reservation.week === week && normalizePlace(reservation[cityKey]) === "sur place",
       );
       const relevantTrips = transports.filter((transport) =>
@@ -1811,10 +1828,16 @@ function TransportCoverage({ reservations, transports }) {
         onSiteChildren: onSite.reduce((sum, reservation) => sum + reservation.childCount, 0),
         cityCounts,
       };
-    }));
+}
+
+function TransportCoverage({ reservations, transports }) {
+  const summaries = useMemo(() => {
+    return WEEKS.flatMap((week) => ["aller", "retour"].map((direction) =>
+      coverageSummary(reservations, transports, week, direction),
+    ));
   }, [reservations, transports]);
   const noWeek = reservations
-    .filter((reservation) => reservation.isImported2026 && !reservation.week)
+    .filter((reservation) => reservation.status === "validated" && !reservation.week)
     .reduce((sum, reservation) => sum + reservation.childCount, 0);
 
   return (
@@ -2042,11 +2065,18 @@ function TripTimeline({ transport, onToggleStaff }) {
   const segments  = transport.segments || [];
   const branches  = transportBranches(transport);
   const staffPool = transport.staff    || [];
+  const leadStaffId = effectiveLeadStaffId(transport);
   if (segments.length === 0) return null;
 
   const last = segments[segments.length - 1];
-  const finalAction = timelineActionInfo(transport, last?.to);
-  const hasForks = branches.some((b) => mainJoinIndexForBranch(transport, b) < segments.length);
+  const finalAction = Number(last?.sharedFinalDropoffChildren || 0) > 0
+    ? { count: Number(last.sharedFinalDropoffChildren), label: "descendent", tone: "down" }
+    : timelineActionInfo(transport, last?.to);
+  const endForkBranches = branches.filter((b) => mainJoinIndexForBranch(transport, b) >= segments.length);
+  const sortedEndForkBranches = [...endForkBranches].sort(
+    (a, b) => (a.departureTime || "").localeCompare(b.departureTime || "")
+  );
+  const hasForks = branches.length > 0;
 
   return (
     <div className={`tl-wrap${hasForks ? " tl-wrap--has-forks" : ""}`}>
@@ -2073,7 +2103,7 @@ function TripTimeline({ transport, onToggleStaff }) {
                     return (
                       <div key={branch.id} className="tl-fork-branch">
                         <span className="tl-fork-branch-chip">
-                          <strong>{branch.from || "Branche"}</strong>
+                          <strong>{branchStopCity(transport, branch) || "Branche"}</strong>
                           <small>
                             {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
                             {branch.arrivalTime   && <span>Arr. {branch.arrivalTime}</span>}
@@ -2112,12 +2142,22 @@ function TripTimeline({ transport, onToggleStaff }) {
             </div>,
 
             /* Leg */
-            <div key={`leg-${seg.id}`} className="tl-leg" style={{ "--i": i }}>
+            <div key={`leg-${seg.id}`} className={`tl-leg${seg.sharedBus ? " is-shared-bus" : ""}`} style={{ "--i": i }}>
               <div className="tl-leg-line" />
+              {seg.sharedBus && (
+                <span className="tl-shared-bus-label">
+                  Autocar partagé · regroupement de tous les convois
+                  {Number(seg.sharedChildrenCount || 0) > 0 && ` · ${seg.sharedChildrenCount} enfants`}
+                </span>
+              )}
               {segmentSubStops(seg).length > 0 && (
                 <div className="tl-substops">
                   {segmentSubStops(seg).map((stop, stopIndex) => {
-                    const stopAction = timelineActionInfo(transport, stop.city);
+                    const stopAction = Number(stop.sharedDropoffChildren || 0) > 0
+                      ? { count: Number(stop.sharedDropoffChildren), label: "descendent", tone: "down" }
+                      : Number(stop.sharedPickupChildren || 0) > 0
+                        ? { count: Number(stop.sharedPickupChildren), label: "montent", tone: "up" }
+                      : timelineActionInfo(transport, stop.city);
                     return (
                       <span key={stop.id || `${stop.city}-${stopIndex}`} className="tl-substop">
                         <strong>{stop.city || "Étape"}</strong>
@@ -2158,6 +2198,7 @@ function TripTimeline({ transport, onToggleStaff }) {
                       >
                         {on && <span className="tl-anim-check">✓</span>}
                         {member.name || "Anim."}
+                        {on && member.id === leadStaffId && <span className="tl-anim-check">Chef</span>}
                       </button>
                     );
                   })}
@@ -2167,38 +2208,47 @@ function TripTimeline({ transport, onToggleStaff }) {
           ];
         })}
 
-        {branches.filter((branch) => mainJoinIndexForBranch(transport, branch) >= segments.length).map((branch) => {
-          const branchDuration = durationBetween(branch.departureTime, branch.arrivalTime);
-          const branchCount = countChildren(passengersOnBranch(transport, branch));
-          return (
-            <div key={`branch-arr-${branch.id}`} className="tl-branch-arrival" style={{ "--i": segments.length }}>
-              <span className="tl-branch-chip">
-                <strong>{branch.from || "Branche"} → {branch.to || last?.to}</strong>
-                <small>
-                  {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
-                  {branch.arrivalTime && <span>Arr. {branch.arrivalTime}</span>}
-                  {branchDuration && <span>{branchDuration}</span>}
-                  {branchCount > 0 && <span>{branchCount} enfant{branchCount > 1 ? "s" : ""}</span>}
-                </small>
-              </span>
+        {/* End fork — branches leaving from the very last main stop (e.g. Marseille & Lyon off Toulouse) */}
+        {sortedEndForkBranches.length > 0 && (
+          <div className="tl-fork-node" style={{ "--i": segments.length }}>
+            <div className="tl-fork-branches">
+              {sortedEndForkBranches.map((branch) => {
+                const bDur   = durationBetween(branch.departureTime, branch.arrivalTime);
+                const bCount = countChildren(passengersOnBranch(transport, branch));
+                return (
+                  <div key={branch.id} className="tl-fork-branch">
+                    <span className="tl-fork-branch-chip">
+                      <strong>{branchStopCity(transport, branch) || "Branche"}</strong>
+                      <small>
+                        {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
+                        {branch.arrivalTime   && <span>Arr. {branch.arrivalTime}</span>}
+                        {bDur                 && <span>{bDur}</span>}
+                        {bCount > 0           && <span>{bCount} enf.</span>}
+                      </small>
+                    </span>
+                    <div className="tl-fork-branch-stem" />
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+            <div className="tl-fork-node-junction" />
+          </div>
+        )}
 
-        {/* Arrival node */}
+        {/* Arrival node — becomes the fork hub when branches leave from here */}
         <div className="tl-stop tl-stop-arr" style={{ "--i": segments.length }}>
-          <div className="tl-dot tl-dot-arrival" />
+          <div className={`tl-dot${sortedEndForkBranches.length > 0 ? " tl-dot-fork" : " tl-dot-arrival"}`} />
           <div className="tl-stop-info">
             <span className="tl-city">{last?.to}</span>
             <div className="tl-times">
               {last?.arrivalTime ? <span>Arr. {last.arrivalTime}</span> : <span>-</span>}
             </div>
-            {finalAction && (
+            {sortedEndForkBranches.length === 0 && finalAction && (
               <span className={`tl-count is-${finalAction.tone}`}>
                 {finalAction.count} {finalAction.label}
               </span>
             )}
-            <span className="tl-arr-tag">Arrivée</span>
+            <span className="tl-arr-tag">{sortedEndForkBranches.length > 0 ? "Embranchement" : "Arrivée"}</span>
           </div>
         </div>
       </div>
@@ -2580,6 +2630,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
 function SegmentSummaryTable({ transport, onEditSegment }) {
   const segments = transport.segments || [];
   const isRetour = transport.direction === "retour";
+  const leadMember = leadStaffMember(transport);
   if (!segments.length) {
     return (
       <div className="tr-segment-summary-empty">
@@ -2655,7 +2706,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                   </td>
                   <td>
                     {assignedStaff.length
-                      ? assignedStaff.map((member) => member.name || "Animateur").join(", ")
+                      ? assignedStaff.map((member) => `${member.name || "Animateur"}${member.id === leadMember?.id ? " (chef)" : ""}`).join(", ")
                       : <span className="tr-summary-empty">Non affecté</span>}
                   </td>
                 </tr>
@@ -2704,7 +2755,7 @@ function SegmentSummaryTable({ transport, onEditSegment }) {
                     </td>
                     <td>
                       {assignedStaff.length
-                        ? assignedStaff.map((member) => member.name || "Animateur").join(", ")
+                        ? assignedStaff.map((member) => `${member.name || "Animateur"}${member.id === leadMember?.id ? " (chef)" : ""}`).join(", ")
                         : <span className="tr-summary-empty">Non affecté</span>}
                     </td>
                   </tr>,
@@ -2758,6 +2809,184 @@ function DateTripCards({ transports, selectedId, onSelectTrip, onEditSegment }) 
           onEditSegment={onEditSegment}
         />
       )}
+    </section>
+  );
+}
+
+const CONVOYAGE_MAP_CITIES = {
+  lille: [292, 48],
+  paris: [282, 122],
+  nantes: [145, 190],
+  lyon: [360, 268],
+  valence: [355, 315],
+  marseille: [365, 425],
+  montpellier: [300, 395],
+  toulouse: [228, 368],
+  bordeaux: [145, 310],
+  dax: [130, 365],
+  messanges: [112, 390],
+  "vieux boucau": [112, 390],
+  bidarray: [145, 420],
+};
+
+const CONVOYAGE_MAP_LABELS = {
+  lille: [10, -8], paris: [10, -7], nantes: [-70, -7], lyon: [10, -7],
+  valence: [10, 10], marseille: [10, 14], montpellier: [-82, 14],
+  toulouse: [-74, 15], bordeaux: [-75, -8], dax: [-58, -8],
+  messanges: [-88, 14], "vieux boucau": [-88, 14], bidarray: [10, 17],
+};
+
+function convoyageMapPoint(city) {
+  return CONVOYAGE_MAP_CITIES[normalizePlace(city)] || null;
+}
+
+function ConvoyageDayMap({ transports, reservations, week, direction }) {
+  const coverage = coverageSummary(reservations, transports, week, direction);
+  const complete = coverage.missingChildren === 0 && coverage.duplicateChildren === 0;
+  const edges = [];
+  const cityData = new Map();
+  const seenSharedLegs = new Set();
+  const seenPassengers = new Set();
+
+  const ensureCity = (city) => {
+    const key = normalizePlace(city);
+    if (!key || !convoyageMapPoint(city)) return null;
+    if (!cityData.has(key)) cityData.set(key, { key, city, up: 0, down: 0, times: new Set() });
+    return cityData.get(key);
+  };
+  const addTime = (city, time) => {
+    const row = ensureCity(city);
+    if (row && time) row.times.add(time);
+  };
+
+  transports.forEach((transport) => {
+    (transport.passengers || []).forEach((passenger) => {
+      const passengerKey = passenger.reservationId || `${transport.id}-${passenger.nom}`;
+      if (seenPassengers.has(passengerKey)) return;
+      seenPassengers.add(passengerKey);
+      const row = ensureCity(passengerCity(transport, passenger));
+      if (row) {
+        if (direction === "retour") row.down += Math.max(passenger.children?.length || 0, 1);
+        else row.up += Math.max(passenger.children?.length || 0, 1);
+      }
+      if (direction === "aller") {
+        const dropoff = ensureCity(passengerDropoffCity(passenger));
+        if (dropoff) dropoff.down += Math.max(passenger.children?.length || 0, 1);
+      }
+    });
+
+    [...(transport.segments || []), ...transportBranches(transport)].forEach((portion) => {
+      const stops = [portion.from, ...segmentSubStops(portion).map((stop) => stop.city), portion.to].filter(Boolean);
+      stops.forEach(ensureCity);
+      addTime(portion.from, portion.departureTime);
+      segmentSubStops(portion).forEach((stop) => {
+        addTime(stop.city, stop.arrivalTime || stop.departureTime);
+        if (portion.sharedBus && direction === "retour" && Number(stop.sharedPickupChildren || 0) > 0) {
+          const sharedKey = `${portion.sharedBusId}-${normalizePlace(stop.city)}-pickup`;
+          if (!seenSharedLegs.has(sharedKey)) {
+            seenSharedLegs.add(sharedKey);
+            ensureCity(stop.city).up += Number(stop.sharedPickupChildren);
+          }
+        }
+      });
+      addTime(portion.to, portion.arrivalTime);
+      if (portion.sharedBus && direction === "retour" && Number(portion.sharedStartChildren || 0) > 0) {
+        const sharedKey = `${portion.sharedBusId}-start`;
+        if (!seenSharedLegs.has(sharedKey)) {
+          seenSharedLegs.add(sharedKey);
+          ensureCity(portion.from).up += Number(portion.sharedStartChildren);
+        }
+      }
+      for (let index = 0; index < stops.length - 1; index += 1) {
+        const from = stops[index];
+        const to = stops[index + 1];
+        if (!convoyageMapPoint(from) || !convoyageMapPoint(to)) continue;
+        const sharedKey = portion.sharedBus ? `${portion.sharedBusId || portion.id}-${normalizePlace(from)}-${normalizePlace(to)}` : "";
+        if (sharedKey && seenSharedLegs.has(sharedKey)) continue;
+        if (sharedKey) seenSharedLegs.add(sharedKey);
+        edges.push({
+          key: sharedKey || `${transport.id}-${portion.id}-${index}`,
+          from,
+          to,
+          sharedBus: Boolean(portion.sharedBus),
+          branch: isBranchSegment(portion),
+          routeGroup: transport.routeGroup,
+        });
+      }
+    });
+  });
+
+  const routeColors = { nord: "#2563eb", "sud-ouest": "#b8336a", sudouest: "#b8336a", direct: "#64748b" };
+
+  return (
+    <section className="tr-map-overview">
+      <div className="tr-map-head">
+        <div>
+          <span>Schéma général de la journée</span>
+          <strong>{direction === "aller" ? "Convergences vers les séjours" : "Retours vers les familles"}</strong>
+        </div>
+        <span className={`tr-map-coverage${complete ? " is-complete" : " has-issue"}`}>
+          {complete
+            ? `Tous les enfants affectés · ${coverage.expectedChildren}/${coverage.expectedChildren}`
+            : `${coverage.missingChildren} sans trajet · ${coverage.duplicateChildren} en doublon`}
+        </span>
+      </div>
+      <div className="tr-map-layout">
+        <div className="tr-map-canvas">
+          <svg viewBox="55 15 405 465" role="img" aria-label="Schéma des convoyages sur la France">
+            <defs>
+              <marker id={`convoyage-arrow-${week}-${direction}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L8,4 L0,8 z" fill="context-stroke" />
+              </marker>
+              <filter id={`convoyage-shadow-${week}-${direction}`} x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.12" />
+              </filter>
+            </defs>
+            <path className="tr-map-france" d="M258 25 L348 65 L420 155 L397 270 L430 394 L359 456 L258 468 L167 435 L92 365 L72 270 L105 172 L173 83 Z" />
+            {edges.map((edge) => {
+              const [x1, y1] = convoyageMapPoint(edge.from);
+              const [x2, y2] = convoyageMapPoint(edge.to);
+              const color = edge.sharedBus ? "#d97706" : routeColors[edge.routeGroup] || "#6d5a86";
+              return <line key={edge.key} className={`tr-map-edge${edge.sharedBus ? " is-bus" : ""}${edge.branch ? " is-branch" : ""}`} x1={x1} y1={y1} x2={x2} y2={y2} style={{ stroke: color }} markerEnd={`url(#convoyage-arrow-${week}-${direction})`} />;
+            })}
+            {[...cityData.values()].map((row) => {
+              const [x, y] = convoyageMapPoint(row.city);
+              const [dx, dy] = CONVOYAGE_MAP_LABELS[row.key] || [9, -8];
+              const movement = [row.up ? `+${row.up}` : "", row.down ? `-${row.down}` : ""].filter(Boolean).join(" / ");
+              return (
+                <g key={row.key} className="tr-map-city" transform={`translate(${x} ${y})`}>
+                  <circle r="6" filter={`url(#convoyage-shadow-${week}-${direction})`} />
+                  <g transform={`translate(${dx} ${dy})`}>
+                    <text className="tr-map-city-name">{row.city}</text>
+                    {(movement || row.times.size > 0) && <text className="tr-map-city-meta" y="13">{[movement, [...row.times][0]].filter(Boolean).join(" · ")}</text>}
+                  </g>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <div className="tr-map-routes">
+          {transports.map((transport) => {
+            const lead = leadStaffMember(transport);
+            const branches = transportBranches(transport);
+            const sharedBus = (transport.segments || []).find((segment) => segment.sharedBus);
+            return (
+              <article key={transport.id}>
+                <div className="tr-map-route-title">
+                  <i style={{ background: routeColors[transport.routeGroup] || "#6d5a86" }} />
+                  <strong>{ROUTE_GROUPS.find((group) => group.value === transport.routeGroup)?.label || "Trajet"}</strong>
+                  <span>{countChildren(transport.passengers)} enf.</span>
+                </div>
+                <p>{transport.departureCity || "?"} → {transport.arrivalCity || "?"}</p>
+                {branches.map((branch) => <small key={branch.id}>Embranchement {branch.from} → {branch.to} · {countChildren(passengersOnBranch(transport, branch))} enf.</small>)}
+                {sharedBus && <small className="is-bus">Autocar partagé · regroupement à Bordeaux · {sharedBus.sharedChildrenCount || countChildren(transport.passengers)} enf.</small>}
+                <small>Chef : {lead?.name || "à désigner"}</small>
+              </article>
+            );
+          })}
+          <div className="tr-map-legend"><span><i className="is-north" />Nord</span><span><i className="is-south" />Sud/Ouest</span><span><i className="is-bus" />Autocar partagé</span><span><b>+ monte</b> / <b>- descend</b></span></div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -3226,6 +3455,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const [segments, setSegments] = useState(transport.segments || []);
   const [branches, setBranches] = useState(transport.branches || []);
   const [staff, setStaff] = useState(transport.staff || []);
+  const [leadStaffId, setLeadStaffId] = useState(transport.leadStaffId || "");
   const [tickets, setTickets] = useState(transport.tickets || []);
   const [meta, setMeta] = useState({
     routeGroup: transport.routeGroup || "direct",
@@ -3284,6 +3514,12 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
       })
       .sort((a, b) => a.memberName.localeCompare(b.memberName, "fr", { sensitivity: "base" }));
   }, [staff, staffContracts, transport.date, transport.week]);
+  const assignedStaffIds = useMemo(() => [...new Set([
+    ...segments.flatMap((segment) => segment.assignedStaffIds || []),
+    ...branches.flatMap((branch) => branch.assignedStaffIds || []),
+  ].filter(Boolean))], [branches, segments]);
+  const leadCandidates = staff.filter((member) => assignedStaffIds.includes(member.id));
+  const resolvedLeadStaffId = leadCandidates.length === 1 ? leadCandidates[0].id : leadStaffId;
 
   useEffect(() => {
     if (!focusSegmentId) return;
@@ -3301,6 +3537,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     setSegments(transport.segments || []);
     setBranches(transport.branches || []);
     setStaff(transport.staff || []);
+    setLeadStaffId(transport.leadStaffId || "");
     setTickets(transport.tickets || []);
     setMeta({
       routeGroup: transport.routeGroup || "direct",
@@ -3608,9 +3845,14 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         showToast("Chaque segment doit utiliser une ville présente dans Points de RDV.", "error");
         return;
       }
+      if (leadCandidates.length > 1 && !leadCandidates.some((member) => member.id === resolvedLeadStaffId)) {
+        showToast("Désignez un chef de convoi parmi les animateurs affectés.", "error");
+        return;
+      }
 
       const first = segments[0];
       const last = segments.at(-1);
+      const leadMember = leadCandidates.find((member) => member.id === resolvedLeadStaffId) || null;
       const segmentIds = new Set([...segments, ...branches].map((segment) => segment.id).filter(Boolean));
       const linkedTickets = tickets.filter((ticket) => ticket.segmentId && segmentIds.has(ticket.segmentId));
       const patch = {
@@ -3618,6 +3860,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         segments,
         branches,
         staff,
+        leadStaffId: leadMember?.id || "",
         tickets: linkedTickets,
         ...(first ? {
           departureCity: first.from || transport.departureCity,
@@ -3629,8 +3872,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
           arrivalCity: last.to || transport.arrivalCity,
           arrivalTime: last.arrivalTime || transport.arrivalTime,
         } : {}),
-        convoyeur: staff[0]?.name || transport.convoyeur,
-        convoyeurPhone: staff[0]?.phone || transport.convoyeurPhone,
+        convoyeur: leadMember?.name || transport.convoyeur,
+        convoyeurPhone: leadMember?.phone || transport.convoyeurPhone,
         updatedAt: serverTimestamp(),
       };
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), patch);
@@ -4278,6 +4521,21 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
           <button type="button" className="dash-btn dash-btn-primary" onClick={addStaffFromContract} disabled={!selectedContractId}>Affecter</button>
           <button type="button" className="dash-btn" onClick={addStaff}>+ Manuel</button>
         </div>
+        <div className="tr-ops-team-head">
+          <span className="tr-ops-anims-label">Chef de convoi</span>
+          {leadCandidates.length === 0 ? (
+            <span className="is-short">Aucun animateur affecté aux segments</span>
+          ) : leadCandidates.length === 1 ? (
+            <span className="is-ok">{leadCandidates[0].name} · automatique</span>
+          ) : (
+            <select className="dash-input" value={resolvedLeadStaffId} onChange={(event) => setLeadStaffId(event.target.value)}>
+              <option value="">Désigner le chef de convoi…</option>
+              {leadCandidates.map((member) => (
+                <option key={`lead-${member.id}`} value={member.id}>{member.name || "Animateur"}</option>
+              ))}
+            </select>
+          )}
+        </div>
         <div className="tr-staff-list">
           {staff.map((member) => (
             <article className="tr-staff-editor" key={member.id}>
@@ -4286,6 +4544,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
               <input className="dash-input" value={member.phone} onChange={(e) => updateItem(setStaff, member.id, "phone", e.target.value)} placeholder="Téléphone" />
               <input className="dash-input" value={member.boardingCity} onChange={(e) => updateItem(setStaff, member.id, "boardingCity", e.target.value)} placeholder="Prise de service" />
               {member.contractId && <span className="tr-staff-contract">{member.week} · {member.stayCode}</span>}
+              {member.id === resolvedLeadStaffId && <span className="tr-staff-contract">Chef de convoi</span>}
               <button type="button" className="tr-pax-remove" title="Retirer" onClick={() => setStaff((items) => items.filter((it) => it.id !== member.id))}>×</button>
             </article>
           ))}
@@ -5621,6 +5880,7 @@ function TripDetail({
   const dirColor = isAller ? "#16a34a" : "#ea580c";
   const sCfg     = STATUS_CFG[transport.status] || STATUS_CFG.brouillon;
   const childCount = countChildren(transport.passengers);
+  const leadMember = leadStaffMember(transport);
 
   return (
     <div className="tr-trip-detail">
@@ -5660,7 +5920,7 @@ function TripDetail({
           {transport.date && <span>{fmtDate(transport.date)}</span>}
           {transport.departureTime && <span>Départ {transport.departureTime}</span>}
           {transport.arrivalTime && <span>Arrivée {transport.arrivalTime}</span>}
-          {transport.convoyeur && <span>Convoyeur : {transport.convoyeur}</span>}
+          <span>Chef de convoi : {leadMember?.name || "à désigner"}</span>
           {transport.trainType && transport.trainNumber && <span>Train : {transport.trainType} {transport.trainNumber}</span>}
           <span className="tr-trip-pax-chip">{childCount} enfant{childCount !== 1 ? "s" : ""}{transport.capacity ? ` / ${transport.capacity}` : ""}</span>
         </div>
@@ -5711,6 +5971,7 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
   const boughtTix   = (trip.tickets || []).filter((tk) => tk.purchased).length;
   const missingTix  = missingTicketPortionCount(trip);
   const sCfg = STATUS_CFG[trip.status] || STATUS_CFG.brouillon;
+  const leadMember = leadStaffMember(trip);
 
   return (
     <div className={`tr-trip-card-wrap${isExpanded ? " is-expanded" : ""}`}>
@@ -5724,7 +5985,7 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
             {trip.departureTime && <span>{trip.departureTime}</span>}
             <span>{childCount} enfant{childCount !== 1 ? "s" : ""}</span>
             {segCount > 0 && <span>{segCount} étape{segCount !== 1 ? "s" : ""}</span>}
-            {trip.convoyeur && <span>Convoyeur : {trip.convoyeur}</span>}
+            <span>Chef : {leadMember?.name || "à désigner"}</span>
           </div>
         </div>
         <div className="tr-trip-card-right">
@@ -5820,6 +6081,15 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
                 )}
               </div>
             </div>
+
+            {dayTrips.length > 0 && (
+              <ConvoyageDayMap
+                transports={dayTrips}
+                reservations={reservations}
+                week={selectedWeek}
+                direction={dir}
+              />
+            )}
 
             <div className="tr-day-trips">
               {ROUTE_GROUPS.filter((g) => g.value !== "direct").map((group) => {
@@ -7572,7 +7842,7 @@ export default function Transport({ focusDate = "" }) {
 
   /* KPIs pour Vue d'ensemble */
   const globalStats = useMemo(() => {
-    const valid = reservations.filter((r) => r.status === "validated" && r.isImported2026);
+    const valid = reservations.filter((r) => r.status === "validated");
     const totalChildren = valid.reduce((s, r) => s + r.childCount, 0);
     const transportChildren = valid.reduce((s, r) => {
       const a = normalizePlace(r.departureCity) !== "sur place";
@@ -7590,7 +7860,7 @@ export default function Transport({ focusDate = "" }) {
     const summaryTransportRevenue = Number(financeSummary?.transportAccounting?.transportAmount ?? financeSummary?.transportAmount);
     const transportRevenue = Number.isFinite(summaryTransportRevenue)
       ? summaryTransportRevenue
-      : reservations.filter((r) => r.status === "validated" && r.isImported2026)
+      : reservations.filter((r) => r.status === "validated")
         .reduce((s, r) => s + Number(r.transportAmount || 0), 0);
     return { totalChildren, transportChildren, unassigned, ticketCost, purchasedTix, totalTix, missingSegTix, trips: transports.length, transportRevenue };
   }, [financeSummary, reservations, transports]);

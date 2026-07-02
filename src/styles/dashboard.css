@@ -1020,13 +1020,21 @@
   background: #faf8fe;
   border: 1px solid rgba(120,90,160,0.12);
   border-radius: 10px;
-  width: 210px;
+  width: 240px;
   flex-shrink: 0;
 }
 
 .hr-mini-info { flex: 1; min-width: 0; }
-.hr-mini-name { font-size: 12.5px; color: #1f2937; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hr-mini-role { font-size: 11px; color: #6b7280; margin-top: 1px; }
+.hr-mini-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e1b4b;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.hr-mini-name strong { font-weight: 800; }
+.hr-mini-role { font-size: 11.5px; color: #6b7280; margin-top: 2px; font-weight: 600; }
 .hr-mini-status { margin-top: 3px; font-size: 10px; font-weight: 700; }
 .hr-mini-status.is-paid { color: #047857; }
 .hr-mini-status.is-due  { color: #b45309; }
@@ -1377,6 +1385,9 @@
   border-color: #f3e8ff;
 }
 
+.hr-info-field.is-empty { background: #f9fafb; border: 1px dashed #e2e8f0; }
+.hr-info-field.is-empty .hr-info-value { color: #b0b6c2; font-style: italic; font-weight: 500; }
+
 .hr-info-label {
   font-size: 10px;
   font-weight: 700;
@@ -1540,6 +1551,119 @@
   font-size: 12px;
   font-weight: 600;
   color: #374151;
+}
+
+/* ═══ MODALE CONTRAT (création / édition) ══════════════════════════ */
+
+.hr-form-row { display: flex; gap: 10px; }
+.hr-form-row .hr-edit-label { flex: 1; min-width: 0; }
+
+.hr-form-new-member {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+}
+
+.hr-form-link-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.hr-salary-preview {
+  display: flex;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #f5f0ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+}
+
+.hr-salary-preview-item { display: flex; flex-direction: column; gap: 2px; }
+.hr-salary-preview-item span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #7c3aed; }
+.hr-salary-preview-item strong { font-size: 16px; color: #1e1b4b; }
+
+.hr-recalc-btn {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #ddd6fe;
+  color: #7c3aed;
+}
+
+/* ═══ MODALE GRILLE SALARIALE ═══════════════════════════════════════ */
+
+.hr-grid-table { display: flex; flex-direction: column; gap: 8px; }
+
+.hr-grid-row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.8fr 0.9fr 0.9fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.hr-grid-row input {
+  padding: 7px 9px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: #374151;
+  outline: none;
+  width: 100%;
+}
+
+.hr-grid-row input:focus { border-color: #7c3aed; }
+
+.hr-grid-head {
+  display: grid;
+  grid-template-columns: 1.6fr 0.8fr 0.9fr 0.9fr auto;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #9ca3af;
+}
+
+.hr-grid-delete {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.hr-grid-add-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #f5f0ff;
+  border: 1.5px solid #ddd6fe;
+  color: #7c3aed;
 }
 
 /* Dashboard home — occupation des séjours */
@@ -6649,6 +6773,105 @@
   margin-bottom: 14px;
 }
 
+.tr-map-overview {
+  margin: 14px 0 18px;
+  border: 1px solid rgba(77, 56, 105, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.tr-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(77, 56, 105, 0.1);
+  background: #faf9fc;
+}
+
+.tr-map-head > div { display: grid; gap: 2px; }
+.tr-map-head > div > span { color: var(--dash-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.tr-map-head > div > strong { color: var(--dash-text); font-size: 14px; }
+
+.tr-map-coverage {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.tr-map-coverage.is-complete { color: #12633f; background: #dcf7e8; }
+.tr-map-coverage.has-issue { color: #a32222; background: #fff0f0; }
+
+.tr-map-layout {
+  display: grid;
+  grid-template-columns: minmax(430px, 1.35fr) minmax(260px, 0.65fr);
+  min-height: 440px;
+}
+
+.tr-map-canvas {
+  min-width: 0;
+  padding: 8px;
+  background: #f7f9fc;
+  border-right: 1px solid rgba(77, 56, 105, 0.1);
+}
+
+.tr-map-canvas svg { display: block; width: 100%; height: 430px; }
+.tr-map-france { fill: #eef1f5; stroke: #cbd3dd; stroke-width: 1.5; }
+.tr-map-edge { fill: none; stroke-width: 3.5; stroke-linecap: round; opacity: 0.86; }
+.tr-map-edge.is-branch { stroke-dasharray: 7 5; }
+.tr-map-edge.is-bus { stroke-width: 6; opacity: 0.95; }
+.tr-map-city circle { fill: #fff; stroke: #30233f; stroke-width: 2.5; }
+.tr-map-city-name { fill: #21172e; font-size: 12px; font-weight: 900; }
+.tr-map-city-meta { fill: #6d5a86; font-size: 9px; font-weight: 800; }
+
+.tr-map-routes {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  background: #fff;
+}
+
+.tr-map-routes article {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid rgba(77, 56, 105, 0.12);
+  border-radius: 6px;
+  background: #faf9fc;
+}
+
+.tr-map-route-title { display: flex; align-items: center; gap: 7px; }
+.tr-map-route-title i { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.tr-map-route-title strong { flex: 1; color: var(--dash-text); font-size: 12px; }
+.tr-map-route-title span { color: #554468; font-size: 10px; font-weight: 900; }
+.tr-map-routes article p { margin: 0; color: #30233f; font-size: 12px; font-weight: 800; }
+.tr-map-routes article small { color: var(--dash-muted); font-size: 10px; line-height: 1.35; }
+.tr-map-routes article small.is-bus { color: #a15c05; font-weight: 800; }
+
+.tr-map-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 6px 2px 0; color: #6d5a86; font-size: 9px; }
+.tr-map-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.tr-map-legend i { width: 16px; height: 3px; background: #64748b; }
+.tr-map-legend i.is-north { background: #2563eb; }
+.tr-map-legend i.is-south { background: #b8336a; }
+.tr-map-legend i.is-bus { height: 5px; background: #d97706; }
+
+@media (max-width: 900px) {
+  .tr-map-layout { grid-template-columns: 1fr; }
+  .tr-map-canvas { border-right: 0; border-bottom: 1px solid rgba(77, 56, 105, 0.1); }
+}
+
+@media (max-width: 620px) {
+  .tr-map-head { align-items: flex-start; flex-direction: column; }
+  .tr-map-coverage { white-space: normal; }
+  .tr-map-layout { min-height: 0; }
+  .tr-map-canvas { padding: 0; overflow-x: auto; }
+  .tr-map-canvas svg { width: 520px; max-width: none; height: 450px; }
+}
+
 .tr-day-sum-stat {
   flex: 1;
   display: flex;
@@ -7139,6 +7362,7 @@
 .tl-dot-pending { border-color: #f97316; }
 .tl-dot-missing { border-color: #ef4444; }
 .tl-dot-arrival { border-color: #6248c4; background: #6248c4; }
+.tl-dot-fork    { border-color: #B8336A; background: #B8336A; }
 
 .tl-stop-info {
   display: flex;
@@ -7258,7 +7482,8 @@
   animation-delay: calc(var(--i, 0) * 80ms + 20ms);
 }
 
-/* Branch chips float ABOVE the main track (absolute, anchored at track level) */
+/* Branch chips float ABOVE the main track (absolute, anchored at track level).
+   Row layout: several branches joining/leaving at the same point sit side by side. */
 .tl-fork-branches {
   position: absolute;
   /* bottom of this element sits at track level (7px from node top) */
@@ -7266,9 +7491,9 @@
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
   pointer-events: none;
 }
 
@@ -7362,6 +7587,7 @@
 
 /* ── Leg (connector between stops) ── */
 .tl-leg {
+  position: relative;
   flex: 1;
   min-width: 232px;
   display: flex;
@@ -7370,6 +7596,32 @@
   padding-top: 7px; /* (16px dot - 2px line) / 2 — aligns line with dot center */
   animation: tl-in 0.3s ease both;
   animation-delay: calc(var(--i, 0) * 80ms + 40ms);
+}
+
+.tl-leg.is-shared-bus .tl-substops { margin-top: 42px; }
+.tl-leg.is-shared-bus > .tl-train { margin-top: 34px; }
+
+.tl-leg.is-shared-bus .tl-leg-line {
+  height: 6px;
+  background: #d97706;
+}
+
+.tl-shared-bus-label {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  padding: 4px 7px;
+  border: 1px solid #f2c276;
+  border-radius: 5px;
+  background: #fff7e6;
+  color: #8a4b00;
+  font-size: 8.5px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .tl-leg-line {
