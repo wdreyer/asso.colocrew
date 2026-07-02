@@ -206,6 +206,22 @@ function passengersDroppingAt(transport, city) {
   );
 }
 
+function passengersBoardingAt(transport, city) {
+  const target = normalizePlace(city);
+  return (transport.passengers || []).filter((passenger) =>
+    normalizePlace(passengerBoardingCity(transport, passenger)) === target,
+  );
+}
+
+function childNamesForPassengers(passengers) {
+  return passengers.flatMap((passenger) => {
+    if (passenger.children?.length) {
+      return passenger.children.map((child) => childFullName(child)).filter(Boolean);
+    }
+    return [passenger.childName].filter(Boolean);
+  });
+}
+
 function ticketSegmentLabel(ticket, segments) {
   const seg = (segments || []).find((s) => s.id === ticket.segmentId);
   return seg ? `${seg.from || "?"} → ${seg.to || "?"}` : (ticket.segmentLabel || "");
@@ -653,7 +669,10 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                           Villes étapes
                         </div>
                         {seg.stops.map((stop, si) => {
+                          const boardings = passengersBoardingAt(transport, stop.city);
                           const dropoffs = passengersDroppingAt(transport, stop.city);
+                          const boardingNames = childNamesForPassengers(boardings);
+                          const dropoffNames = childNamesForPassengers(dropoffs);
                           return (
                           <div key={si} style={{ padding: "8px 12px", background: "#f9f7ff", border: "1px solid #e9e0f8", borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
                             <div style={{ fontWeight: 700, color: "#1e1040" }}>{stop.city || "Ville inconnue"}</div>
@@ -664,9 +683,16 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                               </div>
                             )}
                             {stop.meetingPoint && <div style={{ color: "#64748b", marginTop: 2, fontSize: 12 }}>RDV : {stop.meetingPoint}</div>}
+                            {boardings.length > 0 && (
+                              <div style={{ marginTop: 7, padding: "7px 9px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 7, color: "#1d4ed8", fontSize: 12 }}>
+                                <strong>↑ Montent ici ({countChildren(boardings)}) :</strong>{" "}
+                                {boardingNames.join(", ") || "Noms à compléter"}
+                              </div>
+                            )}
                             {dropoffs.length > 0 && (
-                              <div style={{ marginTop: 6, color: "#b45309", fontWeight: 800, fontSize: 12 }}>
-                                ↓ {countChildren(dropoffs)} enfant{countChildren(dropoffs) > 1 ? "s" : ""} descendent ici · {shortStayCode(dropoffs[0]?.sejourName || dropoffs[0]?.stayCode)}
+                              <div style={{ marginTop: 7, padding: "7px 9px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 7, color: "#b45309", fontSize: 12 }}>
+                                <strong>↓ Descendent ici ({countChildren(dropoffs)}) :</strong>{" "}
+                                {dropoffNames.join(", ") || "Noms à compléter"}
                               </div>
                             )}
                           </div>
@@ -675,8 +701,9 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                         {finalDropoffs.length > 0 && (
                           <div style={{ padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
                             <div style={{ fontWeight: 700, color: "#166534" }}>{seg.to}</div>
-                            <div style={{ marginTop: 3, color: "#166534", fontWeight: 800, fontSize: 12 }}>
-                              ↓ {countChildren(finalDropoffs)} enfant{countChildren(finalDropoffs) > 1 ? "s" : ""} descendent ici · {shortStayCode(finalDropoffs[0]?.sejourName || finalDropoffs[0]?.stayCode)}
+                            <div style={{ marginTop: 3, color: "#166534", fontSize: 12 }}>
+                              <strong>↓ Descendent ici ({countChildren(finalDropoffs)}) :</strong>{" "}
+                              {childNamesForPassengers(finalDropoffs).join(", ") || "Noms à compléter"}
                             </div>
                           </div>
                         )}
