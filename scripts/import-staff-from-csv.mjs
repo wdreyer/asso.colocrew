@@ -208,7 +208,13 @@ const DIRECTION = [
   },
 ];
 
-const ALL_STAFF = [...ANIMATEURS, ...DIRECTION];
+// Seules les personnes présentes dans les affectations RH 2026 sont importées.
+// Lisa Manka et Aïcha Bellouche ne font pas partie de cette équipe validée.
+const EXCLUDED_EMAILS = new Set([
+  "lisamanka3@gmail.com",
+]);
+const ALL_STAFF = [...ANIMATEURS, ...DIRECTION]
+  .filter((member) => !EXCLUDED_EMAILS.has(member.email.toLowerCase()));
 
 function norm(s) {
   return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -260,6 +266,9 @@ async function main() {
       for (const field of ["firstName", "lastName", "email", "phone", "dateOfBirth", "birthPlace", "socialSecurityNumber", "address", "staffType"]) {
         const newVal = candidate[field];
         if (newVal && !match[field]) diffs[field] = newVal;
+      }
+      if ((diffs.firstName || diffs.lastName) && match.name) {
+        diffs.name = `${diffs.firstName || match.firstName || ""} ${diffs.lastName || match.lastName || ""}`.trim();
       }
       if (Object.keys(diffs).length > 0) {
         toUpdate.push({ id: match.id, name: `${match.firstName || ""} ${match.lastName || ""}`.trim(), diffs });

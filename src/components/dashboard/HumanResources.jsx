@@ -124,6 +124,13 @@ function mapContract(snap) {
   };
 }
 
+function isDirectionContract(contract) {
+  const roleKey = String(contract?.roleKey || "").trim().toLowerCase();
+  if (roleKey === "ds" || roleKey === "dsa") return true;
+  const role = String(contract?.role || "").trim().toLowerCase().replace(/\s+/g, "");
+  return role === "ds" || role === "dsa";
+}
+
 function mapGridRow(snap) {
   const d = snap.data() || {};
   return {
@@ -860,12 +867,14 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       let memberName;
       let createdMember = null;
 
+      const directionRole = gridRow.id === "ds" || gridRow.id === "dsa";
+
       if (addingMember) {
         const newMemberData = {
           firstName: form.newFirstName.trim(),
           lastName:  form.newLastName.trim(),
           name: `${form.newFirstName.trim()} ${form.newLastName.trim()}`.trim(),
-          email: "", phone: "", staffType: "", active: true,
+          email: "", phone: "", staffType: directionRole ? "directeur" : "animateur", active: true,
         };
         const memberRef = await addDoc(collection(db, COLLECTIONS.STAFF_MEMBERS), newMemberData);
         memberId = memberRef.id;
@@ -874,6 +883,9 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       } else {
         const m = members.find((mm) => mm.id === memberId);
         memberName = m ? `${m.firstName} ${m.lastName}`.trim() : "Animateur non renseigné";
+        if (directionRole && m?.staffType !== "directeur") {
+          await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, memberId), { staffType: "directeur" });
+        }
       }
 
       const outstandingAmount = Math.max(amount(form.grossSalary) - amount(form.paidAmount), 0);
@@ -901,7 +913,7 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       }
 
       showToast(isEdit ? "Contrat mis à jour." : "Contrat créé.", "success");
-      onSaved({ id: contract?.id, ...payload }, createdMember);
+      onSaved({ id: contract?.id, ...payload }, createdMember, directionRole ? memberId : "");
       onClose();
     } catch (err) {
       showToast(`Erreur : ${err.message || err}`, "error");
@@ -1138,8 +1150,14 @@ export default function HumanResources() {
           getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
           getDocs(collection(db, COLLECTIONS.SALARY_GRID)),
         ]);
-        setMembers(mSnap.docs.map(mapMember).sort((a, b) => a.name.localeCompare(b.name, "fr")));
-        setContracts(cSnap.docs.map(mapContract));
+        const mappedContracts = cSnap.docs.map(mapContract);
+        const directionMemberIds = new Set(
+          mappedContracts.filter(isDirectionContract).map((contract) => contract.memberId),
+        );
+        setMembers(mSnap.docs.map(mapMember).map((member) => (
+          directionMemberIds.has(member.id) ? { ...member, staffType: "directeur" } : member
+        )).sort((a, b) => a.name.localeCompare(b.name, "fr")));
+        setContracts(mappedContracts);
         setGridRows(gSnap.docs.map(mapGridRow));
       } finally {
         setLoading(false);
@@ -1161,9 +1179,13 @@ export default function HumanResources() {
   const openEditContract = (member, contract) => setContractModal({ isOpen: true, member: member || null, contract });
   const closeContractModal = () => setContractModal({ isOpen: false, member: null, contract: null });
 
-  const handleContractSaved = (savedContract, createdMember) => {
+  const handleContractSaved = (savedContract, createdMember, directionMemberId = "") => {
     if (createdMember) {
       setMembers((prev) => [...prev, createdMember].sort((a, b) => a.name.localeCompare(b.name, "fr")));
+    } else if (directionMemberId) {
+      setMembers((prev) => prev.map((member) => (
+        member.id === directionMemberId ? { ...member, staffType: "directeur" } : member
+      )));
     }
     setContracts((prev) => {
       const exists = prev.some((c) => c.id === savedContract.id);

@@ -148,6 +148,25 @@ function branchJoinIndex(transport, branch) {
   return transport.direction === "retour" ? segments.length - 1 : segments.length;
 }
 
+function transportRouteCities(transport) {
+  const cities = [];
+  const append = (city) => {
+    if (!city || normalizePlace(cities.at(-1)) === normalizePlace(city)) return;
+    cities.push(city);
+  };
+  (transport?.segments || []).forEach((segment) => {
+    append(segment.from);
+    (segment.stops || []).forEach((stop) => append(stop.city));
+    append(segment.to);
+  });
+  return cities;
+}
+
+function transportStageCities(transport) {
+  const route = transportRouteCities(transport);
+  return route.length > 2 ? route.slice(1, -1) : [];
+}
+
 function passengerBoardingCity(transport, passenger) {
   return (
     passenger.pickupCity ||
@@ -321,6 +340,8 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
             const dirColor = isAller ? "#16a34a" : "#ea580c";
             const staffCount = (t.staff || []).length;
             const childCount = countChildren(t.passengers || []);
+            const stageCities = transportStageCities(t);
+            const branches = t.branches || [];
             return (
               <button
                 key={t.id}
@@ -340,6 +361,16 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
                     {fmtDate(t.date)}
                     {t.meetingTime ? ` · RDV ${t.meetingTime}` : ""}
                   </div>
+                  {stageCities.length > 0 && (
+                    <div style={{ fontSize: 12, color: "#7c3aed", marginTop: 5, fontWeight: 700 }}>
+                      Étapes : {stageCities.join(" → ")}
+                    </div>
+                  )}
+                  {branches.map((branch) => (
+                    <div key={branch.id || `${branch.from}-${branch.to}`} style={{ fontSize: 11, color: "#B8336A", marginTop: 3, fontWeight: 700 }}>
+                      Embranchement : {branch.from || "?"} → {branch.to || "?"}
+                    </div>
+                  ))}
                   <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                     {staffCount > 0 && (
                       <span style={{ fontSize: 11, color: "#7c3aed", fontWeight: 600 }}>
@@ -440,6 +471,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
   const passengerGroups = groupPassengersByCity(transport);
   const firstName = firstNameOf(staff?.name);
   const leadMember = leadStaffMember(transport);
+  const stageCities = transportStageCities(transport);
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 60 }}>
@@ -521,6 +553,11 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>
                 {isAller ? "Aller" : "Retour"} · {weekInfo?.label} ({weekInfo?.dates} 2026)
               </div>
+              {stageCities.length > 0 && (
+                <div style={{ fontSize: 12, color: "#7c3aed", marginTop: 4, fontWeight: 700 }}>
+                  Étapes : {stageCities.join(" → ")}
+                </div>
+              )}
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
@@ -613,7 +650,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                     {(seg.stops || []).length > 0 && (
                       <div style={{ marginTop: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#94a3b8", marginBottom: 8 }}>
-                          Sous-arrêts
+                          Villes étapes
                         </div>
                         {seg.stops.map((stop, si) => {
                           const dropoffs = passengersDroppingAt(transport, stop.city);

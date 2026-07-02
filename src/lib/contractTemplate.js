@@ -18,11 +18,62 @@ function frDate(isoOrSlash) {
 }
 
 function daysBetween(start, end) {
-  if (!start || !end) return "___";
+  if (!start || !end) return null;
   const a = new Date(`${start}T12:00:00`);
   const b = new Date(`${end}T12:00:00`);
-  if (isNaN(a) || isNaN(b)) return "___";
+  if (isNaN(a) || isNaN(b)) return null;
   return Math.round((b - a) / 86400000) + 1;
+}
+
+const CONTRACT_ROLE_LABELS = {
+  ds: "Directeur·rice",
+  dsa: "Adjoint·e de direction",
+  bafa: "Animateur·rice",
+  "as-sb": "Animateur·rice – Assistant·e sanitaire / Surveillant·e de baignade",
+  stagiaire: "Animateur·rice stagiaire / sans diplôme",
+};
+
+function contractRoleLabel(contract) {
+  const key = String(contract?.roleKey || "").trim().toLowerCase();
+  if (CONTRACT_ROLE_LABELS[key]) return CONTRACT_ROLE_LABELS[key];
+  const role = String(contract?.role || "").trim().toLowerCase().replace(/\s+/g, "");
+  if (role === "ds") return CONTRACT_ROLE_LABELS.ds;
+  if (role === "dsa") return CONTRACT_ROLE_LABELS.dsa;
+  if (role === "bafa") return CONTRACT_ROLE_LABELS.bafa;
+  if (role === "as/sb") return CONTRACT_ROLE_LABELS["as-sb"];
+  if (role.includes("stagiaire") || role.includes("sansdiplôme") || role.includes("ssdiplôme")) {
+    return CONTRACT_ROLE_LABELS.stagiaire;
+  }
+  return contract?.role || "Animateur·rice";
+}
+
+function exercisePlace(contract) {
+  const stay = String(contract?.stayCode || contract?.stayName || "").toLowerCase();
+  return stay.includes("mcsc") || stay.includes("creative surf") ? "Messanges" : "Bidarray";
+}
+
+function compensatoryRest(contractDays) {
+  if (!contractDays) return null;
+  const totalHours = contractDays * 11;
+  const fullWeeks = Math.floor(contractDays / 7);
+  const remainingDays = contractDays % 7;
+  const minimumDuringByRemainder = { 4: 8, 5: 12, 6: 16 };
+  const minimumDuringHours = fullWeeks * 16 + (minimumDuringByRemainder[remainingDays] || 0);
+  return {
+    totalHours,
+    minimumDuringHours,
+    afterStayHours: totalHours - minimumDuringHours,
+  };
+}
+
+function formatEuro(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "___________";
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+  }).format(amount);
 }
 
 export function generateContractHTML(member, contract) {
@@ -36,11 +87,16 @@ export function generateContractHTML(member, contract) {
   const secu        = esc(m.socialSecurityNumber || "___________");
   const dob         = esc([m.dateOfBirth, m.birthPlace].filter(Boolean).join(" à ") || "___________");
   const nationality = esc(m.nationality || "Française");
-  const poste       = esc(c.role || "Animateur·rice");
+  const poste       = esc(contractRoleLabel(c));
+  const lieuExercice = esc(exercisePlace(c));
 
   const startFr  = frDate(c.startDate);
   const endFr    = frDate(c.endDate);
   const nbJours  = daysBetween(c.startDate, c.endDate);
+  const nbJoursLabel = nbJours || "___";
+  const repos = compensatoryRest(nbJours);
+  const netSalary = formatEuro(c.netSalary);
+  const netPerDay = nbJours ? formatEuro(Number(c.netSalary) / nbJours) : "___________";
 
   const today = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
@@ -215,7 +271,7 @@ export function generateContractHTML(member, contract) {
       <p>Nationalité : <strong>${nationality}</strong></p>
       <p>Poste : <strong>${poste}</strong></p>
     </div>
-    <p class="cc-designation"><em>Ci-après dénommé·e « l'Animateur·rice »</em></p>
+    <p class="cc-designation"><em>Ci-après dénommé·e « le·la salarié·e »</em></p>
     <p class="cc-dune-part">D'autre part</p>
 
     <p class="cc-convention">Il a été convenu des articles suivants :</p>
@@ -225,7 +281,7 @@ export function generateContractHTML(member, contract) {
   <div class="cc-article">
     <h2>Article 1 – Objet du contrat</h2>
     <p>Le présent contrat a pour objet l'exercice, à titre occasionnel, des fonctions
-    d'Animateur·rice au sein d'un Accueil Collectif de Mineurs (colonie de vacances)
+    de <strong>${poste}</strong> au sein d'un Accueil Collectif de Mineurs (colonie de vacances)
     organisé par ColoCrew.</p>
   </div>
 
@@ -251,9 +307,9 @@ export function generateContractHTML(member, contract) {
   <div class="cc-article">
     <h2>Article 3 – Durée, période d'essai et lieu</h2>
     <ol>
-      <li>Du <strong>${startFr}</strong> au <strong>${endFr}</strong> inclus, pour un total de <strong>${nbJours}</strong> jours.</li>
+      <li>Du <strong>${startFr}</strong> au <strong>${endFr}</strong> inclus, pour un total de <strong>${nbJoursLabel}</strong> jours.</li>
       <li>Période d'essai de deux (2) jours ouvrés : résiliation possible sans préavis ni indemnité.</li>
-      <li>L'animateur·rice exercera la plupart de ses missions au centre de Gravières (Bidart), mais pourra être amené à les exercer dans d'autres lieux et notamment lors des convoyages et des sorties.</li>
+      <li>Le présent contrat est établi à <strong>Pantin</strong>. Le lieu principal d'exercice est situé à <strong>${lieuExercice}</strong>. Le·la salarié·e pourra également intervenir dans d'autres lieux, notamment lors des convoyages et des sorties.</li>
       <li>Si l'animateur·rice est amené.e, dans le cadre de ses fonctions, à effectuer un convoyage nécessitant un déplacement à J-1 ou J+1, son salaire se verra augmenté de l'équivalent d'un jour de salaire.</li>
     </ol>
   </div>
@@ -271,7 +327,10 @@ export function generateContractHTML(member, contract) {
       <li><span class="cc-bold">Heures de nuit :</span><br>
         Les périodes de nuit durant lesquelles l'Animateur·rice reste en poste ou peut être appelé·e sont comptabilisées comme temps de travail effectif.</li>
       <li><span class="cc-bold">Repos compensateur :</span><br>
-        Pour un contrat d'engagement éducatif de 3 jours avec suppression du repos quotidien, le dispositif de l'article D. 432-3 du CASF prévoit les modalités suivantes.</li>
+        Le présent contrat porte sur <strong>${nbJoursLabel} jours</strong> d'engagement.
+        ${repos
+          ? `En cas de suppression complète du repos quotidien, le repos compensateur est de <strong>${repos.totalHours} heures</strong> au total. Un minimum de <strong>${repos.minimumDuringHours} heures</strong> est accordé pendant le séjour et le solde de <strong>${repos.afterStayHours} heures</strong> à son issue.`
+          : "La durée du repos compensateur sera calculée à partir des dates définitives du contrat."}</li>
     </ol>
   </div>
 
@@ -279,13 +338,10 @@ export function generateContractHTML(member, contract) {
   <div class="cc-article">
     <h2>Article 5 – Rémunération</h2>
     <ol>
-      <li>Indemnité journalière brute : <strong>51,09 €</strong> (4,3 × SMIC horaire) hors congés payés.</li>
-      <li>Indemnité compensatrice de congés payés : 10 % = <strong>5,11 €</strong>.</li>
-      <li>Total brut/jour : <strong>56,20 €</strong>.</li>
-      <li>Primes SB : <strong>4,00 € brut/jour</strong>.</li>
-      <li>Primes AS : <strong>4,00 € brut/jour</strong>.</li>
-      <li>Prime de performance/occupation : à définir selon le taux de remplissage.</li>
-      <li>Paiement : mensuel, par virement au plus tard le 5 du mois suivant.</li>
+      <li>Rémunération nette totale prévue pour le contrat : <strong>${netSalary}</strong>.</li>
+      <li>Rémunération nette moyenne par jour d'engagement : <strong>${netPerDay}</strong>.</li>
+      <li>Ce montant correspond au salaire net enregistré pour ce contrat dans le dossier RH${Number(c.primeCount || 0) > 0 ? ` et comprend ${Number(c.primeCount)} prime${Number(c.primeCount) > 1 ? "s" : ""}` : ""}.</li>
+      <li>Paiement par virement au plus tard le 5 du mois suivant.</li>
     </ol>
   </div>
 
@@ -346,7 +402,7 @@ export function generateContractHTML(member, contract) {
 
   <!-- Signatures -->
   <div class="cc-signatures">
-    <p class="cc-sign-place">Fait à Lanobre, le ${today}</p>
+    <p class="cc-sign-place">Fait à Pantin, le ${today}</p>
     <p><strong>Signatures :</strong></p>
     <div class="cc-sign-row">
       <div class="cc-sign-box">
