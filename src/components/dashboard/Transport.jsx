@@ -6994,6 +6994,12 @@ function mergeFamily(passengers) {
   return { ...primary, children: allChildren };
 }
 
+function isFamilyConvocationPassenger(transport, passenger) {
+  const familyCity = passenger.departureCity || "";
+  if (!familyCity) return false;
+  return Boolean(routeStopForCity(transport, familyCity));
+}
+
 function ConvocationsTab({ transports, reservations, staffMembers = [], staffContracts = [] }) {
   const { showToast } = useToast();
   const [selectedWeek, setSelectedWeek] = useState("S1");
@@ -7031,6 +7037,16 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const weekTrips = useMemo(
     () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé" && t.direction === "aller"),
     [transports, selectedWeek],
+  );
+
+  const convocationTrips = useMemo(
+    () => weekTrips
+      .map((trip) => ({
+        ...trip,
+        passengers: (trip.passengers || []).filter((passenger) => isFamilyConvocationPassenger(trip, passenger)),
+      }))
+      .filter((trip) => trip.passengers.length > 0),
+    [weekTrips],
   );
 
   const onSiteReservations = useMemo(
@@ -7234,7 +7250,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const pendingFamilies = useMemo(() => {
     const seen = new Set();
     const rows = [];
-    weekTrips.forEach((trip) => {
+    convocationTrips.forEach((trip) => {
       groupPassengersByFamily(trip.passengers).forEach((passengers) => {
         const primary = passengers[0];
         const emailKey = (primary.email && primary.email !== "-") ? primary.email : primary.reservationId;
@@ -7248,12 +7264,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       });
     });
     return rows;
-  }, [weekTrips, sentStatus]);
+  }, [convocationTrips, sentStatus]);
 
   const missingEmailFamilies = useMemo(() => {
     const seen = new Set();
     const rows = [];
-    weekTrips.forEach((trip) => {
+    convocationTrips.forEach((trip) => {
       groupPassengersByFamily(trip.passengers).forEach((passengers) => {
         const primary = passengers[0];
         const key = primary.reservationId || `${primary.nom || ""}-${primary.childName || ""}`;
@@ -7268,7 +7284,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       });
     });
     return rows;
-  }, [weekTrips, sentStatus]);
+  }, [convocationTrips, sentStatus]);
 
   const pendingOnSiteReservations = useMemo(
     () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && reservation.email && reservation.email !== "-"),
@@ -7625,7 +7641,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             })}
 
             {/* Trajets — une ligne par famille */}
-            {weekTrips.map((trip) => {
+            {convocationTrips.map((trip) => {
               const familyGroups = groupPassengersByFamily(trip.passengers).slice().sort((a, b) => {
                 const oa = cityRouteOrder(trip, passengerCity(trip, a[0]));
                 const ob = cityRouteOrder(trip, passengerCity(trip, b[0]));
