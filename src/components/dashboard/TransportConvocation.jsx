@@ -323,6 +323,15 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
 </html>`;
 }
 
+function buildJ3ReminderHtml(html) {
+  const banner = `<div style="padding:15px 28px;background:#fff7ed;border-bottom:2px solid #fdba74;text-align:center;">
+    <div style="font-size:18px;font-weight:900;color:#ea580c;letter-spacing:0.04em;">⏰ RAPPEL J-3</div>
+    <div style="margin-top:5px;font-size:13px;color:#9a3412;line-height:1.55;">Le départ approche. Merci de relire les horaires et les lieux de rendez-vous ci-dessous et de nous signaler rapidement toute difficulté.</div>
+  </div>`;
+  const header = '<table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;">';
+  return html.replace(header, `${banner}${header}`).replace(/<title>(.*?)<\/title>/, "<title>Rappel J-3 — $1</title>");
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TransportConvocation() {
@@ -396,7 +405,6 @@ export default function TransportConvocation() {
 
     return allerTransports.map((allerT) => {
       const matched = reservations.filter((r) => {
-        if (!r.legal?.email) return false;
         return assignedAller(r)?.id === allerT.id;
       });
 
@@ -417,7 +425,7 @@ export default function TransportConvocation() {
   }, [transports]);
 
   const totalPending = useMemo(
-    () => groups.reduce((acc, g) => acc + g.reservations.filter((r) => !r.convocationSent).length, 0),
+    () => groups.reduce((acc, g) => acc + g.reservations.filter((r) => r.legal?.email && !r.convocationSent).length, 0),
     [groups]
   );
 
@@ -439,15 +447,29 @@ export default function TransportConvocation() {
     setReservations((prev) => prev.map((r) => r.id === resId ? { ...r, convocationSent: false } : r));
   }, []);
 
-  const sendOne = useCallback(async (res, allerT, retourT, subject, overrides = {}) => {
+  const markReminderDone = useCallback(async (resId, done, sentByEmail = false) => {
+    const patch = done
+      ? {
+          convocationReminderDoneAt: serverTimestamp(),
+          ...(sentByEmail ? { convocationReminderSentAt: serverTimestamp() } : {}),
+        }
+      : { convocationReminderDoneAt: null, convocationReminderSentAt: null };
+    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, resId), patch);
+    setReservations((previous) => previous.map((reservation) => reservation.id === resId
+      ? { ...reservation, convocationReminderDoneAt: done ? new Date() : null, convocationReminderSentAt: sentByEmail ? new Date() : null }
+      : reservation));
+  }, []);
+
+  const sendOne = useCallback(async (res, allerT, retourT, subject, overrides = {}, reminder = false) => {
     const animInfo = getAnimForTransport(allerT);
-    const html = buildConvocationHtml(res, allerT, retourT, overrides, animInfo);
+    const convocationHtml = buildConvocationHtml(res, allerT, retourT, overrides, animInfo);
+    const html = reminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to: res.legal.email,
-        subject: subject || `ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`,
+        subject: subject || `${reminder ? "Rappel J-3 — " : ""}ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`,
         html,
         from_name: "ColoCrew",
         from_email: "contact@colocrew.com",
@@ -455,15 +477,16 @@ export default function TransportConvocation() {
       }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
-    await markSent(res.id);
-  }, [markSent, getAnimForTransport]);
+    if (reminder) await markReminderDone(res.id, true, true);
+    else await markSent(res.id);
+  }, [markSent, markReminderDone, getAnimForTransport]);
 
   const handleSendFromModal = useCallback(async () => {
     if (!previewItem) return;
     setSendingId(previewItem.res.id);
     try {
-      await sendOne(previewItem.res, previewItem.allerT, previewItem.retourT, editSubject, timeOverrides);
-      showToast(`Convocation envoyée à ${previewItem.res.legal.email}`, "success");
+      await sendOne(previewItem.res, previewItem.allerT, previewItem.retourT, editSubject, timeOverrides, Boolean(previewItem.isReminder));
+      showToast(`${previewItem.isReminder ? "Rappel J-3" : "Convocation"} envoyé à ${previewItem.res.legal.email}`, "success");
       setPreviewItem(null);
     } catch (e) {
       showToast(`Erreur : ${e.message}`, "error");
@@ -475,7 +498,7 @@ export default function TransportConvocation() {
   const handleSendAll = useCallback(async () => {
     const toSend = groups.flatMap((g) =>
       g.reservations
-        .filter((r) => !r.convocationSent)
+        .filter((r) => r.legal?.email && !r.convocationSent)
         .map((r) => ({ res: r, allerT: g.allerT, retourT: findRetourTransport(r) }))
     );
     if (toSend.length === 0) { showToast("Toutes les convocations ont déjà été envoyées", "info"); return; }
@@ -503,13 +526,13 @@ export default function TransportConvocation() {
     }
   }, [groups, findRetourTransport, sendOne, showToast]);
 
-  const openPreview = useCallback((res, allerT, retourT) => {
-    setEditSubject(`ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`);
+  const openPreview = useCallback((res, allerT, retourT, isReminder = false) => {
+    setEditSubject(`${isReminder ? "Rappel J-3 — " : ""}ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`);
     const allerCity  = res.transport?.departureCity || "";
     const retourCity = res.transport?.returnCity    || "";
     setEditAllerTime(getMeetingInfo(allerT, allerCity)?.meetingTime  || "");
     setEditRetourTime(getMeetingInfo(retourT, retourCity)?.meetingTime || "");
-    setPreviewItem({ res, allerT, retourT });
+    setPreviewItem({ res, allerT, retourT, isReminder });
   }, []);
 
   const timeOverrides = useMemo(() => ({
@@ -520,7 +543,8 @@ export default function TransportConvocation() {
   const handleDownloadPdf = useCallback(() => {
     if (!previewItem) return;
     const animInfo = getAnimForTransport(previewItem.allerT);
-    const html = buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides, animInfo);
+    const convocationHtml = buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides, animInfo);
+    const html = previewItem.isReminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
     const printHtml = html.replace(
       "</head>",
       `<style>@media print{body{background:#fff!important;padding:0!important;}@page{margin:10mm;}}</style></head>`
@@ -662,6 +686,7 @@ export default function TransportConvocation() {
                     <th style={thStyle}>Séjour</th>
                     <th style={thStyle}>Ville de convocation</th>
                     <th style={{ ...thStyle, textAlign: "center" }}>Convoqué</th>
+                    <th style={{ ...thStyle, textAlign: "center" }}>Rappel J-3</th>
                     <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
@@ -674,6 +699,8 @@ export default function TransportConvocation() {
                     const kids       = childrenNames(res.minor);
                     const isSending  = sendingId === res.id;
                     const sent       = Boolean(res.convocationSent);
+                    const hasEmail   = Boolean(res.legal?.email);
+                    const reminderDone = Boolean(res.convocationReminderDoneAt || res.convocationReminderSentAt);
 
                     return (
                       <tr
@@ -736,6 +763,20 @@ export default function TransportConvocation() {
                           </button>
                         </td>
 
+                        {/* Checkbox rappel J-3, y compris sans email */}
+                        <td style={{ ...tdStyle, textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={reminderDone}
+                            title={hasEmail ? "Rappel J-3 effectué" : "Cocher après un rappel par téléphone ou SMS"}
+                            onChange={async (event) => {
+                              try { await markReminderDone(res.id, event.target.checked); }
+                              catch { showToast("Impossible de mettre à jour le rappel", "error"); }
+                            }}
+                            style={{ width: 17, height: 17, accentColor: "#ea580c", cursor: "pointer" }}
+                          />
+                        </td>
+
                         {/* Actions */}
                         <td style={{ ...tdStyle, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -749,9 +790,18 @@ export default function TransportConvocation() {
                               </svg>
                               Aperçu
                             </button>
+                            {sent && hasEmail && (
+                              <button
+                                type="button"
+                                onClick={() => openPreview(res, allerT, retourT, true)}
+                                style={{ ...btnSmallStyle, color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
+                              >
+                                Rappel J-3
+                              </button>
+                            )}
                             <button
                               type="button"
-                              disabled={isSending || sendingAll}
+                              disabled={!hasEmail || isSending || sendingAll}
                               onClick={async () => {
                                 setSendingId(res.id);
                                 try {
@@ -768,7 +818,8 @@ export default function TransportConvocation() {
                                 background: isSending ? "#f1f5f9" : sent ? "#f0fdf4" : "#fff0f6",
                                 color: isSending ? "#94a3b8" : sent ? "#16a34a" : "#B8336A",
                                 border: `1.5px solid ${isSending ? "#e2e8f0" : sent ? "#86efac" : "#f3d0e6"}`,
-                                cursor: isSending || sendingAll ? "not-allowed" : "pointer",
+                                cursor: !hasEmail || isSending || sendingAll ? "not-allowed" : "pointer",
+                                opacity: hasEmail ? 1 : 0.5,
                                 gap: 5,
                               }}
                             >
@@ -819,6 +870,7 @@ export default function TransportConvocation() {
                   Aperçu · {previewItem.res.legal?.firstName} {previewItem.res.legal?.lastName}
                 </div>
                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{previewItem.res.legal?.email}</div>
+                {previewItem.isReminder && <div style={{ marginTop: 3, fontSize: 11, fontWeight: 800, color: "#ea580c" }}>APERÇU DU RAPPEL J-3</div>}
               </div>
               <button
                 type="button"
@@ -866,7 +918,10 @@ export default function TransportConvocation() {
 
             {/* Email preview */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides, getAnimForTransport(previewItem.allerT)) }} />
+              <div dangerouslySetInnerHTML={{ __html: (() => {
+                const html = buildConvocationHtml(previewItem.res, previewItem.allerT, previewItem.retourT, timeOverrides, getAnimForTransport(previewItem.allerT));
+                return previewItem.isReminder ? buildJ3ReminderHtml(html) : html;
+              })() }} />
             </div>
 
             {/* Modal footer */}
@@ -904,7 +959,7 @@ export default function TransportConvocation() {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}>
                     <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
                   </svg>
-                  {sendingId ? "Envoi en cours…" : "Envoyer cette convocation"}
+                  {sendingId ? "Envoi en cours…" : previewItem.isReminder ? "Envoyer le rappel J-3" : "Envoyer cette convocation"}
                 </button>
               </div>
             </div>
