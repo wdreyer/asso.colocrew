@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
@@ -539,7 +539,7 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
                     {t.departureCity || "?"} → {t.arrivalCity || "?"}
                   </div>
                   <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                    {fmtDate(t.date)}
+                    <strong style={{ color: dirColor }}>{isAller ? "Aller" : "Retour"}</strong> · {fmtDate(t.date)}
                     {t.meetingTime ? ` · RDV ${t.meetingTime}` : ""}
                   </div>
                   {stageCities.length > 0 && (
@@ -1191,18 +1191,41 @@ export default function ConvoyagePage() {
   const [staffId, setStaffId] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "asc"))),
-      getDocs(collection(db, COLLECTIONS.RESERVATIONS)),
-    ])
-      .then(([transportSnap, reservationSnap]) => {
-        const reservations = reservationSnap.docs.map(mapReservationPassenger);
-        setTransports(transportSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .map((transport) => hydrateTransportPassengers(transport, reservations)));
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    let rawTransports = [];
+    let reservations = [];
+    let transportsReady = false;
+    let reservationsReady = false;
+    const sync = () => {
+      if (!transportsReady || !reservationsReady) return;
+      setTransports(rawTransports.map((transport) => hydrateTransportPassengers(transport, reservations)));
+      setLoading(false);
+    };
+    const onError = (error) => {
+      console.error(error);
+      setLoading(false);
+    };
+    const unsubscribeTransports = onSnapshot(
+      query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "asc")),
+      (snapshot) => {
+        rawTransports = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        transportsReady = true;
+        sync();
+      },
+      onError,
+    );
+    const unsubscribeReservations = onSnapshot(
+      collection(db, COLLECTIONS.RESERVATIONS),
+      (snapshot) => {
+        reservations = snapshot.docs.map(mapReservationPassenger);
+        reservationsReady = true;
+        sync();
+      },
+      onError,
+    );
+    return () => {
+      unsubscribeTransports();
+      unsubscribeReservations();
+    };
   }, []);
 
   const weekTransports = useMemo(

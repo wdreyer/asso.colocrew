@@ -352,6 +352,8 @@ export default function TransportConvocation() {
   // Global send all
   const [sendingAll, setSendingAll]     = useState(false);
   const [progress, setProgress]         = useState({ done: 0, total: 0, errors: [] });
+  const [sendingReminders, setSendingReminders] = useState(false);
+  const [reminderProgress, setReminderProgress] = useState({ done: 0, total: 0, errors: [] });
 
   // Filter
   const [filterStatus, setFilterStatus] = useState("all"); // "all" | "pending" | "sent"
@@ -428,6 +430,21 @@ export default function TransportConvocation() {
     () => groups.reduce((acc, g) => acc + g.reservations.filter((r) => r.legal?.email && !r.convocationSent).length, 0),
     [groups]
   );
+
+  const pendingReminders = useMemo(() => groups.flatMap((group) =>
+    group.reservations
+      .filter((reservation) =>
+        reservation.convocationSent
+        && reservation.legal?.email
+        && !reservation.convocationReminderDoneAt
+        && !reservation.convocationReminderSentAt,
+      )
+      .map((reservation) => ({
+        res: reservation,
+        allerT: group.allerT,
+        retourT: findRetourTransport(reservation),
+      })),
+  ), [groups, findRetourTransport]);
 
   // ── Send helpers ──────────────────────────────────────────────────────────
 
@@ -526,6 +543,31 @@ export default function TransportConvocation() {
     }
   }, [groups, findRetourTransport, sendOne, showToast]);
 
+  const handleSendAllReminders = useCallback(async () => {
+    if (!pendingReminders.length) {
+      showToast("Aucun rappel J-3 à envoyer", "info");
+      return;
+    }
+    if (!window.confirm(`Envoyer ${pendingReminders.length} rappel(s) J-3 maintenant ?`)) return;
+
+    setSendingReminders(true);
+    setReminderProgress({ done: 0, total: pendingReminders.length, errors: [] });
+    const errors = [];
+    for (let index = 0; index < pendingReminders.length; index += 1) {
+      const { res, allerT, retourT } = pendingReminders[index];
+      try {
+        await sendOne(res, allerT, retourT, undefined, {}, true);
+      } catch (error) {
+        errors.push({ email: res.legal.email, error: error.message });
+      }
+      setReminderProgress({ done: index + 1, total: pendingReminders.length, errors: [...errors] });
+      if (index < pendingReminders.length - 1) await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    setSendingReminders(false);
+    if (!errors.length) showToast(`${pendingReminders.length} rappel(s) J-3 envoyé(s)`, "success");
+    else showToast(`${pendingReminders.length - errors.length} rappel(s) envoyé(s) · ${errors.length} erreur(s)`, "error");
+  }, [pendingReminders, sendOne, showToast]);
+
   const openPreview = useCallback((res, allerT, retourT, isReminder = false) => {
     setEditSubject(`${isReminder ? "Rappel J-3 — " : ""}ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`);
     const allerCity  = res.transport?.departureCity || "";
@@ -603,6 +645,33 @@ export default function TransportConvocation() {
             <option value="sent">Envoyées</option>
           </select>
 
+          {sendingReminders ? (
+            <div style={{ minWidth: 180 }}>
+              <div style={{ fontSize: 12, color: "#9a3412", marginBottom: 4 }}>
+                Rappels {reminderProgress.done}/{reminderProgress.total}
+                {reminderProgress.errors.length > 0 && <span style={{ color: "#ef4444", marginLeft: 6 }}>· {reminderProgress.errors.length} erreur(s)</span>}
+              </div>
+              <div style={{ height: 5, background: "#ffedd5", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", background: "#ea580c", borderRadius: 999, width: `${reminderProgress.total ? (reminderProgress.done / reminderProgress.total) * 100 : 0}%`, transition: "width 0.3s" }} />
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSendAllReminders}
+              disabled={!pendingReminders.length || sendingAll}
+              style={{
+                ...btnStyle,
+                background: pendingReminders.length ? "#fff7ed" : "#f8fafc",
+                color: pendingReminders.length ? "#ea580c" : "#94a3b8",
+                border: `1.5px solid ${pendingReminders.length ? "#fdba74" : "#e2e8f0"}`,
+                cursor: pendingReminders.length && !sendingAll ? "pointer" : "not-allowed",
+              }}
+            >
+              Envoyer tous les rappels ({pendingReminders.length})
+            </button>
+          )}
+
           {/* Envoyer tout */}
           {sendingAll ? (
             <div style={{ minWidth: 200 }}>
@@ -618,12 +687,12 @@ export default function TransportConvocation() {
             <button
               type="button"
               onClick={handleSendAll}
-              disabled={totalPending === 0}
+              disabled={totalPending === 0 || sendingReminders}
               style={{
                 ...btnStyle,
                 background: totalPending === 0 ? "#f1f5f9" : "#B8336A",
                 color: totalPending === 0 ? "#94a3b8" : "#fff",
-                cursor: totalPending === 0 ? "not-allowed" : "pointer",
+                cursor: totalPending === 0 || sendingReminders ? "not-allowed" : "pointer",
                 boxShadow: totalPending > 0 ? "0 4px 12px rgba(184,51,106,0.25)" : "none",
               }}
             >
@@ -796,12 +865,12 @@ export default function TransportConvocation() {
                                 onClick={() => openPreview(res, allerT, retourT, true)}
                                 style={{ ...btnSmallStyle, color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
                               >
-                                Rappel J-3
+                                Prévisualiser rappel J-3
                               </button>
                             )}
                             <button
                               type="button"
-                              disabled={!hasEmail || isSending || sendingAll}
+                              disabled={!hasEmail || isSending || sendingAll || sendingReminders}
                               onClick={async () => {
                                 setSendingId(res.id);
                                 try {
@@ -818,7 +887,7 @@ export default function TransportConvocation() {
                                 background: isSending ? "#f1f5f9" : sent ? "#f0fdf4" : "#fff0f6",
                                 color: isSending ? "#94a3b8" : sent ? "#16a34a" : "#B8336A",
                                 border: `1.5px solid ${isSending ? "#e2e8f0" : sent ? "#86efac" : "#f3d0e6"}`,
-                                cursor: !hasEmail || isSending || sendingAll ? "not-allowed" : "pointer",
+                                cursor: !hasEmail || isSending || sendingAll || sendingReminders ? "not-allowed" : "pointer",
                                 opacity: hasEmail ? 1 : 0.5,
                                 gap: 5,
                               }}
@@ -946,7 +1015,7 @@ export default function TransportConvocation() {
                 </button>
                 <button
                   type="button"
-                  disabled={Boolean(sendingId)}
+                  disabled={Boolean(sendingId) || sendingReminders}
                   onClick={handleSendFromModal}
                   style={{
                     ...btnStyle,
