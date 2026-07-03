@@ -112,6 +112,18 @@ function countChildren(passengers) {
   );
 }
 
+function countUniqueChildrenAcrossTransports(transports) {
+  const passengers = new Map();
+  (transports || []).forEach((transport) => {
+    (transport.passengers || []).forEach((passenger, index) => {
+      const key = passenger.reservationId || passenger.id || `${transport.id}-${index}`;
+      const count = Math.max(passenger.children?.length || 0, 1);
+      passengers.set(key, Math.max(passengers.get(key) || 0, count));
+    });
+  });
+  return [...passengers.values()].reduce((total, count) => total + count, 0);
+}
+
 function normalizePlace(value) {
   return String(value || "")
     .normalize("NFD")
@@ -1090,6 +1102,8 @@ function mapTransport(snap) {
     branches:        Array.isArray(d.branches) ? d.branches : [],
     staff:           Array.isArray(d.staff) ? d.staff : [],
     tickets:         Array.isArray(d.tickets) ? d.tickets : [],
+    coverageExcluded: Boolean(d.coverageExcluded),
+    sharedConnection: Boolean(d.sharedConnection),
     emergencyContact: d.emergencyContact || "",
     emergencyPhone:   d.emergencyPhone || "",
     dateMs:          tsToMs(d.createdAt),
@@ -1798,7 +1812,10 @@ function coverageSummary(reservations, transports, week, direction) {
         reservation.week === week && normalizePlace(reservation[cityKey]) === "sur place",
       );
       const relevantTrips = transports.filter((transport) =>
-        transport.week === week && transport.direction === direction && transport.status !== "annulé",
+        transport.week === week
+        && transport.direction === direction
+        && transport.status !== "annulé"
+        && !transport.coverageExcluded,
       );
       const assignments = new Map();
       for (const trip of relevantTrips) {
@@ -1888,7 +1905,7 @@ function AllTransportsList({ transports, selectedId, onSelectTrip }) {
               { date: info.retour, direction: "retour", label: "Retour" },
             ].map(({ date, direction, label }) => {
               const trips = transports.filter((t) => t.date === date);
-              const totalChildren = trips.reduce((s, t) => s + countChildren(t.passengers), 0);
+              const totalChildren = countUniqueChildrenAcrossTransports(trips);
               const totalStaff = trips.reduce((s, t) => s + (t.staff || []).length, 0);
               const missingTix = trips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
               return (
@@ -1959,7 +1976,7 @@ function WeeksOverview({ transports, selectedId, onSelectTrip }) {
                 { dir: "retour", date: info.retour, label: "Retour", icon: "?" },
               ].map(({ dir, date, label, icon }) => {
                 const trips = transports.filter((t) => t.date === date);
-                const totalChildren = trips.reduce((s, t) => s + countChildren(t.passengers), 0);
+                const totalChildren = countUniqueChildrenAcrossTransports(trips);
                 const totalSegs = trips.reduce((s, t) => s + routePortionCount(t), 0);
                 const boughtTickets = trips.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
                 const totalTickets = trips.reduce((s, t) => s + (t.tickets || []).length, 0);
@@ -3725,7 +3742,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     setSelectedContractId("");
   };
 
-  /* Add a staff member from a contract AND assign them to a specific segment */
+  /* Add a staff member from a contract AND assign them to a segment or branch */
   const addStaffToSegment = (contractId, segId) => {
     const contract = staffContracts.find((item) => item.id === contractId);
     if (!contract) return;
@@ -3746,6 +3763,9 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     setStaff((items) => [...items, newEntry]);
     setSegments((items) => items.map((s) =>
       s.id !== segId ? s : { ...s, assignedStaffIds: [...(s.assignedStaffIds || []), newEntry.id] }
+    ));
+    setBranches((items) => items.map((branch) =>
+      branch.id !== segId ? branch : { ...branch, assignedStaffIds: [...(branch.assignedStaffIds || []), newEntry.id] }
     ));
   };
 
@@ -3821,13 +3841,15 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   };
 
   const toggleSegmentStaff = (segmentId, staffId) => {
-    setSegments((items) => items.map((segment) => {
+    const toggle = (items) => items.map((segment) => {
       if (segment.id !== segmentId) return segment;
       const assigned = new Set(segment.assignedStaffIds || []);
       if (assigned.has(staffId)) assigned.delete(staffId);
       else assigned.add(staffId);
       return { ...segment, assignedStaffIds: [...assigned] };
-    }));
+    });
+    setSegments(toggle);
+    setBranches(toggle);
   };
 
   const save = async () => {
@@ -4409,6 +4431,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                       <span><strong>{branch.departureTime || "--:--"}</strong> → <strong>{branch.arrivalTime || "--:--"}</strong></span>
                       <span>{trainLabel}</span>
                       <span>{branchKids.length} enfant{branchKids.length !== 1 ? "s" : ""}</span>
+                      <span>{assignedStaff.length} anim.</span>
                       <span className={seatsOk ? "is-ok" : "is-short"}>Billets {bought}/{needed || 0}</span>
                     </div>
                   </div>
@@ -4474,6 +4497,47 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                         <option value="quai">Quai uniquement</option>
                       </select>
                     </label>
+                  </div>
+                </details>
+
+                <details className="tr-ops-details">
+                  <summary>
+                    Animateurs
+                    {assignedStaff.length > 0 && <span>{assignedStaff.length}</span>}
+                  </summary>
+                  <div className="tr-ops-anims">
+                    <span className="tr-ops-anims-label">
+                      Animateurs de l&apos;embranchement
+                      {assignedStaff.length > 0 && <span className="tr-ops-anims-count">{assignedStaff.length}</span>}
+                    </span>
+                    {staff.map((member) => {
+                      const checked = (branch.assignedStaffIds || []).includes(member.id);
+                      return (
+                        <label key={member.id} className={`tr-ops-anim-chip${checked ? " is-on" : ""}`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleSegmentStaff(branch.id, member.id)} />
+                          <span>{member.name || "Anim."}</span>
+                          {member.birthDate && <span className="tr-ops-anim-dob">{fmtBirthDate(member.birthDate)}</span>}
+                          {member.boardingCity && <span className="tr-ops-anim-city">{member.boardingCity}</span>}
+                        </label>
+                      );
+                    })}
+                    {availableContracts.length > 0 && (
+                      <select
+                        className="tr-ops-anim-quick-select"
+                        value=""
+                        onChange={(event) => {
+                          if (event.target.value) addStaffToSegment(event.target.value, branch.id);
+                        }}
+                      >
+                        <option value="">+ Ajouter depuis les contrats…</option>
+                        {availableContracts.map((contract) => (
+                          <option key={contract.id} value={contract.id}>{contract.memberName} · {contract.role}</option>
+                        ))}
+                      </select>
+                    )}
+                    {availableContracts.length === 0 && staff.length === 0 && (
+                      <span className="tr-ops-anims-empty">Aucun contrat disponible pour cette semaine</span>
+                    )}
                   </div>
                 </details>
 
@@ -6099,7 +6163,7 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
         { dir: "retour", date: WEEK_INFO[selectedWeek].retour, label: "Dernier jour - Retour" },
       ].map(({ dir, date, label }) => {
         const dayTrips  = weekTransports.filter((t) => t.date === date);
-        const dayKids   = dayTrips.reduce((s, t) => s + countChildren(t.passengers), 0);
+        const dayKids   = countUniqueChildrenAcrossTransports(dayTrips);
         const missingSegTix = dayTrips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
 
         return (

@@ -29,21 +29,27 @@ const CONTRACT_ROLE_LABELS = {
   ds: "Directeur·rice",
   dsa: "Adjoint·e de direction",
   bafa: "Animateur·rice",
-  "as-sb": "Animateur·rice – Assistant·e sanitaire / Surveillant·e de baignade",
+  "as-sb": "Assistant·e sanitaire / Surveillant·e de baignade",
   stagiaire: "Animateur·rice stagiaire / sans diplôme",
 };
 
-function contractRoleLabel(contract) {
+function contractRoleKey(contract) {
   const key = String(contract?.roleKey || "").trim().toLowerCase();
-  if (CONTRACT_ROLE_LABELS[key]) return CONTRACT_ROLE_LABELS[key];
+  if (CONTRACT_ROLE_LABELS[key]) return key;
   const role = String(contract?.role || "").trim().toLowerCase().replace(/\s+/g, "");
-  if (role === "ds") return CONTRACT_ROLE_LABELS.ds;
-  if (role === "dsa") return CONTRACT_ROLE_LABELS.dsa;
-  if (role === "bafa") return CONTRACT_ROLE_LABELS.bafa;
-  if (role === "as/sb") return CONTRACT_ROLE_LABELS["as-sb"];
+  if (role === "ds") return "ds";
+  if (role === "dsa") return "dsa";
+  if (role === "bafa") return "bafa";
+  if (role === "as/sb") return "as-sb";
   if (role.includes("stagiaire") || role.includes("sansdiplôme") || role.includes("ssdiplôme")) {
-    return CONTRACT_ROLE_LABELS.stagiaire;
+    return "stagiaire";
   }
+  return "";
+}
+
+function contractRoleLabel(contract) {
+  const key = contractRoleKey(contract);
+  if (CONTRACT_ROLE_LABELS[key]) return CONTRACT_ROLE_LABELS[key];
   return contract?.role || "Animateur·rice";
 }
 
@@ -87,8 +93,51 @@ export function generateContractHTML(member, contract) {
   const secu        = esc(m.socialSecurityNumber || "___________");
   const dob         = esc([m.dateOfBirth, m.birthPlace].filter(Boolean).join(" à ") || "___________");
   const nationality = esc(m.nationality || "Française");
+  const roleKey     = contractRoleKey(c);
   const poste       = esc(contractRoleLabel(c));
   const lieuExercice = esc(exercisePlace(c));
+  const authority = roleKey === "ds"
+    ? "sous l'autorité de l'organisateur et de son représentant"
+    : "sous l'autorité directe du·de la Directeur·rice du séjour";
+  const asSbMissionArticles = roleKey === "as-sb" ? `
+  <!-- Article 8 -->
+  <div class="cc-article">
+    <h2>Article 8 – Missions de l'Assistant·e Sanitaire (AS)</h2>
+    <p>L'Assistant·e Sanitaire est chargé·e de :</p>
+    <ol>
+      <li><span class="cc-bold">Prévention et soins</span> : contrôler l'état de santé initial des mineur·e·s, dispenser les soins courants (pansements, petits soins) et gérer le stock de matériel sanitaire ;</li>
+      <li><span class="cc-bold">Suivi sanitaire</span> : tenir quotidiennement le registre d'infirmerie et de traitement, s'assurer du stock et du bon état des trousses sanitaires ;</li>
+      <li><span class="cc-bold">Premiers secours</span> : intervenir en cas d'accident ou malaise, appliquer les protocoles PSC1 et assurer le lien avec les secours externes si nécessaire ;</li>
+      <li><span class="cc-bold">Prévention</span> : organiser, le cas échéant, des séances de prévention auprès des mineurs.</li>
+    </ol>
+  </div>
+
+  <!-- Article 9 -->
+  <div class="cc-article">
+    <h2>Article 9 – Missions du·de la Surveillant·e de Baignade (SB)</h2>
+    <p>Le·la Surveillant·e de Baignade assure :</p>
+    <ol>
+      <li><span class="cc-bold">Organisation des baignades</span> : organiser les baignades conformément à la réglementation applicable ;</li>
+      <li><span class="cc-bold">Vigilance continue</span> : surveiller attentivement la baignade ;</li>
+      <li><span class="cc-bold">Sécurité aquatique</span> : connaître et appliquer les protocoles de sauvetage et de premiers secours ;</li>
+      <li><span class="cc-bold">Sensibilisation</span> : rappeler aux participant·e·s les consignes de sécurité.</li>
+    </ol>
+  </div>` : "";
+  const deputyMissionArticle = roleKey === "dsa" ? `
+  <!-- Article 8 -->
+  <div class="cc-article">
+    <h2>Article 8 – Missions de l'Adjoint·e de direction</h2>
+    <p>L'Adjoint·e de direction est membre à part entière de l'équipe de direction. À ce titre, il·elle exerce les responsabilités suivantes :</p>
+    <ol>
+      <li><span class="cc-bold">Pilotage du séjour</span> : l'Adjoint·e participe aux décisions de direction, à la mise en œuvre du projet pédagogique et à l'organisation générale du séjour ;</li>
+      <li><span class="cc-bold">Management de l'équipe</span> : il·elle encadre l'équipe d'animation, anime les réunions, répartit les responsabilités et veille au bon déroulement des missions ;</li>
+      <li><span class="cc-bold">Sécurité et réglementation</span> : il·elle veille à la sécurité des mineur·e·s, au respect de la réglementation et à la tenue des documents obligatoires ;</li>
+      <li><span class="cc-bold">Direction opérationnelle</span> : il·elle gère le fonctionnement quotidien et assure la continuité de la direction en l'absence du·de la Directeur·rice ;</li>
+      <li><span class="cc-bold">Communication et suivi</span> : il·elle représente la direction auprès des familles et partenaires, suit les incidents et participe au bilan du séjour.</li>
+    </ol>
+  </div>` : "";
+  const ruptureArticleNumber = roleKey === "as-sb" ? 10 : roleKey === "dsa" ? 9 : 8;
+  const miscellaneousArticleNumber = ruptureArticleNumber + 1;
 
   const startFr  = frDate(c.startDate);
   const endFr    = frDate(c.endDate);
@@ -271,7 +320,7 @@ export function generateContractHTML(member, contract) {
       <p>Nationalité : <strong>${nationality}</strong></p>
       <p>Poste : <strong>${poste}</strong></p>
     </div>
-    <p class="cc-designation"><em>Ci-après dénommé·e « le·la salarié·e »</em></p>
+    <p class="cc-designation"><em>Ci-après dénommé·e « ${poste} »</em></p>
     <p class="cc-dune-part">D'autre part</p>
 
     <p class="cc-convention">Il a été convenu des articles suivants :</p>
@@ -288,7 +337,7 @@ export function generateContractHTML(member, contract) {
   <!-- Article 2 -->
   <div class="cc-article">
     <h2>Article 2 – Missions détaillées</h2>
-    <p>L'Animateur·rice exercera les missions principales suivantes, sans que cette liste ne soit limitative :</p>
+    <p>Le·la <strong>${poste}</strong> exercera les missions principales suivantes, sans que cette liste ne soit limitative :</p>
     <ol>
       <li><span class="cc-bold">Sécurité et bien-être</span> : assurer la sécurité des mineurs et veiller au respect des protocoles d'hygiène et de sécurité ;</li>
       <li><span class="cc-bold">Projet pédagogique</span> : participer à l'élaboration et à l'animation des activités en s'appuyant sur le projet pédagogique ;</li>
@@ -298,9 +347,9 @@ export function generateContractHTML(member, contract) {
       <li><span class="cc-bold">Situations d'urgence</span> : appliquer les procédures d'urgence ;</li>
       <li><span class="cc-bold">Suivre les directives de sa hiérarchie.</span></li>
     </ol>
-    <p>L'Animateur·rice s'engage à respecter les lois et règlements des séjours de vacances et des séjours
+    <p>Le·la <strong>${poste}</strong> s'engage à respecter les lois et règlements des séjours de vacances et des séjours
     spécifiques définis par les ministères de tutelle ainsi que les instructions et directives de ColoCrew
-    concernant l'organisation du séjour. Il (elle) sera placé.e sous l'autorité directe du Directeur/Directrice de séjour.</p>
+    concernant l'organisation du séjour. Il·elle exercera ses fonctions ${authority}.</p>
   </div>
 
   <!-- Article 3 -->
@@ -325,7 +374,7 @@ export function generateContractHTML(member, contract) {
       <li><span class="cc-bold">Repos quotidien :</span><br>
         Le <strong>repos quotidien est supprimé</strong>, et le·la salarié·e bénéficie d'un repos compensateur correspondant au déficit (voir 5).</li>
       <li><span class="cc-bold">Heures de nuit :</span><br>
-        Les périodes de nuit durant lesquelles l'Animateur·rice reste en poste ou peut être appelé·e sont comptabilisées comme temps de travail effectif.</li>
+        Les périodes de nuit durant lesquelles le·la <strong>${poste}</strong> reste en poste ou peut être appelé·e sont comptabilisées comme temps de travail effectif.</li>
       <li><span class="cc-bold">Repos compensateur :</span><br>
         Le présent contrat porte sur <strong>${nbJoursLabel} jours</strong> d'engagement.
         ${repos
@@ -358,43 +407,22 @@ export function generateContractHTML(member, contract) {
   <!-- Article 7 -->
   <div class="cc-article">
     <h2>Article 7 – Protection sociale et assurances</h2>
-    <p>ColoCrew déclare l'Animateur·rice auprès des organismes sociaux compétents et souscrit une assurance responsabilité civile et accidents corporels.</p>
+    <p>ColoCrew déclare le·la <strong>${poste}</strong> auprès des organismes sociaux compétents et souscrit une assurance responsabilité civile et accidents corporels.</p>
   </div>
 
-  <!-- Article 8 -->
-  <div class="cc-article">
-    <h2>Article 8 – Missions de l'Assistant·e Sanitaire (AS)</h2>
-    <p>L'Assistant·e Sanitaire est chargé·e de :</p>
-    <ol>
-      <li><span class="cc-bold">Prévention et soins</span> : contrôler l'état de santé initial des mineur·e·s, dispenser les soins courants (pansements, petits soins) et gérer le stock de matériel sanitaire ;</li>
-      <li><span class="cc-bold">Suivi sanitaire</span> : tenir quotidiennement le registre d'infirmerie et de traitement, s'assurer du stock et du bon état des trousses sanitaires ;</li>
-      <li><span class="cc-bold">Premiers secours</span> : intervenir en cas d'accident ou malaise, appliquer les protocoles PSC1 et assurer le lien avec les secours externes si nécessaire ;</li>
-      <li><span class="cc-bold">Prévention</span> : Organiser le cas échéant des séances de prévention auprès des mineurs (conduites addictives, sexualité etc.).</li>
-    </ol>
-  </div>
+  ${asSbMissionArticles}
+  ${deputyMissionArticle}
 
-  <!-- Article 9 -->
+  <!-- Article ${ruptureArticleNumber} -->
   <div class="cc-article">
-    <h2>Article 9 – Missions du·de la Surveillant·e de Baignade (SB)</h2>
-    <p>Le·la Surveillant·e de Baignade assure :</p>
-    <ol>
-      <li><span class="cc-bold">L'organisation des baignades</span> : en fonction du lieu, du type de baignade, organiser la baignade suivant la réglementation ;</li>
-      <li><span class="cc-bold">Vigilance continue</span> : surveiller attentivement la baignade ;</li>
-      <li><span class="cc-bold">Sécurité aquatique</span> : connaître et appliquer les protocoles de sauvetage et de premier secours ;</li>
-      <li><span class="cc-bold">Sensibilisation</span> : informer et rappeler aux participant·e·s les consignes de sécurité (zones de baignade, comportements prohibés, utilisation du matériel).</li>
-    </ol>
-  </div>
-
-  <!-- Article 10 -->
-  <div class="cc-article">
-    <h2>Article 10 – Rupture du CEE</h2>
+    <h2>Article ${ruptureArticleNumber} – Rupture du CEE</h2>
     <p>Le contrat peut être rompu de plein droit en cas de force majeure, faute grave, impossibilité pour l'intéressé.e de continuer à exercer ses fonctions.</p>
     <p>L'annulation provisoire ou définitive d'un séjour pour raison de force majeure entraîne la rupture du présent contrat ipso facto et sans appel.</p>
   </div>
 
-  <!-- Article 11 -->
+  <!-- Article ${miscellaneousArticleNumber} -->
   <div class="cc-article">
-    <h2>Article 11 – Dispositions diverses</h2>
+    <h2>Article ${miscellaneousArticleNumber} – Dispositions diverses</h2>
     <p>L'intéressé.e certifie sur l'honneur respecter les conditions définies aux articles D.432-1 et L.432-4 du Code de l'action sociale et des familles permettant la conclusion d'un contrat d'engagement éducatif. Il (elle) s'engage à faire connaître à ColoCrew, dans les plus brefs délais, tout changement dans sa situation personnelle, en particulier si ce changement rendait impossible l'application du statut de l'engagement éducatif.</p>
     <p>L'intéressé.e certifie sur l'honneur l'exactitude et la sincérité des informations mentionnées dans ce contrat concernant ses formations, ses stages, ses qualifications et ses diplômes. Le présent contrat devient automatiquement caduc s'il s'avère que l'intéressé.e a été engagé.e pour une qualification qu'il/elle ne possède pas réellement.</p>
     <p>L'intéressé.e certifie par ailleurs n'avoir encouru aucune condamnation pour crime ou délit contraire à la probité et aux bonnes mœurs, n'être pas frappé.e de l'interdiction d'enseigner ou de participer à la direction et à l'encadrement d'institutions ou d'organismes de vacances et de loisirs pour les mineurs.</p>
@@ -409,7 +437,7 @@ export function generateContractHTML(member, contract) {
         <p>• Pour l'Organisateur :</p>
       </div>
       <div class="cc-sign-box">
-        <p>• Pour l'Animateur·rice :</p>
+        <p>• Pour le·la ${poste} :</p>
       </div>
     </div>
   </div>
