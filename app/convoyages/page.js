@@ -148,6 +148,38 @@ function branchJoinIndex(transport, branch) {
   return transport.direction === "retour" ? segments.length - 1 : segments.length;
 }
 
+function portionScheduleMinutes(portion) {
+  const value = portion?.departureTime || portion?.arrivalTime || "";
+  const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function orderedTransportPortions(transport) {
+  const mainSegments = (transport.segments || []).map((segment, index) => ({
+    ...segment,
+    _index: index,
+    _type: "segment",
+    _fallbackOrder: index * 2,
+  }));
+  const branches = (transport.branches || []).map((branch, index) => ({
+    ...branch,
+    _index: index,
+    _type: "branch",
+    _fallbackOrder: branchJoinIndex(transport, branch) * 2 - 0.5 + index / 100,
+  }));
+  return [...mainSegments, ...branches].sort((left, right) => {
+    const leftMinutes = portionScheduleMinutes(left);
+    const rightMinutes = portionScheduleMinutes(right);
+    if (leftMinutes !== null && rightMinutes !== null && leftMinutes !== rightMinutes) {
+      return leftMinutes - rightMinutes;
+    }
+    if (leftMinutes !== null && rightMinutes === null) return -1;
+    if (leftMinutes === null && rightMinutes !== null) return 1;
+    return left._fallbackOrder - right._fallbackOrder;
+  });
+}
+
 function transportRouteCities(transport) {
   const cities = [];
   const append = (city) => {
@@ -165,6 +197,11 @@ function transportRouteCities(transport) {
 function transportStageCities(transport) {
   const route = transportRouteCities(transport);
   return route.length > 2 ? route.slice(1, -1) : [];
+}
+
+function journeyStageOrder(transport) {
+  if (!transport?.sharedConnection) return 1;
+  return transport.direction === "retour" ? 0 : 2;
 }
 
 function passengerBoardingCity(transport, passenger) {
@@ -350,7 +387,12 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
       <h2 style={stepTitle}>Choisissez votre trajet</h2>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {[...transports]
-          .sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.direction || "").localeCompare(b.direction || ""))
+          .sort((a, b) =>
+            (a.date || "").localeCompare(b.date || "")
+            || (a.direction || "").localeCompare(b.direction || "")
+            || journeyStageOrder(a) - journeyStageOrder(b)
+            || (a.departureTime || "").localeCompare(b.departureTime || ""),
+          )
           .map((t) => {
             const isAller = t.direction !== "retour";
             const dirColor = isAller ? "#16a34a" : "#ea580c";
@@ -607,7 +649,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
 
         {/* ── My segments ── */}
         <SectionTitle color="#7c3aed">
-          Mes arrêts {mySegments.length > 0 ? `(${mySegments.length})` : ""}
+          Mes segments {mySegments.length > 0 ? `(${mySegments.length})` : ""}
         </SectionTitle>
 
         {mySegments.length === 0 ? (
@@ -628,7 +670,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                   }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>
-                      {seg._type === "branch" ? "Embranchement" : `Arrêt ${i + 1}`} — {seg.from || "?"} → {seg.to || "?"}
+                      Segment {i + 1}{seg._type === "branch" ? " · Embranchement" : ""} — {seg.from || "?"} → {seg.to || "?"}
                     </div>
                     <div style={{
                       background: "rgba(255,255,255,0.2)", borderRadius: 100,
@@ -1038,23 +1080,7 @@ export default function ConvoyagePage() {
 
   const mySegments = useMemo(() => {
     if (!selectedTransport || !selectedStaff) return [];
-    const mainSegments = (selectedTransport.segments || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "segment" }));
-    const branches = (selectedTransport.branches || []).map((seg, idx) => ({ ...seg, _index: idx, _type: "branch" }));
-
-    // Chaque embranchement est inséré juste après le point du tronc commun où il se
-    // raccorde (fourche), ou en fin de liste s'il part du tout dernier arrêt.
-    const ordered = [];
-    mainSegments.forEach((segment, i) => {
-      branches
-        .filter((branch) => branchJoinIndex(selectedTransport, branch) === i)
-        .forEach((branch) => ordered.push(branch));
-      ordered.push(segment);
-    });
-    branches
-      .filter((branch) => branchJoinIndex(selectedTransport, branch) >= mainSegments.length)
-      .forEach((branch) => ordered.push(branch));
-
-    return ordered
+    return orderedTransportPortions(selectedTransport)
       .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
   }, [selectedTransport, selectedStaff]);
 

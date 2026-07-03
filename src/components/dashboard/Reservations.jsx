@@ -1416,12 +1416,25 @@ function DocumentsTab({ item, onSave }) {
 
         const allerPassenger = aller?.passengers?.find((passenger) => passenger.reservationId === item.id);
         const retourPassenger = retour?.passengers?.find((passenger) => passenger.reservationId === item.id);
-        const allerSegment = aller?.segments?.find((segment) =>
-          normalizePlace(segment.from) === normalizePlace(allerPassenger?.pickupCity || item.departureCity)
-        ) || aller?.segments?.[0];
-        const retourSegment = retour?.segments?.find((segment) =>
-          normalizePlace(segment.to) === normalizePlace(retourPassenger?.pickupCity || item.returnCity)
-        ) || retour?.segments?.at(-1);
+        const routeEntryForCity = (transport, city, direction) => {
+          const normalizedCity = normalizePlace(city);
+          if (!transport || !normalizedCity) return null;
+          for (const segment of [...(transport.segments || []), ...(transport.branches || [])]) {
+            const endpoint = direction === "aller" ? segment.from : segment.to;
+            if (normalizePlace(endpoint) === normalizedCity) return { segment, stop: null };
+            const stop = (segment.stops || []).find((candidate) =>
+              normalizePlace(candidate.city) === normalizedCity
+            );
+            if (stop) return { segment, stop };
+          }
+          return null;
+        };
+        const allerEntry = routeEntryForCity(aller, allerPassenger?.pickupCity || item.departureCity, "aller");
+        const retourEntry = routeEntryForCity(retour, retourPassenger?.pickupCity || item.returnCity, "retour");
+        const allerSegment = allerEntry?.segment || aller?.segments?.[0];
+        const allerStop = allerEntry?.stop || null;
+        const retourSegment = retourEntry?.segment || retour?.segments?.at(-1);
+        const retourStop = retourEntry?.stop || null;
         const assignedStaffIds = new Set(allerSegment?.assignedStaffIds || []);
         const convoyeur = aller?.staff?.find((member) => assignedStaffIds.has(member.id)) || aller?.staff?.[0];
 
@@ -1429,13 +1442,13 @@ function DocumentsTab({ item, onSave }) {
           ...current,
           departureCity: saved.departureCity || allerPassenger?.pickupCity || item.departureCity || current.departureCity,
           returnCity: saved.returnCity || retourPassenger?.pickupCity || item.returnCity || current.returnCity,
-          meetingPoint: saved.meetingPoint || allerSegment?.meetingPoint || current.meetingPoint,
-          meetingTime: saved.meetingTime || allerSegment?.meetingTime || current.meetingTime,
-          departureTime: saved.departureTime || allerSegment?.departureTime || current.departureTime,
-          trainType: saved.trainType || allerSegment?.mode || current.trainType,
-          trainNumber: saved.trainNumber || allerSegment?.number || current.trainNumber,
-          returnMeetingPoint: saved.returnMeetingPoint || retourSegment?.meetingPoint || current.returnMeetingPoint,
-          returnTime: saved.returnTime || retourSegment?.arrivalTime || current.returnTime,
+          meetingPoint: saved.meetingPoint || allerStop?.meetingPoint || allerSegment?.meetingPoint || current.meetingPoint,
+          meetingTime: saved.meetingTime || allerStop?.meetingTime || allerStop?.arrivalTime || allerSegment?.meetingTime || current.meetingTime,
+          departureTime: saved.departureTime || allerStop?.departureTime || allerSegment?.departureTime || current.departureTime,
+          trainType: saved.trainType || allerStop?.mode || allerSegment?.mode || current.trainType,
+          trainNumber: saved.trainNumber || allerStop?.number || allerSegment?.number || current.trainNumber,
+          returnMeetingPoint: saved.returnMeetingPoint || retourStop?.meetingPoint || retourSegment?.meetingPoint || current.returnMeetingPoint,
+          returnTime: saved.returnTime || retourStop?.arrivalTime || retourSegment?.arrivalTime || current.returnTime,
           convoyeur: saved.convoyeur || convoyeur?.name || current.convoyeur,
           convoyeurPhone: saved.convoyeurPhone || convoyeur?.phone || current.convoyeurPhone,
         }));

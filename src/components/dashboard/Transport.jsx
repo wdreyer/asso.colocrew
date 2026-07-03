@@ -358,6 +358,39 @@ function mainJoinIndexForBranch(transport, branch) {
   return transport?.direction === "retour" ? segments.length - 1 : segments.length;
 }
 
+function scheduleMinutes(portion) {
+  const value = portion?.departureTime || portion?.arrivalTime || "";
+  const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function orderedTransportPortions(transport) {
+  const segments = transport?.segments || [];
+  const entries = segments.map((portion, index) => ({
+    portion,
+    type: "segment",
+    fallbackOrder: index * 2,
+  }));
+  transportBranches(transport).forEach((portion, index) => {
+    entries.push({
+      portion,
+      type: "branch",
+      fallbackOrder: mainJoinIndexForBranch(transport, portion) * 2 - 0.5 + index / 100,
+    });
+  });
+  return entries.sort((left, right) => {
+    const leftMinutes = scheduleMinutes(left.portion);
+    const rightMinutes = scheduleMinutes(right.portion);
+    if (leftMinutes !== null && rightMinutes !== null && leftMinutes !== rightMinutes) {
+      return leftMinutes - rightMinutes;
+    }
+    if (leftMinutes !== null && rightMinutes === null) return -1;
+    if (leftMinutes === null && rightMinutes !== null) return 1;
+    return left.fallbackOrder - right.fallbackOrder;
+  });
+}
+
 function ticketPortionEntries(transport) {
   const segments = (transport?.segments || []).map((segment, index) => ({
     portion: segment,
@@ -1097,6 +1130,7 @@ function mapTransport(snap) {
     notes:           d.notes           || "",
     passengers:      d.passengers      || [],
     routeGroup:      d.routeGroup      || "direct",
+    routeLabel:      d.routeLabel      || "",
     week:            d.week            || "",
     segments:        Array.isArray(d.segments) ? d.segments : [],
     branches:        Array.isArray(d.branches) ? d.branches : [],
@@ -1426,7 +1460,7 @@ ${pages.join("\n")}
     const stopCity = passengerCity(transport, passenger);
     const isQuai = routeStop?.type === "sub" ? segmentStopType(routeStop.stop) === "quai" : segmentStopType(stopSegment) === "quai";
     const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : segmentMeetingLabel(stopSegment);
-    const time = routeStopTime(routeStop, transport, "departure") || stopSegment.meetingTime || transport.meetingTime || "";
+    const time = routeStop?.stop?.meetingTime || routeStopTime(routeStop, transport, "departure") || stopSegment.meetingTime || transport.meetingTime || "";
     return `
     <div class="transport-card" style="border-color:${dirColor};background:${dirBg};margin-bottom:4px">
       <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(transport.date)}</strong></div>
@@ -3968,6 +4002,9 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   };
 
   const activeT = { ...transport, segments, branches };
+  const portionDisplayOrder = new Map(
+    orderedTransportPortions(activeT).map((entry, index) => [entry.portion.id, index]),
+  );
   const activeSegIdx = segments.findIndex((s) => s.id === editingSegmentId);
   const activeSeg = (activeSegIdx >= 0 && editingSegmentId !== "__bilan__") ? segments[activeSegIdx] : null;
 
@@ -4042,9 +4079,9 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         ) : [];
 
         return (
-          <div key={seg.id} className="tr-ops-seg" style={{ order: i * 100 }}>
+          <div key={seg.id} className="tr-ops-seg" style={{ order: portionDisplayOrder.get(seg.id) ?? i }}>
             <div className="tr-ops-seg-head">
-              <span className="tr-ops-seg-num">{i + 1}</span>
+              <span className="tr-ops-seg-num">{(portionDisplayOrder.get(seg.id) ?? i) + 1}</span>
               <div className="tr-ops-seg-order" aria-label="Ordre du segment">
                 <button type="button" onClick={() => moveSegment(seg.id, -1)} disabled={i === 0} title="Monter le segment">↑</button>
                 <button type="button" onClick={() => moveSegment(seg.id, 1)} disabled={i === segments.length - 1} title="Descendre le segment">↓</button>
@@ -4413,18 +4450,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
               <div
                 key={branch.id}
                 className="tr-ops-seg tr-ops-branch"
-                style={{
-                  order: Math.max(0, Math.min(
-                    segments.length,
-                    mainJoinIndexForBranch(activeT, branch),
-                  )) * 100 - 1 + (branchIndex / 100),
-                }}
+                style={{ order: portionDisplayOrder.get(branch.id) ?? segments.length + branchIndex }}
               >
                 <div className="tr-ops-seg-head">
-                  <span className="tr-ops-seg-num">B{branchIndex + 1}</span>
+                  <span className="tr-ops-seg-num">{(portionDisplayOrder.get(branch.id) ?? segments.length + branchIndex) + 1}</span>
                   <div className="tr-ops-seg-main">
                     <span className="tr-ops-seg-title">
-                      {branch.from || "Départ branche"} → {branch.to || branch.joinsAt || "Jonction"}
+                      Embranchement · {branch.from || "Départ branche"} → {branch.to || branch.joinsAt || "Jonction"}
                     </span>
                     <div className="tr-ops-seg-summary">
                       <span>Rejoint à <strong>{branch.joinsAt || branch.to || "à compléter"}</strong></span>
@@ -6184,6 +6216,16 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
             </div>
 
             <div className="tr-day-trips">
+              {dir === "retour" && dayTrips.filter((trip) => trip.routeGroup === "direct").map((trip) => (
+                <TripCard key={trip.id} trip={trip} zoneName={trip.routeLabel || "Premier trajet commun"}
+                  isExpanded={expandedId === trip.id}
+                  onToggle={() => toggle(trip.id)}
+                  reservations={reservations} staffMembers={staffMembers}
+                  staffContracts={staffContracts} cityOptions={cityOptions} onSave={onSave}
+                  onDelete={(id) => { setExpandedId(null); onDelete(id); }}
+                  onCreated={onCreated}
+                />
+              ))}
               {ROUTE_GROUPS.filter((g) => g.value !== "direct").map((group) => {
                 const trip = dayTrips.find((t) => t.routeGroup === group.value);
                 if (!trip) {
@@ -6206,8 +6248,8 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
                   />
                 );
               })}
-              {dayTrips.filter((t) => t.routeGroup === "direct").map((trip) => (
-                <TripCard key={trip.id} trip={trip} zoneName="Direct / autre"
+              {dir === "aller" && dayTrips.filter((trip) => trip.routeGroup === "direct").map((trip) => (
+                <TripCard key={trip.id} trip={trip} zoneName={trip.routeLabel || "Trajet final commun"}
                   isExpanded={expandedId === trip.id}
                   onToggle={() => toggle(trip.id)}
                   reservations={reservations} staffMembers={staffMembers}
@@ -6278,7 +6320,7 @@ function getEmailRdvInfo(transport, passenger) {
     || transport.departureTime
     || null;
   const arrivalTime = routeArrivalTimeFromStop(transport, routeStop) || transport.arrivalTime || "";
-  let rdvTime = seg?.meetingTime || null;
+  let rdvTime = routeStop?.stop?.meetingTime || seg?.meetingTime || null;
   if (!rdvTime && trainTime) {
     const [h, m] = trainTime.split(":").map(Number);
     const total = ((h * 60 + m - 60) % 1440 + 1440) % 1440;
