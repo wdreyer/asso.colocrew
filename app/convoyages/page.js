@@ -111,6 +111,13 @@ function countChildren(passengers) {
   return (passengers || []).reduce((s, p) => s + Math.max(p.children?.length || 0, 1), 0);
 }
 
+function segmentPathLabel(segment) {
+  return [segment?.from, ...(segment?.stops || []).map((stop) => stop.city), segment?.to]
+    .filter(Boolean)
+    .filter((city, index, items) => index === 0 || normalizePlace(city) !== normalizePlace(items[index - 1]))
+    .join(" → ");
+}
+
 function effectiveLeadStaffId(transport) {
   const assignedIds = [...new Set([
     ...(transport?.segments || []),
@@ -239,15 +246,131 @@ function passengersAtStop(transport, segment) {
 function passengersDroppingAt(transport, city) {
   const target = normalizePlace(city);
   return (transport.passengers || []).filter((passenger) =>
-    normalizePlace(passenger.dropoffCity) === target,
+    normalizePlace(
+      transport.direction === "retour"
+        ? passenger.dropoffCity || passenger.returnCity || passenger.pickupCity
+        : passenger.dropoffCity,
+    ) === target,
   );
 }
 
 function passengersBoardingAt(transport, city) {
+  if (transport.direction === "retour" && !transport.sharedConnection) return [];
   const target = normalizePlace(city);
   return (transport.passengers || []).filter((passenger) =>
     normalizePlace(passengerBoardingCity(transport, passenger)) === target,
   );
+}
+
+function timeMinutes(value) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : Number.MAX_SAFE_INTEGER;
+}
+
+function citySchedule(transport, city, direction = transport.direction) {
+  const target = normalizePlace(city);
+  for (const portion of orderedTransportPortions(transport)) {
+    if (direction !== "retour" && normalizePlace(portion.from) === target) {
+      return { time: portion.meetingTime || portion.departureTime || "", segment: segmentPathLabel(portion) };
+    }
+    for (const stop of portion.stops || []) {
+      if (normalizePlace(stop.city) === target) {
+        return {
+          time: direction === "retour" ? stop.arrivalTime || stop.departureTime || "" : stop.meetingTime || stop.arrivalTime || stop.departureTime || "",
+          segment: segmentPathLabel(portion),
+        };
+      }
+    }
+    if (direction === "retour" && normalizePlace(portion.to) === target) {
+      return { time: portion.arrivalTime || "", segment: segmentPathLabel(portion) };
+    }
+  }
+  return { time: direction === "retour" ? transport.arrivalTime || "" : transport.departureTime || "", segment: "" };
+}
+
+function staffNames(transport, ids = []) {
+  const wanted = new Set(ids.filter(Boolean));
+  return (transport.staff || []).filter((member) => wanted.has(member.id)).map((member) => member.name).filter(Boolean);
+}
+
+function staffCoordinationEvents(transport) {
+  const groups = new Map();
+  (transport.branches || []).forEach((branch) => {
+    const city = branch.joinsAt || (transport.direction === "retour" ? branch.from : branch.to);
+    const key = normalizePlace(city);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, { city, branches: [] });
+    groups.get(key).branches.push(branch);
+  });
+
+  return [...groups.values()].map(({ city, branches }) => {
+    const mainBefore = (transport.segments || []).find((segment) => normalizePlace(segment.to) === normalizePlace(city));
+    const mainAfter = (transport.segments || []).find((segment) => normalizePlace(segment.from) === normalizePlace(city));
+    const isReturn = transport.direction === "retour";
+    const relevant = [mainBefore, ...branches];
+    const ids = relevant.filter(Boolean).flatMap((portion) => portion.assignedStaffIds || []);
+    const names = staffNames(transport, ids);
+    const time = isReturn
+      ? mainBefore?.arrivalTime || mainAfter?.departureTime || branches[0]?.departureTime || ""
+      : [...[mainBefore, ...branches].filter(Boolean).map((portion) => portion.arrivalTime).filter(Boolean)].sort((a, b) => timeMinutes(b) - timeMinutes(a))[0] || mainAfter?.departureTime || "";
+    return {
+      city,
+      time,
+      title: isReturn ? "Séparation des équipes" : "Regroupement des équipes",
+      detail: isReturn
+        ? `Les embranchements repartent ensuite à ${branches.map((branch) => `${branch.to} ${branch.departureTime || "heure à confirmer"}`).join(" · ")}.`
+        : `Le trajet commun repart à ${mainAfter?.departureTime || "une heure à confirmer"}.`,
+      names,
+    };
+  }).sort((left, right) => timeMinutes(left.time) - timeMinutes(right.time));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+}
+
+function passengerRecapRows(transport) {
+  const isReturn = transport.direction === "retour";
+  const isReturnConnection = isReturn && transport.sharedConnection;
+  return (transport.passengers || []).flatMap((passenger) => {
+    const city = isReturnConnection
+      ? passenger.pickupCity || "Centre à confirmer"
+      : isReturn
+      ? passenger.dropoffCity || passenger.returnCity || passenger.pickupCity || "Ville à confirmer"
+      : passenger.pickupCity || passenger.departureCity || "Ville à confirmer";
+    const schedule = citySchedule(transport, city, isReturnConnection ? "aller" : transport.direction);
+    const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
+    return children.map((child) => ({
+      time: schedule.time,
+      city,
+      action: isReturnConnection ? "Prise en charge au centre" : isReturn ? "Descente / remise à la famille" : "Montée / prise en charge",
+      child: childFullName(child) || passenger.childName || "—",
+      stay: passenger.stayCode || shortStayCode(passenger.sejourName),
+      parent: passenger.nom || "—",
+      phone: passenger.phone || "—",
+      segment: schedule.segment,
+    }));
+  }).sort((left, right) => timeMinutes(left.time) - timeMinutes(right.time) || left.city.localeCompare(right.city, "fr"));
+}
+
+function openPassengerRecapPdf(transport) {
+  const rows = passengerRecapRows(transport);
+  const coordination = staffCoordinationEvents(transport);
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Récap convoyage</title><style>
+    @page{size:A4 landscape;margin:9mm}body{font:10px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:17px;margin:0 0 4px;color:#B8336A}p{margin:0 0 8px}.events{margin:7px 0 10px;padding:6px 8px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d8d8df;padding:5px 6px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:9px}tr:nth-child(even){background:#faf8fc}.num{width:24px;text-align:center}.time{width:42px;font-weight:bold}.city{font-weight:bold}.action{width:105px}.phone{white-space:nowrap}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
+  </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
+  <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
+  <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
+  ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
+  <table><thead><tr><th class="num">#</th><th>Heure</th><th>Ville</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
+  ${rows.map((row, index) => `<tr><td class="num">${index + 1}</td><td class="time">${escapeHtml(row.time || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`).join("")}
+  </tbody></table></body></html>`;
+  const win = window.open("", "_blank", "width=1200,height=800");
+  if (!win) return;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
 }
 
 function childNamesForPassengers(passengers) {
@@ -426,7 +549,7 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
                   )}
                   {branches.map((branch) => (
                     <div key={branch.id || `${branch.from}-${branch.to}`} style={{ fontSize: 11, color: "#B8336A", marginTop: 3, fontWeight: 700 }}>
-                      Embranchement : {branch.from || "?"} → {branch.to || "?"}
+                      Embranchement : {segmentPathLabel(branch) || "?"}
                     </div>
                   ))}
                   <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
@@ -530,6 +653,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
   const firstName = firstNameOf(staff?.name);
   const leadMember = leadStaffMember(transport);
   const stageCities = transportStageCities(transport);
+  const coordinationEvents = staffCoordinationEvents(transport);
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 60 }}>
@@ -570,10 +694,10 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
             ← Changer
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={() => openPassengerRecapPdf(transport)}
             style={{ background: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", color: "#B8336A", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
           >
-            PDF 🖨️
+            Récap PDF 🖨️
           </button>
         </div>
       </div>
@@ -647,6 +771,23 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
           </div>
         </div>
 
+        {coordinationEvents.length > 0 && (
+          <>
+            <SectionTitle color="#B8336A">Coordination des équipes</SectionTitle>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+              {coordinationEvents.map((event) => (
+                <div key={`${event.city}-${event.title}`} style={{ padding: "11px 14px", background: "#fff0f6", border: "1.5px solid #f3d0e6", borderRadius: 11 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13, color: "#B8336A" }}>
+                    {event.time || "Heure à confirmer"} · {event.title} à {event.city}
+                  </div>
+                  {event.names.length > 0 && <div style={{ marginTop: 3, fontSize: 12, color: "#1e1040", fontWeight: 700 }}>{event.names.join(", ")}</div>}
+                  <div style={{ marginTop: 3, fontSize: 12, color: "#64748b" }}>{event.detail}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* ── My segments ── */}
         <SectionTitle color="#7c3aed">
           Mes segments {mySegments.length > 0 ? `(${mySegments.length})` : ""}
@@ -663,14 +804,15 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               const childCount = Number(seg.sharedChildrenCount || 0) || countChildren(stopPassengers);
               const finalDropoffs = passengersDroppingAt(transport, seg.to);
               return (
-                <div key={seg.id || i} style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
+                <details key={seg.id || i} style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
-                  <div style={{
+                  <summary style={{
                     padding: "11px 16px", background: "#7c3aed",
                     display: "flex", alignItems: "center", justifyContent: "space-between",
+                    listStyle: "none", cursor: "pointer",
                   }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>
-                      Segment {i + 1}{seg._type === "branch" ? " · Embranchement" : ""} — {seg.from || "?"} → {seg.to || "?"}
+                      Segment {i + 1}{seg._type === "branch" ? " · Embranchement" : ""} — {segmentPathLabel(seg) || "?"}
                     </div>
                     <div style={{
                       background: "rgba(255,255,255,0.2)", borderRadius: 100,
@@ -678,7 +820,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                     }}>
                       {childCount} enfant{childCount > 1 ? "s" : ""}
                     </div>
-                  </div>
+                  </summary>
 
                   {/* Segment details */}
                   <div style={{ padding: "14px 16px" }}>
@@ -727,7 +869,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                             {stop.meetingPoint && <div style={{ color: "#64748b", marginTop: 2, fontSize: 12 }}>RDV : {stop.meetingPoint}</div>}
                             {boardings.length > 0 && (
                               <div style={{ marginTop: 7, padding: "7px 9px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 7, color: "#1d4ed8", fontSize: 12 }}>
-                                <strong>↑ Montent ici ({countChildren(boardings)}) :</strong>{" "}
+                                <strong>{isAller ? "↑ Montent ici" : "Prise en charge au centre"} ({countChildren(boardings)}) :</strong>{" "}
                                 {boardingNames.join(", ") || "Noms à compléter"}
                               </div>
                             )}
@@ -756,7 +898,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                     {stopPassengers.length > 0 && (
                       <div style={{ marginTop: 14 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#7c3aed", marginBottom: 8 }}>
-                          Enfants à prendre en charge
+                          {isAller || transport.sharedConnection ? "Enfants à prendre en charge" : "Enfants qui descendent / à remettre aux familles"}
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {stopPassengers.map((p, pi) => {
@@ -814,7 +956,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                       </div>
                     )}
                   </div>
-                </div>
+                </details>
               );
             })}
           </div>
@@ -824,7 +966,8 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
         {myTickets.length > 0 && (
           <>
             <SectionTitle color="#0891b2">Billets de transport ({myTickets.length})</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+            <Collapse title={`${myTickets.length} billet${myTickets.length > 1 ? "s" : ""} de transport`} icon="🎫" defaultOpen={false}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {myTickets.map((ticket, i) => (
                 <div key={ticket.id || i} style={{
                   padding: "14px 16px", background: "#f0f9ff",
@@ -869,6 +1012,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                 </div>
               ))}
             </div>
+            </Collapse>
           </>
         )}
 

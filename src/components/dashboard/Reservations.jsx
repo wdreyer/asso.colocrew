@@ -30,6 +30,7 @@ const TABS = [
 
 const STATUS_LABEL = { pending: "En cours", validated: "Validée", deleted: "Passée" };
 const STATUS_BADGE  = { pending: "warning",  validated: "success",  deleted: "neutral" };
+const STAGE_QUAI_RDV = "Rendez-vous sur le quai — l’animateur·ice vous contactera";
 
 const EMAIL_TEMPLATES = [
   {
@@ -107,6 +108,11 @@ function normalizePlace(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function isRoadTransportMode(value) {
+  const mode = normalizePlace(value);
+  return mode.includes("bus") || mode.includes("autocar") || mode.includes("minibus");
 }
 
 function timeToMinutes(value) {
@@ -1442,12 +1448,12 @@ function DocumentsTab({ item, onSave }) {
           ...current,
           departureCity: saved.departureCity || allerPassenger?.pickupCity || item.departureCity || current.departureCity,
           returnCity: saved.returnCity || retourPassenger?.pickupCity || item.returnCity || current.returnCity,
-          meetingPoint: saved.meetingPoint || allerStop?.meetingPoint || allerSegment?.meetingPoint || current.meetingPoint,
-          meetingTime: saved.meetingTime || allerStop?.meetingTime || allerStop?.arrivalTime || allerSegment?.meetingTime || current.meetingTime,
+          meetingPoint: saved.meetingPoint || (allerStop && !isRoadTransportMode(allerSegment?.mode) ? STAGE_QUAI_RDV : allerStop?.meetingPoint) || allerSegment?.meetingPoint || current.meetingPoint,
+          meetingTime: saved.meetingTime || (allerStop ? allerStop.meetingTime || "" : allerSegment?.meetingTime || current.meetingTime),
           departureTime: saved.departureTime || allerStop?.departureTime || allerSegment?.departureTime || current.departureTime,
           trainType: saved.trainType || allerStop?.mode || allerSegment?.mode || current.trainType,
           trainNumber: saved.trainNumber || allerStop?.number || allerSegment?.number || current.trainNumber,
-          returnMeetingPoint: saved.returnMeetingPoint || retourStop?.meetingPoint || retourSegment?.meetingPoint || current.returnMeetingPoint,
+          returnMeetingPoint: saved.returnMeetingPoint || (retourStop && !isRoadTransportMode(retourSegment?.mode) ? STAGE_QUAI_RDV : retourStop?.meetingPoint) || retourSegment?.meetingPoint || current.returnMeetingPoint,
           returnTime: saved.returnTime || retourStop?.arrivalTime || retourSegment?.arrivalTime || current.returnTime,
           convoyeur: saved.convoyeur || convoyeur?.name || current.convoyeur,
           convoyeurPhone: saved.convoyeurPhone || convoyeur?.phone || current.convoyeurPhone,

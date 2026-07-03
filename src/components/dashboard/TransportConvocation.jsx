@@ -14,6 +14,8 @@ const WEEK_MAP = {
   "2026-08-03": "S3",
   "2026-08-17": "S4",
 };
+const STAGE_QUAI_RDV = "Rendez-vous sur le quai — l’animateur·ice vous contactera";
+const STAGE_QUAI_DETAILS = "La voie, la voiture et l’heure précise seront communiquées par l’animateur·ice.";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,11 @@ function weekFromStartDate(iso) {
 
 function normalizeCity(v) {
   return String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+}
+
+function isRoadMode(value) {
+  const mode = normalizeCity(value);
+  return mode.includes("bus") || mode.includes("autocar") || mode.includes("minibus");
 }
 
 function minutesFromTime(value) {
@@ -56,29 +63,34 @@ function legacyReminderHtml(items) {
   </ul>`;
 }
 
-function transportAllCities(transport) {
+function transportFamilyActionCities(transport) {
   const cities = new Set();
+  const isReturn = transport.direction === "retour";
   for (const seg of [...(transport.segments || []), ...(transport.branches || [])]) {
-    if (seg.from) cities.add(normalizeCity(seg.from));
-    if (seg.to)   cities.add(normalizeCity(seg.to));
-    for (const stop of seg.stops || []) if (stop.city) cities.add(normalizeCity(stop.city));
+    const endpoint = isReturn ? seg.to : seg.from;
+    if (endpoint) cities.add(normalizeCity(endpoint));
+    for (const stop of seg.stops || []) {
+      // Sur un trajet de liaison retour, une étape sert à récupérer un groupe au centre,
+      // pas à remettre un enfant à sa famille.
+      if (stop.city && !(isReturn && transport.sharedConnection)) cities.add(normalizeCity(stop.city));
+    }
   }
-  if (transport.departureCity) cities.add(normalizeCity(transport.departureCity));
-  if (transport.arrivalCity)   cities.add(normalizeCity(transport.arrivalCity));
   return cities;
 }
 
 function getMeetingInfo(transport, city) {
   if (!transport) return null;
   const nc = normalizeCity(city);
+  const isReturn = transport.direction === "retour";
   for (const seg of [...(transport.segments || []), ...(transport.branches || [])]) {
-    const boardCity = transport.direction === "aller" ? seg.from : seg.to;
+    const boardCity = isReturn ? seg.to : seg.from;
     if (normalizeCity(boardCity) === nc) {
       return {
-        meetingPoint:  seg.meetingPoint  || transport.meetingPoint  || boardCity || "",
-        meetingTime:   seg.meetingTime   || transport.meetingTime   || "",
+        meetingPoint:  isReturn ? `À la descente à ${boardCity}` : seg.meetingPoint || transport.meetingPoint || boardCity || "",
+        meetingTime:   isReturn ? seg.arrivalTime || transport.arrivalTime || "" : seg.meetingTime || transport.meetingTime || "",
         platform:      seg.platform      || transport.platform      || "",
         departureTime: seg.departureTime || transport.departureTime || "",
+        arrivalTime:   seg.arrivalTime   || transport.arrivalTime || "",
         trainType:     transport.trainType   || "",
         trainNumber:   transport.trainNumber || seg.number || "",
         date:          transport.date || "",
@@ -86,23 +98,27 @@ function getMeetingInfo(transport, city) {
     }
     for (const stop of seg.stops || []) {
       if (normalizeCity(stop.city) === nc) {
+        const isRailStage = !isRoadMode(seg.mode || seg.trainType);
         return {
-          meetingPoint:  stop.meetingPoint  || seg.meetingPoint  || transport.meetingPoint  || stop.city || "",
-          meetingTime:   stop.meetingTime   || stop.arrivalTime  || seg.meetingTime         || transport.meetingTime  || "",
+          meetingPoint:  isReturn ? `À la descente du quai à ${stop.city}` : isRailStage ? STAGE_QUAI_RDV : stop.meetingPoint || seg.meetingPoint || transport.meetingPoint || stop.city || "",
+          meetingTime:   isReturn ? stop.arrivalTime || "" : stop.meetingTime || "",
           platform:      stop.platform      || seg.platform      || transport.platform      || "",
           departureTime: stop.departureTime || seg.departureTime || transport.departureTime || "",
-          trainType:     transport.trainType   || "",
+          arrivalTime:   stop.arrivalTime || "",
+          trainType:     stop.mode || seg.mode || transport.trainType || "",
           trainNumber:   transport.trainNumber || seg.number || "",
           date:          transport.date || "",
+          isStageStop:   isRailStage && !isReturn,
         };
       }
     }
   }
   return {
-    meetingPoint:  transport.meetingPoint  || transport.departureCity || "",
-    meetingTime:   transport.meetingTime   || "",
+    meetingPoint:  isReturn ? `À la descente à ${city || transport.arrivalCity || "l'arrivée"}` : transport.meetingPoint || transport.departureCity || "",
+    meetingTime:   isReturn ? transport.arrivalTime || "" : transport.meetingTime || "",
     platform:      transport.platform      || "",
     departureTime: transport.departureTime || "",
+    arrivalTime:   transport.arrivalTime || "",
     trainType:     transport.trainType     || "",
     trainNumber:   transport.trainNumber   || "",
     date:          transport.date          || "",
@@ -163,21 +179,25 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
     returnArrivalTime: retourTransport?.arrivalTime,
   });
 
-  const mkRdv = (m, city) => m?.meetingPoint
+  const mkRdv = (m, city) => m?.isStageStop
+    ? `<strong>${STAGE_QUAI_RDV}</strong><br><span style="font-size:12px;color:#64748b;">${STAGE_QUAI_DETAILS}</span>`
+    : m?.meetingPoint
     ? `<strong>${m.meetingPoint}</strong>${m.platform ? `<br><span style="font-size:12px;color:#64748b;">Voie / quai ${m.platform}</span>` : ""}`
     : city ? `<strong>${city}</strong>` : TBC;
 
   const mkDateTime = (m, fallbackDate, accentColor) => {
     const d = m?.date || fallbackDate;
     return d
-      ? `<strong>${fmtDateLong(d)}</strong>${m?.meetingTime ? `<br><span style="color:${accentColor};font-weight:700;">à partir de ${m.meetingTime}</span>` : ""}`
+      ? `<strong>${fmtDateLong(d)}</strong>${m?.meetingTime ? `<br><span style="color:${accentColor};font-weight:700;">RDV à ${m.meetingTime}</span>` : ""}`
       : TBC;
   };
 
-  const mkTrain = (m) => {
+  const mkTrain = (m, isReturn = false) => {
     const label = m?.trainType && m?.trainNumber ? `${m.trainType} n°${m.trainNumber}` : (m?.trainNumber ? `Train n°${m.trainNumber}` : "");
-    const dep   = m?.departureTime ? `Départ à <strong>${m.departureTime}</strong>` : "";
-    return [label, dep].filter(Boolean).join("<br>") || TBC;
+    const schedule = isReturn
+      ? (m?.arrivalTime || m?.meetingTime ? `Arrivée prévue à <strong>${m.arrivalTime || m.meetingTime}</strong>` : "")
+      : (m?.departureTime ? `Départ à <strong>${m.departureTime}</strong>` : "");
+    return [label, schedule].filter(Boolean).join("<br>") || TBC;
   };
 
   const td0 = (last) => `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
@@ -190,7 +210,11 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
     <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
     <p style="margin:0;font-size:15px;font-weight:800;color:#1e1040;">${animInfo.name}</p>
     ${animInfo.phone ? `<p style="margin:4px 0 0;font-size:14px;color:#374151;">📞 ${animInfo.phone}</p>` : ""}
-  </div>` : "";
+  </div>` : `
+  <div style="margin:0 28px 20px;padding:14px 20px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
+    <p style="margin:0;font-size:14px;font-weight:700;color:#374151;line-height:1.6;">Les coordonnées de l’animateur·ice vous seront communiquées prochainement.</p>
+  </div>`;
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -257,8 +281,8 @@ function buildConvocationHtml(reservation, allerTransport, retourTransport, over
         </tr>
         <tr>
           <td ${td0(true)}>Informations complémentaires</td>
-          <td ${td1(true)}>${mkTrain(allerM)}</td>
-          <td ${td2(true)}>${mkTrain(retourM)}</td>
+          <td ${td1(true)}>${mkTrain(allerM, false)}</td>
+          <td ${td2(true)}>${mkTrain(retourM, true)}</td>
         </tr>
       </tbody>
     </table>
@@ -358,20 +382,39 @@ export default function TransportConvocation() {
       .filter((t) => t.direction === "aller")
       .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
 
-    return allerTransports.map((allerT) => {
-      const retourT = transports.find((t) => t.week === allerT.week && t.direction === "retour") || null;
-      const allerCities = transportAllCities(allerT);
+    const assignedAller = (reservation) => {
+      const week = weekFromStartDate(reservation.sejour?.startDate);
+      const candidates = allerTransports.filter((transport) => transport.week === week);
+      const city = normalizeCity(reservation.transport?.departureCity || "");
+      return candidates.find((transport) =>
+        (transport.passengers || []).some((passenger) => passenger.reservationId === reservation.id)
+        && transportFamilyActionCities(transport).has(city),
+      ) || candidates.find((transport) =>
+        transportFamilyActionCities(transport).has(city),
+      ) || null;
+    };
 
+    return allerTransports.map((allerT) => {
       const matched = reservations.filter((r) => {
         if (!r.legal?.email) return false;
-        if (weekFromStartDate(r.sejour?.startDate) !== allerT.week) return false;
-        const depCity = normalizeCity(r.transport?.departureCity || "");
-        return depCity && allerCities.has(depCity);
+        return assignedAller(r)?.id === allerT.id;
       });
 
-      return { allerT, retourT, reservations: matched };
+      return { allerT, reservations: matched };
     }).filter((g) => g.reservations.length > 0);
   }, [transports, reservations]);
+
+  const findRetourTransport = useCallback((reservation) => {
+    const week = weekFromStartDate(reservation.sejour?.startDate);
+    const candidates = transports.filter((transport) => transport.week === week && transport.direction === "retour");
+    const city = normalizeCity(reservation.transport?.returnCity || "");
+    return candidates.find((transport) =>
+      (transport.passengers || []).some((passenger) => passenger.reservationId === reservation.id)
+      && transportFamilyActionCities(transport).has(city),
+    ) || candidates.find((transport) =>
+      transportFamilyActionCities(transport).has(city),
+    ) || null;
+  }, [transports]);
 
   const totalPending = useMemo(
     () => groups.reduce((acc, g) => acc + g.reservations.filter((r) => !r.convocationSent).length, 0),
@@ -433,7 +476,7 @@ export default function TransportConvocation() {
     const toSend = groups.flatMap((g) =>
       g.reservations
         .filter((r) => !r.convocationSent)
-        .map((r) => ({ res: r, allerT: g.allerT, retourT: g.retourT }))
+        .map((r) => ({ res: r, allerT: g.allerT, retourT: findRetourTransport(r) }))
     );
     if (toSend.length === 0) { showToast("Toutes les convocations ont déjà été envoyées", "info"); return; }
 
@@ -458,7 +501,7 @@ export default function TransportConvocation() {
     } else {
       showToast(`${toSend.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
     }
-  }, [groups, sendOne, showToast]);
+  }, [groups, findRetourTransport, sendOne, showToast]);
 
   const openPreview = useCallback((res, allerT, retourT) => {
     setEditSubject(`ColoCrew — Convocation de transport — ${res.sejour?.name || "séjour"}`);
@@ -580,7 +623,7 @@ export default function TransportConvocation() {
         </div>
       )}
 
-      {filteredGroups.map(({ allerT, retourT, reservations: rows }) => {
+      {filteredGroups.map(({ allerT, reservations: rows }) => {
         const sentCount    = rows.filter((r) => r.convocationSent).length;
         const pendingCount = rows.length - sentCount;
 
@@ -625,6 +668,7 @@ export default function TransportConvocation() {
                 <tbody>
                   {rows.map((res, idx) => {
                     const allerCity  = res.transport?.departureCity || "";
+                    const retourT    = findRetourTransport(res);
                     const meeting    = getMeetingInfo(allerT, allerCity);
                     const rdvLabel   = meeting?.meetingPoint || allerCity || "—";
                     const kids       = childrenNames(res.minor);

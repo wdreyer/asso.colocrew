@@ -326,6 +326,22 @@ function isBranchSegment(segment) {
   return segment?.kind === "branch" || segment?.routeKind === "branch";
 }
 
+const STAGE_QUAI_RDV = "Rendez-vous sur le quai — l’animateur·ice vous contactera";
+const STAGE_QUAI_DETAILS = "La voie, la voiture et l’heure précise seront communiquées par l’animateur·ice.";
+
+function isRoadTransportMode(value) {
+  const mode = normalizePlace(value);
+  return mode.includes("bus") || mode.includes("autocar") || mode.includes("minibus");
+}
+
+function isRailStageStop(routeStop) {
+  return Boolean(
+    routeStop
+    && (routeStop.type === "sub" || routeStop.type === "branch-sub")
+    && !isRoadTransportMode(routeStop.segment?.mode || routeStop.branch?.mode),
+  );
+}
+
 function segmentStopType(segment) {
   return segment?.stopType || "rdv";
 }
@@ -539,6 +555,7 @@ function routeStopTime(stop, transport, kind = "arrival") {
 
 function routeStopMeetingPoint(stop) {
   if (!stop) return "";
+  if (isRailStageStop(stop)) return STAGE_QUAI_RDV;
   if (stop.type === "sub" || stop.type === "branch-sub") return segmentMeetingLabel(stop.stop);
   return segmentMeetingLabel(stop.branch || stop.segment);
 }
@@ -655,6 +672,7 @@ function cityStopSegment(transport, city) {
 function isQuaiCity(transport, city) {
   const normalizedCity = normalizePlace(city);
   const stop = routeBoardingStops(transport).find((item) => normalizePlace(item.city) === normalizedCity);
+  if (isRailStageStop(stop)) return true;
   if (stop?.type === "sub" || stop?.type === "branch-sub") return segmentStopType(stop.stop) === "quai";
   return segmentStopType(stop?.segment) === "quai";
 }
@@ -771,7 +789,10 @@ function ticketsLinkedToSegments(transport) {
 }
 
 function segmentRouteLabel(segment) {
-  return `${segment?.from || "Départ"} → ${segment?.to || "Arrivée"}`;
+  const points = [segment?.from, ...segmentSubStops(segment).map((stop) => stop.city), segment?.to]
+    .filter(Boolean)
+    .filter((city, index, items) => index === 0 || normalizePlace(city) !== normalizePlace(items[index - 1]));
+  return points.join(" → ") || "Départ → Arrivée";
 }
 
 function transportRouteLabel(transport) {
@@ -1186,6 +1207,8 @@ function mapReservationForTransport(snap) {
     status: d.status || "pending",
     convocationSent: Boolean(d.convocationSent),
     convocationSentAt: d.convocationSentAt || null,
+    convocationReminderDone: Boolean(d.convocationReminderDoneAt || d.convocationReminderSentAt),
+    convocationReminderDoneAt: d.convocationReminderDoneAt || d.convocationReminderSentAt || null,
     isImported2026: d.validationSource === "ete26_validated_workbook",
     childCount: Math.max(children.length, 1),
   };
@@ -1672,7 +1695,11 @@ function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "",
     <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
     <p style="margin:0;font-size:15px;font-weight:800;color:#1e1040;">${animInfo.name}</p>
     ${animInfo.phone ? `<p style="margin:4px 0 0;font-size:14px;color:#374151;">📞 ${animInfo.phone}</p>` : ""}
-  </div>` : "";
+  </div>` : `
+  <div style="margin:0 28px 20px;padding:14px 20px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
+    <p style="margin:0;font-size:14px;font-weight:700;color:#374151;line-height:1.6;">Les coordonnées de l’animateur·ice vous seront communiquées prochainement.</p>
+  </div>`;
 
   return `
 <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(30,16,64,0.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
@@ -2166,7 +2193,7 @@ function TripTimeline({ transport, onToggleStaff }) {
                     return (
                       <div key={branch.id} className="tl-fork-branch">
                         <span className="tl-fork-branch-chip">
-                          <strong>{branchStopCity(transport, branch) || "Branche"}</strong>
+                          <strong>{segmentRouteLabel(branch)}</strong>
                           <small>
                             {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
                             {branch.arrivalTime   && <span>Arr. {branch.arrivalTime}</span>}
@@ -2211,7 +2238,7 @@ function TripTimeline({ transport, onToggleStaff }) {
                 <div className="tl-parallel-routes">
                   <div className="tl-parallel-route is-main">
                     <span className="tl-parallel-route-line" />
-                    <strong>{seg.from} → {seg.to}</strong>
+                    <strong>{segmentRouteLabel(seg)}</strong>
                     <small>
                       {seg.departureTime && <span>{seg.departureTime}</span>}
                       {seg.arrivalTime && <span>→ {seg.arrivalTime}</span>}
@@ -2221,7 +2248,7 @@ function TripTimeline({ transport, onToggleStaff }) {
                   {parallelBranches.map((branch) => (
                     <div key={branch.id} className="tl-parallel-route is-branch">
                       <span className="tl-parallel-route-line" />
-                      <strong>{branch.from} → {branch.to}</strong>
+                      <strong>{segmentRouteLabel(branch)}</strong>
                       <small>
                         {branch.departureTime && <span>{branch.departureTime}</span>}
                         {branch.arrivalTime && <span>→ {branch.arrivalTime}</span>}
@@ -2306,7 +2333,7 @@ function TripTimeline({ transport, onToggleStaff }) {
                 return (
                   <div key={branch.id} className="tl-fork-branch">
                     <span className="tl-fork-branch-chip">
-                      <strong>{branchStopCity(transport, branch) || "Branche"}</strong>
+                      <strong>{segmentRouteLabel(branch)}</strong>
                       <small>
                         {branch.departureTime && <span>Dép. {branch.departureTime}</span>}
                         {branch.arrivalTime   && <span>Arr. {branch.arrivalTime}</span>}
@@ -3041,7 +3068,7 @@ function ConvoyageDayMap({ transports, reservations, week, direction }) {
                   <span>{countChildren(transport.passengers)} enf.</span>
                 </div>
                 <p>{transport.departureCity || "?"} → {transport.arrivalCity || "?"}</p>
-                {branches.map((branch) => <small key={branch.id}>Embranchement {branch.from} → {branch.to} · {countChildren(passengersOnBranch(transport, branch))} enf.</small>)}
+                {branches.map((branch) => <small key={branch.id}>Embranchement {segmentRouteLabel(branch)} · {countChildren(passengersOnBranch(transport, branch))} enf.</small>)}
                 {sharedBus && <small className="is-bus">Autocar partagé · regroupement à Bordeaux · {sharedBus.sharedChildrenCount || countChildren(transport.passengers)} enf.</small>}
                 <small>Chef : {lead?.name || "à désigner"}</small>
               </article>
@@ -4124,7 +4151,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 <span>En parallèle de ce segment</span>
                 {attachedBranches.map((branch) => (
                   <strong key={branch.id}>
-                    {branch.from} → {branch.to} · {countChildren(passengersOnBranch(activeT, branch))} enf.
+                    {segmentRouteLabel(branch)} · {countChildren(passengersOnBranch(activeT, branch))} enf.
                     {(branch.departureTime || branch.arrivalTime) && ` · ${branch.departureTime || "--:--"} → ${branch.arrivalTime || "--:--"}`}
                   </strong>
                 ))}
@@ -4445,6 +4472,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             const seatsOk = needed === 0 || bought >= needed;
             const trainLabel = `${branch.mode || "Transport"}${branch.number ? ` ${branch.number}` : ""}`;
             const branchCityChoices = cityChoicesFor(branch.from, branch.to, branch.joinsAt);
+            const branchActionCities = isRetour
+              ? [...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.arrivalTime || stop.departureTime || "" })), { city: branch.to, time: branch.arrivalTime || "" }]
+              : [{ city: branch.from, time: branch.meetingTime || branch.departureTime || "" }, ...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.meetingTime || stop.departureTime || stop.arrivalTime || "" }))];
+            const branchActionGroups = branchActionCities.map((action) => ({
+              ...action,
+              passengers: branchPassengers.filter((passenger) => normalizePlace(passengerCity(activeT, passenger)) === normalizePlace(action.city)),
+            })).filter((action) => action.city && action.passengers.length > 0);
 
             return (
               <div
@@ -4456,7 +4490,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <span className="tr-ops-seg-num">{(portionDisplayOrder.get(branch.id) ?? segments.length + branchIndex) + 1}</span>
                   <div className="tr-ops-seg-main">
                     <span className="tr-ops-seg-title">
-                      Embranchement · {branch.from || "Départ branche"} → {branch.to || branch.joinsAt || "Jonction"}
+                      Embranchement · {segmentRouteLabel(branch) || "Trajet à compléter"}
                     </span>
                     <div className="tr-ops-seg-summary">
                       <span>Rejoint à <strong>{branch.joinsAt || branch.to || "à compléter"}</strong></span>
@@ -4577,14 +4611,29 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <details className="tr-ops-details">
                     <summary>Enfants <span>{branchKids.length}</span></summary>
                     <div className="tr-ops-enfants">
-                      <div className="tr-ops-stop-group">
-                        <span className="tr-ops-stop-title">{stopActionText(activeT, branchStopCity(activeT, branch))}</span>
-                        <div className="tr-ops-stop-kids">
-                          {branchKids.map((child, childIndex) => (
-                            <ChildChip key={`branch-child-${branch.id}-${childIndex}`} child={child} missingTicketIds={new Set()} openReservation={openReservation} />
-                          ))}
-                        </div>
-                      </div>
+                      {branchActionGroups.map((group, groupIndex) => {
+                        const childrenAtCity = group.passengers.flatMap((passenger) =>
+                          (passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }])
+                            .map((child) => ({ ...child, reservationId: passenger.reservationId })),
+                        );
+                        return (
+                          <div key={`${branch.id}-${group.city}`} className="tr-ops-stop-group is-inline">
+                            <div className="tr-ops-stop-main">
+                              <span className="tr-ops-stop-badge">{groupIndex < branchActionGroups.length - 1 ? "Étape" : "Destination"}</span>
+                              <strong>{group.city}</strong>
+                              <span className="tr-ops-stop-time">{isRetour ? "Arrivée" : "RDV"} {group.time || "à compléter"}</span>
+                            </div>
+                            <div className="tr-ops-stop-counts">
+                              <span>{isRetour ? "Descendent" : "Montent"} <strong>{childrenAtCity.length}</strong></span>
+                            </div>
+                            <div className="tr-ops-stop-kids">
+                              {childrenAtCity.map((child, childIndex) => (
+                                <ChildChip key={`branch-child-${branch.id}-${group.city}-${childIndex}`} child={child} missingTicketIds={new Set()} openReservation={openReservation} />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </details>
                 )}
@@ -6327,7 +6376,9 @@ function getEmailRdvInfo(transport, passenger) {
     rdvTime = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
   }
   const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || transport.meetingPoint || "";
-  const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || transport.stopType || "rdv";
+  const stopType = isRailStageStop(routeStop)
+    ? "quai"
+    : routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || transport.stopType || "rdv";
   const platform = routeStop?.stop?.platform || seg?.platform || transport.platform || "";
   const trainLabel = routeTrainSummary(transport, routeStop);
   return { city, rdvTime, trainTime, departureTime: trainTime, arrivalTime, trainLabel, meetingPoint, stopType, platform };
@@ -6339,11 +6390,14 @@ function getRetourInfo(transport, passenger, allTransports) {
   const retourTransports = allTransports.filter(
     (t) => t.direction === "retour" && t.week === transport.week &&
       (!transport.sejourName || transport.sejourName === "-" || t.sejourName === transport.sejourName),
-  );
+  ).sort((left, right) => {
+    const leftAssigned = (left.passengers || []).some((item) => item.reservationId === passenger.reservationId);
+    const rightAssigned = (right.passengers || []).some((item) => item.reservationId === passenger.reservationId);
+    return Number(rightAssigned) - Number(leftAssigned);
+  });
   for (const rt of retourTransports) {
-    const stopCities = new Set(transportStopCities(rt).map(normalizePlace).filter(Boolean));
-    if (!retourCity || stopCities.has(retourCity) || stopCities.size === 0) {
-      const routeStop = retourCity ? routeStopForCity(rt, retourCity) : null;
+    const routeStop = retourCity ? routeStopForCity(rt, retourCity) : null;
+    if (!retourCity || routeStop) {
       const seg = routeStop?.segment || null;
       const arrivalTime = routeStopTime(routeStop, rt, "arrival") || seg?.arrivalTime || rt.arrivalTime || "";
       const departureTime = routeDepartureTimeFromStop(rt, routeStop) || rt.departureTime || "";
@@ -6352,7 +6406,7 @@ function getRetourInfo(transport, passenger, allTransports) {
       const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || rt.stopType || "rdv";
       const platform = routeStop?.stop?.platform || seg?.platform || rt.platform || "";
       const trainLabel = routeTrainSummary(rt, routeStop);
-      return { date: rt.date, departureTime, arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel };
+      return { date: rt.date, departureTime, arrivalTime, meetingTime: arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel };
     }
   }
   return null;
@@ -6382,10 +6436,11 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
     rdvTime ? `Heure de RDV : ${rdvTime}${trainTime ? ` (départ train prévu ${trainTime})` : ""}` : null,
     rdvInfo.trainLabel ? `Train : ${rdvInfo.trainLabel}` : null,
     rdvInfo.arrivalTime ? `Arrivée prévue : ${rdvInfo.arrivalTime}` : null,
-    stopType === "quai" ? `Rendez-vous directement sur le quai${platform ? ` - voie ${platform}` : ""}.` : (meetingPoint ? `Lieu de RDV : ${meetingPoint}` : null),
+    stopType === "quai" ? `${STAGE_QUAI_RDV}. ${STAGE_QUAI_DETAILS}` : (meetingPoint ? `Lieu de RDV : ${meetingPoint}` : null),
     ``,
     retourInfo ? `- RETOUR -` : null,
     retourInfo ? `Date de retour : ${fmtDateLong(retourInfo.date)}` : null,
+    retourInfo?.arrivalTime ? `Heure de rendez-vous retour : ${retourInfo.arrivalTime}` : null,
     retourInfo?.trainLabel ? `Train retour : ${retourInfo.trainLabel}` : null,
     retourInfo?.departureTime ? `Départ retour prévu : ${retourInfo.departureTime}` : null,
     retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
@@ -6430,7 +6485,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
   const TBC = `<span style="color:#94a3b8;font-style:italic;">À confirmer</span>`;
 
   const allerRdv = (() => {
-    if (stopType === "quai" && platform) return `<strong>Voie / Quai ${platform}</strong><br><span style="font-size:12px;color:#64748b;">Gare de ${city}</span>`;
+    if (stopType === "quai") return `<strong>${STAGE_QUAI_RDV}</strong><br><span style="font-size:12px;color:#64748b;">${STAGE_QUAI_DETAILS}</span>${city ? `<br><span style="font-size:12px;color:#64748b;">Gare de ${city}</span>` : ""}`;
     if (meetingPoint) return `<strong>${meetingPoint}</strong>${city ? `<br><span style="font-size:12px;color:#64748b;">Gare de ${city}</span>` : ""}`;
     if (city) return `<strong>${city}</strong>`;
     return TBC;
@@ -6449,7 +6504,9 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     return lines.length ? lines.join("<br>") : TBC;
   };
   const allerTrain = trainDetailHtml(rdvInfo.trainLabel, rdvInfo.departureTime || trainTime, rdvInfo.arrivalTime, transport.arrivalCity);
-  const retourDate = retourInfo?.date ? `<strong>${fmtDateLong(retourInfo.date)}</strong>` : TBC;
+  const retourDate = retourInfo?.date
+    ? `<strong>${fmtDateLong(retourInfo.date)}</strong>${retourInfo.arrivalTime ? `<br><span style="color:#ea580c;font-weight:700;">RDV à ${retourInfo.arrivalTime}</span>` : ""}`
+    : TBC;
   const retourTrain = retourInfo
     ? trainDetailHtml(retourInfo.trainLabel, retourInfo.departureTime, retourInfo.arrivalTime, retourInfo.arrivalCity)
     : TBC;
@@ -6479,7 +6536,11 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
     <p style="margin:0;font-size:15px;font-weight:800;color:#1e1040;">${animInfo.name}</p>
     ${animInfo.phone ? `<p style="margin:4px 0 0;font-size:14px;color:#374151;">📞 ${animInfo.phone}</p>` : ""}
-  </div>` : "";
+  </div>` : `
+  <div style="margin:0 28px 20px;padding:14px 20px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;">
+    <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Votre animateur·trice référent·e</p>
+    <p style="margin:0;font-size:14px;font-weight:700;color:#374151;line-height:1.6;">Les coordonnées de l’animateur·ice vous seront communiquées prochainement.</p>
+  </div>`;
 
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -6539,6 +6600,19 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     <p style="margin:0;font-size:12px;color:#94a3b8;">@_colocrew / ColoCrew</p>
   </div>
 </div></body></html>`;
+}
+
+function buildJ3ReminderHtml(html) {
+  const banner = `<div style="padding:15px 28px;background:#fff7ed;border-bottom:2px solid #fdba74;text-align:center;">
+    <div style="font-size:18px;font-weight:900;color:#ea580c;letter-spacing:0.04em;">⏰ RAPPEL J-3</div>
+    <div style="margin-top:5px;font-size:13px;color:#9a3412;line-height:1.55;">Le départ approche. Merci de relire les horaires et les lieux de rendez-vous ci-dessous et de nous signaler rapidement toute difficulté.</div>
+  </div>`;
+  const header = '<table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;">';
+  const withBanner = html.includes(header) ? html.replace(header, `${banner}${header}`) : `${banner}${html}`;
+  return withBanner.replace(
+    /<title>(.*?)<\/title>/,
+    "<title>Rappel J-3 — $1</title>",
+  );
 }
 
 function ConvocEmailSender({ transport, allTransports }) {
@@ -6924,6 +6998,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const { showToast } = useToast();
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [sentStatus, setSentStatus]     = useState({});
+  const [reminderStatus, setReminderStatus] = useState({});
   const [sendingKey, setSendingKey]     = useState(null);
   const [sendingAll, setSendingAll]     = useState(false);
   const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, errors: [] });
@@ -7044,6 +7119,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     setSentStatus(m);
   }, [selectedWeek, onSiteReservations, weekTrips]);
 
+  useEffect(() => {
+    const next = {};
+    reservations.forEach((reservation) => {
+      if (reservation.convocationReminderDone) next[reservation.id] = true;
+    });
+    setReminderStatus(next);
+  }, [reservations]);
+
   const openDoc = (html) => {
     const win = openPrintableDocument(html);
     if (!win) return;
@@ -7073,44 +7156,79 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     });
   }, []);
 
-  const doSendFamily = useCallback(async (trip, passengers) => {
+  const markReminderSent = useCallback(async (ids) => {
+    await Promise.all(ids.filter(Boolean).map((id) =>
+      updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), {
+        convocationReminderSentAt: serverTimestamp(),
+        convocationReminderDoneAt: serverTimestamp(),
+      })
+    ));
+    setReminderStatus((previous) => {
+      const next = { ...previous };
+      ids.filter(Boolean).forEach((id) => { next[id] = true; });
+      return next;
+    });
+  }, []);
+
+  const toggleReminderDone = useCallback(async (ids, done) => {
+    await Promise.all(ids.filter(Boolean).map((id) =>
+      updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), done
+        ? { convocationReminderDoneAt: serverTimestamp() }
+        : { convocationReminderDoneAt: null, convocationReminderSentAt: null })
+    ));
+    setReminderStatus((previous) => {
+      const next = { ...previous };
+      ids.filter(Boolean).forEach((id) => {
+        if (done) next[id] = true;
+        else delete next[id];
+      });
+      return next;
+    });
+  }, []);
+
+  const doSendFamily = useCallback(async (trip, passengers, { reminder = false } = {}) => {
     const primary  = passengers[0];
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
     const animInfo = getAnimForTrip(trip);
-    const html     = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo, convocSettings);
+    const convocationHtml = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo, convocSettings);
+    const html     = reminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
     const wi = WEEK_INFO[trip.week];
-    const subject  = `Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
+    const subject  = `${reminder ? "Rappel J-3 — " : ""}Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
-    await markAllSent(passengers.map((p) => p.reservationId));
-  }, [transports, customIntro, markAllSent, getAnimForTrip]);
+    const ids = passengers.map((p) => p.reservationId);
+    if (reminder) await markReminderSent(ids);
+    else await markAllSent(ids);
+  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getAnimForTrip]);
 
-  const doSendOnSite = useCallback(async (reservation) => {
+  const doSendOnSite = useCallback(async (reservation, { reminder = false } = {}) => {
     const cfg = getOnSiteConfig(reservation.sejourName || "Séjour");
     const animInfo = getAnimForOnSite(reservation.sejourName || "Séjour");
-    const html = buildOnSiteEmailHtml(reservation, selectedWeek, {
+    const convocationHtml = buildOnSiteEmailHtml(reservation, selectedWeek, {
       arrivalTime: cfg.arrivalTime,
       returnTime:  cfg.returnTime,
       arrivalPoint: cfg.lieu || "Lieu du séjour",
       returnPoint:  cfg.lieu || "Lieu du séjour",
     }, customIntro, animInfo);
+    const html = reminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
     const wi = WEEK_INFO[selectedWeek];
     const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
-    const subject = `Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
+    const subject = `${reminder ? "Rappel J-3 — " : ""}Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
-    await markAllSent([reservation.id]);
-  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, selectedWeek, getAnimForTrip]);
+    if (reminder) await markReminderSent([reservation.id]);
+    else await markAllSent([reservation.id]);
+  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek]);
 
   // Pending = one entry per unique family (email) that hasn't been fully sent
   const pendingFamilies = useMemo(() => {
@@ -7382,6 +7500,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               <th style={cTh}>Point de RDV</th>
               <th style={cTh}>Email</th>
               <th style={{ ...cTh, textAlign: "center" }}>Convoqué</th>
+              <th style={{ ...cTh, textAlign: "center" }}>Rappel J-3</th>
               <th style={{ ...cTh, textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
@@ -7390,7 +7509,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             {/* Sur place — par séjour */}
             {onSiteSejourNames.length === 0 && (
               <tr style={{ background: "#f0fdf4" }}>
-                <td colSpan={8} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
+                <td colSpan={9} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
                   <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", marginRight: 8, fontSize: 11 }}>SP</span>
                   Sur place — aucune famille cette semaine
                 </td>
@@ -7403,7 +7522,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               return (
                 <Fragment key={`sp-${sejourName}`}>
                   <tr style={{ background: "#f0fdf4", borderTop: "2px solid #bbf7d0" }}>
-                    <td colSpan={8} style={{ padding: "8px 14px" }}>
+                    <td colSpan={9} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>SP</span>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#15803d" }}>{sejourName}</span>
@@ -7432,6 +7551,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     const hasEmail = r.email && r.email !== "-";
                     const isSending = sendingKey === familyKey;
                     const isPreviewing = preview?.familyKey === familyKey;
+                    const reminderDone = Boolean(reminderStatus[r.id]);
                     return (
                       <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
                         <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
@@ -7450,6 +7570,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                             {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </button>
                         </td>
+                        <td style={{ ...cTd, textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={reminderDone}
+                            title={hasEmail ? "Rappel J-3 effectué" : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
+                            onChange={async (event) => {
+                              const checked = event.target.checked;
+                              try { await toggleReminderDone([r.id], checked); }
+                              catch { showToast("Impossible de mettre à jour le rappel", "error"); }
+                            }}
+                            style={{ width: 17, height: 17, accentColor: "#ea580c", cursor: "pointer" }}
+                          />
+                        </td>
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -7460,6 +7593,13 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                               onClick={() => setPreview(isPreviewing ? null : { type: "onsite", familyKey, reservation: r, cfg })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
                             </button>
+                            {isSent && (
+                              <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
+                                disabled={!hasEmail || isSending || sendingAll}
+                                onClick={() => setPreview({ type: "onsite", familyKey, reservation: r, cfg, _isReminder: true })}>
+                                Rappel J-3
+                              </button>
+                            )}
                             <button type="button" className={`dash-btn${isSent ? "" : " dash-btn-primary"}`} style={{ fontSize: 11, padding: "3px 9px" }}
                               disabled={!hasEmail || isSending || sendingAll}
                               onClick={async () => {
@@ -7501,7 +7641,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                 <Fragment key={trip.id}>
                   {/* En-tête trajet */}
                   <tr style={{ background: "#f5f0ff", borderTop: "2px solid #d4c0e8" }}>
-                    <td colSpan={8} style={{ padding: "8px 14px" }}>
+                    <td colSpan={9} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#5f3374" }}>{trip.departureCity} → {trip.arrivalCity}</span>
                         <span style={{ fontSize: 11, color: "#7c3aed", background: "#ede9fe", borderRadius: 5, padding: "2px 7px", fontWeight: 700 }}>
@@ -7515,7 +7655,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     </td>
                   </tr>
                   {familyGroups.length === 0 && (
-                    <tr><td colSpan={8} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
+                    <tr><td colSpan={9} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
                   )}
                   {familyGroups.map((passengers, i) => {
                     const primary   = passengers[0];
@@ -7530,6 +7670,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                       ? merged.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
                       : primary.childName || "—";
                     const isPreviewing = preview?.familyKey === familyKey;
+                    const reminderDone = allIds.length > 0 && allIds.every((id) => reminderStatus[id]);
 
                     return (
                       <tr key={familyKey} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
@@ -7558,6 +7699,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                             {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </button>
                         </td>
+                        <td style={{ ...cTd, textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={reminderDone}
+                            title={hasEmail ? "Rappel J-3 effectué" : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
+                            onChange={async (event) => {
+                              const checked = event.target.checked;
+                              try { await toggleReminderDone(allIds, checked); }
+                              catch { showToast("Impossible de mettre à jour le rappel", "error"); }
+                            }}
+                            style={{ width: 17, height: 17, accentColor: "#ea580c", cursor: "pointer" }}
+                          />
+                        </td>
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -7568,6 +7722,13 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                               onClick={() => setPreview(isPreviewing ? null : { ...merged, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
                             </button>
+                            {isSent && (
+                              <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
+                                disabled={!hasEmail || isSending || sendingAll}
+                                onClick={() => setPreview({ ...merged, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers, _isReminder: true })}>
+                                Rappel J-3
+                              </button>
+                            )}
                             <button type="button" className={`dash-btn${isSent ? "" : " dash-btn-primary"}`} style={{ fontSize: 11, padding: "3px 9px" }}
                               disabled={!hasEmail || isSending || sendingAll}
                               onClick={async () => {
@@ -7605,18 +7766,22 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.type === "onsite" ? preview.reservation.nom : preview.nom}</div>
                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.type === "onsite" ? preview.reservation.email : preview.email}</div>
+                {preview._isReminder && <div style={{ marginTop: 3, fontSize: 11, fontWeight: 800, color: "#ea580c" }}>APERÇU DU RAPPEL J-3</div>}
               </div>
               <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>&#x2715;</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: preview.type === "onsite"
-                ? buildOnSiteEmailHtml(preview.reservation, selectedWeek, {
+              <div dangerouslySetInnerHTML={{ __html: (() => {
+                const html = preview.type === "onsite"
+                  ? buildOnSiteEmailHtml(preview.reservation, selectedWeek, {
                     arrivalTime: preview.cfg.arrivalTime,
                     returnTime:  preview.cfg.returnTime,
                     arrivalPoint: preview.cfg.lieu || "Lieu du séjour",
                     returnPoint:  preview.cfg.lieu || "Lieu du séjour",
                   }, customIntro, getAnimForOnSite(preview.reservation?.sejourName || "Séjour"))
-                : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip)) }} />
+                  : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip), convocSettings);
+                return preview._isReminder ? buildJ3ReminderHtml(html) : html;
+              })() }} />
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
               <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
@@ -7625,11 +7790,11 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                   setSendingKey(preview.familyKey);
                   try {
                     if (preview.type === "onsite") {
-                      await doSendOnSite(preview.reservation);
-                      showToast(`Convocation envoyée à ${preview.reservation.email}`, "success");
+                      await doSendOnSite(preview.reservation, { reminder: Boolean(preview._isReminder) });
+                      showToast(`${preview._isReminder ? "Rappel J-3" : "Convocation"} envoyé à ${preview.reservation.email}`, "success");
                     } else {
-                      await doSendFamily(preview._trip, preview._passengers);
-                      showToast(`Convocation envoyée à ${preview.email}`, "success");
+                      await doSendFamily(preview._trip, preview._passengers, { reminder: Boolean(preview._isReminder) });
+                      showToast(`${preview._isReminder ? "Rappel J-3" : "Convocation"} envoyé à ${preview.email}`, "success");
                     }
                     setPreview(null);
                   } catch (e) {
@@ -7639,7 +7804,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                   }
                 }}
                 style={{ padding: "8px 16px", background: sendingKey ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingKey ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingKey ? "not-allowed" : "pointer" }}>
-                {sendingKey ? "Envoi en cours…" : "Envoyer cette convocation"}
+                {sendingKey ? "Envoi en cours…" : preview._isReminder ? "Envoyer le rappel J-3" : "Envoyer cette convocation"}
               </button>
             </div>
           </div>
