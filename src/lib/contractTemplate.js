@@ -475,3 +475,55 @@ export function openContractPrint(member, contract) {
   // Laisse le temps au nouvel onglet / au téléchargement de charger le blob avant de le libérer.
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+export function openContractsBatchPrint(entries, label = "séjour") {
+  const validEntries = (entries || []).filter((entry) => entry?.member && entry?.contract);
+  if (!validEntries.length) return;
+
+  const documents = validEntries.map(({ member, contract }) => {
+    const parsed = new DOMParser().parseFromString(generateContractHTML(member, contract), "text/html");
+    return parsed.querySelector(".page")?.outerHTML || "";
+  }).filter(Boolean);
+  const firstDocument = new DOMParser().parseFromString(
+    generateContractHTML(validEntries[0].member, validEntries[0].contract),
+    "text/html",
+  );
+  const contractStyles = firstDocument.querySelector("style")?.textContent || "";
+  const safeLabel = esc(label);
+  const body = documents.map((documentHtml, index) => `
+    <section class="batch-contract">${documentHtml}</section>
+    ${index < documents.length - 1 ? '<div class="batch-blank-page" aria-label="Page blanche de séparation">&nbsp;</div>' : ""}
+  `).join("");
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Contrats CEE groupés — ${safeLabel}</title>
+  <style>
+    ${contractStyles}
+    .batch-toolbar{position:fixed;top:14px;right:14px;z-index:9999;display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.15);font-family:Arial,sans-serif}
+    .batch-toolbar span{font-size:12px;color:#555}.batch-toolbar button{background:#7c3aed;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
+    .batch-contract{break-before:page;page-break-before:always}.batch-contract:first-of-type{break-before:auto;page-break-before:auto}
+    .batch-blank-page{break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:260mm;color:transparent;overflow:hidden}
+    @media print{
+      .no-print,.batch-toolbar{display:none!important}
+      .batch-contract{break-before:page;page-break-before:always}
+      .batch-contract:first-of-type{break-before:auto;page-break-before:auto}
+      .batch-blank-page{display:block!important;break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:260mm}
+    }
+  </style></head><body>
+    <div class="batch-toolbar"><span>${documents.length} contrats · impression recto-verso bord long</span><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
+    ${body}
+  </body></html>`;
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const popup = window.open(url, "_blank");
+  if (!popup) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Contrats-CEE-${String(label || "sejour").replace(/[^a-zA-Z0-9-]+/g, "-")}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    alert("Autorisez les popups pour ouvrir le PDF groupé directement.");
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

@@ -10,7 +10,7 @@ import Badge from "@/src/components/dashboard/ui/Badge";
 import Modal from "@/src/components/dashboard/ui/Modal";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
-import { openContractPrint } from "@/src/lib/contractTemplate";
+import { openContractPrint, openContractsBatchPrint } from "@/src/lib/contractTemplate";
 import { useToast } from "@/src/contexts/ToastContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded } from "@/src/lib/salaryGrid";
 
@@ -162,7 +162,7 @@ function Avatar({ member, size = 44 }) {
 
 // ─── Vue "Par séjour" ─────────────────────────────────────────────────────────
 
-function SejoursView({ members, contracts, onFiche, onContract, onEditContract }) {
+function SejoursView({ members, contracts, onFiche, onContract, onEditContract, onBatchContracts }) {
   const groups = useMemo(() => {
     const map = new Map();
     contracts.forEach((c) => {
@@ -220,6 +220,9 @@ function SejoursView({ members, contracts, onFiche, onContract, onEditContract }
                   ? `${fmtDate(g.startDate)} → ${fmtDate(g.endDate)}`
                   : "Dates à compléter"}
                 <span className="hr-sejour-count">{groupMembers.length} personnes</span>
+                <button type="button" className="dash-btn" onClick={() => onBatchContracts(g)} disabled={!groupMembers.length}>
+                  PDF groupé recto-verso
+                </button>
               </div>
             </div>
 
@@ -1175,6 +1178,14 @@ export default function HumanResources() {
     openContractPrint(member, contract);
   };
 
+  const handleBatchContracts = (group) => {
+    const entries = (group.contracts || []).map((contract) => ({
+      contract,
+      member: members.find((member) => member.id === contract.memberId),
+    })).filter((entry) => entry.member);
+    openContractsBatchPrint(entries, `${group.stayCode || group.stay}-${group.week}`);
+  };
+
   const openNewContract = (member = null) => setContractModal({ isOpen: true, member, contract: null });
   const openEditContract = (member, contract) => setContractModal({ isOpen: true, member: member || null, contract });
   const closeContractModal = () => setContractModal({ isOpen: false, member: null, contract: null });
@@ -1247,7 +1258,7 @@ export default function HumanResources() {
         </section>
       ) : (
         <div className="hr-content">
-          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} />}
+          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} />}
           {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} />}
           {tab === "contrats" && <ContratsView contracts={contracts} members={members} onContract={handleContract} onEditContract={openEditContract} onNewContract={() => openNewContract(null)} />}
         </div>
