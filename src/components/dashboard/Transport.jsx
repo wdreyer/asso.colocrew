@@ -1215,6 +1215,7 @@ function mapReservationForTransport(snap) {
     status: d.status || "pending",
     convocationSent: Boolean(d.convocationSent),
     convocationSentAt: d.convocationSentAt || null,
+    convocationSentChannel: d.convocationSentChannel || "",
     convocationReminderDone: Boolean(d.convocationReminderDoneAt || d.convocationReminderSentAt),
     convocationReminderDoneAt: d.convocationReminderDoneAt || d.convocationReminderSentAt || null,
     isImported2026: d.validationSource === "ete26_validated_workbook",
@@ -1257,6 +1258,7 @@ function hydrateTransportPassenger(passenger, reservation, transport) {
     status: reservation.status,
     convocationSent: Boolean(reservation.convocationSent ?? passenger.convocationSent),
     convocationSentAt: reservation.convocationSentAt || passenger.convocationSentAt || null,
+    convocationSentChannel: reservation.convocationSentChannel || passenger.convocationSentChannel || "",
     pickupCity: passenger.pickupCity || (transport.direction === "retour" ? reservation.returnCity : reservation.departureCity) || "",
   };
 }
@@ -7108,6 +7110,10 @@ function normalizeEmailAddress(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function isExternalConvocation(item) {
+  return normalizeSearchKey(item?.convocationSentChannel) === "totemia";
+}
+
 // Group passengers sharing an email only when their city and stay are also identical.
 function groupPassengersByFamily(passengers, transport = null) {
   const map = new Map();
@@ -7115,7 +7121,7 @@ function groupPassengersByFamily(passengers, transport = null) {
     const email = normalizeEmailAddress(p.email);
     const city = transport ? normalizePlace(passengerCity(transport, p)) : "";
     const stay = normalizeSearchKey(p.stayCode || p.sejourName || "");
-    const key = email && email !== "-" ? `${email}|${city}|${stay}` : (p.reservationId || p.nom);
+    const key = !isExternalConvocation(p) && email && email !== "-" ? `${email}|${city}|${stay}` : (p.reservationId || p.nom);
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(p);
   });
@@ -7127,7 +7133,7 @@ function groupOnSiteReservations(reservations) {
   (reservations || []).forEach((reservation) => {
     const email = normalizeEmailAddress(reservation.email);
     const stay = shortStayCode(reservation.sejourName || "Séjour");
-    const key = email && email !== "-" ? `${email}|${stay}` : reservation.id;
+    const key = !isExternalConvocation(reservation) && email && email !== "-" ? `${email}|${stay}` : reservation.id;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(reservation);
   });
@@ -7174,6 +7180,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [emailOverrides, setEmailOverrides] = useState({});
 
   const emailFor = useCallback((item) => {
+    if (isExternalConvocation(item)) return "";
     const id = item?.reservationId || item?.id;
     return String((id && emailOverrides[id] !== undefined ? emailOverrides[id] : item?.email) || "").trim();
   }, [emailOverrides]);
@@ -7465,6 +7472,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     convocationTrips.forEach((trip) => {
       groupPassengersByFamily(trip.passengers, trip).forEach((passengers) => {
         const primary = passengers[0];
+        if (isExternalConvocation(primary)) return;
         const key = primary.reservationId || `${primary.nom || ""}-${primary.childName || ""}`;
         if (seen.has(key)) return;
         const allIds = passengers.map((p) => p.reservationId).filter(Boolean);
@@ -7491,7 +7499,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const missingOnSiteEmailReservations = useMemo(
     () => onSiteGroups.filter((reservation) => {
       const ids = reservation._reservationIds || [reservation.id];
-      return !ids.every((id) => sentStatus[id]) && (!emailFor(reservation) || emailFor(reservation) === "-");
+      return !isExternalConvocation(reservation) && !ids.every((id) => sentStatus[id]) && (!emailFor(reservation) || emailFor(reservation) === "-");
     }),
     [onSiteGroups, sentStatus, emailFor],
   );
@@ -7822,6 +7830,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     const isSent = reservationIds.every((id) => sentStatus[id]);
                     const kids = r.children?.length ? r.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ") : r.childName || "—";
                     const familyKey = `onsite-${reservationIds.slice().sort().join("-")}`;
+                    const externalConvocation = isExternalConvocation(r);
                     const currentEmail = emailFor(r);
                     const hasEmail = currentEmail && currentEmail !== "-";
                     const isSending = sendingKey === familyKey;
@@ -7839,14 +7848,18 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         </td>
                         <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
                         <td style={cTd}>
-                          <input
-                            type="email"
-                            value={currentEmail === "-" ? "" : currentEmail}
-                            onChange={(event) => setFamilyEmailDraft(reservationIds, event.target.value)}
-                            onBlur={(event) => saveFamilyEmail(reservationIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
-                            placeholder="Adresse e-mail"
-                            style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
-                          />
+                          {externalConvocation ? (
+                            <span style={{ display: "inline-flex", padding: "5px 9px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 800 }}>Totemia · envoi externe</span>
+                          ) : (
+                            <input
+                              type="email"
+                              value={currentEmail === "-" ? "" : currentEmail}
+                              onChange={(event) => setFamilyEmailDraft(reservationIds, event.target.value)}
+                              onBlur={(event) => saveFamilyEmail(reservationIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
+                              placeholder="Adresse e-mail"
+                              style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
+                            />
+                          )}
                         </td>
                         <td style={{ ...cTd, textAlign: "center" }}>
                           <button type="button" onClick={() => isSent ? markAllUnsent(reservationIds) : markAllSent(reservationIds)}
@@ -7948,6 +7961,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     const allIds    = passengers.map((p) => p.reservationId).filter(Boolean);
                     const isSent    = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
                     const currentEmail = emailFor(primary);
+                    const externalConvocation = isExternalConvocation(primary);
                     const familyKey = currentEmail && currentEmail !== "-"
                       ? `${normalizeEmailAddress(currentEmail)}|${trip.id}|${normalizePlace(passengerCity(trip, primary))}|${normalizeSearchKey(primary.stayCode || primary.sejourName || "")}`
                       : (primary.reservationId || i);
@@ -7975,14 +7989,18 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         </td>
                         <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || passengerCity(trip, primary) || "—"}</span></td>
                         <td style={cTd}>
-                          <input
-                            type="email"
-                            value={currentEmail === "-" ? "" : currentEmail}
-                            onChange={(event) => setFamilyEmailDraft(allIds, event.target.value)}
-                            onBlur={(event) => saveFamilyEmail(allIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
-                            placeholder="Adresse e-mail"
-                            style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
-                          />
+                          {externalConvocation ? (
+                            <span style={{ display: "inline-flex", padding: "5px 9px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 800 }}>Totemia · envoi externe</span>
+                          ) : (
+                            <input
+                              type="email"
+                              value={currentEmail === "-" ? "" : currentEmail}
+                              onChange={(event) => setFamilyEmailDraft(allIds, event.target.value)}
+                              onBlur={(event) => saveFamilyEmail(allIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
+                              placeholder="Adresse e-mail"
+                              style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
+                            />
+                          )}
                         </td>
                         <td style={{ ...cTd, textAlign: "center" }}>
                           <button type="button"
