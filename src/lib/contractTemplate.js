@@ -492,10 +492,7 @@ export function openContractsBatchPrint(entries, label = "séjour") {
   );
   const contractStyles = firstDocument.querySelector("style")?.textContent || "";
   const safeLabel = esc(label);
-  const body = documents.map((documentHtml, index) => `
-    <section class="batch-contract">${documentHtml}</section>
-    ${index < documents.length - 1 ? '<div class="batch-blank-page" aria-label="Page blanche de séparation">&nbsp;</div>' : ""}
-  `).join("");
+  const body = documents.map((documentHtml) => `<section class="batch-contract">${documentHtml}</section>`).join("");
 
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <title>Contrats CEE groupés — ${safeLabel}</title>
@@ -503,31 +500,32 @@ export function openContractsBatchPrint(entries, label = "séjour") {
     ${contractStyles}
     .batch-toolbar{position:fixed;top:14px;right:14px;z-index:9999;display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.15);font-family:Arial,sans-serif}
     .batch-toolbar span{font-size:12px;color:#555}.batch-toolbar button{background:#7c3aed;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
-    .batch-contract{break-before:page;page-break-before:always}.batch-contract:first-of-type{break-before:auto;page-break-before:auto}
-    .batch-blank-page{break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:260mm;color:transparent;overflow:hidden}
+    .batch-contract{break-before:recto;page-break-before:right;break-after:page;page-break-after:always}.batch-contract:first-of-type{break-before:auto;page-break-before:auto}
     @media print{
-      @page{size:A4;margin:10mm 13mm}
+      @page{size:A4;margin:7mm 10mm}
       .no-print,.batch-toolbar{display:none!important}
-      .batch-contract{break-before:page;page-break-before:always}
+      .batch-contract{break-before:recto;page-break-before:right;break-after:page;page-break-after:always}
       .batch-contract:first-of-type{break-before:auto;page-break-before:auto}
-      .batch-contract .page{max-width:none;padding:8px 6px 12px}
-      .batch-contract .cc-header{margin-bottom:12px;padding-bottom:7px}
-      .batch-contract .cc-title{font-size:14pt;margin:14px 0 12px}
-      .batch-contract .cc-parties{margin-bottom:12px;line-height:1.4}
-      .batch-contract .cc-party-block p{font-size:9.2pt;line-height:1.3}
-      .batch-contract .cc-dune-part{margin:6px 0 9px}
-      .batch-contract .cc-convention{margin-top:7px;margin-bottom:10px}
-      .batch-contract .cc-article{margin-bottom:10px;break-inside:auto;page-break-inside:auto}
-      .batch-contract .cc-article h2{font-size:10pt;margin-bottom:4px}
-      .batch-contract .cc-article p{font-size:9.2pt;line-height:1.35;margin-bottom:3px}
-      .batch-contract .cc-article ol,.batch-contract .cc-article ul{margin:3px 0 3px 18px}
-      .batch-contract .cc-article li{font-size:9.1pt!important;line-height:1.3!important;margin-bottom:2px!important}
-      .batch-contract .cc-signatures{margin-top:16px;break-inside:avoid;page-break-inside:avoid}
-      .batch-contract .cc-sign-place{margin-bottom:8px}
-      .batch-contract .cc-sign-row{margin-top:14px}
-      .batch-contract .cc-sign-box p{margin-bottom:28px}
-      .batch-contract .cc-footer{margin-top:14px;padding-top:6px;break-inside:avoid;page-break-inside:avoid;break-before:avoid-page}
-      .batch-blank-page{display:block!important;break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:276mm}
+      .batch-contract .page{max-width:none;padding:4px 3px 6px;font-size:8.4pt}
+      .batch-contract .cc-header{margin-bottom:8px;padding-bottom:5px}
+      .batch-contract .cc-logo-block .cc-logo-text{font-size:18pt}
+      .batch-contract .cc-contact{font-size:7pt;line-height:1.3}
+      .batch-contract .cc-title{font-size:12.5pt;margin:9px 0 8px}
+      .batch-contract .cc-parties{margin-bottom:7px;line-height:1.25}
+      .batch-contract .cc-party-intro{margin-bottom:4px}
+      .batch-contract .cc-party-block p{font-size:8.2pt;line-height:1.2}
+      .batch-contract .cc-designation{margin-top:3px}
+      .batch-contract .cc-dune-part{margin:3px 0 5px}
+      .batch-contract .cc-convention{margin-top:4px;margin-bottom:6px}
+      .batch-contract .cc-article{margin-bottom:6px;break-inside:auto;page-break-inside:auto}
+      .batch-contract .cc-article h2{font-size:9pt;margin-bottom:2px}
+      .batch-contract .cc-article p{font-size:8.2pt;line-height:1.2;margin-bottom:2px}
+      .batch-contract .cc-article ol,.batch-contract .cc-article ul{margin:2px 0 2px 15px}
+      .batch-contract .cc-article li{font-size:8.1pt!important;line-height:1.18!important;margin-bottom:1px!important}
+      .batch-contract .cc-signatures{margin-top:9px;break-inside:avoid;page-break-inside:avoid}
+      .batch-contract .cc-sign-place{margin-bottom:4px}
+      .batch-contract .cc-sign-row{margin-top:7px;gap:20px}
+      .batch-contract .cc-sign-box p{margin-bottom:20px}
     }
   </style></head><body>
     <div class="batch-toolbar"><span>${documents.length} contrats · impression recto-verso bord long</span><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
