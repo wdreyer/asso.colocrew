@@ -6811,7 +6811,6 @@ function ConvocEmailSender({ transport, allTransports }) {
       retour: retourInfo ? {
         dateLabel: fmtDateLong(retourInfo.date),
         trainLabel: retourInfo.trainLabel,
-        departureTime: retourInfo.departureTime,
         arrivalTime: retourInfo.arrivalTime,
         arrivalCity: retourInfo.arrivalCity,
       } : null,
