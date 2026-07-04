@@ -4037,6 +4037,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   };
 
   const activeT = { ...transport, segments, branches };
+  const isRetour = activeT.direction === "retour";
   const portionDisplayOrder = new Map(
     orderedTransportPortions(activeT).map((entry, index) => [entry.portion.id, index]),
   );
@@ -4068,7 +4069,6 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         )}
 
         {segments.map((seg, i) => {
-        const isRetour = activeT.direction === "retour";
         const rawSegTix = tickets.filter((t) => t.segmentId === seg.id);
         const segTix = rawSegTix.map((ticket) => displayTicketForSegment(ticket, activeT, seg, i, rawSegTix));
         const segPassengers = passengersOnSegment(activeT, i);
