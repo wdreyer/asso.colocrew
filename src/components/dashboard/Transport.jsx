@@ -6834,7 +6834,7 @@ function ConvocEmailSender({ transport, allTransports }) {
   }, [transport, allTransports, emailSubject, customIntro, convocSettings, markSent]);
 
   const handleSendAll = useCallback(async () => {
-    const groups  = groupPassengersByFamily(passengers);
+    const groups  = groupPassengersByFamily(passengers, transport);
     const toSend  = groups.filter((g) => {
       const allIds = g.map((p) => p.reservationId).filter(Boolean);
       return !allIds.every((id) => sentStatus[id]) && g[0].email && g[0].email !== "-";
@@ -6857,7 +6857,7 @@ function ConvocEmailSender({ transport, allTransports }) {
     return <p className="tr-convoc-empty-msg">Aucun passager assigné à ce trajet.</p>;
   }
 
-  const familyGroups  = groupPassengersByFamily(passengers);
+  const familyGroups  = groupPassengersByFamily(passengers, transport);
   const pendingCount  = familyGroups.filter((g) => {
     const allIds = g.map((p) => p.reservationId).filter(Boolean);
     return !allIds.every((id) => sentStatus[id]) && g[0].email && g[0].email !== "-";
@@ -7104,15 +7104,42 @@ function ConvocEmailSender({ transport, allTransports }) {
 const thS = { padding: "9px 12px", fontWeight: 700, fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" };
 const tdS = { padding: "10px 12px", verticalAlign: "middle" };
 
-// Group passengers by email (family) within a trip
-function groupPassengersByFamily(passengers) {
+function normalizeEmailAddress(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+// Group passengers sharing an email only when their city and stay are also identical.
+function groupPassengersByFamily(passengers, transport = null) {
   const map = new Map();
   (passengers || []).forEach((p) => {
-    const key = (p.email && p.email !== "-") ? p.email : (p.reservationId || p.nom);
+    const email = normalizeEmailAddress(p.email);
+    const city = transport ? normalizePlace(passengerCity(transport, p)) : "";
+    const stay = normalizeSearchKey(p.stayCode || p.sejourName || "");
+    const key = email && email !== "-" ? `${email}|${city}|${stay}` : (p.reservationId || p.nom);
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(p);
   });
   return Array.from(map.values());
+}
+
+function groupOnSiteReservations(reservations) {
+  const groups = new Map();
+  (reservations || []).forEach((reservation) => {
+    const email = normalizeEmailAddress(reservation.email);
+    const stay = shortStayCode(reservation.sejourName || "Séjour");
+    const key = email && email !== "-" ? `${email}|${stay}` : reservation.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(reservation);
+  });
+  return [...groups.values()].map((items) => {
+    const primary = items[0];
+    return {
+      ...primary,
+      children: items.flatMap((item) => item.children?.length ? item.children : [{ firstName: item.childName || "", lastName: "" }]),
+      _reservationIds: items.map((item) => item.id).filter(Boolean),
+      _reservationCount: items.length,
+    };
+  });
 }
 
 function mergeFamily(passengers) {
@@ -7212,15 +7239,17 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     [reservations, selectedWeek],
   );
 
+  const onSiteGroups = useMemo(() => groupOnSiteReservations(onSiteReservations), [onSiteReservations]);
+
   const onSiteBySejourMap = useMemo(() => {
     const map = new Map();
-    onSiteReservations.forEach((r) => {
+    onSiteGroups.forEach((r) => {
       const key = r.sejourName || "Séjour";
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(r);
     });
     return map;
-  }, [onSiteReservations]);
+  }, [onSiteGroups]);
 
   const onSiteSejourNames = useMemo(() => Array.from(onSiteBySejourMap.keys()), [onSiteBySejourMap]);
 
@@ -7402,8 +7431,9 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
-    if (reminder) await markReminderSent([reservation.id]);
-    else await markAllSent([reservation.id]);
+    const ids = reservation._reservationIds?.length ? reservation._reservationIds : [reservation.id];
+    if (reminder) await markReminderSent(ids);
+    else await markAllSent(ids);
   }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, emailFor]);
 
   // Pending = one entry per unique family (email) that hasn't been fully sent
@@ -7411,10 +7441,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const seen = new Set();
     const rows = [];
     convocationTrips.forEach((trip) => {
-      groupPassengersByFamily(trip.passengers).forEach((passengers) => {
+      groupPassengersByFamily(trip.passengers, trip).forEach((passengers) => {
         const primary = passengers[0];
         const email = emailFor(primary);
-        const emailKey = email && email !== "-" ? email : primary.reservationId;
+        const emailKey = email && email !== "-"
+          ? `${normalizeEmailAddress(email)}|${trip.id}|${normalizePlace(passengerCity(trip, primary))}|${normalizeSearchKey(primary.stayCode || primary.sejourName || "")}`
+          : primary.reservationId;
         if (seen.has(emailKey)) return;
         const allIds = passengers.map((p) => p.reservationId).filter(Boolean);
         const allSent = allIds.every((id) => sentStatus[id]);
@@ -7431,7 +7463,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const seen = new Set();
     const rows = [];
     convocationTrips.forEach((trip) => {
-      groupPassengersByFamily(trip.passengers).forEach((passengers) => {
+      groupPassengersByFamily(trip.passengers, trip).forEach((passengers) => {
         const primary = passengers[0];
         const key = primary.reservationId || `${primary.nom || ""}-${primary.childName || ""}`;
         if (seen.has(key)) return;
@@ -7449,13 +7481,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   }, [convocationTrips, sentStatus, emailFor]);
 
   const pendingOnSiteReservations = useMemo(
-    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && emailFor(reservation) && emailFor(reservation) !== "-"),
-    [onSiteReservations, sentStatus, emailFor],
+    () => onSiteGroups.filter((reservation) => {
+      const ids = reservation._reservationIds || [reservation.id];
+      return !ids.every((id) => sentStatus[id]) && emailFor(reservation) && emailFor(reservation) !== "-";
+    }),
+    [onSiteGroups, sentStatus, emailFor],
   );
 
   const missingOnSiteEmailReservations = useMemo(
-    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && (!emailFor(reservation) || emailFor(reservation) === "-")),
-    [onSiteReservations, sentStatus, emailFor],
+    () => onSiteGroups.filter((reservation) => {
+      const ids = reservation._reservationIds || [reservation.id];
+      return !ids.every((id) => sentStatus[id]) && (!emailFor(reservation) || emailFor(reservation) === "-");
+    }),
+    [onSiteGroups, sentStatus, emailFor],
   );
 
   const pendingMailCount = pendingFamilies.length + pendingOnSiteReservations.length;
@@ -7465,7 +7503,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const rows = [];
     const seen = new Set();
     convocationTrips.forEach((trip) => {
-      groupPassengersByFamily(trip.passengers).forEach((passengers) => {
+      groupPassengersByFamily(trip.passengers, trip).forEach((passengers) => {
         const ids = passengers.map((passenger) => passenger.reservationId).filter(Boolean);
         const key = ids.slice().sort().join("|");
         const email = emailFor(passengers[0]);
@@ -7476,14 +7514,15 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
         }
       });
     });
-    onSiteReservations.forEach((reservation) => {
+    onSiteGroups.forEach((reservation) => {
       const email = emailFor(reservation);
-      if (sentStatus[reservation.id] && !reminderStatus[reservation.id] && email && email !== "-") {
+      const ids = reservation._reservationIds || [reservation.id];
+      if (ids.every((id) => sentStatus[id]) && !ids.every((id) => reminderStatus[id]) && email && email !== "-") {
         rows.push({ type: "onsite", reservation });
       }
     });
     return rows;
-  }, [convocationTrips, onSiteReservations, sentStatus, reminderStatus, emailFor]);
+  }, [convocationTrips, onSiteGroups, sentStatus, reminderStatus, emailFor]);
 
   const handleSendAll = useCallback(async () => {
     const total = pendingFamilies.length + pendingOnSiteReservations.length;
@@ -7749,7 +7788,10 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             {onSiteSejourNames.map((sejourName) => {
               const sejourRows = onSiteBySejourMap.get(sejourName) || [];
               const cfg = getOnSiteConfig(sejourName);
-              const pendingSejourRows = sejourRows.filter((row) => !sentStatus[row.id] && row.email && row.email !== "-");
+              const pendingSejourRows = sejourRows.filter((row) => {
+                const ids = row._reservationIds || [row.id];
+                return !ids.every((id) => sentStatus[id]) && emailFor(row) && emailFor(row) !== "-";
+              });
               return (
                 <Fragment key={`sp-${sejourName}`}>
                   <tr style={{ background: "#f0fdf4", borderTop: "2px solid #bbf7d0" }}>
@@ -7776,17 +7818,18 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     </td>
                   </tr>
                   {sejourRows.map((r, i) => {
-                    const isSent = Boolean(sentStatus[r.id]);
+                    const reservationIds = r._reservationIds || [r.id];
+                    const isSent = reservationIds.every((id) => sentStatus[id]);
                     const kids = r.children?.length ? r.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ") : r.childName || "—";
-                    const familyKey = `onsite-${r.id}`;
+                    const familyKey = `onsite-${reservationIds.slice().sort().join("-")}`;
                     const currentEmail = emailFor(r);
                     const hasEmail = currentEmail && currentEmail !== "-";
                     const isSending = sendingKey === familyKey;
                     const isPreviewing = preview?.familyKey === familyKey;
-                    const reminderDone = Boolean(reminderStatus[r.id]);
+                    const reminderDone = reservationIds.every((id) => reminderStatus[id]);
                     return (
                       <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
-                        <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span></td>
+                        <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span>{r._reservationCount > 1 && <div style={{ fontSize: 10, color: "#15803d", marginTop: 2 }}>{r._reservationCount} dossiers regroupés</div>}</td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
                         <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}>Sur place</span></td>
                         <td style={cTd}>
@@ -7799,14 +7842,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           <input
                             type="email"
                             value={currentEmail === "-" ? "" : currentEmail}
-                            onChange={(event) => setFamilyEmailDraft([r.id], event.target.value)}
-                            onBlur={(event) => saveFamilyEmail([r.id], event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
+                            onChange={(event) => setFamilyEmailDraft(reservationIds, event.target.value)}
+                            onBlur={(event) => saveFamilyEmail(reservationIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
                             placeholder="Adresse e-mail"
                             style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
                           />
                         </td>
                         <td style={{ ...cTd, textAlign: "center" }}>
-                          <button type="button" onClick={() => isSent ? markAllUnsent([r.id]) : markAllSent([r.id])}
+                          <button type="button" onClick={() => isSent ? markAllUnsent(reservationIds) : markAllSent(reservationIds)}
                             style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                             {isSent && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </button>
@@ -7818,7 +7861,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                             title={hasEmail ? "Rappel J-3 effectué" : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
                             onChange={async (event) => {
                               const checked = event.target.checked;
-                              try { await toggleReminderDone([r.id], checked); }
+                              try { await toggleReminderDone(reservationIds, checked); }
                               catch { showToast("Impossible de mettre à jour le rappel", "error"); }
                             }}
                             style={{ width: 17, height: 17, accentColor: "#ea580c", cursor: "pointer" }}
@@ -7868,7 +7911,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
 
             {/* Trajets — une ligne par famille */}
             {convocationTrips.map((trip) => {
-              const familyGroups = groupPassengersByFamily(trip.passengers).slice().sort((a, b) => {
+              const familyGroups = groupPassengersByFamily(trip.passengers, trip).slice().sort((a, b) => {
                 const oa = cityRouteOrder(trip, passengerCity(trip, a[0]));
                 const ob = cityRouteOrder(trip, passengerCity(trip, b[0]));
                 if (oa !== ob) return oa - ob;
@@ -7904,9 +7947,11 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     const merged    = mergeFamily(passengers);
                     const allIds    = passengers.map((p) => p.reservationId).filter(Boolean);
                     const isSent    = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
-                    const familyKey = (primary.email && primary.email !== "-") ? primary.email : (primary.reservationId || i);
-                    const isSending = sendingKey === familyKey;
                     const currentEmail = emailFor(primary);
+                    const familyKey = currentEmail && currentEmail !== "-"
+                      ? `${normalizeEmailAddress(currentEmail)}|${trip.id}|${normalizePlace(passengerCity(trip, primary))}|${normalizeSearchKey(primary.stayCode || primary.sejourName || "")}`
+                      : (primary.reservationId || i);
+                    const isSending = sendingKey === familyKey;
                     const hasEmail  = currentEmail && currentEmail !== "-";
                     const rdvInfo   = getEmailRdvInfo(trip, primary);
                     const allChildren = merged.children?.length
