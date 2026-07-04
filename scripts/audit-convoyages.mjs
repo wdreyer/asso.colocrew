@@ -128,6 +128,9 @@ for (const reservation of reservations) {
       && (transport.passengers || []).some((passenger) => passenger.reservationId === reservation.id),
     );
     if (!candidates.length) errors.push(`${week} ${direction} : dossier ${reservation.numeroDeReservation || reservation.id}, ville ${city}, sans trajet affecté cohérent.`);
+    if (week === "S2" && direction === "aller" && candidates.length > 1) {
+      errors.push(`S2 convocation : dossier ${reservation.numeroDeReservation || reservation.id} apparait sur ${candidates.length} trajets aller.`);
+    }
     const feederCandidates = candidates.filter((transport) => !transport.sharedConnection);
     if (feederCandidates.length > 1) warnings.push(`${week} ${direction} : dossier ${reservation.numeroDeReservation || reservation.id}, ville ${city}, présent sur ${feederCandidates.length} trajets principaux.`);
     if (week === "S2" && candidates.length) {

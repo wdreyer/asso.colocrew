@@ -48,6 +48,10 @@ const STATUS_CFG = {
 
 const EMERGENCY_PHONES = ["06 87 91 68 97", "06 11 91 37 64"];
 const CC_EMAIL = "equipe@colocrew.com";
+const ONSITE_ADDRESSES = {
+  MCSC: "375 Rte de la Plage S, 40660 Messanges",
+  EVCC: "1050 Plazako bidea, 64780 Bidarray",
+};
 
 /* Utilities */
 
@@ -187,6 +191,10 @@ function shortStayCode(value) {
   if (normalized.includes("eaux vives") || normalized.includes("eaux-vives")) return "EVCC";
   if (normalized.includes("surf") || normalized.includes("my creative")) return "MCSC";
   return String(value || "Séjour").trim();
+}
+
+function onSiteAddressForStay(value) {
+  return ONSITE_ADDRESSES[shortStayCode(value)] || "";
 }
 
 function legalPassengerName(legal, children = []) {
@@ -5731,16 +5739,30 @@ function sortCityRows(rows) {
   });
 }
 
-function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsChange }) {
+function relevantCityRows(transports, cityStops, reservations) {
+  const activeReservationIds = new Set((reservations || [])
+    .filter((reservation) => reservation.status === "validated" && ["S1", "S2"].includes(reservation.week))
+    .map((reservation) => reservation.id));
+  const relevantTransports = (transports || []).filter((transport) =>
+    ["S1", "S2"].includes(transport.week)
+    && (transport.passengers || []).some((passenger) => activeReservationIds.has(passenger.reservationId))
+  );
+  const routeRows = cityRowsFromAllTransports(relevantTransports, []);
+  const routeCities = new Set(routeRows.map((row) => normalizePlace(row.city)));
+  const relevantStops = (cityStops || []).filter((stop) => routeCities.has(normalizePlace(stop.city)));
+  return cityRowsFromAllTransports(relevantTransports, relevantStops);
+}
+
+function GlobalCityStopsTab({ transports, reservations, cityStops, onBulkUpdate, onCityStopsChange }) {
   const { showToast } = useToast();
-  const [rows, setRows] = useState(() => cityRowsFromAllTransports(transports, cityStops));
+  const [rows, setRows] = useState(() => relevantCityRows(transports, cityStops, reservations));
   const [newCity, setNewCity] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingCity, setDeletingCity] = useState("");
 
   useEffect(() => {
-    setRows(cityRowsFromAllTransports(transports, cityStops));
-  }, [transports, cityStops]);
+    setRows(relevantCityRows(transports, cityStops, reservations));
+  }, [transports, cityStops, reservations]);
 
   const updateRow = (city, key, value) => {
     setRows((items) => items.map((item) => item.city === city ? { ...item, [key]: value } : item));
@@ -5832,7 +5854,11 @@ function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsCh
 
           const patchedStops = segmentSubStops(segment).map((stop) => {
             const stopPatch = cityMap.get(normalizePlace(stop.city));
-            return stopPatch ? { ...stop, meetingPoint: stopPatch.meetingPoint, stopType: stopPatch.stopType } : stop;
+            if (!stopPatch) return stop;
+            const railStage = !isRoadMode(segment.mode || segment.trainType || transport.trainType);
+            return railStage
+              ? { ...stop, meetingPoint: STAGE_QUAI_RDV, stopType: "quai" }
+              : { ...stop, meetingPoint: stopPatch.meetingPoint, stopType: stopPatch.stopType };
           });
           if (patchedStops.length) patchedSegment = { ...patchedSegment, stops: patchedStops };
           return patchedSegment;
@@ -5847,6 +5873,15 @@ function GlobalCityStopsTab({ transports, cityStops, onBulkUpdate, onCityStopsCh
           if (joinPatch && normalizePlace(branchJoinCity(transport, branch)) === normalizePlace(branch.to)) {
             patchedBranch = { ...patchedBranch, meetingPoint: patchedBranch.meetingPoint || joinPatch.meetingPoint };
           }
+          const patchedStops = segmentSubStops(branch).map((stop) => {
+            const stopPatch = cityMap.get(normalizePlace(stop.city));
+            if (!stopPatch) return stop;
+            const railStage = !isRoadMode(branch.mode || branch.trainType || transport.trainType);
+            return railStage
+              ? { ...stop, meetingPoint: STAGE_QUAI_RDV, stopType: "quai" }
+              : { ...stop, meetingPoint: stopPatch.meetingPoint, stopType: stopPatch.stopType };
+          });
+          if (patchedStops.length) patchedBranch = { ...patchedBranch, stops: patchedStops };
           return patchedBranch;
         });
         if (
@@ -6200,9 +6235,90 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
   );
 }
 
+function dayRecapRows(transports) {
+  const rows = [];
+  const seen = new Set();
+  (transports || []).forEach((transport) => {
+    routeBoardingStops(transport).forEach((stop) => {
+      const passengers = passengersAtStop(transport, stop.city);
+      const key = `${transport.id}|${normalizePlace(stop.city)}`;
+      if (!passengers.length || seen.has(key)) return;
+      seen.add(key);
+      const rdv = getEmailRdvInfo(transport, passengers[0]);
+      const arrivalTime = transport.direction === "retour"
+        ? routeArrivalTimeFromStop(transport, stop)
+        : stop.type === "sub" || stop.type === "branch-sub" ? routeStopTime(stop, transport, "arrival") : "";
+      const departureTime = transport.direction === "aller"
+        ? routeDepartureTimeFromStop(transport, stop)
+        : stop.type === "sub" || stop.type === "branch-sub" ? routeStopTime(stop, transport, "departure") : "";
+      rows.push({
+        id: key,
+        route: `${transport.departureCity || "?"} → ${transport.arrivalCity || "?"}`,
+        routeGroup: ROUTE_GROUPS.find((group) => group.value === transport.routeGroup)?.label || transport.routeLabel || "Trajet",
+        city: stop.city,
+        action: transport.direction === "retour" ? "Descente" : "Prise en charge",
+        childCount: countChildren(passengers),
+        meetingPoint: rdv.meetingPoint || routeStopMeetingPoint(stop) || stop.city,
+        meetingTime: rdv.rdvTime || "",
+        arrivalTime,
+        departureTime,
+        trainLabel: rdv.trainLabel || routeTrainSummary(transport, stop),
+      });
+    });
+  });
+  return rows.sort((left, right) => {
+    const leftTime = timeToMinutes(left.meetingTime || left.arrivalTime || left.departureTime);
+    const rightTime = timeToMinutes(right.meetingTime || right.arrivalTime || right.departureTime);
+    if (leftTime === null && rightTime === null) return left.city.localeCompare(right.city, "fr");
+    if (leftTime === null) return 1;
+    if (rightTime === null) return -1;
+    return leftTime - rightTime;
+  });
+}
+
+function DayRecapModal({ day, transports, onClose }) {
+  const rows = useMemo(() => dayRecapRows(transports), [transports]);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1300, background: "rgba(30,16,64,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
+      <div style={{ width: "min(1120px, 100%)", maxHeight: "90vh", overflow: "hidden", background: "#fff", borderRadius: 16, boxShadow: "0 24px 70px rgba(30,16,64,.3)" }} onClick={(event) => event.stopPropagation()}>
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #e9e3f0" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#1e1040" }}>Récapitulatif de toute la journée</div>
+            <div style={{ marginTop: 3, fontSize: 12, color: "#6d5a86" }}>{day.label} · {fmtDateLong(day.date)} · {countUniqueChildrenAcrossTransports(transports)} enfants</div>
+          </div>
+          <button type="button" className="dash-btn" onClick={onClose}>Fermer</button>
+        </div>
+        <div style={{ maxHeight: "calc(90vh - 72px)", overflow: "auto", padding: 18 }}>
+          <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse", fontSize: 12 }}>
+            <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
+              <tr style={{ background: "#1e1040", color: "#fff" }}>
+                {['Horaire', 'Trajet', 'Ville / action', 'Enfants', 'Point de RDV', 'Transport'].map((label) => <th key={label} style={{ padding: "10px 12px", textAlign: label === 'Enfants' ? 'center' : 'left' }}>{label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={row.id} style={{ background: index % 2 ? "#faf8fc" : "#fff", borderBottom: "1px solid #eeeaf3" }}>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong style={{ color: "#B8336A" }}>{row.meetingTime || "—"}</strong></td>
+                  <td style={{ padding: "10px 12px" }}><strong>{row.route}</strong><div style={{ color: "#7c3aed", fontSize: 10, marginTop: 2 }}>{row.routeGroup}</div></td>
+                  <td style={{ padding: "10px 12px" }}><strong>{row.city}</strong><div style={{ color: row.action === "Descente" ? "#ea580c" : "#16a34a", fontWeight: 800, fontSize: 10, marginTop: 2, textTransform: "uppercase" }}>{row.action}</div></td>
+                  <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 900, color: "#7c3aed" }}>{row.childCount}</td>
+                  <td style={{ padding: "10px 12px", maxWidth: 260 }}>{row.meetingPoint || "À confirmer"}</td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong>{row.trainLabel || "Transport"}</strong><div style={{ marginTop: 2, color: "#64748b" }}>{[row.arrivalTime ? `Arr. ${row.arrivalTime}` : "", row.departureTime ? `Dép. ${row.departureTime}` : ""].filter(Boolean).join(" · ") || "—"}</div></td>
+                </tr>
+              ))}
+              {!rows.length && <tr><td colSpan={6} style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>Aucune ville avec enfant pour cette journée.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrajetsTab({ transports, reservations, staffMembers, staffContracts, cityStops, onSave, onDelete, onCreated, onCreate }) {
   const [selectedWeek, setSelectedWeek] = useState("S1");
   const [expandedId, setExpandedId]     = useState(null);
+  const [recapDay, setRecapDay]         = useState(null);
   const cityOptions = useMemo(() => cityOptionsFromTransports(transports, cityStops), [transports, cityStops]);
 
   const weekTransports = useMemo(
@@ -6261,6 +6377,9 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
                 {missingSegTix > 0 && (
                   <span className="tr-day-stat is-warn">{missingSegTix} billet{missingSegTix > 1 ? "s" : ""} manquant{missingSegTix > 1 ? "s" : ""}</span>
                 )}
+                <button type="button" className="dash-btn" disabled={!dayTrips.length} onClick={() => setRecapDay({ dir, date, label, transports: dayTrips })}>
+                  Tableau de la journée
+                </button>
               </div>
             </div>
 
@@ -6311,6 +6430,14 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
           </section>
         );
       })}
+
+      {recapDay && (
+        <DayRecapModal
+          day={recapDay}
+          transports={recapDay.transports}
+          onClose={() => setRecapDay(null)}
+        />
+      )}
 
       {weekTransports.length === 0 && (
         <div style={{ padding: "32px", textAlign: "center", color: "var(--dash-muted)" }}>
@@ -7017,6 +7144,35 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [convocSettings, setConvocSettings]     = useState({ items: {}, emergencyPhones: [] });
   const [showConvocSettings, setShowConvocSettings] = useState(false);
   const [savingConvocSettings, setSavingConvocSettings] = useState(false);
+  const [emailOverrides, setEmailOverrides] = useState({});
+
+  const emailFor = useCallback((item) => {
+    const id = item?.reservationId || item?.id;
+    return String((id && emailOverrides[id] !== undefined ? emailOverrides[id] : item?.email) || "").trim();
+  }, [emailOverrides]);
+
+  const setFamilyEmailDraft = useCallback((ids, value) => {
+    setEmailOverrides((previous) => {
+      const next = { ...previous };
+      ids.filter(Boolean).forEach((id) => { next[id] = value; });
+      return next;
+    });
+  }, []);
+
+  const saveFamilyEmail = useCallback(async (ids, value) => {
+    const email = String(value || "").trim();
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+      showToast("Adresse e-mail invalide", "warning");
+      return false;
+    }
+    await Promise.all(ids.filter(Boolean).map((id) => updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), {
+      "legal.email": email,
+      updatedAt: serverTimestamp(),
+    })));
+    setFamilyEmailDraft(ids, email);
+    showToast("Adresse e-mail enregistrée", "success");
+    return true;
+  }, [setFamilyEmailDraft, showToast]);
 
   const getAnimForTrip = useCallback((trip) => {
     const s = trip?.staff?.[0];
@@ -7091,7 +7247,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const getOnSiteConfig = useCallback((sejourName) => ({
     arrivalTime: onSiteConfigs[sejourName]?.arrivalTime || "14:00",
     returnTime:  onSiteConfigs[sejourName]?.returnTime  || "14:00",
-    lieu:        onSiteConfigs[sejourName]?.lieu        || "",
+    lieu:        onSiteConfigs[sejourName]?.lieu        || onSiteAddressForStay(sejourName),
     animName:    onSiteConfigs[sejourName]?.animName    || "",
     animPhone:   onSiteConfigs[sejourName]?.animPhone   || "",
   }), [onSiteConfigs]);
@@ -7204,6 +7360,8 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
 
   const doSendFamily = useCallback(async (trip, passengers, { reminder = false } = {}) => {
     const primary  = passengers[0];
+    const destinationEmail = emailFor(primary);
+    if (!destinationEmail) throw new Error("Adresse e-mail manquante");
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
     const animInfo = getAnimForTrip(trip);
@@ -7215,15 +7373,17 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: primary.email, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
+      body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     const ids = passengers.map((p) => p.reservationId);
     if (reminder) await markReminderSent(ids);
     else await markAllSent(ids);
-  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getAnimForTrip]);
+  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getAnimForTrip, emailFor]);
 
   const doSendOnSite = useCallback(async (reservation, { reminder = false } = {}) => {
+    const destinationEmail = emailFor(reservation);
+    if (!destinationEmail) throw new Error("Adresse e-mail manquante");
     const cfg = getOnSiteConfig(reservation.sejourName || "Séjour");
     const animInfo = getAnimForOnSite(reservation.sejourName || "Séjour");
     const convocationHtml = buildOnSiteEmailHtml(reservation, selectedWeek, {
@@ -7239,12 +7399,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to: reservation.email, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
+      body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
     });
     if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
     if (reminder) await markReminderSent([reservation.id]);
     else await markAllSent([reservation.id]);
-  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek]);
+  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, emailFor]);
 
   // Pending = one entry per unique family (email) that hasn't been fully sent
   const pendingFamilies = useMemo(() => {
@@ -7253,18 +7413,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     convocationTrips.forEach((trip) => {
       groupPassengersByFamily(trip.passengers).forEach((passengers) => {
         const primary = passengers[0];
-        const emailKey = (primary.email && primary.email !== "-") ? primary.email : primary.reservationId;
+        const email = emailFor(primary);
+        const emailKey = email && email !== "-" ? email : primary.reservationId;
         if (seen.has(emailKey)) return;
         const allIds = passengers.map((p) => p.reservationId).filter(Boolean);
         const allSent = allIds.every((id) => sentStatus[id]);
-        if (!allSent && primary.email && primary.email !== "-") {
+        if (!allSent && email && email !== "-") {
           seen.add(emailKey);
           rows.push({ trip, passengers });
         }
       });
     });
     return rows;
-  }, [convocationTrips, sentStatus]);
+  }, [convocationTrips, sentStatus, emailFor]);
 
   const missingEmailFamilies = useMemo(() => {
     const seen = new Set();
@@ -7276,7 +7437,8 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
         if (seen.has(key)) return;
         const allIds = passengers.map((p) => p.reservationId).filter(Boolean);
         const allSent = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
-        const hasEmail = primary.email && primary.email !== "-";
+        const email = emailFor(primary);
+        const hasEmail = email && email !== "-";
         if (!allSent && !hasEmail) {
           seen.add(key);
           rows.push({ trip, passengers });
@@ -7284,20 +7446,44 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       });
     });
     return rows;
-  }, [convocationTrips, sentStatus]);
+  }, [convocationTrips, sentStatus, emailFor]);
 
   const pendingOnSiteReservations = useMemo(
-    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && reservation.email && reservation.email !== "-"),
-    [onSiteReservations, sentStatus],
+    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && emailFor(reservation) && emailFor(reservation) !== "-"),
+    [onSiteReservations, sentStatus, emailFor],
   );
 
   const missingOnSiteEmailReservations = useMemo(
-    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && (!reservation.email || reservation.email === "-")),
-    [onSiteReservations, sentStatus],
+    () => onSiteReservations.filter((reservation) => !sentStatus[reservation.id] && (!emailFor(reservation) || emailFor(reservation) === "-")),
+    [onSiteReservations, sentStatus, emailFor],
   );
 
   const pendingMailCount = pendingFamilies.length + pendingOnSiteReservations.length;
   const missingEmailCount = missingEmailFamilies.length + missingOnSiteEmailReservations.length;
+
+  const pendingReminderFamilies = useMemo(() => {
+    const rows = [];
+    const seen = new Set();
+    convocationTrips.forEach((trip) => {
+      groupPassengersByFamily(trip.passengers).forEach((passengers) => {
+        const ids = passengers.map((passenger) => passenger.reservationId).filter(Boolean);
+        const key = ids.slice().sort().join("|");
+        const email = emailFor(passengers[0]);
+        if (!key || seen.has(key) || !email || email === "-") return;
+        if (ids.every((id) => sentStatus[id]) && !ids.every((id) => reminderStatus[id])) {
+          seen.add(key);
+          rows.push({ type: "transport", trip, passengers });
+        }
+      });
+    });
+    onSiteReservations.forEach((reservation) => {
+      const email = emailFor(reservation);
+      if (sentStatus[reservation.id] && !reminderStatus[reservation.id] && email && email !== "-") {
+        rows.push({ type: "onsite", reservation });
+      }
+    });
+    return rows;
+  }, [convocationTrips, onSiteReservations, sentStatus, reminderStatus, emailFor]);
 
   const handleSendAll = useCallback(async () => {
     const total = pendingFamilies.length + pendingOnSiteReservations.length;
@@ -7326,6 +7512,29 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     if (errors.length === 0) showToast(`${total} convocation(s) envoyée(s)`, "success");
     else showToast(`${total - errors.length} succès · ${errors.length} erreur(s)`, "error");
   }, [pendingFamilies, pendingOnSiteReservations, doSendFamily, doSendOnSite, showToast]);
+
+  const handleSendAllReminders = useCallback(async () => {
+    const total = pendingReminderFamilies.length;
+    if (!total) { showToast("Aucun rappel J-3 à envoyer", "info"); return; }
+    if (!window.confirm(`Envoyer ${total} rappel(s) J-3 maintenant ?`)) return;
+    setSendingAll(true);
+    setSendProgress({ done: 0, total, errors: [] });
+    const errors = [];
+    for (let index = 0; index < pendingReminderFamilies.length; index += 1) {
+      const item = pendingReminderFamilies[index];
+      try {
+        if (item.type === "onsite") await doSendOnSite(item.reservation, { reminder: true });
+        else await doSendFamily(item.trip, item.passengers, { reminder: true });
+      } catch (error) {
+        errors.push({ email: item.type === "onsite" ? emailFor(item.reservation) : emailFor(item.passengers[0]), error: error.message });
+      }
+      setSendProgress({ done: index + 1, total, errors: [...errors] });
+      if (index < total - 1) await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    setSendingAll(false);
+    if (!errors.length) showToast(`${total} rappel(s) J-3 envoyé(s)`, "success");
+    else showToast(`${total - errors.length} succès · ${errors.length} erreur(s)`, "error");
+  }, [pendingReminderFamilies, doSendFamily, doSendOnSite, emailFor, showToast]);
 
   return (
     <div className="tr-convoc-tab">
@@ -7380,13 +7589,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             </div>
           </div>
         ) : (
-          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingMailCount === 0}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-            Envoyer tout ({pendingMailCount})
-          </button>
+          <>
+            <button type="button" className="dash-btn" onClick={handleSendAllReminders} disabled={pendingReminderFamilies.length === 0}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, color: pendingReminderFamilies.length ? "#ea580c" : undefined, borderColor: pendingReminderFamilies.length ? "#fdba74" : undefined }}>
+              Rappels J-3 ({pendingReminderFamilies.length})
+            </button>
+            <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingMailCount === 0}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+              Envoyer tout ({pendingMailCount})
+            </button>
+          </>
         )}
       </div>
 
@@ -7564,7 +7779,8 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     const isSent = Boolean(sentStatus[r.id]);
                     const kids = r.children?.length ? r.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ") : r.childName || "—";
                     const familyKey = `onsite-${r.id}`;
-                    const hasEmail = r.email && r.email !== "-";
+                    const currentEmail = emailFor(r);
+                    const hasEmail = currentEmail && currentEmail !== "-";
                     const isSending = sendingKey === familyKey;
                     const isPreviewing = preview?.familyKey === familyKey;
                     const reminderDone = Boolean(reminderStatus[r.id]);
@@ -7579,7 +7795,16 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           <span style={{ fontWeight: 700, color: "#ea580c", fontSize: 11 }}>↑ {cfg.returnTime}</span>
                         </td>
                         <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
-                        <td style={cTd}>{hasEmail ? <span style={{ color: "#374151", fontSize: 12 }}>{r.email}</span> : <span style={{ color: "#ef4444", fontStyle: "italic", fontSize: 12 }}>Manquant</span>}</td>
+                        <td style={cTd}>
+                          <input
+                            type="email"
+                            value={currentEmail === "-" ? "" : currentEmail}
+                            onChange={(event) => setFamilyEmailDraft([r.id], event.target.value)}
+                            onBlur={(event) => saveFamilyEmail([r.id], event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
+                            placeholder="Adresse e-mail"
+                            style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
+                          />
+                        </td>
                         <td style={{ ...cTd, textAlign: "center" }}>
                           <button type="button" onClick={() => isSent ? markAllUnsent([r.id]) : markAllSent([r.id])}
                             style={{ width: 24, height: 24, borderRadius: 6, border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`, background: isSent ? "#dcfce7" : "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -7606,13 +7831,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => setPreview(isPreviewing ? null : { type: "onsite", familyKey, reservation: r, cfg })}>
+                              onClick={() => setPreview(isPreviewing ? null : { type: "onsite", familyKey, reservation: { ...r, email: currentEmail }, cfg })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
                             </button>
-                            {isSent && (
+                            {hasEmail && (
                               <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
                                 disabled={!hasEmail || isSending || sendingAll}
-                                onClick={() => setPreview({ type: "onsite", familyKey, reservation: r, cfg, _isReminder: true })}>
+                                title={isSent ? "Prévisualiser le rappel J-3" : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
+                                onClick={() => setPreview({ type: "onsite", familyKey, reservation: { ...r, email: currentEmail }, cfg, _isReminder: true, _canSendReminder: isSent })}>
                                 Rappel J-3
                               </button>
                             )}
@@ -7622,7 +7848,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                                 setSendingKey(familyKey);
                                 try {
                                   await doSendOnSite(r);
-                                  showToast(`Convocation envoyée à ${r.email}`, "success");
+                                  showToast(`Convocation envoyée à ${currentEmail}`, "success");
                                 } catch (e) {
                                   showToast(`Erreur : ${e.message}`, "error");
                                 } finally {
@@ -7680,7 +7906,8 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     const isSent    = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
                     const familyKey = (primary.email && primary.email !== "-") ? primary.email : (primary.reservationId || i);
                     const isSending = sendingKey === familyKey;
-                    const hasEmail  = primary.email && primary.email !== "-";
+                    const currentEmail = emailFor(primary);
+                    const hasEmail  = currentEmail && currentEmail !== "-";
                     const rdvInfo   = getEmailRdvInfo(trip, primary);
                     const allChildren = merged.children?.length
                       ? merged.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
@@ -7703,9 +7930,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         </td>
                         <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || passengerCity(trip, primary) || "—"}</span></td>
                         <td style={cTd}>
-                          {hasEmail
-                            ? <span style={{ color: "#374151", fontSize: 12 }}>{primary.email}</span>
-                            : <span style={{ color: "#ef4444", fontSize: 12, fontStyle: "italic" }}>Manquant</span>}
+                          <input
+                            type="email"
+                            value={currentEmail === "-" ? "" : currentEmail}
+                            onChange={(event) => setFamilyEmailDraft(allIds, event.target.value)}
+                            onBlur={(event) => saveFamilyEmail(allIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
+                            placeholder="Adresse e-mail"
+                            style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
+                          />
                         </td>
                         <td style={{ ...cTd, textAlign: "center" }}>
                           <button type="button"
@@ -7735,13 +7967,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => setPreview(isPreviewing ? null : { ...merged, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers })}>
+                              onClick={() => setPreview(isPreviewing ? null : { ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
                             </button>
-                            {isSent && (
+                            {hasEmail && (
                               <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
                                 disabled={!hasEmail || isSending || sendingAll}
-                                onClick={() => setPreview({ ...merged, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers, _isReminder: true })}>
+                                title={isSent ? "Prévisualiser le rappel J-3" : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
+                                onClick={() => setPreview({ ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers, _isReminder: true, _canSendReminder: isSent })}>
                                 Rappel J-3
                               </button>
                             )}
@@ -7751,7 +7984,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                                 setSendingKey(familyKey);
                                 try {
                                   await doSendFamily(trip, passengers);
-                                  showToast(`Convocation envoyée à ${primary.email}`, "success");
+                                  showToast(`Convocation envoyée à ${currentEmail}`, "success");
                                 } catch (e) {
                                   showToast(`Erreur : ${e.message}`, "error");
                                 } finally {
@@ -7801,7 +8034,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
               <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
-              <button type="button" disabled={!!sendingKey}
+              <button type="button" disabled={!!sendingKey || (preview._isReminder && !preview._canSendReminder)}
                 onClick={async () => {
                   setSendingKey(preview.familyKey);
                   try {
@@ -7820,7 +8053,11 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                   }
                 }}
                 style={{ padding: "8px 16px", background: sendingKey ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingKey ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingKey ? "not-allowed" : "pointer" }}>
-                {sendingKey ? "Envoi en cours…" : preview._isReminder ? "Envoyer le rappel J-3" : "Envoyer cette convocation"}
+                {sendingKey
+                  ? "Envoi en cours…"
+                  : preview._isReminder && !preview._canSendReminder
+                    ? "Envoyer d’abord la convocation"
+                    : preview._isReminder ? "Envoyer le rappel J-3" : "Envoyer cette convocation"}
               </button>
             </div>
           </div>
@@ -8309,6 +8546,7 @@ export default function Transport({ focusDate = "" }) {
           {activeTab === "villes" && (
             <GlobalCityStopsTab
               transports={transports}
+              reservations={reservations}
               cityStops={cityStops}
               onBulkUpdate={handleBulkSave}
               onCityStopsChange={setCityStops}
