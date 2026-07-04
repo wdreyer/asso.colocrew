@@ -262,6 +262,52 @@ function passengersBoardingAt(transport, city) {
   );
 }
 
+function transportCityRecap(transport) {
+  const isReturn = transport.direction === "retour";
+  const rows = [];
+  const seen = new Set();
+  const addRow = (portion, point, pointIndex, action, passengers) => {
+    if (!passengers.length || !point.city) return;
+    const key = `${normalizePlace(point.city)}|${action}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const isBoarding = action === "boarding";
+    const meetingTime = isBoarding
+      ? point.meetingTime || portion.meetingTime || ""
+      : point.arrivalTime || portion.arrivalTime || "";
+    const meetingPoint = isBoarding
+      ? point.meetingPoint || portion.meetingPoint || point.city
+      : isReturn && !transport.sharedConnection
+        ? "À la descente du quai — l’animateur·ice vous contactera"
+        : point.meetingPoint || `Arrivée à ${point.city}`;
+    rows.push({
+      city: point.city,
+      action: isBoarding
+        ? (isReturn ? "Prise en charge au centre" : "Prise en charge")
+        : (isReturn && !transport.sharedConnection ? "Remise aux familles" : "Descente"),
+      childCount: countChildren(passengers),
+      meetingPoint,
+      meetingTime,
+      arrivalTime: point.arrivalTime || (pointIndex === 2 ? portion.arrivalTime || "" : ""),
+      departureTime: point.departureTime || (pointIndex === 0 ? portion.departureTime || "" : ""),
+      order: rows.length,
+    });
+  };
+
+  orderedTransportPortions(transport).forEach((portion) => {
+    const points = [
+      { city: portion.from, meetingPoint: portion.meetingPoint, meetingTime: portion.meetingTime, departureTime: portion.departureTime },
+      ...(portion.stops || []).map((stop) => ({ ...stop })),
+      { city: portion.to, arrivalTime: portion.arrivalTime },
+    ];
+    points.forEach((point, index) => {
+      addRow(portion, point, index === 0 ? 0 : index === points.length - 1 ? 2 : 1, "boarding", passengersBoardingAt(transport, point.city));
+      addRow(portion, point, index === 0 ? 0 : index === points.length - 1 ? 2 : 1, "dropoff", passengersDroppingAt(transport, point.city));
+    });
+  });
+  return rows.sort((left, right) => left.order - right.order);
+}
+
 function timeMinutes(value) {
   const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
   return match ? Number(match[1]) * 60 + Number(match[2]) : Number.MAX_SAFE_INTEGER;
@@ -654,6 +700,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
   const leadMember = leadStaffMember(transport);
   const stageCities = transportStageCities(transport);
   const coordinationEvents = staffCoordinationEvents(transport);
+  const cityRecap = transportCityRecap(transport);
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 60 }}>
@@ -770,6 +817,44 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               ))}
           </div>
         </div>
+
+        {cityRecap.length > 0 && (
+          <>
+            <SectionTitle color="#1e1040">Récapitulatif par ville</SectionTitle>
+            <div style={{ overflowX: "auto", marginBottom: 18, border: "1.5px solid #e5e7eb", borderRadius: 12, background: "#fff" }}>
+              <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "#1e1040", color: "#fff" }}>
+                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Ville / action</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Enfants</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Point de rendez-vous</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Heure RDV</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Horaires transport</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cityRecap.map((row, index) => (
+                    <tr key={`${row.city}-${row.action}`} style={{ background: index % 2 ? "#faf8fc" : "#fff", borderTop: "1px solid #eeeaf3" }}>
+                      <td style={{ padding: "8px 10px" }}>
+                        <div style={{ fontWeight: 900, color: "#1e1040" }}>{row.city}</div>
+                        <div style={{ marginTop: 2, fontSize: 10, fontWeight: 800, color: row.action.includes("Remise") || row.action === "Descente" ? "#ea580c" : "#16a34a", textTransform: "uppercase" }}>{row.action}</div>
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#7c3aed" }}>{row.childCount}</td>
+                      <td style={{ padding: "8px 10px", color: "#374151", lineHeight: 1.4 }}>{row.meetingPoint || "À confirmer"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#B8336A" }}>{row.meetingTime || "—"}</td>
+                      <td style={{ padding: "8px 10px", color: "#374151", whiteSpace: "nowrap" }}>
+                        {row.arrivalTime && <span>Arr. <strong>{row.arrivalTime}</strong></span>}
+                        {row.arrivalTime && row.departureTime && <span> · </span>}
+                        {row.departureTime && <span>Dép. <strong>{row.departureTime}</strong></span>}
+                        {!row.arrivalTime && !row.departureTime && <span>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         {coordinationEvents.length > 0 && (
           <>
