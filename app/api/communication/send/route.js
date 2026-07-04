@@ -22,6 +22,18 @@ async function generateConvocPdf(convocData) {
   const pdfDoc = await PDFDocument.create();
   const font     = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const wrapText = (text, usedFont, size, maxWidth) => {
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (!current || usedFont.widthOfTextAtSize(candidate, size) <= maxWidth) current = candidate;
+      else { lines.push(current); current = word; }
+    }
+    if (current) lines.push(current);
+    return lines.length ? lines : [""];
+  };
 
   const allChildren = (children?.length ? children : [{ firstName: responsable?.nom || "", lastName: "" }]);
 
@@ -77,17 +89,19 @@ async function generateConvocPdf(convocData) {
       ["Date", convocData.dateLabel || "—"],
       ["Ville de départ", truncate(rdvInfo?.city || convocData.departureCity || "—", 50)],
       rdvInfo?.rdvTime  ? ["Heure de RDV",     rdvInfo.rdvTime + (rdvInfo.trainTime ? ` (train ${rdvInfo.trainTime})` : "")] : null,
-      rdvInfo?.meetingPoint && rdvInfo.stopType !== "quai" ? ["Point de RDV", truncate(rdvInfo.meetingPoint, 50)] : null,
+      rdvInfo?.meetingPoint && rdvInfo.stopType !== "quai" ? ["Point de RDV", rdvInfo.meetingPoint] : null,
       rdvInfo?.stopType === "quai" ? ["Lieu", "Directement sur le quai" + (rdvInfo.platform ? ` — voie ${rdvInfo.platform}` : "")] : null,
       rdvInfo?.trainLabel ? ["Train", truncate(rdvInfo.trainLabel, 50)] : null,
       rdvInfo?.arrivalTime ? ["Arrivée prévue", rdvInfo.arrivalTime + (rdvInfo.arrivalCity ? ` à ${rdvInfo.arrivalCity}` : "")] : null,
     ].filter(Boolean);
 
     for (const [label, value] of rows) {
-      rect(margin, y + 3, 130, 16, LIGHT_GREY);
+      const valueLines = wrapText(value, font, 10, W - margin * 2 - 146);
+      const rowHeight = Math.max(18, valueLines.length * 12 + 6);
+      rect(margin, y + 3, 130, rowHeight, LIGHT_GREY);
       draw(label, margin + 6, y - 5, 9, fontBold, GREY);
-      draw(value, margin + 140, y - 5, 10, font);
-      y -= 18;
+      valueLines.forEach((lineText, lineIndex) => draw(lineText, margin + 140, y - 5 - lineIndex * 12, 10, font));
+      y -= rowHeight + 2;
     }
 
     // ── Retour ──
@@ -106,10 +120,12 @@ async function generateConvocPdf(convocData) {
       ].filter(Boolean);
 
       for (const [label, value] of retourRows) {
-        rect(margin, y + 3, 130, 16, LIGHT_GREY);
+        const valueLines = wrapText(value, font, 10, W - margin * 2 - 146);
+        const rowHeight = Math.max(18, valueLines.length * 12 + 6);
+        rect(margin, y + 3, 130, rowHeight, LIGHT_GREY);
         draw(label, margin + 6, y - 5, 9, fontBold, GREY);
-        draw(truncate(value, 70), margin + 140, y - 5, 10, font);
-        y -= 18;
+        valueLines.forEach((lineText, lineIndex) => draw(lineText, margin + 140, y - 5 - lineIndex * 12, 10, font));
+        y -= rowHeight + 2;
       }
     }
 
