@@ -6571,7 +6571,6 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
     retourInfo ? `Date de retour : ${fmtDateLong(retourInfo.date)}` : null,
     retourInfo?.arrivalTime ? `Heure de rendez-vous retour : ${retourInfo.arrivalTime}` : null,
     retourInfo?.trainLabel ? `Train retour : ${retourInfo.trainLabel}` : null,
-    retourInfo?.departureTime ? `Départ retour prévu : ${retourInfo.departureTime}` : null,
     retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
     retourInfo ? `Lieu de récupération : à la descente du quai — communiqué par l'animateur·ice` : null,
     retourInfo ? `` : null,
@@ -6637,7 +6636,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     ? `<strong>${fmtDateLong(retourInfo.date)}</strong>${retourInfo.arrivalTime ? `<br><span style="color:#ea580c;font-weight:700;">RDV à ${retourInfo.arrivalTime}</span>` : ""}`
     : TBC;
   const retourTrain = retourInfo
-    ? trainDetailHtml(retourInfo.trainLabel, retourInfo.departureTime, retourInfo.arrivalTime, retourInfo.arrivalCity)
+    ? trainDetailHtml(retourInfo.trainLabel, "", retourInfo.arrivalTime, retourInfo.arrivalCity)
     : TBC;
   const retourLieu = retourInfo
     ? `<em style="color:#64748b;">À la descente du quai — communiqué par l'animateur·ice</em>`
