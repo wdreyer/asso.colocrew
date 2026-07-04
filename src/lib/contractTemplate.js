@@ -504,10 +504,28 @@ export function openContractsBatchPrint(entries, label = "séjour") {
     .batch-contract{break-before:page;page-break-before:always}.batch-contract:first-of-type{break-before:auto;page-break-before:auto}
     .batch-blank-page{break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:260mm;color:transparent;overflow:hidden}
     @media print{
+      @page{size:A4;margin:10mm 13mm}
       .no-print,.batch-toolbar{display:none!important}
       .batch-contract{break-before:page;page-break-before:always}
       .batch-contract:first-of-type{break-before:auto;page-break-before:auto}
-      .batch-blank-page{display:block!important;break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:260mm}
+      .batch-contract .page{max-width:none;padding:8px 6px 12px}
+      .batch-contract .cc-header{margin-bottom:12px;padding-bottom:7px}
+      .batch-contract .cc-title{font-size:14pt;margin:14px 0 12px}
+      .batch-contract .cc-parties{margin-bottom:12px;line-height:1.4}
+      .batch-contract .cc-party-block p{font-size:9.2pt;line-height:1.3}
+      .batch-contract .cc-dune-part{margin:6px 0 9px}
+      .batch-contract .cc-convention{margin-top:7px;margin-bottom:10px}
+      .batch-contract .cc-article{margin-bottom:10px;break-inside:auto;page-break-inside:auto}
+      .batch-contract .cc-article h2{font-size:10pt;margin-bottom:4px}
+      .batch-contract .cc-article p{font-size:9.2pt;line-height:1.35;margin-bottom:3px}
+      .batch-contract .cc-article ol,.batch-contract .cc-article ul{margin:3px 0 3px 18px}
+      .batch-contract .cc-article li{font-size:9.1pt!important;line-height:1.3!important;margin-bottom:2px!important}
+      .batch-contract .cc-signatures{margin-top:16px;break-inside:avoid;page-break-inside:avoid}
+      .batch-contract .cc-sign-place{margin-bottom:8px}
+      .batch-contract .cc-sign-row{margin-top:14px}
+      .batch-contract .cc-sign-box p{margin-bottom:28px}
+      .batch-contract .cc-footer{margin-top:14px;padding-top:6px;break-inside:avoid;page-break-inside:avoid;break-before:avoid-page}
+      .batch-blank-page{display:block!important;break-before:page;page-break-before:always;break-after:page;page-break-after:always;height:276mm}
     }
   </style></head><body>
     <div class="batch-toolbar"><span>${documents.length} contrats · impression recto-verso bord long</span><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
