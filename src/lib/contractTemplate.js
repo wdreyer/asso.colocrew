@@ -482,7 +482,9 @@ export function openContractsBatchPrint(entries, label = "séjour") {
 
   const documents = validEntries.map(({ member, contract }) => {
     const parsed = new DOMParser().parseFromString(generateContractHTML(member, contract), "text/html");
-    return parsed.querySelector(".page")?.outerHTML || "";
+    const page = parsed.querySelector(".page");
+    page?.querySelector(".cc-footer")?.remove();
+    return page?.outerHTML || "";
   }).filter(Boolean);
   const firstDocument = new DOMParser().parseFromString(
     generateContractHTML(validEntries[0].member, validEntries[0].contract),
