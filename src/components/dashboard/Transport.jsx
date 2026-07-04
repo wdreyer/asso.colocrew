@@ -6292,21 +6292,23 @@ function DayRecapModal({ day, transports, onClose }) {
           <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse", fontSize: 12 }}>
             <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
               <tr style={{ background: "#1e1040", color: "#fff" }}>
-                {['Horaire', 'Trajet', 'Ville / action', 'Enfants', 'Point de RDV', 'Transport'].map((label) => <th key={label} style={{ padding: "10px 12px", textAlign: label === 'Enfants' ? 'center' : 'left' }}>{label}</th>)}
+                {['Trajet', 'Ville / action', 'Enfants', 'Point de RDV', 'RDV famille', 'Départ', 'Arrivée', 'Transport'].map((label) => <th key={label} style={{ padding: "10px 12px", textAlign: ['Enfants', 'RDV famille', 'Départ', 'Arrivée'].includes(label) ? 'center' : 'left' }}>{label}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id} style={{ background: index % 2 ? "#faf8fc" : "#fff", borderBottom: "1px solid #eeeaf3" }}>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong style={{ color: "#B8336A" }}>{row.meetingTime || "—"}</strong></td>
                   <td style={{ padding: "10px 12px" }}><strong>{row.route}</strong><div style={{ color: "#7c3aed", fontSize: 10, marginTop: 2 }}>{row.routeGroup}</div></td>
                   <td style={{ padding: "10px 12px" }}><strong>{row.city}</strong><div style={{ color: row.action === "Descente" ? "#ea580c" : "#16a34a", fontWeight: 800, fontSize: 10, marginTop: 2, textTransform: "uppercase" }}>{row.action}</div></td>
                   <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 900, color: "#7c3aed" }}>{row.childCount}</td>
                   <td style={{ padding: "10px 12px", maxWidth: 260 }}>{row.meetingPoint || "À confirmer"}</td>
-                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong>{row.trainLabel || "Transport"}</strong><div style={{ marginTop: 2, color: "#64748b" }}>{[row.arrivalTime ? `Arr. ${row.arrivalTime}` : "", row.departureTime ? `Dép. ${row.departureTime}` : ""].filter(Boolean).join(" · ") || "—"}</div></td>
+                  <td style={{ padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap", fontWeight: 900, color: "#B8336A" }}>{row.meetingTime || "—"}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap", fontWeight: 900, color: "#16a34a" }}>{row.departureTime || "—"}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center", whiteSpace: "nowrap", fontWeight: 900, color: "#ea580c" }}>{row.arrivalTime || "—"}</td>
+                  <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}><strong>{row.trainLabel || "Transport"}</strong></td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={6} style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>Aucune ville avec enfant pour cette journée.</td></tr>}
+              {!rows.length && <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>Aucune ville avec enfant pour cette journée.</td></tr>}
             </tbody>
           </table>
         </div>

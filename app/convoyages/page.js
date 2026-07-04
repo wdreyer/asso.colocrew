@@ -828,8 +828,9 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                     <th style={{ padding: "8px 10px", textAlign: "left" }}>Ville / action</th>
                     <th style={{ padding: "8px 10px", textAlign: "center" }}>Enfants</th>
                     <th style={{ padding: "8px 10px", textAlign: "left" }}>Point de rendez-vous</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Heure RDV</th>
-                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Horaires transport</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>RDV famille</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Départ</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Arrivée</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -841,13 +842,9 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                       </td>
                       <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#7c3aed" }}>{row.childCount}</td>
                       <td style={{ padding: "8px 10px", color: "#374151", lineHeight: 1.4 }}>{row.meetingPoint || "À confirmer"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#B8336A" }}>{row.meetingTime || "—"}</td>
-                      <td style={{ padding: "8px 10px", color: "#374151", whiteSpace: "nowrap" }}>
-                        {row.arrivalTime && <span>Arr. <strong>{row.arrivalTime}</strong></span>}
-                        {row.arrivalTime && row.departureTime && <span> · </span>}
-                        {row.departureTime && <span>Dép. <strong>{row.departureTime}</strong></span>}
-                        {!row.arrivalTime && !row.departureTime && <span>—</span>}
-                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#B8336A", whiteSpace: "nowrap" }}>{row.meetingTime || "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#16a34a", whiteSpace: "nowrap" }}>{row.departureTime || "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#ea580c", whiteSpace: "nowrap" }}>{row.arrivalTime || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
