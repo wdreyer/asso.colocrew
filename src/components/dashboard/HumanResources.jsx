@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, doc, getDocs, updateDoc, arrayUnion, addDoc, setDoc, deleteDoc,
+  collection, doc, getDocs, updateDoc, arrayUnion, addDoc, setDoc, deleteDoc, onSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import DataTable from "@/src/components/dashboard/ui/DataTable";
@@ -13,6 +13,8 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { openContractPrint, openContractsBatchPrint } from "@/src/lib/contractTemplate";
 import { useToast } from "@/src/contexts/ToastContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded } from "@/src/lib/salaryGrid";
+import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
+import { STAFF_DOCUMENT_TYPES, latestDocumentByType, publicAssignmentsForMember } from "@/src/lib/staffDocuments";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -90,6 +92,7 @@ function mapMember(snap) {
     staffType: d.staffType || "",
     photoUrl:  d.photoUrl  || "",
     documents: d.documents || [],
+    documentStatus: d.documentStatus || {},
     active:    d.active !== false,
   };
 }
@@ -122,6 +125,20 @@ function mapContract(snap) {
     status: gross > 0 && paid >= gross ? "Payé" : "À régler",
     contractFileUrl: d.contractFileUrl || "",
   };
+}
+
+function mapStaffDocument(snap) {
+  const data = snap.data() || {};
+  return { id: snap.id, ...data };
+}
+
+function structuredDocumentCompletion(memberId, documents) {
+  const received = STAFF_DOCUMENT_TYPES.filter((type) => latestDocumentByType(documents, memberId, type.key)).length;
+  const validated = STAFF_DOCUMENT_TYPES.filter((type) => {
+    const document = latestDocumentByType(documents, memberId, type.key);
+    return document?.status === "validated" && document.locked;
+  }).length;
+  return { received, validated };
 }
 
 function isDirectionContract(contract) {
@@ -288,7 +305,7 @@ function MiniCard({ member, contract, onFiche, onContract, onEditContract }) {
 
 // ─── Vue "Équipe" ─────────────────────────────────────────────────────────────
 
-function EquipeView({ members, contracts, onFiche, onContract, onEditContract }) {
+function EquipeView({ members, contracts, documents, onFiche, onContract, onEditContract }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -335,7 +352,7 @@ function EquipeView({ members, contracts, onFiche, onContract, onEditContract })
       ) : (
         <div className="hr-equipe-grid">
           {filtered.map((m) => (
-            <StaffCard key={m.id} member={m} contracts={contracts} onFiche={onFiche} onContract={onContract} onEditContract={onEditContract} />
+            <StaffCard key={m.id} member={m} contracts={contracts} documents={documents} onFiche={onFiche} onContract={onContract} onEditContract={onEditContract} />
           ))}
         </div>
       )}
@@ -343,8 +360,9 @@ function EquipeView({ members, contracts, onFiche, onContract, onEditContract })
   );
 }
 
-function StaffCard({ member: m, contracts, onFiche, onContract, onEditContract }) {
+function StaffCard({ member: m, contracts, documents, onFiche, onContract, onEditContract }) {
   const memberContracts = contracts.filter((c) => c.memberId === m.id);
+  const documentCompletion = structuredDocumentCompletion(m.id, documents);
   const [color, bg] = avatarColor(m.id);
 
   const firstContract = memberContracts[0];
@@ -395,6 +413,10 @@ function StaffCard({ member: m, contracts, onFiche, onContract, onEditContract }
             {" · "}{[...new Set(memberContracts.map((c) => c.week))].join(", ")}
           </div>
         )}
+        <div className={`hr-staff-doc-progress${documentCompletion.validated === STAFF_DOCUMENT_TYPES.length ? " is-complete" : ""}`}>
+          Documents : {documentCompletion.validated}/{STAFF_DOCUMENT_TYPES.length} validés
+          {documentCompletion.received > documentCompletion.validated ? ` · ${documentCompletion.received - documentCompletion.validated} à vérifier` : ""}
+        </div>
       </div>
 
       <div className="hr-staff-card-footer">
@@ -523,7 +545,7 @@ const EDIT_FIELDS = [
   { key: "nationality",          label: "Nationalité" },
 ];
 
-function FicheModal({ member: initial, contracts, onClose, onUpdate, onEditContract }) {
+function FicheModal({ member: initial, contracts, structuredDocuments, onClose, onUpdate, onEditContract }) {
   const [member, setMember]   = useState(initial);
   const [editMode, setEdit]   = useState(false);
   const [form, setForm]       = useState({ ...initial });
@@ -705,6 +727,19 @@ function FicheModal({ member: initial, contracts, onClose, onUpdate, onEditContr
           {/* DOCUMENTS */}
           {tab === "docs" && (
             <div className="hr-docs-section">
+              <div className="hr-structured-docs">
+                {STAFF_DOCUMENT_TYPES.map((type) => {
+                  const current = latestDocumentByType(structuredDocuments, member.id, type.key);
+                  const validated = current?.status === "validated" && current.locked;
+                  return (
+                    <div key={type.key} className={`hr-structured-doc${validated ? " is-valid" : current ? " is-pending" : ""}`}>
+                      <strong>{type.label}</strong>
+                      <span>{validated ? "Validé et verrouillé" : current ? "Reçu · à vérifier" : "Manquant"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="hr-docs-hint">Les nouveaux documents typés se gèrent dans l’onglet Documents principal. La liste ci-dessous conserve les anciens fichiers déjà enregistrés.</p>
               <div className="hr-docs-upload">
                 <button
                   type="button"
@@ -1137,6 +1172,7 @@ function SalaryGridModal({ isOpen, gridRows, onClose, onChange }) {
 export default function HumanResources() {
   const [members,   setMembers]   = useState([]);
   const [contracts, setContracts] = useState([]);
+  const [staffDocuments, setStaffDocuments] = useState([]);
   const [gridRows,  setGridRows]  = useState(DEFAULT_SALARY_GRID);
   const [loading,   setLoading]   = useState(true);
   const [tab,       setTab]       = useState("sejours");
@@ -1148,10 +1184,11 @@ export default function HumanResources() {
     async function load() {
       try {
         await ensureSalaryGridSeeded(db);
-        const [mSnap, cSnap, gSnap] = await Promise.all([
+        const [mSnap, cSnap, gSnap, dSnap] = await Promise.all([
           getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
           getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
           getDocs(collection(db, COLLECTIONS.SALARY_GRID)),
+          getDocs(collection(db, COLLECTIONS.STAFF_DOCUMENTS)),
         ]);
         const mappedContracts = cSnap.docs.map(mapContract);
         const directionMemberIds = new Set(
@@ -1162,12 +1199,42 @@ export default function HumanResources() {
         )).sort((a, b) => a.name.localeCompare(b.name, "fr")));
         setContracts(mappedContracts);
         setGridRows(gSnap.docs.map(mapGridRow));
+        setStaffDocuments(dSnap.docs.map(mapStaffDocument));
       } finally {
         setLoading(false);
       }
     }
     load();
   }, []);
+
+  useEffect(() => onSnapshot(
+    collection(db, COLLECTIONS.STAFF_DOCUMENTS),
+    (snapshot) => setStaffDocuments(snapshot.docs.map(mapStaffDocument)),
+    () => {},
+  ), []);
+
+  useEffect(() => {
+    if (loading || !members.length) return;
+    const syncPublicProfiles = async () => {
+      await Promise.all(members.map((member) => {
+        const locks = Object.fromEntries(STAFF_DOCUMENT_TYPES.map((type) => [
+          type.key,
+          staffDocuments.some((document) => document.memberId === member.id && document.documentType === type.key && document.status === "validated" && document.locked),
+        ]));
+        return setDoc(doc(db, COLLECTIONS.STAFF_PUBLIC_PROFILES, member.id), {
+          name: member.name,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          staffType: member.staffType,
+          active: member.active,
+          assignments: publicAssignmentsForMember(member.id, contracts),
+          documentLocks: locks,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      }));
+    };
+    syncPublicProfiles().catch(() => {});
+  }, [loading, members, contracts, staffDocuments]);
 
   const updateMember = (updated) => {
     setMembers((prev) => prev.map((m) => m.id === updated.id ? updated : m));
@@ -1209,6 +1276,15 @@ export default function HumanResources() {
 
   const handleGridChange = (rows) => setGridRows(rows);
 
+  const handleDocumentChange = (updatedDocument) => {
+    setStaffDocuments((previous) => {
+      const exists = previous.some((document) => document.id === updatedDocument.id);
+      return exists
+        ? previous.map((document) => document.id === updatedDocument.id ? { ...document, ...updatedDocument } : document)
+        : [...previous, updatedDocument];
+    });
+  };
+
   const animCount = members.filter((m) => m.staffType !== "directeur").length;
   const dirCount  = members.filter((m) => m.staffType === "directeur").length;
 
@@ -1216,6 +1292,7 @@ export default function HumanResources() {
     { key: "sejours",  label: "Par séjour",  count: contracts.length > 0 ? [...new Set(contracts.map((c) => `${c.stayCode}${c.week}`))].length : null },
     { key: "equipe",   label: "Équipe",       count: members.length },
     { key: "contrats", label: "Contrats",     count: contracts.length },
+    { key: "documents", label: "Documents", count: staffDocuments.filter((document) => document.status !== "validated").length || null },
   ];
 
   return (
@@ -1228,6 +1305,9 @@ export default function HumanResources() {
           <p>{animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="dash-row-actions">
+          <a className="dash-btn" href="/rh" target="_blank" rel="noreferrer">
+            Ouvrir le dépôt public
+          </a>
           <button type="button" className="dash-btn" onClick={() => setGridModalOpen(true)}>
             Grille salariale
           </button>
@@ -1259,8 +1339,9 @@ export default function HumanResources() {
       ) : (
         <div className="hr-content">
           {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} />}
-          {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} />}
+          {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} documents={staffDocuments} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} />}
           {tab === "contrats" && <ContratsView contracts={contracts} members={members} onContract={handleContract} onEditContract={openEditContract} onNewContract={() => openNewContract(null)} />}
+          {tab === "documents" && <StaffDocumentsPanel members={members} contracts={contracts} documents={staffDocuments} onDocumentChange={handleDocumentChange} />}
         </div>
       )}
 
@@ -1269,6 +1350,7 @@ export default function HumanResources() {
         <FicheModal
           member={fiche}
           contracts={contracts}
+          structuredDocuments={staffDocuments}
           onClose={() => setFiche(null)}
           onUpdate={updateMember}
           onEditContract={openEditContract}
