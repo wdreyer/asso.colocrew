@@ -68,6 +68,37 @@ function sortTasks(tasks) {
   return [...(tasks || [])].sort((a, b) => `${a.startTime || "99:99"}-${a.title}`.localeCompare(`${b.startTime || "99:99"}-${b.title}`, "fr"));
 }
 
+function activityPalette(task, fallback = "#8b5cf6") {
+  const text = `${task?.title || ""} ${task?.category || ""}`.toLocaleLowerCase("fr");
+  if (text.includes("surf")) return { color: "#0284c7", background: "#e0f2fe" };
+  if (/repas|d[îi]ner|petit d[ée]jeuner|brunch|cuisine|pique-nique/.test(text)) return { color: "#c56a08", background: "#fff1d6" };
+  if (/projet artistique|art|cr[ée]a/.test(text)) return { color: "#7c3aed", background: "#f1e8ff" };
+  if (/veill[ée]e|bookmaker|cluedo|zombie|sagamore|loup|boom|fureur/.test(text)) return { color: "#4f46e5", background: "#e9e9ff" };
+  if (/plage|lac|baignade/.test(text)) return { color: "#0891b2", background: "#ddf8fc" };
+  if (/ville|glace|sunset|balade/.test(text)) return { color: "#db2777", background: "#fce7f3" };
+  if (/grand jeu|koh|time|d[ée]fi|tournoi|sardine/.test(text)) return { color: "#15803d", background: "#e5f7ea" };
+  return { color: fallback, background: `${fallback}18` };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
+}
+
+function openDayPdf({ date, plan, members, memberById, unavailability }) {
+  const popup = window.open("", "_blank");
+  if (!popup) return false;
+  popup.opener = null;
+  const rows = DAY_PLAN_SECTIONS.flatMap((section) => sortTasks((plan.tasks || []).filter((task) => task.category === section.key)).map((task) => {
+    const assigned = (task.assigneeIds || []).map((id) => memberById[id]).filter(Boolean).map(memberName).join(", ") || "À affecter";
+    const leave = members.filter((member) => unavailability(member.id, task.startTime)).map(memberName).join(", ") || "Personne";
+    const palette = activityPalette(task, section.color);
+    return `<article style="--accent:${palette.color};--soft:${palette.background}"><div class="moment"><span>${section.icon}</span><b>${escapeHtml(section.label)}</b></div><div class="activity"><div class="time">${escapeHtml(task.startTime || "—")}${task.endTime ? ` – ${escapeHtml(task.endTime)}` : ""}</div><h2>${escapeHtml(task.title)}</h2>${task.details ? `<p>${escapeHtml(task.details).replace(/\n/g, "<br>")}</p>` : ""}${task.photo?.url ? `<img src="${escapeHtml(task.photo.url)}" alt="">` : ""}</div><div class="team"><b>Équipe</b><span>${escapeHtml(assigned)}</span><b>En congé</b><span>${escapeHtml(leave)}</span></div></article>`;
+  })).join("");
+  popup.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Déroulé ${escapeHtml(dateLabel(date))}</title><style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#f5f3f7;color:#26183b;font-family:Arial,sans-serif}.page{max-width:900px;margin:auto;padding:18px}header{margin-bottom:16px;border-bottom:4px solid #b72f69;padding-bottom:12px}header small{color:#b72f69;font-weight:800;text-transform:uppercase}h1{margin:4px 0 2px;font-size:27px}header p{margin:0;color:#6f637a;font-size:12px}article{display:grid;grid-template-columns:125px minmax(0,1fr) 180px;overflow:hidden;margin:0 0 9px;border:1px solid #dcd5e2;border-left:7px solid var(--accent);border-radius:10px;background:#fff;break-inside:avoid}.moment{display:flex;align-items:center;gap:8px;background:var(--soft);padding:13px;font-size:12px}.moment span{font-size:20px}.activity{padding:12px 14px}.time{color:var(--accent);font-size:12px;font-weight:900}.activity h2{margin:3px 0;font-size:16px}.activity p{margin:7px 0 0;color:#54495d;font-size:11px;line-height:1.5}.activity img{width:100%;max-height:180px;margin-top:8px;border-radius:7px;object-fit:cover}.team{display:flex;justify-content:center;flex-direction:column;gap:3px;border-left:1px solid #e5dfe9;padding:11px}.team b{color:#7b6c86;font-size:9px;text-transform:uppercase}.team span{margin-bottom:5px;font-size:11px;font-weight:700}.notes{margin-top:14px;border:1px solid #ddd5e4;border-radius:8px;background:#fff;padding:11px;font-size:11px;white-space:pre-wrap}@media(max-width:600px){.page{padding:10px}h1{font-size:23px}article{grid-template-columns:92px 1fr}.team{grid-column:2;border-left:0;border-top:1px solid #e5dfe9}.moment{grid-row:span 2;padding:9px}.activity{padding:10px}.activity h2{font-size:15px}}@media print{body{background:#fff}.page{padding:0}.print{display:none}}</style></head><body><main class="page"><header><small>${escapeHtml(DAY_PLAN_STAY.name)} · ${escapeHtml(DAY_PLAN_STAY.week)}</small><h1>${escapeHtml(dateLabel(date))}</h1><p>${(plan.tasks || []).length} activités · horaires, équipe et congés</p></header>${rows || "<p>Aucune activité programmée.</p>"}${plan.notes ? `<div class="notes"><b>Notes de la journée</b><br>${escapeHtml(plan.notes)}</div>` : ""}</main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350))<\/script></body></html>`);
+  popup.document.close();
+  return true;
+}
+
 export default function DayPlans() {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
@@ -193,6 +224,9 @@ export default function DayPlans() {
             <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Planning général</button>
             <button type="button" className={view === "leaves" ? "is-active" : ""} onClick={() => setView("leaves")}>Congés</button>
           </div>
+          {view === "day" && <button type="button" className="dp-pdf-button" onClick={() => {
+            if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members, memberById, unavailability })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
+          }}>PDF du jour</button>}
           {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK })}>+ Ajouter une tâche</button>}
         </div>
       </header>
@@ -303,24 +337,33 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onTogg
             <small>{[task.location, task.groups].filter(Boolean).join(" · ")}</small>
             {(task.kitchen || task.photo?.url || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.photo?.url && <i>📷 Photo</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
           </button>
-          <div className="dp-quick-assign" aria-label={`Affectations pour ${task.title}`}>
-            {members.map((member) => {
-              const selected = (task.assigneeIds || []).includes(member.id);
-              const reason = unavailability(member.id, task.startTime);
-              return <button
-                type="button"
-                key={member.id}
-                className={selected ? "is-selected" : reason ? "is-unavailable" : ""}
-                disabled={Boolean(reason) && !selected}
-                title={reason || `${selected ? "Retirer" : "Affecter"} ${memberName(member)}`}
-                onClick={() => onToggleAssignee(task, member.id)}
-              ><i>{initials(member)}</i><span>{member.firstName || memberName(member)}</span></button>;
-            })}
-          </div>
+          <QuickAssign task={task} members={members} unavailability={unavailability} onToggle={onToggleAssignee} />
           <LeavePeople members={peopleOnLeave} />
         </div>;
       });
     })}
+  </div>;
+}
+
+function QuickAssign({ task, members, unavailability, onToggle }) {
+  const [open, setOpen] = useState(false);
+  const selectedIds = new Set(task.assigneeIds || []);
+  const selected = members.filter((member) => selectedIds.has(member.id));
+  return <div className="dp-quick-assign">
+    <div className="dp-assigned-names">{selected.length ? selected.map((member) => <span key={member.id}>{member.firstName || memberName(member)}</span>) : <em>À affecter</em>}</div>
+    <button type="button" className="dp-assign-plus" aria-label={`Modifier les affectations de ${task.title}`} onClick={() => setOpen((value) => !value)}>+</button>
+    {open && <div className="dp-assign-menu">
+      <header><strong>Qui fait cette activité ?</strong><button type="button" onClick={() => setOpen(false)}>×</button></header>
+      {members.map((member) => {
+        const isSelected = selectedIds.has(member.id);
+        const reason = unavailability(member.id, task.startTime);
+        return <label key={member.id} className={reason && !isSelected ? "is-unavailable" : ""} title={reason || ""}>
+          <input type="checkbox" checked={isSelected} disabled={Boolean(reason) && !isSelected} onChange={() => onToggle(task, member.id)} />
+          <span className="dp-mini-avatar">{initials(member)}</span><strong>{memberName(member)}</strong>
+          <small>{reason || (isSelected ? "Affecté·e" : "Disponible")}</small>
+        </label>;
+      })}
+    </div>}
   </div>;
 }
 
@@ -343,7 +386,10 @@ function WeekOverview({ plans, members, onSelect }) {
           {DATES.map((date) => {
             const tasks = sortTasks(((plans[date] || seedDay(date)).tasks || []).filter((task) => task.category === section.key));
             return <button type="button" className="dp-excel-cell" key={`${section.key}-${date}`} onClick={() => onSelect(date)}>
-              {tasks.length ? tasks.map((task) => <span key={task.id}><b>{task.startTime}</b>{task.title}<small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ")}</small></span>) : <em>—</em>}
+              {tasks.length ? tasks.map((task) => {
+                const palette = activityPalette(task, section.color);
+                return <span key={task.id} style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}><b>{task.startTime}</b><strong>{task.title}</strong><small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small></span>;
+              }) : <em>—</em>}
             </button>;
           })}
         </div>)}
