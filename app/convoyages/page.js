@@ -264,32 +264,31 @@ function passengersBoardingAt(transport, city) {
 
 function transportCityRecap(transport) {
   const isReturn = transport.direction === "retour";
+  const isReturnConnection = isReturn && transport.sharedConnection;
   const rows = [];
   const seen = new Set();
-  const addRow = (portion, point, pointIndex, action, passengers) => {
+  const addRow = (point, action, passengers) => {
     if (!passengers.length || !point.city) return;
     const key = `${normalizePlace(point.city)}|${action}`;
     if (seen.has(key)) return;
     seen.add(key);
     const isBoarding = action === "boarding";
-    const meetingTime = isBoarding
-      ? point.meetingTime || portion.meetingTime || ""
-      : point.arrivalTime || portion.arrivalTime || "";
-    const meetingPoint = isBoarding
-      ? point.meetingPoint || portion.meetingPoint || point.city
-      : isReturn && !transport.sharedConnection
-        ? "À la descente du quai — l’animateur·ice vous contactera"
-        : point.meetingPoint || `Arrivée à ${point.city}`;
+    const info = isBoarding
+      ? recapMeetingInfo(transport, point.city, isReturnConnection)
+      : recapDropoffInfo(transport, point.city);
     rows.push({
       city: point.city,
       action: isBoarding
         ? (isReturn ? "Prise en charge au centre" : "Prise en charge")
         : (isReturn && !transport.sharedConnection ? "Remise aux familles" : "Descente"),
       childCount: countChildren(passengers),
-      meetingPoint,
-      meetingTime,
-      arrivalTime: point.arrivalTime || (pointIndex === 2 ? portion.arrivalTime || "" : ""),
-      departureTime: point.departureTime || (pointIndex === 0 ? portion.departureTime || "" : ""),
+      meetingPoint: info.meetingPoint,
+      meetingTime: info.meetingTime,
+      arrivalTime: info.arrivalTime,
+      departureTime: info.departureTime,
+      stopDuration: info.stopDuration,
+      stopType: info.stopType,
+      isReturn: info.isReturn,
       order: rows.length,
     });
   };
@@ -301,8 +300,8 @@ function transportCityRecap(transport) {
       { city: portion.to, arrivalTime: portion.arrivalTime },
     ];
     points.forEach((point, index) => {
-      addRow(portion, point, index === 0 ? 0 : index === points.length - 1 ? 2 : 1, "boarding", passengersBoardingAt(transport, point.city));
-      addRow(portion, point, index === 0 ? 0 : index === points.length - 1 ? 2 : 1, "dropoff", passengersDroppingAt(transport, point.city));
+      if (index < points.length - 1) addRow(point, "boarding", passengersBoardingAt(transport, point.city));
+      if (index > 0) addRow(point, "dropoff", passengersDroppingAt(transport, point.city));
     });
   });
   return rows.sort((left, right) => left.order - right.order);
@@ -451,6 +450,55 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
   };
 }
 
+function recapDropoffInfo(transport, city) {
+  const target = normalizePlace(city);
+  const isFamilyReturn = transport.direction === "retour" && !transport.sharedConnection;
+  for (const portion of orderedTransportPortions(transport)) {
+    for (const stop of portion.stops || []) {
+      if (normalizePlace(stop.city) !== target) continue;
+      const arrivalTime = stop.arrivalTime || "";
+      const departureTime = stop.departureTime || "";
+      const stopType = recapStopType(portion, stop);
+      return {
+        meetingTime: stopType === "quai"
+          ? minutesBeforeTime(arrivalTime || departureTime, 30)
+          : arrivalTime || departureTime,
+        arrivalTime,
+        departureTime,
+        stopDuration: stopDuration(arrivalTime, departureTime),
+        meetingPoint: stopType === "quai" || isFamilyReturn
+          ? "À la descente du quai — l’animateur·ice vous contactera"
+          : stop.meetingPoint || `Arrivée à ${city}`,
+        stopType: stopType === "quai" ? "quai" : "arrival",
+        isReturn: isFamilyReturn,
+      };
+    }
+    if (normalizePlace(portion.to) === target) {
+      const arrivalTime = portion.arrivalTime || "";
+      return {
+        meetingTime: arrivalTime,
+        arrivalTime,
+        departureTime: "",
+        stopDuration: "",
+        meetingPoint: isFamilyReturn
+          ? "À la descente du quai — l’animateur·ice vous contactera"
+          : `Arrivée à ${city}`,
+        stopType: "arrival",
+        isReturn: isFamilyReturn,
+      };
+    }
+  }
+  return {
+    meetingTime: transport.arrivalTime || "",
+    arrivalTime: transport.arrivalTime || "",
+    departureTime: "",
+    stopDuration: "",
+    meetingPoint: `Arrivée à ${city}`,
+    stopType: "arrival",
+    isReturn: isFamilyReturn,
+  };
+}
+
 function staffNames(transport, ids = []) {
   const wanted = new Set(ids.filter(Boolean));
   return (transport.staff || []).filter((member) => wanted.has(member.id)).map((member) => member.name).filter(Boolean);
@@ -539,12 +587,15 @@ function openPassengerRecapPdf(transport) {
     return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`;
   }).join("")}
   </tbody></table></body></html>`;
-  const win = window.open("", "_blank", "width=1200,height=800");
-  if (!win) return;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  const win = window.open(blobUrl, "_blank", "width=1200,height=800");
+  if (!win) {
+    URL.revokeObjectURL(blobUrl);
+    window.alert("Le navigateur a bloqué l’ouverture du récap PDF. Autorisez les fenêtres contextuelles pour ce site puis réessayez.");
+    return;
+  }
   win.focus();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
 }
 
 function childNamesForPassengers(passengers) {
@@ -950,15 +1001,17 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
           <>
             <SectionTitle color="#1e1040">Récapitulatif par ville</SectionTitle>
             <div style={{ overflowX: "auto", marginBottom: 18, border: "1.5px solid #e5e7eb", borderRadius: 12, background: "#fff" }}>
-              <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse", fontSize: 12 }}>
+              <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: "#1e1040", color: "#fff" }}>
                     <th style={{ padding: "8px 10px", textAlign: "left" }}>Ville / action</th>
                     <th style={{ padding: "8px 10px", textAlign: "center" }}>Enfants</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Type</th>
                     <th style={{ padding: "8px 10px", textAlign: "left" }}>Point de rendez-vous</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>RDV famille</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Départ</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Heure RDV</th>
                     <th style={{ padding: "8px 10px", textAlign: "center" }}>Arrivée</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Départ</th>
+                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Arrêt</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -969,10 +1022,14 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                         <div style={{ marginTop: 2, fontSize: 10, fontWeight: 800, color: row.action.includes("Remise") || row.action === "Descente" ? "#ea580c" : "#16a34a", textTransform: "uppercase" }}>{row.action}</div>
                       </td>
                       <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#7c3aed" }}>{row.childCount}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, color: row.stopType === "quai" ? "#b45309" : row.stopType === "arrival" ? "#ea580c" : "#15803d", whiteSpace: "nowrap" }}>
+                        {row.stopType === "quai" ? (row.isReturn ? "Récup. quai" : "RDV quai") : row.stopType === "arrival" ? "Arrivée" : "RDV famille"}
+                      </td>
                       <td style={{ padding: "8px 10px", color: "#374151", lineHeight: 1.4 }}>{row.meetingPoint || "À confirmer"}</td>
                       <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#B8336A", whiteSpace: "nowrap" }}>{row.meetingTime || "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#16a34a", whiteSpace: "nowrap" }}>{row.departureTime || "—"}</td>
                       <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#ea580c", whiteSpace: "nowrap" }}>{row.arrivalTime || "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#16a34a", whiteSpace: "nowrap" }}>{row.departureTime || "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, color: "#64748b", whiteSpace: "nowrap" }}>{row.stopDuration || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
