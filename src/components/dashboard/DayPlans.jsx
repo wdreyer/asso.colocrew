@@ -279,16 +279,20 @@ function DayHeader({ date, plan, members, saving, onToggleLeave }) {
 
 function DayTimeline({ plan, members, memberById, unavailability, onEdit, onToggleAssignee }) {
   return <div className="dp-schedule-table">
-    <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span></div>
+    <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span><span>En congé</span></div>
     {DAY_PLAN_SECTIONS.map((section) => {
       const tasks = sortTasks((plan.tasks || []).filter((task) => task.category === section.key));
+      const referenceTime = ["dinner", "evening"].includes(section.key) ? "20:00" : "12:00";
+      const sectionLeave = members.filter((member) => unavailability(member.id, referenceTime));
       if (!tasks.length) return <div className="dp-table-row is-empty" key={section.key}>
         <div className="dp-moment" style={{ "--section-color": section.color }}><i>{section.icon}</i><strong>{section.label}</strong></div>
         <div className="dp-activity"><span>À organiser</span></div><div className="dp-people"><em>—</em></div>
+        <LeavePeople members={sectionLeave} />
       </div>;
       return tasks.map((task, index) => {
         const assigned = (task.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
         const unavailable = assigned.filter((member) => unavailability(member.id, task.startTime));
+        const peopleOnLeave = members.filter((member) => unavailability(member.id, task.startTime));
         return <div className={`dp-table-row ${unavailable.length ? "has-conflict" : ""}`} key={task.id}>
           <div className={`dp-moment ${index > 0 ? "is-repeat" : ""}`} style={{ "--section-color": section.color }}>
             {index === 0 && <><i>{section.icon}</i><strong>{section.label}</strong></>}
@@ -313,9 +317,16 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onTogg
               ><i>{initials(member)}</i><span>{member.firstName || memberName(member)}</span></button>;
             })}
           </div>
+          <LeavePeople members={peopleOnLeave} />
         </div>;
       });
     })}
+  </div>;
+}
+
+function LeavePeople({ members }) {
+  return <div className={`dp-row-leave ${members.length ? "has-leave" : ""}`}>
+    {members.length ? members.map((member) => <span key={member.id} title={memberName(member)}><i>{initials(member)}</i><b>{member.firstName || memberName(member)}</b></span>) : <em>Personne</em>}
   </div>;
 }
 
