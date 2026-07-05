@@ -241,6 +241,12 @@ export function generateContractHTML(member, contract) {
   }
   .cc-sign-box { flex: 1; }
   .cc-sign-box p { font-weight: bold; margin-bottom: 50px; }
+  .cc-docusign-anchor {
+    color: #fff;
+    font-size: 1px;
+    line-height: 1px;
+    user-select: none;
+  }
 
   /* ── Footer ── */
   .cc-footer {
@@ -434,10 +440,10 @@ export function generateContractHTML(member, contract) {
     <p><strong>Signatures :</strong></p>
     <div class="cc-sign-row">
       <div class="cc-sign-box">
-        <p>• Pour l'Organisateur :</p>
+        <p>• Pour l'Organisateur :<br><span class="cc-docusign-anchor">/cc-organizer-signature/</span></p>
       </div>
       <div class="cc-sign-box">
-        <p>• Pour le·la ${poste} :</p>
+        <p>• Pour le·la ${poste} :<br><span class="cc-docusign-anchor">/cc-staff-signature/</span></p>
       </div>
     </div>
   </div>

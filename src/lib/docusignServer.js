@@ -90,7 +90,7 @@ export async function checkDocusignConnection() {
   return { accountId: account.accountId, accountName: account.accountName };
 }
 
-export async function sendDocusignEnvelope({ subject, html, signers }) {
+export async function sendDocusignEnvelope({ subject, html, signers, documentName = "Contrat ColoCrew.html", emailBlurb = "" }) {
   if (!Array.isArray(signers) || !signers.length) throw new Error("Aucun signataire DocuSign.");
   const token = await accessToken();
   const { accountId, basePath } = await accountContext(token);
@@ -105,13 +105,14 @@ export async function sendDocusignEnvelope({ subject, html, signers }) {
         anchorString: signer.anchor,
         anchorUnits: "pixels",
         anchorXOffset: "0",
-        anchorYOffset: "12",
+        anchorYOffset: "4",
+        scaleValue: "0.85",
       }],
       dateSignedTabs: [{
         anchorString: signer.anchor,
         anchorUnits: "pixels",
         anchorXOffset: "0",
-        anchorYOffset: "55",
+        anchorYOffset: "42",
       }],
     },
   }));
@@ -124,9 +125,10 @@ export async function sendDocusignEnvelope({ subject, html, signers }) {
     },
     body: JSON.stringify({
       emailSubject: subject,
+      ...(emailBlurb ? { emailBlurb } : {}),
       documents: [{
         documentBase64: Buffer.from(html, "utf8").toString("base64"),
-        name: "Contrat test ColoCrew.html",
+        name: documentName,
         fileExtension: "html",
         documentId: "1",
       }],
@@ -140,4 +142,27 @@ export async function sendDocusignEnvelope({ subject, html, signers }) {
     throw new Error(`Envoi DocuSign impossible : ${result.message || result.errorCode || response.status}`);
   }
   return { envelopeId: result.envelopeId, status: result.status || "sent" };
+}
+
+export async function getDocusignEnvelope(envelopeId) {
+  const token = await accessToken();
+  const { accountId, basePath } = await accountContext(token);
+  const response = await fetch(
+    `${basePath}/v2.1/accounts/${encodeURIComponent(accountId)}/envelopes/${encodeURIComponent(envelopeId)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    },
+  );
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`Lecture DocuSign impossible : ${result.message || result.errorCode || response.status}`);
+  }
+  return {
+    envelopeId: result.envelopeId || envelopeId,
+    status: result.status || "unknown",
+    sentDateTime: result.sentDateTime || "",
+    completedDateTime: result.completedDateTime || "",
+    statusChangedDateTime: result.statusChangedDateTime || "",
+  };
 }

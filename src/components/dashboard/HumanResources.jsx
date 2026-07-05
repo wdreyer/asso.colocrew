@@ -90,6 +90,7 @@ function mapMember(snap) {
     birthPlace:           d.birthPlace           || "",
     socialSecurityNumber: d.socialSecurityNumber || "",
     address:   d.address   || "",
+    nationality: d.nationality || "",
     staffType: d.staffType || "",
     photoUrl:  d.photoUrl  || "",
     documents: d.documents || [],
@@ -125,6 +126,11 @@ function mapContract(snap) {
     outstandingAmount: outstanding,
     status: gross > 0 && paid >= gross ? "Payé" : "À régler",
     contractFileUrl: d.contractFileUrl || "",
+    docusignEnvelopeId: d.docusignEnvelopeId || "",
+    docusignStatus: d.docusignStatus || "",
+    docusignSentAt: d.docusignSentAt || "",
+    docusignUpdatedAt: d.docusignUpdatedAt || "",
+    docusignCompletedAt: d.docusignCompletedAt || "",
   };
 }
 
@@ -440,7 +446,16 @@ function StaffCard({ member: m, contracts, documents, onFiche, onContract, onEdi
 
 // ─── Vue "Contrats" ───────────────────────────────────────────────────────────
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract }) {
+const DOCUSIGN_STATUS = {
+  created: { label: "Brouillon", variant: "neutral" },
+  sent: { label: "Signatures en cours", variant: "warning" },
+  delivered: { label: "Ouvert", variant: "info" },
+  completed: { label: "Signé", variant: "success" },
+  declined: { label: "Refusé", variant: "error" },
+  voided: { label: "Annulé", variant: "error" },
+};
+
+function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onDocusignSend, onDocusignRefresh, docusignBusyId }) {
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
 
   const columns = [
@@ -473,6 +488,15 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
       sortValue: (r) => r.status,
     },
     {
+      key: "docusignStatus", label: "Signature", filterable: true, filterLabel: "Tous",
+      render: (row) => {
+        if (!row.docusignEnvelopeId) return <Badge label="Non envoyé" variant="neutral" />;
+        const display = DOCUSIGN_STATUS[row.docusignStatus] || { label: row.docusignStatus || "Envoyé", variant: "info" };
+        return <Badge label={display.label} variant={display.variant} />;
+      },
+      sortValue: (row) => row.docusignStatus || "",
+    },
+    {
       key: "_actions", label: "",
       render: (row) => {
         const m = memberById[row.memberId];
@@ -484,6 +508,27 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
             {m && (
               <button type="button" className="hr-btn-contract" onClick={() => onContract(m, row)}>
                 Générer contrat
+              </button>
+            )}
+            {m && !row.docusignEnvelopeId && (
+              <button
+                type="button"
+                className="hr-btn-contract"
+                onClick={() => onDocusignSend(m, row)}
+                disabled={docusignBusyId === row.id || !m.email}
+                title={!m.email ? "Adresse e-mail manquante" : ""}
+              >
+                {docusignBusyId === row.id ? "En cours…" : "Envoyer DocuSign"}
+              </button>
+            )}
+            {row.docusignEnvelopeId && (
+              <button
+                type="button"
+                className="hr-btn-contract"
+                onClick={() => onDocusignRefresh(row)}
+                disabled={docusignBusyId === row.id}
+              >
+                Actualiser
               </button>
             )}
           </span>
@@ -1183,6 +1228,7 @@ export default function HumanResources() {
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
   const [gridModalOpen, setGridModalOpen]  = useState(false);
   const [docusignTesting, setDocusignTesting] = useState(false);
+  const [docusignBusyId, setDocusignBusyId] = useState("");
 
   const testDocusign = async () => {
     if (!currentUser || docusignTesting) return;
@@ -1205,6 +1251,84 @@ export default function HumanResources() {
       showToast(error?.message || "Test DocuSign impossible.", "error");
     } finally {
       setDocusignTesting(false);
+    }
+  };
+
+  const persistDocusignState = async (contractId, fields) => {
+    await updateDoc(doc(db, COLLECTIONS.STAFF_CONTRACTS, contractId), fields);
+    setContracts((previous) => previous.map((contract) => (
+      contract.id === contractId ? { ...contract, ...fields } : contract
+    )));
+  };
+
+  const sendContractWithDocusign = async (member, contract) => {
+    if (!currentUser || !member || !contract || docusignBusyId) return;
+    if (!member.email) {
+      showToast("Ajoutez d'abord l'adresse e-mail de l'animateur·ice.", "error");
+      return;
+    }
+    if (contract.docusignEnvelopeId) {
+      showToast("Ce contrat possède déjà une enveloppe DocuSign.", "error");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Envoyer maintenant le contrat de ${member.firstName} ${member.lastName} à ${member.email} ?\n\n` +
+      "L'animateur·ice signera en premier, puis ColoCrew recevra la demande de contresignature.",
+    );
+    if (!confirmed) return;
+
+    setDocusignBusyId(contract.id);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch("/api/docusign/contracts/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ member, contract }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        if (payload.consentUrl) window.open(payload.consentUrl, "_blank", "noopener,noreferrer");
+        throw new Error(payload.error || "Envoi DocuSign impossible.");
+      }
+      await persistDocusignState(contract.id, {
+        docusignEnvelopeId: payload.envelopeId,
+        docusignStatus: payload.status || "sent",
+        docusignSentAt: payload.sentAt,
+        docusignUpdatedAt: payload.sentAt,
+      });
+      showToast(`Contrat envoyé à ${payload.recipient}.`, "success");
+    } catch (error) {
+      showToast(error?.message || "Envoi DocuSign impossible.", "error");
+    } finally {
+      setDocusignBusyId("");
+    }
+  };
+
+  const refreshDocusignStatus = async (contract) => {
+    if (!currentUser || !contract?.docusignEnvelopeId || docusignBusyId) return;
+    setDocusignBusyId(contract.id);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`/api/docusign/envelopes/${encodeURIComponent(contract.docusignEnvelopeId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Statut DocuSign indisponible.");
+      const updatedAt = payload.statusChangedDateTime || new Date().toISOString();
+      await persistDocusignState(contract.id, {
+        docusignStatus: payload.status,
+        docusignUpdatedAt: updatedAt,
+        ...(payload.completedDateTime ? { docusignCompletedAt: payload.completedDateTime } : {}),
+      });
+      const display = DOCUSIGN_STATUS[payload.status]?.label || payload.status;
+      showToast(`Statut DocuSign : ${display}.`, "success");
+    } catch (error) {
+      showToast(error?.message || "Statut DocuSign indisponible.", "error");
+    } finally {
+      setDocusignBusyId("");
     }
   };
 
@@ -1374,7 +1498,16 @@ export default function HumanResources() {
         <div className="hr-content">
           {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} />}
           {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} documents={staffDocuments} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} />}
-          {tab === "contrats" && <ContratsView contracts={contracts} members={members} onContract={handleContract} onEditContract={openEditContract} onNewContract={() => openNewContract(null)} />}
+          {tab === "contrats" && <ContratsView
+            contracts={contracts}
+            members={members}
+            onContract={handleContract}
+            onEditContract={openEditContract}
+            onNewContract={() => openNewContract(null)}
+            onDocusignSend={sendContractWithDocusign}
+            onDocusignRefresh={refreshDocusignStatus}
+            docusignBusyId={docusignBusyId}
+          />}
           {tab === "documents" && <StaffDocumentsPanel members={members} contracts={contracts} documents={staffDocuments} onDocumentChange={handleDocumentChange} />}
         </div>
       )}
