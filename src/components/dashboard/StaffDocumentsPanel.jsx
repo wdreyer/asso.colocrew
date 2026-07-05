@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import {
   STAFF_DOCUMENT_STATUS,
   STAFF_DOCUMENT_TYPES,
-  latestDocumentByType,
+  documentsByType,
   publicAssignmentsForMember,
   uploadStaffDocument,
 } from "@/src/lib/staffDocuments";
@@ -24,10 +24,10 @@ function statusOf(document) {
 }
 
 function completionFor(member, documents) {
-  const states = STAFF_DOCUMENT_TYPES.map((type) => latestDocumentByType(documents, member.id, type.key));
-  const validated = states.filter((document) => document?.status === "validated" && document.locked).length;
-  const pending = states.filter((document) => document && document.status !== "validated").length;
-  return { validated, pending, missing: STAFF_DOCUMENT_TYPES.length - states.filter(Boolean).length };
+  const states = STAFF_DOCUMENT_TYPES.map((type) => documentsByType(documents, member.id, type.key));
+  const validated = states.filter((items) => items.some((document) => document.status === "validated" && document.locked)).length;
+  const pending = states.filter((items) => items.some((document) => document.status !== "validated")).length;
+  return { validated, pending, missing: STAFF_DOCUMENT_TYPES.length - states.filter((items) => items.length).length };
 }
 
 export default function StaffDocumentsPanel({ members, contracts, documents, onDocumentChange }) {
@@ -82,7 +82,11 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
         reviewedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      await syncStatus(member, document.documentType, status, locked);
+      const siblingDocuments = documentsByType(documents, member.id, document.documentType)
+        .filter((item) => item.id !== document.id)
+        .concat(updated);
+      const categoryValidated = siblingDocuments.some((item) => item.status === "validated" && item.locked);
+      await syncStatus(member, document.documentType, categoryValidated ? "validated" : status, categoryValidated);
       onDocumentChange(updated);
       setMessage(`${STAFF_DOCUMENT_TYPE_MAP_SAFE(document.documentType)} de ${memberName(member)} mis à jour.`);
     } catch (error) {
@@ -106,18 +110,56 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     }
   };
 
-  const adminUpload = async (member, documentType, file) => {
-    if (!file) return;
+  const adminUpload = async (member, documentType, selectedFiles) => {
+    const files = Array.from(selectedFiles || []);
+    if (!files.length) return;
     const key = `${member.id}-${documentType}-upload`;
     setBusy(key);
     setMessage("");
     try {
-      const created = await uploadStaffDocument({ member, documentType, file, source: "admin" });
-      await syncStatus(member, documentType, "pending", false);
-      onDocumentChange(created);
-      setMessage(`${file.name} ajouté au dossier de ${memberName(member)}.`);
+      const createdDocuments = [];
+      for (const file of files) {
+        createdDocuments.push(await uploadStaffDocument({ member, documentType, file, source: "admin" }));
+      }
+      const categoryAlreadyValidated = documentsByType(documents, member.id, documentType)
+        .some((document) => document.status === "validated" && document.locked);
+      await syncStatus(member, documentType, categoryAlreadyValidated ? "validated" : "pending", categoryAlreadyValidated);
+      createdDocuments.forEach(onDocumentChange);
+      setMessage(`${files.length} fichier${files.length > 1 ? "s" : ""} ajouté${files.length > 1 ? "s" : ""} au dossier de ${memberName(member)}.`);
     } catch (error) {
       setMessage(error?.message || "Envoi impossible.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const validateWithoutFile = async (member, documentType) => {
+    const key = `${member.id}-${documentType}-manual`;
+    setBusy(key);
+    setMessage("");
+    try {
+      const entry = {
+        memberId: member.id,
+        memberName: memberName(member),
+        documentType,
+        originalName: "Validation administrative sans fichier",
+        storagePath: "",
+        contentType: "",
+        size: 0,
+        status: "validated",
+        locked: true,
+        source: "admin-manual",
+        virtual: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        reviewedAt: serverTimestamp(),
+      };
+      const created = await addDoc(collection(db, COLLECTIONS.STAFF_DOCUMENTS), entry);
+      await syncStatus(member, documentType, "validated", true);
+      onDocumentChange({ id: created.id, ...entry, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      setMessage(`${STAFF_DOCUMENT_TYPE_MAP_SAFE(documentType)} de ${memberName(member)} validé sans fichier.`);
+    } catch (error) {
+      setMessage(error?.message || "Validation impossible.");
     } finally {
       setBusy("");
     }
@@ -148,28 +190,33 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
             </div>
             <div className="hr-doc-type-grid">
               {STAFF_DOCUMENT_TYPES.map((type) => {
-                const current = latestDocumentByType(documents, member.id, type.key);
+                const typeDocuments = documentsByType(documents, member.id, type.key);
+                const validatedDocument = typeDocuments.find((document) => document.status === "validated" && document.locked);
+                const current = validatedDocument || typeDocuments[0] || null;
                 const status = statusOf(current);
                 const uploadKey = `${member.id}-${type.key}-upload`;
                 return (
                   <article key={type.key} className={`hr-doc-type-card is-${status.tone}`}>
                     <div className="hr-doc-type-title"><strong>{type.label}</strong><span>{status.label}{current?.locked ? " · verrouillé" : ""}</span></div>
-                    {current ? (
-                      <>
-                        <button type="button" className="hr-doc-file" onClick={() => openDocument(current)} disabled={busy === `${current.id}-open`} title={current.originalName}>
-                          <span>📄</span><span>{current.originalName}</span><em>{busy === `${current.id}-open` ? "Ouverture…" : "Ouvrir"}</em>
-                        </button>
+                    {typeDocuments.length ? <div className="hr-doc-files-list">{typeDocuments.map((document) => (
+                      <div key={document.id} className="hr-doc-version">
+                        {document.storagePath ? (
+                          <button type="button" className="hr-doc-file" onClick={() => openDocument(document)} disabled={busy === `${document.id}-open`} title={document.originalName}>
+                            <span>📄</span><span>{document.originalName}</span><em>{busy === `${document.id}-open` ? "Ouverture…" : "Ouvrir"}</em>
+                          </button>
+                        ) : <div className="hr-doc-manual">✓ Validation administrative sans fichier</div>}
                         <div className="hr-doc-actions">
-                          {current.status !== "validated" && <button type="button" className="is-validate" onClick={() => changeStatus(member, current, "validated", true)} disabled={Boolean(busy)}>Valider et verrouiller</button>}
-                          {current.status === "validated" && <button type="button" onClick={() => changeStatus(member, current, "pending", false)} disabled={Boolean(busy)}>Rouvrir le dépôt</button>}
-                          {current.status !== "rejected" && <button type="button" className="is-reject" onClick={() => changeStatus(member, current, "rejected", false)} disabled={Boolean(busy)}>À remplacer</button>}
+                          {document.status !== "validated" && <button type="button" className="is-validate" onClick={() => changeStatus(member, document, "validated", true)} disabled={Boolean(busy)}>Valider</button>}
+                          {document.status === "validated" && <button type="button" onClick={() => changeStatus(member, document, "pending", false)} disabled={Boolean(busy)}>Rouvrir</button>}
+                          {document.status !== "rejected" && !document.virtual && <button type="button" className="is-reject" onClick={() => changeStatus(member, document, "rejected", false)} disabled={Boolean(busy)}>À remplacer</button>}
                         </div>
-                      </>
-                    ) : <p className="hr-doc-missing">Aucun fichier reçu.</p>}
+                      </div>
+                    ))}</div> : <p className="hr-doc-missing">Aucun fichier reçu.</p>}
                     <label className="hr-doc-admin-upload">
-                      <input type="file" accept={type.accept} onChange={(event) => { adminUpload(member, type.key, event.target.files?.[0]); event.target.value = ""; }} disabled={Boolean(busy)} />
-                      <span>{busy === uploadKey ? "Envoi…" : current ? "Ajouter une nouvelle version" : "Importer depuis l’admin"}</span>
+                      <input type="file" multiple accept={type.accept} onChange={(event) => { adminUpload(member, type.key, event.target.files); event.target.value = ""; }} disabled={Boolean(busy)} />
+                      <span>{busy === uploadKey ? "Envoi…" : current ? "Ajouter un ou plusieurs fichiers" : "Importer un ou plusieurs fichiers"}</span>
                     </label>
+                    {!validatedDocument && <button type="button" className="hr-doc-manual-validate" onClick={() => validateWithoutFile(member, type.key)} disabled={Boolean(busy)}>Valider sans fichier</button>}
                   </article>
                 );
               })}

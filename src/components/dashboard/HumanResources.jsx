@@ -14,7 +14,7 @@ import { openContractPrint, openContractsBatchPrint } from "@/src/lib/contractTe
 import { useToast } from "@/src/contexts/ToastContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded } from "@/src/lib/salaryGrid";
 import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
-import { STAFF_DOCUMENT_TYPES, latestDocumentByType, publicAssignmentsForMember } from "@/src/lib/staffDocuments";
+import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, publicAssignmentsForMember } from "@/src/lib/staffDocuments";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -133,10 +133,9 @@ function mapStaffDocument(snap) {
 }
 
 function structuredDocumentCompletion(memberId, documents) {
-  const received = STAFF_DOCUMENT_TYPES.filter((type) => latestDocumentByType(documents, memberId, type.key)).length;
+  const received = STAFF_DOCUMENT_TYPES.filter((type) => documentsByType(documents, memberId, type.key).length).length;
   const validated = STAFF_DOCUMENT_TYPES.filter((type) => {
-    const document = latestDocumentByType(documents, memberId, type.key);
-    return document?.status === "validated" && document.locked;
+    return documentsByType(documents, memberId, type.key).some((document) => document.status === "validated" && document.locked);
   }).length;
   return { received, validated };
 }
@@ -729,12 +728,13 @@ function FicheModal({ member: initial, contracts, structuredDocuments, onClose, 
             <div className="hr-docs-section">
               <div className="hr-structured-docs">
                 {STAFF_DOCUMENT_TYPES.map((type) => {
-                  const current = latestDocumentByType(structuredDocuments, member.id, type.key);
-                  const validated = current?.status === "validated" && current.locked;
+                  const typeDocuments = documentsByType(structuredDocuments, member.id, type.key);
+                  const current = typeDocuments.find((document) => document.status === "validated" && document.locked) || latestDocumentByType(structuredDocuments, member.id, type.key);
+                  const validated = typeDocuments.some((document) => document.status === "validated" && document.locked);
                   return (
                     <div key={type.key} className={`hr-structured-doc${validated ? " is-valid" : current ? " is-pending" : ""}`}>
                       <strong>{type.label}</strong>
-                      <span>{validated ? "Validé et verrouillé" : current ? "Reçu · à vérifier" : "Manquant"}</span>
+                      <span>{validated ? `Validé et verrouillé · ${typeDocuments.length} élément${typeDocuments.length > 1 ? "s" : ""}` : current ? `${typeDocuments.length} reçu${typeDocuments.length > 1 ? "s" : ""} · à vérifier` : "Manquant"}</span>
                     </div>
                   );
                 })}

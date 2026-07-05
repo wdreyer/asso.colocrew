@@ -84,9 +84,13 @@ export async function uploadStaffDocument({ member, documentType, file, source =
 }
 
 export function latestDocumentByType(documents, memberId, documentType) {
+  return documentsByType(documents, memberId, documentType)[0] || null;
+}
+
+export function documentsByType(documents, memberId, documentType) {
   return (documents || [])
     .filter((document) => document.memberId === memberId && document.documentType === documentType)
-    .sort((left, right) => documentTimestamp(right) - documentTimestamp(left))[0] || null;
+    .sort((left, right) => documentTimestamp(right) - documentTimestamp(left));
 }
 
 export function documentTimestamp(document) {

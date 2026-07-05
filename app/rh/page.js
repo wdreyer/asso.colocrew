@@ -110,15 +110,16 @@ function UploadModal({ profile, onClose }) {
   }, [onClose]);
 
   const isLocked = (type) => Boolean(profile.documentLocks?.[type] || profile.documentStatus?.[type]?.locked);
-  const chooseFile = (type, file) => {
-    const error = validateStaffDocumentFile(file);
-    setFiles((previous) => ({ ...previous, [type]: error ? null : file }));
+  const chooseFiles = (type, selectedFiles) => {
+    const nextFiles = Array.from(selectedFiles || []);
+    const error = nextFiles.length ? nextFiles.map(validateStaffDocumentFile).find(Boolean) || "" : "Sélectionnez au moins un fichier.";
+    setFiles((previous) => ({ ...previous, [type]: error ? [] : nextFiles }));
     setErrors((previous) => ({ ...previous, [type]: error }));
     setSent((previous) => ({ ...previous, [type]: false }));
   };
   const send = async (type) => {
-    const file = files[type];
-    const validationError = validateStaffDocumentFile(file);
+    const selectedFiles = files[type] || [];
+    const validationError = selectedFiles.length ? selectedFiles.map(validateStaffDocumentFile).find(Boolean) || "" : "Sélectionnez au moins un fichier.";
     if (validationError) {
       setErrors((previous) => ({ ...previous, [type]: validationError }));
       return;
@@ -126,9 +127,11 @@ function UploadModal({ profile, onClose }) {
     setSending(type);
     setErrors((previous) => ({ ...previous, [type]: "" }));
     try {
-      await uploadStaffDocument({ member: profile, documentType: type, file, source: "public" });
-      setFiles((previous) => ({ ...previous, [type]: null }));
-      setSent((previous) => ({ ...previous, [type]: true }));
+      for (const file of selectedFiles) {
+        await uploadStaffDocument({ member: profile, documentType: type, file, source: "public" });
+      }
+      setFiles((previous) => ({ ...previous, [type]: [] }));
+      setSent((previous) => ({ ...previous, [type]: selectedFiles.length }));
     } catch (uploadError) {
       setErrors((previous) => ({ ...previous, [type]: uploadError?.message || "Envoi impossible. Réessayez." }));
     } finally {
@@ -164,20 +167,22 @@ function UploadModal({ profile, onClose }) {
                   <>
                     <label className={styles.fileField}>
                       <input
+                        key={`${documentType.key}-${sent[documentType.key] || 0}`}
                         type="file"
+                        multiple
                         accept={documentType.accept}
-                        onChange={(event) => chooseFile(documentType.key, event.target.files?.[0] || null)}
+                        onChange={(event) => chooseFiles(documentType.key, event.target.files)}
                         disabled={sending === documentType.key}
                       />
-                      <span>{files[documentType.key]?.name || "Choisir un PDF, JPG ou PNG"}</span>
+                      <span>{files[documentType.key]?.length ? `${files[documentType.key].length} fichier(s) : ${files[documentType.key].map((file) => file.name).join(", ")}` : "Choisir un ou plusieurs PDF, JPG ou PNG"}</span>
                     </label>
-                    <button type="button" className={styles.send} onClick={() => send(documentType.key)} disabled={!files[documentType.key] || Boolean(sending)}>
+                    <button type="button" className={styles.send} onClick={() => send(documentType.key)} disabled={!files[documentType.key]?.length || Boolean(sending)}>
                       {sending === documentType.key ? "Envoi…" : "Transmettre"}
                     </button>
                   </>
                 )}
                 {errors[documentType.key] && <p className={styles.fieldError}>{errors[documentType.key]}</p>}
-                {sent[documentType.key] && <p className={styles.success}>Document transmis. Il sera vérifié par ColoCrew.</p>}
+                {sent[documentType.key] && <p className={styles.success}>{sent[documentType.key]} document{sent[documentType.key] > 1 ? "s" : ""} transmis. {sent[documentType.key] > 1 ? "Ils seront vérifiés" : "Il sera vérifié"} par ColoCrew.</p>}
               </article>
             );
           })}
