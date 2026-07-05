@@ -75,6 +75,26 @@ function initials(m) {
   return [m.firstName?.[0], m.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 }
 
+const PERSONAL_INFORMATION_RULES = [
+  { key: "firstName", label: "prénom", valid: (value) => String(value || "").trim().length >= 2 },
+  { key: "lastName", label: "nom", valid: (value) => String(value || "").trim().length >= 2 },
+  { key: "email", label: "e-mail", valid: (value) => /^\S+@\S+\.\S+$/.test(String(value || "").trim()) },
+  { key: "phone", label: "téléphone", valid: (value) => String(value || "").replace(/\D/g, "").length >= 8 },
+  { key: "address", label: "adresse complète", valid: (value) => String(value || "").trim().length >= 8 },
+  { key: "dateOfBirth", label: "date de naissance", valid: (value) => String(value || "").trim().length >= 8 },
+  { key: "birthPlace", label: "lieu de naissance", valid: (value) => String(value || "").trim().length >= 2 },
+  {
+    key: "socialSecurityNumber",
+    label: "n° de Sécurité sociale (15 chiffres)",
+    valid: (value) => String(value || "").replace(/\D/g, "").length === 15,
+  },
+  { key: "nationality", label: "nationalité", valid: (value) => String(value || "").trim().length >= 2 },
+];
+
+function missingPersonalInformation(member) {
+  return PERSONAL_INFORMATION_RULES.filter((rule) => !rule.valid(member?.[rule.key]));
+}
+
 // ─── Mapping Firestore ────────────────────────────────────────────────────────
 
 function mapMember(snap) {
@@ -456,7 +476,7 @@ const DOCUSIGN_STATUS = {
   voided: { label: "Annulé", variant: "error" },
 };
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
+function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
 
   const columns = [
@@ -475,6 +495,18 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
     { key: "week", label: "Semaine", filterable: true, filterLabel: "Toutes les semaines" },
     { key: "stay", label: "Séjour",  filterable: true, filterLabel: "Tous les séjours" },
     { key: "role", label: "Poste",   filterable: true, filterLabel: "Tous les postes" },
+    {
+      key: "_personalInformation", label: "Dossier personnel", sortable: false,
+      render: (row) => {
+        const member = memberById[row.memberId];
+        const missing = missingPersonalInformation(member);
+        return missing.length ? (
+          <span title={missing.map((item) => item.label).join(", ")}>
+            <Badge label={`${missing.length} information${missing.length > 1 ? "s" : ""} manquante${missing.length > 1 ? "s" : ""}`} variant="warning" />
+          </span>
+        ) : <Badge label="Complet" variant="success" />;
+      },
+    },
     { key: "datesLabel", label: "Dates", sortValue: (r) => r.startDate },
     { key: "netSalary", label: "Net", render: (r) => currency(r.netSalary), sortValue: (r) => r.netSalary },
     { key: "grossSalary", label: "Brut", render: (r) => currency(r.grossSalary), sortValue: (r) => r.grossSalary },
@@ -506,6 +538,11 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
             <button type="button" className="hr-btn-contract" onClick={() => onEditContract(m, row)}>
               Modifier
             </button>
+            {m && missingPersonalInformation(m).length > 0 && (
+              <button type="button" className="hr-btn-contract" onClick={() => onCompleteMember(m)}>
+                Compléter la fiche
+              </button>
+            )}
             {m && (
               <button type="button" className="hr-btn-contract" onClick={() => onContract(m, row)}>
                 Générer contrat
@@ -596,20 +633,20 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
 // ─── Fiche animateur (modal) ──────────────────────────────────────────────────
 
 const EDIT_FIELDS = [
-  { key: "firstName",            label: "Prénom" },
-  { key: "lastName",             label: "Nom" },
-  { key: "email",                label: "E-mail",           type: "email" },
-  { key: "phone",                label: "Téléphone",        type: "tel" },
-  { key: "dateOfBirth",          label: "Date de naissance (JJ/MM/AAAA)" },
-  { key: "birthPlace",           label: "Lieu de naissance" },
-  { key: "socialSecurityNumber", label: "N° Sécurité sociale" },
-  { key: "address",              label: "Adresse / Ville" },
-  { key: "nationality",          label: "Nationalité" },
+  { key: "firstName",            label: "Prénom", placeholder: "Prénom complet" },
+  { key: "lastName",             label: "Nom", placeholder: "Nom de naissance" },
+  { key: "email",                label: "E-mail", type: "email", placeholder: "prenom.nom@email.fr" },
+  { key: "phone",                label: "Téléphone", type: "tel", placeholder: "06 00 00 00 00" },
+  { key: "dateOfBirth",          label: "Date de naissance", placeholder: "JJ/MM/AAAA" },
+  { key: "birthPlace",           label: "Lieu de naissance", placeholder: "Ville et pays si nécessaire" },
+  { key: "socialSecurityNumber", label: "N° Sécurité sociale (15 chiffres)", placeholder: "1 00 00 00 000 000 00", inputMode: "numeric" },
+  { key: "address",              label: "Adresse complète", placeholder: "N°, voie, code postal et ville" },
+  { key: "nationality",          label: "Nationalité", placeholder: "Française" },
 ];
 
-function FicheModal({ member: initial, contracts, structuredDocuments, onClose, onUpdate, onEditContract }) {
+function FicheModal({ member: initial, contracts, structuredDocuments, initialEdit = false, onClose, onUpdate, onEditContract }) {
   const [member, setMember]   = useState(initial);
-  const [editMode, setEdit]   = useState(false);
+  const [editMode, setEdit]   = useState(initialEdit);
   const [form, setForm]       = useState({ ...initial });
   const [saving, setSaving]   = useState(false);
   const [tab, setTab]         = useState("info"); // info | docs
@@ -738,6 +775,12 @@ function FicheModal({ member: initial, contracts, structuredDocuments, onClose, 
           {/* INFO */}
           {tab === "info" && (
             <>
+              {missingPersonalInformation(member).length > 0 && (
+                <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 10, background: "#fff7ed", color: "#9a3412", fontSize: 13 }}>
+                  <strong>Informations à compléter :</strong>{" "}
+                  {missingPersonalInformation(member).map((item) => item.label).join(", ")}.
+                </div>
+              )}
               {!editMode ? (
                 <>
                   <div className="hr-info-grid">
@@ -757,11 +800,13 @@ function FicheModal({ member: initial, contracts, structuredDocuments, onClose, 
                 </>
               ) : (
                 <div className="hr-edit-form">
-                  {EDIT_FIELDS.map(({ key, label, type }) => (
+                  {EDIT_FIELDS.map(({ key, label, type, placeholder, inputMode }) => (
                     <label key={key} className="hr-edit-label">
                       <span>{label}</span>
                       <input
                         type={type || "text"}
+                        placeholder={placeholder || ""}
+                        inputMode={inputMode}
                         value={form[key] || ""}
                         onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
                       />
@@ -1252,10 +1297,21 @@ export default function HumanResources() {
   const [loading,   setLoading]   = useState(true);
   const [tab,       setTab]       = useState("sejours");
   const [fiche,     setFiche]     = useState(null);
+  const [ficheStartsInEdit, setFicheStartsInEdit] = useState(false);
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
   const [gridModalOpen, setGridModalOpen]  = useState(false);
   const [docusignTesting, setDocusignTesting] = useState(false);
   const [docusignBusyId, setDocusignBusyId] = useState("");
+
+  const openMemberFile = (member, startEditing = false) => {
+    setFicheStartsInEdit(startEditing);
+    setFiche(member);
+  };
+
+  const closeMemberFile = () => {
+    setFiche(null);
+    setFicheStartsInEdit(false);
+  };
 
   const testDocusign = async () => {
     if (!currentUser || docusignTesting) return;
@@ -1353,6 +1409,12 @@ export default function HumanResources() {
     if (!currentUser || !member || !contract || docusignBusyId) return;
     if (!member.email) {
       showToast("Ajoutez d'abord l'adresse e-mail de l'animateur·ice.", "error");
+      return;
+    }
+    const missingInformation = missingPersonalInformation(member);
+    if (missingInformation.length) {
+      showToast(`Complétez d'abord : ${missingInformation.map((item) => item.label).join(", ")}.`, "error");
+      openMemberFile(member, true);
       return;
     }
     if (contract.docusignEnvelopeId) {
@@ -1664,14 +1726,15 @@ export default function HumanResources() {
         </section>
       ) : (
         <div className="hr-content">
-          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} />}
-          {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} documents={staffDocuments} onFiche={setFiche} onContract={handleContract} onEditContract={openEditContract} />}
+          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} />}
+          {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} documents={staffDocuments} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} />}
           {tab === "contrats" && <ContratsView
             contracts={contracts}
             members={members}
             onContract={handleContract}
             onEditContract={openEditContract}
             onNewContract={() => openNewContract(null)}
+            onCompleteMember={(member) => openMemberFile(member, true)}
             onDocusignSend={sendContractWithDocusign}
             onDocusignRefresh={refreshDocusignStatus}
             onDocusignReset={resetDocusignContract}
@@ -1687,7 +1750,8 @@ export default function HumanResources() {
           member={fiche}
           contracts={contracts}
           structuredDocuments={staffDocuments}
-          onClose={() => setFiche(null)}
+          initialEdit={ficheStartsInEdit}
+          onClose={closeMemberFile}
           onUpdate={updateMember}
           onEditContract={openEditContract}
         />
