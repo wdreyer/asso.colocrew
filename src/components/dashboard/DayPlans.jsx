@@ -352,14 +352,47 @@ function WeekOverview({ plans, members, onSelect }) {
   </section>;
 }
 
+function leaveAssessment(plans, members, member, date) {
+  const previous = previousDate(date);
+  const eveningTasks = (plans[previous]?.tasks || []).filter((task) => Number(String(task.startTime || "0").split(":")[0]) >= 19);
+  const daytimeTasks = (plans[date]?.tasks || []).filter((task) => Number(String(task.startTime || "12").split(":")[0]) < 19);
+  const conflicts = [...eveningTasks, ...daytimeTasks].filter((task) => (task.assigneeIds || []).includes(member.id));
+  const selectedIds = new Set(plans[date]?.leaveMemberIds || []);
+  const alreadySelected = selectedIds.has(member.id);
+  selectedIds.add(member.id);
+  const projectedOff = selectedIds.size;
+  const available = Math.max(members.length - projectedOff, 0);
+  const minimumComfort = Math.ceil(members.length * 0.6);
+
+  if (conflicts.length) return { level: "danger", label: `${conflicts.length} conflit${conflicts.length > 1 ? "s" : ""}`, detail: `Affecté·e à : ${conflicts.map((task) => task.title).join(", ")}`, projectedOff, available, alreadySelected };
+  if (available < Math.ceil(members.length / 2)) return { level: "danger", label: "Équipe trop réduite", detail: `Il ne resterait que ${available} personne${available > 1 ? "s" : ""} disponible${available > 1 ? "s" : ""}.`, projectedOff, available, alreadySelected };
+  if (available < minimumComfort || projectedOff >= 3) return { level: "warning", label: "À vérifier", detail: `${projectedOff} personnes en congé, ${available} disponibles.`, projectedOff, available, alreadySelected };
+  return { level: "safe", label: "Possible", detail: `${available} personnes resteraient disponibles.`, projectedOff, available, alreadySelected };
+}
+
 function LeavesOverview({ plans, members, saving, onToggle }) {
   return <section className="dp-leaves-view">
     <header><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></header>
     <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
+    <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier : plusieurs congés</span><span className="is-danger">● Conflit : activité affectée ou équipe trop réduite</span></div>
+    <div className="dp-leave-capacity">{DATES.map((date) => {
+      const off = plans[date]?.leaveMemberIds || [];
+      const conflictCount = off.filter((memberId) => {
+        const member = members.find((item) => item.id === memberId);
+        return member && leaveAssessment(plans, members, member, date).level === "danger";
+      }).length;
+      const level = conflictCount ? "danger" : off.length >= 3 ? "warning" : "safe";
+      return <div key={date} className={`is-${level}`}><strong>{dateLabel(date, true)}</strong><span>{members.length - off.length} disponibles</span><small>{off.length} en congé{conflictCount ? ` · ${conflictCount} conflit` : ""}</small></div>;
+    })}</div>
     <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{DATES.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
       {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role}</small></span></th>{DATES.map((date) => {
         const selected = (plans[date]?.leaveMemberIds || []).includes(member.id);
-        return <td key={date} className={selected ? "is-leave" : ""}><label title={`${dateLabel(previousDate(date))} 19 h → ${dateLabel(date)} 19 h`}><input type="checkbox" checked={selected} disabled={saving} onChange={() => onToggle(member.id, date)} /><span>{selected ? "Congé" : "Disponible"}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : ""}</small></label></td>;
+        const assessment = leaveAssessment(plans, members, member, date);
+        const change = () => {
+          if (!selected && assessment.level === "danger" && !window.confirm(`${assessment.label}\n${assessment.detail}\n\nConfirmer quand même ce congé ?`)) return;
+          onToggle(member.id, date);
+        };
+        return <td key={date} className={`${selected ? "is-leave " : ""}is-${assessment.level}`}><label title={`${assessment.label} — ${assessment.detail}`}><input type="checkbox" checked={selected} disabled={saving} onChange={change} /><span>{selected ? "Congé" : assessment.label}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : assessment.detail}</small></label></td>;
       })}</tr>)}
     </tbody></table></div>
     <div className="dp-leave-summary"><h3>Récapitulatif</h3>{members.map((member) => {
