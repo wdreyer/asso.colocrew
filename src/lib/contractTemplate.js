@@ -454,26 +454,8 @@ export function generateContractHTML(member, contract) {
 }
 
 export function openContractPrint(member, contract) {
-  const html = generateContractHTML(member, contract);
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-
-  const w = window.open(url, "_blank");
-
-  if (!w) {
-    // Popup bloquée par le navigateur : on propose le téléchargement direct.
-    const fullName = `${member?.firstName || ""}-${member?.lastName || ""}`.trim().replace(/\s+/g, "-") || "contrat";
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `CEE-${fullName}.html`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    alert("Votre navigateur a bloqué l'ouverture d'un nouvel onglet : le contrat a été téléchargé à la place. Autorisez les popups pour ce site pour l'ouvrir directement la prochaine fois.");
-  }
-
-  // Laisse le temps au nouvel onglet / au téléchargement de charger le blob avant de le libérer.
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const label = `${member?.firstName || ""}-${member?.lastName || ""}`.trim().replace(/\s+/g, "-") || "contrat-individuel";
+  openContractsBatchPrint([{ member, contract }], label);
 }
 
 export function openContractsBatchPrint(entries, label = "séjour") {
@@ -528,7 +510,7 @@ export function openContractsBatchPrint(entries, label = "séjour") {
       .batch-contract .cc-sign-box p{margin-bottom:20px}
     }
   </style></head><body>
-    <div class="batch-toolbar"><span>${documents.length} contrats · impression recto-verso bord long</span><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
+    <div class="batch-toolbar"><span>${documents.length} contrat${documents.length > 1 ? "s" : ""} · impression recto-verso bord long</span><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
     ${body}
   </body></html>`;
   const blob = new Blob([html], { type: "text/html" });
