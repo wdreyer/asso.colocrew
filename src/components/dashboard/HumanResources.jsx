@@ -15,7 +15,7 @@ import { useToast } from "@/src/contexts/ToastContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded } from "@/src/lib/salaryGrid";
 import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
-import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, publicAssignmentsForMember } from "@/src/lib/staffDocuments";
+import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, publicAssignmentsForMember, uploadStaffDocument } from "@/src/lib/staffDocuments";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -652,13 +652,15 @@ const EDIT_FIELDS = [
   { key: "nationality",          label: "Nationalité", placeholder: "Française" },
 ];
 
-function FicheModal({ member: initial, contracts, structuredDocuments, initialEdit = false, onClose, onUpdate, onEditContract }) {
+function FicheModal({ member: initial, contracts, structuredDocuments, initialEdit = false, onClose, onUpdate, onEditContract, onDocumentChange }) {
+  const { showToast } = useToast();
   const [member, setMember]   = useState(initial);
   const [editMode, setEdit]   = useState(initialEdit);
   const [form, setForm]       = useState({ ...initial });
   const [saving, setSaving]   = useState(false);
   const [tab, setTab]         = useState("info"); // info | docs
   const [uploading, setUpl]   = useState(false);
+  const [typedDocumentBusy, setTypedDocumentBusy] = useState("");
   const photoInputRef         = useRef(null);
   const docInputRef           = useRef(null);
 
@@ -718,6 +720,38 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
     } finally {
       setUpl(false);
       if (docInputRef.current) docInputRef.current.value = "";
+    }
+  };
+
+  const openTypedDocument = async (document) => {
+    if (!document?.storagePath) return;
+    const key = `${document.id}-open`;
+    setTypedDocumentBusy(key);
+    try {
+      const url = await getDownloadURL(ref(storage, document.storagePath));
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      showToast(error?.message || "Ouverture du document impossible.", "error");
+    } finally {
+      setTypedDocumentBusy("");
+    }
+  };
+
+  const uploadTypedDocuments = async (documentType, selectedFiles) => {
+    const files = Array.from(selectedFiles || []);
+    if (!files.length) return;
+    const key = `${documentType}-upload`;
+    setTypedDocumentBusy(key);
+    try {
+      for (const file of files) {
+        const created = await uploadStaffDocument({ member, documentType, file, source: "admin-team" });
+        onDocumentChange(created);
+      }
+      showToast(`${files.length} fichier${files.length > 1 ? "s" : ""} ajouté${files.length > 1 ? "s" : ""}.`, "success");
+    } catch (error) {
+      showToast(error?.message || "Ajout du document impossible.", "error");
+    } finally {
+      setTypedDocumentBusy("");
     }
   };
 
@@ -851,11 +885,42 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
                     <div key={type.key} className={`hr-structured-doc${validated ? " is-valid" : current ? " is-pending" : ""}`}>
                       <strong>{type.label}</strong>
                       <span>{validated ? `Validé et verrouillé · ${typeDocuments.length} élément${typeDocuments.length > 1 ? "s" : ""}` : current ? `${typeDocuments.length} reçu${typeDocuments.length > 1 ? "s" : ""} · à vérifier` : "Manquant"}</span>
+                      {typeDocuments.length > 0 && (
+                        <div className="hr-team-doc-files">
+                          {typeDocuments.map((document) => document.storagePath ? (
+                            <button
+                              key={document.id}
+                              type="button"
+                              onClick={() => openTypedDocument(document)}
+                              disabled={Boolean(typedDocumentBusy)}
+                              title={document.originalName}
+                            >
+                              <span>📄 {document.originalName}</span>
+                              <em>{typedDocumentBusy === `${document.id}-open` ? "Ouverture…" : "Ouvrir"}</em>
+                            </button>
+                          ) : (
+                            <div key={document.id} className="hr-team-doc-virtual">✓ Validation sans fichier</div>
+                          ))}
+                        </div>
+                      )}
+                      <label className="hr-team-doc-upload">
+                        <input
+                          type="file"
+                          multiple
+                          accept={type.accept}
+                          disabled={Boolean(typedDocumentBusy)}
+                          onChange={(event) => {
+                            uploadTypedDocuments(type.key, event.target.files);
+                            event.target.value = "";
+                          }}
+                        />
+                        <span>{typedDocumentBusy === `${type.key}-upload` ? "Ajout…" : "+ Ajouter dans cette catégorie"}</span>
+                      </label>
                     </div>
                   );
                 })}
               </div>
-              <p className="hr-docs-hint">Les nouveaux documents typés se gèrent dans l’onglet Documents principal. La liste ci-dessous conserve les anciens fichiers déjà enregistrés.</p>
+              <p className="hr-docs-hint">Les fichiers ajoutés ci-dessus sont aussi disponibles dans l’onglet Documents principal. La liste ci-dessous conserve les anciens fichiers non classés.</p>
               <div className="hr-docs-upload">
                 <button
                   type="button"
@@ -1831,6 +1896,7 @@ export default function HumanResources() {
           onClose={closeMemberFile}
           onUpdate={updateMember}
           onEditContract={openEditContract}
+          onDocumentChange={handleDocumentChange}
         />
       )}
 
