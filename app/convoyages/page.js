@@ -342,6 +342,21 @@ function meetingTimeOrOneHourBefore(meetingTime, departureTime) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
+function minutesBeforeTime(value, offset) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const minutes = ((Number(match[1]) * 60 + Number(match[2]) - offset) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function stopDuration(arrivalTime, departureTime) {
+  const arrival = timeMinutes(arrivalTime);
+  const departure = timeMinutes(departureTime);
+  if (arrival === Number.MAX_SAFE_INTEGER || departure === Number.MAX_SAFE_INTEGER) return "";
+  const duration = (departure - arrival + 1440) % 1440;
+  return `${duration} min`;
+}
+
 function isRoadMode(value) {
   const mode = normalizePlace(value);
   return mode.includes("bus") || mode.includes("autocar") || mode.includes("minibus");
@@ -359,13 +374,18 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
 
   for (const portion of orderedTransportPortions(transport)) {
     if (!isFamilyReturn && normalizePlace(portion.from) === target) {
-      const trainTime = portion.departureTime || "";
+      const arrivalTime = portion.arrivalAtOriginTime || "";
+      const departureTime = portion.departureTime || "";
       const stopType = recapStopType(portion);
       return {
-        meetingTime: meetingTimeOrOneHourBefore(portion.meetingTime, trainTime),
-        trainTime,
+        meetingTime: stopType === "quai"
+          ? minutesBeforeTime(arrivalTime || departureTime, 30)
+          : meetingTimeOrOneHourBefore(portion.meetingTime, departureTime),
+        arrivalTime,
+        departureTime,
+        stopDuration: stopDuration(arrivalTime, departureTime),
         meetingPoint: stopType === "quai"
-          ? "Rendez-vous sur le quai — la voie, la voiture et l’heure précise seront communiquées par l’animateur·ice"
+          ? "Rendez-vous sur le quai — la voie et la voiture seront communiquées par l’animateur·ice"
           : portion.meetingPoint || city || "",
         stopType,
       };
@@ -373,22 +393,31 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
 
     for (const stop of portion.stops || []) {
       if (normalizePlace(stop.city) !== target) continue;
+      const stopType = recapStopType(portion, stop);
+      const arrivalTime = stop.arrivalTime || "";
+      const departureTime = stop.departureTime || "";
       if (isFamilyReturn) {
-        const arrivalTime = stop.arrivalTime || stop.departureTime || "";
         return {
-          meetingTime: arrivalTime,
-          trainTime: arrivalTime,
+          meetingTime: stopType === "quai"
+            ? minutesBeforeTime(arrivalTime || departureTime, 30)
+            : arrivalTime || departureTime,
+          arrivalTime,
+          departureTime,
+          stopDuration: stopDuration(arrivalTime, departureTime),
           meetingPoint: stop.meetingPoint || "À la descente du quai — l’animateur·ice vous contactera",
-          stopType: "return",
+          stopType: stopType === "quai" ? "quai" : "return",
+          isReturn: true,
         };
       }
-      const trainTime = stop.departureTime || stop.arrivalTime || "";
-      const stopType = recapStopType(portion, stop);
       return {
-        meetingTime: meetingTimeOrOneHourBefore(stop.meetingTime, trainTime),
-        trainTime,
+        meetingTime: stopType === "quai"
+          ? minutesBeforeTime(arrivalTime || departureTime, 30)
+          : meetingTimeOrOneHourBefore(stop.meetingTime, departureTime || arrivalTime),
+        arrivalTime,
+        departureTime,
+        stopDuration: stopDuration(arrivalTime, departureTime),
         meetingPoint: stopType === "quai"
-          ? "Rendez-vous sur le quai — la voie, la voiture et l’heure précise seront communiquées par l’animateur·ice"
+          ? "Rendez-vous sur le quai — la voie et la voiture seront communiquées par l’animateur·ice"
           : stop.meetingPoint || portion.meetingPoint || city || "",
         stopType,
       };
@@ -397,21 +426,28 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
     if (isFamilyReturn && normalizePlace(portion.to) === target) {
       return {
         meetingTime: portion.arrivalTime || "",
-        trainTime: portion.arrivalTime || "",
+        arrivalTime: portion.arrivalTime || "",
+        departureTime: "",
+        stopDuration: "",
         meetingPoint: "À la descente du quai — l’animateur·ice vous contactera",
         stopType: "return",
+        isReturn: true,
       };
     }
   }
 
-  const trainTime = isFamilyReturn ? transport.arrivalTime || "" : transport.departureTime || "";
+  const arrivalTime = isFamilyReturn ? transport.arrivalTime || "" : "";
+  const departureTime = isFamilyReturn ? "" : transport.departureTime || "";
   return {
-    meetingTime: isFamilyReturn ? trainTime : meetingTimeOrOneHourBefore(transport.meetingTime, trainTime),
-    trainTime,
+    meetingTime: isFamilyReturn ? arrivalTime : meetingTimeOrOneHourBefore(transport.meetingTime, departureTime),
+    arrivalTime,
+    departureTime,
+    stopDuration: "",
     meetingPoint: isFamilyReturn
       ? "À la descente du quai — l’animateur·ice vous contactera"
       : transport.meetingPoint || city || "",
     stopType: isFamilyReturn ? "return" : "rdv",
+    isReturn: isFamilyReturn,
   };
 }
 
@@ -471,9 +507,12 @@ function passengerRecapRows(transport) {
     return children.map((child) => ({
       time: schedule.time,
       meetingTime: meeting.meetingTime,
-      trainTime: meeting.trainTime,
+      arrivalTime: meeting.arrivalTime,
+      departureTime: meeting.departureTime,
+      stopDuration: meeting.stopDuration,
       meetingPoint: meeting.meetingPoint,
       stopType: meeting.stopType,
+      isReturn: meeting.isReturn,
       city,
       action: isReturnConnection ? "Prise en charge au centre" : isReturn ? "Descente / remise à la famille" : "Montée / prise en charge",
       child: childFullName(child) || passenger.childName || "—",
@@ -482,7 +521,7 @@ function passengerRecapRows(transport) {
       phone: passenger.phone || "—",
       segment: schedule.segment,
     }));
-  }).sort((left, right) => timeMinutes(left.meetingTime || left.trainTime || left.time) - timeMinutes(right.meetingTime || right.trainTime || right.time) || left.city.localeCompare(right.city, "fr"));
+  }).sort((left, right) => timeMinutes(left.meetingTime || left.arrivalTime || left.departureTime || left.time) - timeMinutes(right.meetingTime || right.arrivalTime || right.departureTime || right.time) || left.city.localeCompare(right.city, "fr"));
 }
 
 function openPassengerRecapPdf(transport) {
@@ -494,11 +533,10 @@ function openPassengerRecapPdf(transport) {
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
   <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  <table><thead><tr><th class="num">#</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Horaire du train</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
+  <table><thead><tr><th class="num">#</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Arrivée train</th><th>Départ train</th><th>Temps d’arrêt</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
   ${rows.map((row, index) => {
-    const typeLabel = row.stopType === "quai" ? "RDV quai" : row.stopType === "return" ? "Récupération" : "RDV famille";
-    const trainLabel = row.trainTime ? `${row.stopType === "return" ? "Arr. " : "Dép. "}${row.trainTime}` : "—";
-    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(trainLabel)}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`;
+    const typeLabel = row.stopType === "quai" ? (row.isReturn ? "Récupération quai" : "RDV quai") : row.stopType === "return" ? "Récupération" : "RDV famille";
+    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`;
   }).join("")}
   </tbody></table></body></html>`;
   const win = window.open("", "_blank", "width=1200,height=800");

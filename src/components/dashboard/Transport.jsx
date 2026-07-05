@@ -335,7 +335,7 @@ function isBranchSegment(segment) {
 }
 
 const STAGE_QUAI_RDV = "Rendez-vous sur le quai — l’animateur·ice vous contactera";
-const STAGE_QUAI_DETAILS = "La voie, la voiture et l’heure précise seront communiquées par l’animateur·ice.";
+const STAGE_QUAI_DETAILS = "La voie et la voiture seront communiquées par l’animateur·ice.";
 
 function isRoadTransportMode(value) {
   const mode = normalizePlace(value);
@@ -1040,6 +1040,13 @@ function timeToMinutes(value) {
   return hours * 60 + minutes;
 }
 
+function timeBefore(value, offsetMinutes) {
+  const minutes = timeToMinutes(value);
+  if (minutes === null) return "";
+  const result = ((minutes - offsetMinutes) % (24 * 60) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(result / 60)).padStart(2, "0")}:${String(result % 60).padStart(2, "0")}`;
+}
+
 function isBeforeNoon(value) {
   const minutes = timeToMinutes(value);
   return minutes !== null && minutes < 12 * 60;
@@ -1076,7 +1083,7 @@ const DEFAULT_HTML_REMINDER = {
   liability_return: "📝 Pour le retour, si l'enfant doit rentrer seul ou être récupéré par une tierce personne, merci de nous fournir la <strong>décharge de responsabilité ci-jointe</strong>, qu'il remettra directement à l'animateur ou animatrice.",
 };
 
-function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepartureTime, returnArrivalTime }, convocSettings = {}) {
+function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepartureTime, returnArrivalTime, stopType }, convocSettings = {}) {
   const needsLunch  = isBeforeNoon(departureTime);
   const needsDinner = isAfterDinnerTime(arrivalTime);
   const items = convocSettings.items || {};
@@ -1085,6 +1092,9 @@ function buildConvocationReminderItems({ departureTime, arrivalTime, returnDepar
     if (!condMet(item.condition)) return null;
     const s = items[item.id];
     if (s?.enabled === false) return null;
+    if (item.id === "timing" && stopType === "quai") {
+      return "⏱️ Pour une ville étape quai, le rendez-vous est fixé 30 minutes avant l’arrivée du train en gare.";
+    }
     if (s?.text) return `${item.emoji} ${s.text}`;
     return DEFAULT_HTML_REMINDER[item.id];
   }).filter(Boolean);
@@ -6500,19 +6510,20 @@ function getEmailRdvInfo(transport, passenger) {
     || transport.departureTime
     || null;
   const arrivalTime = routeArrivalTimeFromStop(transport, routeStop) || transport.arrivalTime || "";
-  let rdvTime = routeStop?.stop?.meetingTime || seg?.meetingTime || null;
-  if (!rdvTime && trainTime) {
-    const [h, m] = trainTime.split(":").map(Number);
-    const total = ((h * 60 + m - 60) % 1440 + 1440) % 1440;
-    rdvTime = `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-  }
   const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || transport.meetingPoint || "";
   const stopType = isRailStageStop(routeStop)
     ? "quai"
     : routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || transport.stopType || "rdv";
+  const stopArrivalTime = routeStopTime(routeStop, transport, "arrival") || "";
+  const stopDepartureTime = routeStopTime(routeStop, transport, "departure") || trainTime || "";
+  const stopDuration = durationBetween(stopArrivalTime, stopDepartureTime);
+  let rdvTime = stopType === "quai"
+    ? timeBefore(stopArrivalTime || stopDepartureTime, 30)
+    : routeStop?.stop?.meetingTime || seg?.meetingTime || null;
+  if (!rdvTime && trainTime) rdvTime = timeBefore(trainTime, 60);
   const platform = routeStop?.stop?.platform || seg?.platform || transport.platform || "";
   const trainLabel = routeTrainSummary(transport, routeStop);
-  return { city, rdvTime, trainTime, departureTime: trainTime, arrivalTime, trainLabel, meetingPoint, stopType, platform };
+  return { city, rdvTime, trainTime, departureTime: trainTime, arrivalTime, trainLabel, meetingPoint, stopType, platform, stopArrivalTime, stopDepartureTime, stopDuration };
 }
 
 function getRetourInfo(transport, passenger, allTransports) {
@@ -6566,6 +6577,9 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
     `Ville d'embarquement : ${city}`,
     rdvTime ? `Heure de RDV : ${rdvTime}${trainTime ? ` (départ train prévu ${trainTime})` : ""}` : null,
     rdvInfo.trainLabel ? `Train : ${rdvInfo.trainLabel}` : null,
+    stopType === "quai" && rdvInfo.stopArrivalTime ? `Arrivée du train en gare : ${rdvInfo.stopArrivalTime}` : null,
+    stopType === "quai" && rdvInfo.stopDepartureTime ? `Départ du train : ${rdvInfo.stopDepartureTime}` : null,
+    stopType === "quai" && rdvInfo.stopDuration ? `Temps d'arrêt : ${rdvInfo.stopDuration}` : null,
     rdvInfo.arrivalTime ? `Arrivée prévue : ${rdvInfo.arrivalTime}` : null,
     stopType === "quai" ? `${STAGE_QUAI_RDV}. ${STAGE_QUAI_DETAILS}` : (meetingPoint ? `Lieu de RDV : ${meetingPoint}` : null),
     ``,
@@ -6583,6 +6597,7 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
       returnDepartureTime: retourInfo?.departureTime,
       returnArrivalTime: retourInfo?.arrivalTime,
       city,
+      stopType,
     }, convocSettings).map((item) => `• ${plainReminderText(item)}`),
     `• En cas d'urgence ou d'imprévu, contactez-nous immédiatement :`,
     ...(convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : EMERGENCY_PHONES).map((n) => `  ${n}`),
@@ -6633,7 +6648,15 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     ].filter(Boolean);
     return lines.length ? lines.join("<br>") : TBC;
   };
-  const allerTrain = trainDetailHtml(rdvInfo.trainLabel, rdvInfo.departureTime || trainTime, rdvInfo.arrivalTime, transport.arrivalCity);
+  const allerTrain = stopType === "quai"
+    ? [
+      rdvInfo.trainLabel ? `<strong>${rdvInfo.trainLabel}</strong>` : "",
+      rdvInfo.stopArrivalTime ? `Arrivée du train en gare : <strong>${rdvInfo.stopArrivalTime}</strong>` : "",
+      rdvInfo.stopDepartureTime ? `Départ du train : <strong>${rdvInfo.stopDepartureTime}</strong>` : "",
+      rdvInfo.stopDuration ? `Temps d'arrêt : <strong>${rdvInfo.stopDuration}</strong>` : "",
+      rdvInfo.arrivalTime ? `Arrivée finale prévue : <strong>${rdvInfo.arrivalTime}</strong> à <strong>${transport.arrivalCity}</strong>` : "",
+    ].filter(Boolean).join("<br>") || TBC
+    : trainDetailHtml(rdvInfo.trainLabel, rdvInfo.departureTime || trainTime, rdvInfo.arrivalTime, transport.arrivalCity);
   const retourDate = retourInfo?.date
     ? `<strong>${fmtDateLong(retourInfo.date)}</strong>${retourInfo.arrivalTime ? `<br><span style="color:#ea580c;font-weight:700;">RDV à ${retourInfo.arrivalTime}</span>` : ""}`
     : TBC;
@@ -6655,6 +6678,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     returnDepartureTime: retourInfo?.departureTime,
     returnArrivalTime: retourInfo?.arrivalTime,
     city,
+    stopType,
   }, convocSettings);
   const introHtml = customIntro && customIntro.trim()
     ? customIntro.trim().split(/\n\n+/).map((para) => `<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.75;">${para.replace(/\n/g, "<br/>")}</p>`).join("")
