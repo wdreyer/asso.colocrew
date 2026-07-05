@@ -342,6 +342,17 @@ function meetingTimeOrOneHourBefore(meetingTime, departureTime) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
+function isRoadMode(value) {
+  const mode = normalizePlace(value);
+  return mode.includes("bus") || mode.includes("autocar") || mode.includes("minibus");
+}
+
+function recapStopType(portion, stop = null) {
+  if (stop?.stopType === "quai" || portion?.stopType === "quai") return "quai";
+  if (stop && !isRoadMode(portion?.mode)) return "quai";
+  return "rdv";
+}
+
 function recapMeetingInfo(transport, city, isReturnConnection = false) {
   const target = normalizePlace(city);
   const isFamilyReturn = transport.direction === "retour" && !isReturnConnection;
@@ -349,10 +360,14 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
   for (const portion of orderedTransportPortions(transport)) {
     if (!isFamilyReturn && normalizePlace(portion.from) === target) {
       const trainTime = portion.departureTime || "";
+      const stopType = recapStopType(portion);
       return {
-        meetingTime: meetingTimeOrOneHourBefore(portion.meetingTime, trainTime),
+        meetingTime: stopType === "quai" ? "" : meetingTimeOrOneHourBefore(portion.meetingTime, trainTime),
         trainTime,
-        meetingPoint: portion.meetingPoint || city || "",
+        meetingPoint: stopType === "quai"
+          ? "Rendez-vous sur le quai — la voie, la voiture et l’heure précise seront communiquées par l’animateur·ice"
+          : portion.meetingPoint || city || "",
+        stopType,
       };
     }
 
@@ -364,13 +379,18 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
           meetingTime: arrivalTime,
           trainTime: arrivalTime,
           meetingPoint: stop.meetingPoint || "À la descente du quai — l’animateur·ice vous contactera",
+          stopType: "return",
         };
       }
       const trainTime = stop.departureTime || stop.arrivalTime || "";
+      const stopType = recapStopType(portion, stop);
       return {
-        meetingTime: meetingTimeOrOneHourBefore(stop.meetingTime, trainTime),
+        meetingTime: stopType === "quai" ? "" : meetingTimeOrOneHourBefore(stop.meetingTime, trainTime),
         trainTime,
-        meetingPoint: stop.meetingPoint || portion.meetingPoint || city || "",
+        meetingPoint: stopType === "quai"
+          ? "Rendez-vous sur le quai — la voie, la voiture et l’heure précise seront communiquées par l’animateur·ice"
+          : stop.meetingPoint || portion.meetingPoint || city || "",
+        stopType,
       };
     }
 
@@ -379,6 +399,7 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
         meetingTime: portion.arrivalTime || "",
         trainTime: portion.arrivalTime || "",
         meetingPoint: "À la descente du quai — l’animateur·ice vous contactera",
+        stopType: "return",
       };
     }
   }
@@ -390,6 +411,7 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
     meetingPoint: isFamilyReturn
       ? "À la descente du quai — l’animateur·ice vous contactera"
       : transport.meetingPoint || city || "",
+    stopType: isFamilyReturn ? "return" : "rdv",
   };
 }
 
@@ -451,6 +473,7 @@ function passengerRecapRows(transport) {
       meetingTime: meeting.meetingTime,
       trainTime: meeting.trainTime,
       meetingPoint: meeting.meetingPoint,
+      stopType: meeting.stopType,
       city,
       action: isReturnConnection ? "Prise en charge au centre" : isReturn ? "Descente / remise à la famille" : "Montée / prise en charge",
       child: childFullName(child) || passenger.childName || "—",
@@ -466,13 +489,16 @@ function openPassengerRecapPdf(transport) {
   const rows = passengerRecapRows(transport);
   const coordination = staffCoordinationEvents(transport);
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Récap convoyage</title><style>
-    @page{size:A4 landscape;margin:7mm}body{font:9px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:17px;margin:0 0 4px;color:#B8336A}p{margin:0 0 8px}.events{margin:7px 0 10px;padding:6px 8px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d8d8df;padding:4px 5px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:8px}tr:nth-child(even){background:#faf8fc}.num{width:20px;text-align:center}.time{width:38px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.meeting{min-width:190px;white-space:normal;line-height:1.35}.action{width:95px}.phone{white-space:nowrap}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
+    @page{size:A4 landscape;margin:7mm}body{font:9px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:17px;margin:0 0 4px;color:#B8336A}p{margin:0 0 8px}.events{margin:7px 0 10px;padding:6px 8px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d8d8df;padding:4px 5px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:8px}tr:nth-child(even){background:#faf8fc}tr.quai{background:#fff8e8}.num{width:20px;text-align:center}.time{width:38px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.type{width:72px;font-weight:bold}.type-quai{color:#b45309}.type-rdv{color:#15803d}.type-return{color:#7c3aed}.meeting{min-width:175px;white-space:normal;line-height:1.35}.action{width:90px}.phone{white-space:nowrap}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
   </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
   <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  <table><thead><tr><th class="num">#</th><th>RDV</th><th>Train</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
-  ${rows.map((row, index) => `<tr><td class="num">${index + 1}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.trainTime || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`).join("")}
+  <table><thead><tr><th class="num">#</th><th>Type d’arrêt</th><th>RDV famille</th><th>Train</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
+  ${rows.map((row, index) => {
+    const typeLabel = row.stopType === "quai" ? "Étape quai" : row.stopType === "return" ? "Récupération" : "RDV famille";
+    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.trainTime || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`;
+  }).join("")}
   </tbody></table></body></html>`;
   const win = window.open("", "_blank", "width=1200,height=800");
   if (!win) return;
