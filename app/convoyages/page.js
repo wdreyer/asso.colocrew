@@ -362,7 +362,7 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
       const trainTime = portion.departureTime || "";
       const stopType = recapStopType(portion);
       return {
-        meetingTime: stopType === "quai" ? "" : meetingTimeOrOneHourBefore(portion.meetingTime, trainTime),
+        meetingTime: meetingTimeOrOneHourBefore(portion.meetingTime, trainTime),
         trainTime,
         meetingPoint: stopType === "quai"
           ? "Rendez-vous sur le quai — la voie, la voiture et l’heure précise seront communiquées par l’animateur·ice"
@@ -385,7 +385,7 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
       const trainTime = stop.departureTime || stop.arrivalTime || "";
       const stopType = recapStopType(portion, stop);
       return {
-        meetingTime: stopType === "quai" ? "" : meetingTimeOrOneHourBefore(stop.meetingTime, trainTime),
+        meetingTime: meetingTimeOrOneHourBefore(stop.meetingTime, trainTime),
         trainTime,
         meetingPoint: stopType === "quai"
           ? "Rendez-vous sur le quai — la voie, la voiture et l’heure précise seront communiquées par l’animateur·ice"
@@ -494,10 +494,11 @@ function openPassengerRecapPdf(transport) {
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
   <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  <table><thead><tr><th class="num">#</th><th>Type d’arrêt</th><th>RDV famille</th><th>Train</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
+  <table><thead><tr><th class="num">#</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Horaire du train</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Segment</th></tr></thead><tbody>
   ${rows.map((row, index) => {
-    const typeLabel = row.stopType === "quai" ? "Étape quai" : row.stopType === "return" ? "Récupération" : "RDV famille";
-    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.trainTime || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`;
+    const typeLabel = row.stopType === "quai" ? "RDV quai" : row.stopType === "return" ? "Récupération" : "RDV famille";
+    const trainLabel = row.trainTime ? `${row.stopType === "return" ? "Arr. " : "Dép. "}${row.trainTime}` : "—";
+    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(trainLabel)}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td>${escapeHtml(row.segment)}</td></tr>`;
   }).join("")}
   </tbody></table></body></html>`;
   const win = window.open("", "_blank", "width=1200,height=800");
