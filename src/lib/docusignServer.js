@@ -121,11 +121,6 @@ async function createDocusignEnvelope(context, { subject, html, signers, documen
         anchorYOffset: "80",
         font: "Arial",
         fontSize: "Size9",
-        localePolicy: {
-          cultureName: "fr-FR",
-          dateFormat: "dd/MM/yyyy",
-          customDateFormat: "dd/MM/yyyy",
-        },
       }],
       ...((signer.textTabs || []).length ? {
         textTabs: signer.textTabs.map((tab) => ({

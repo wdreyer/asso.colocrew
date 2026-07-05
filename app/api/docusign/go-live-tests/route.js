@@ -18,7 +18,7 @@ export async function POST(request) {
     const email = String(process.env.DOCUSIGN_ADMIN_EMAIL || "").trim();
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("DOCUSIGN_ADMIN_EMAIL est invalide.");
 
-    const total = 16;
+    const total = 20;
     const envelopes = Array.from({ length: total }, (_, offset) => {
       const index = offset + 1;
       return {

@@ -1352,8 +1352,8 @@ export default function HumanResources() {
   const runDocusignGoLiveTests = async () => {
     if (!currentUser || goLiveTesting) return;
     if (!window.confirm(
-      "Envoyer 16 enveloppes de test DocuSign à ton adresse administrateur ?\n\n" +
-      "Tu recevras 16 e-mails. Ne clique qu'une seule fois sur ce bouton.",
+      "Envoyer 20 enveloppes de test DocuSign à ton adresse administrateur ?\n\n" +
+      "Tu recevras 20 e-mails. Ne clique qu'une seule fois sur ce bouton.",
     )) return;
     setGoLiveTesting(true);
     try {
@@ -1811,7 +1811,7 @@ export default function HumanResources() {
             {docusignTesting ? "Test en cours…" : "Envoyer un test DocuSign"}
           </button>
           <button type="button" className="dash-btn" onClick={runDocusignGoLiveTests} disabled={goLiveTesting}>
-            {goLiveTesting ? "Envoi des 16 tests…" : "Envoyer 16 tests Go Live"}
+            {goLiveTesting ? "Envoi des 20 tests…" : "Envoyer 20 tests Go Live"}
           </button>
           <a className="dash-btn" href="/rh" target="_blank" rel="noreferrer">
             Ouvrir le dépôt public
