@@ -12,6 +12,7 @@ import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { openContractPrint, openContractsBatchPrint } from "@/src/lib/contractTemplate";
 import { useToast } from "@/src/contexts/ToastContext";
+import { useAuth } from "@/src/contexts/AuthContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded } from "@/src/lib/salaryGrid";
 import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
 import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, publicAssignmentsForMember } from "@/src/lib/staffDocuments";
@@ -1170,6 +1171,8 @@ function SalaryGridModal({ isOpen, gridRows, onClose, onChange }) {
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function HumanResources() {
+  const { currentUser } = useAuth();
+  const { showToast } = useToast();
   const [members,   setMembers]   = useState([]);
   const [contracts, setContracts] = useState([]);
   const [staffDocuments, setStaffDocuments] = useState([]);
@@ -1179,6 +1182,31 @@ export default function HumanResources() {
   const [fiche,     setFiche]     = useState(null);
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
   const [gridModalOpen, setGridModalOpen]  = useState(false);
+  const [docusignTesting, setDocusignTesting] = useState(false);
+
+  const testDocusign = async () => {
+    if (!currentUser || docusignTesting) return;
+    setDocusignTesting(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch("/api/docusign/test", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) {
+        if (payload.consentUrl) {
+          window.open(payload.consentUrl, "_blank", "noopener,noreferrer");
+        }
+        throw new Error(payload.error || "Test DocuSign impossible.");
+      }
+      showToast(`Test DocuSign envoyé à ${payload.recipient}.`, "success");
+    } catch (error) {
+      showToast(error?.message || "Test DocuSign impossible.", "error");
+    } finally {
+      setDocusignTesting(false);
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -1305,6 +1333,12 @@ export default function HumanResources() {
           <p>{animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="dash-row-actions">
+          <a className="dash-btn" href="/api/docusign/consent" target="_blank" rel="noreferrer">
+            Connecter DocuSign
+          </a>
+          <button type="button" className="dash-btn" onClick={testDocusign} disabled={docusignTesting}>
+            {docusignTesting ? "Test en cours…" : "Envoyer un test DocuSign"}
+          </button>
           <a className="dash-btn" href="/rh" target="_blank" rel="noreferrer">
             Ouvrir le dépôt public
           </a>
