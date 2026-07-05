@@ -126,6 +126,7 @@ function mapContract(snap) {
     outstandingAmount: outstanding,
     status: gross > 0 && paid >= gross ? "Payé" : "À régler",
     contractFileUrl: d.contractFileUrl || "",
+    signedContractStoragePath: d.signedContractStoragePath || "",
     docusignEnvelopeId: d.docusignEnvelopeId || "",
     docusignStatus: d.docusignStatus || "",
     docusignSentAt: d.docusignSentAt || "",
@@ -531,6 +532,11 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
                 Actualiser
               </button>
             )}
+            {row.contractFileUrl && (
+              <a className="hr-btn-contract" href={row.contractFileUrl} target="_blank" rel="noopener noreferrer">
+                PDF signé
+              </a>
+            )}
           </span>
         );
       },
@@ -855,6 +861,16 @@ function FicheModal({ member: initial, contracts, structuredDocuments, onClose, 
                     >
                       Modifier le contrat
                     </button>
+                    {c.contractFileUrl && (
+                      <a
+                        className="hr-btn-contract"
+                        href={c.contractFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Ouvrir le contrat signé
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1261,6 +1277,67 @@ export default function HumanResources() {
     )));
   };
 
+  const archiveSignedContract = async (contract, statusPayload, firebaseToken) => {
+    const member = members.find((item) => item.id === contract.memberId);
+    if (!member) throw new Error("Animateur·ice introuvable pour l'archivage du contrat.");
+
+    const response = await fetch(
+      `/api/docusign/envelopes/${encodeURIComponent(contract.docusignEnvelopeId)}/documents`,
+      { headers: { Authorization: `Bearer ${firebaseToken}` } },
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || "PDF signé indisponible.");
+    }
+
+    const pdf = await response.blob();
+    const storagePath = `staff-contracts/${member.id}/${contract.id}-${contract.docusignEnvelopeId}.pdf`;
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, pdf, {
+      contentType: "application/pdf",
+      customMetadata: {
+        memberId: member.id,
+        contractId: contract.id,
+        docusignEnvelopeId: contract.docusignEnvelopeId,
+        status: "signed",
+      },
+    });
+    const url = await getDownloadURL(storageRef);
+    const completedAt = statusPayload.completedDateTime || new Date().toISOString();
+    const fileName = `Contrat signé - ${contract.stayCode || contract.stay} - ${contract.week}.pdf`;
+    const documentEntry = {
+      name: fileName,
+      url,
+      uploadedAt: completedAt,
+      type: "signed-contract",
+      contractId: contract.id,
+      docusignEnvelopeId: contract.docusignEnvelopeId,
+    };
+    const contractFields = {
+      docusignStatus: "completed",
+      docusignUpdatedAt: statusPayload.statusChangedDateTime || completedAt,
+      docusignCompletedAt: completedAt,
+      contractFileUrl: url,
+      signedContractStoragePath: storagePath,
+    };
+
+    await Promise.all([
+      updateDoc(doc(db, COLLECTIONS.STAFF_CONTRACTS, contract.id), contractFields),
+      updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), { documents: arrayUnion(documentEntry) }),
+    ]);
+    setContracts((previous) => previous.map((item) => (
+      item.id === contract.id ? { ...item, ...contractFields } : item
+    )));
+    const updateDocuments = (item) => {
+      if (item.id !== member.id) return item;
+      const exists = (item.documents || []).some((document) => document.contractId === contract.id);
+      return exists ? item : { ...item, documents: [...(item.documents || []), documentEntry] };
+    };
+    setMembers((previous) => previous.map(updateDocuments));
+    setFiche((previous) => previous ? updateDocuments(previous) : previous);
+    return url;
+  };
+
   const sendContractWithDocusign = async (member, contract) => {
     if (!currentUser || !member || !contract || docusignBusyId) return;
     if (!member.email) {
@@ -1318,13 +1395,22 @@ export default function HumanResources() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Statut DocuSign indisponible.");
       const updatedAt = payload.statusChangedDateTime || new Date().toISOString();
-      await persistDocusignState(contract.id, {
-        docusignStatus: payload.status,
-        docusignUpdatedAt: updatedAt,
-        ...(payload.completedDateTime ? { docusignCompletedAt: payload.completedDateTime } : {}),
-      });
+      if (payload.status === "completed" && !contract.contractFileUrl) {
+        await archiveSignedContract(contract, payload, token);
+      } else {
+        await persistDocusignState(contract.id, {
+          docusignStatus: payload.status,
+          docusignUpdatedAt: updatedAt,
+          ...(payload.completedDateTime ? { docusignCompletedAt: payload.completedDateTime } : {}),
+        });
+      }
       const display = DOCUSIGN_STATUS[payload.status]?.label || payload.status;
-      showToast(`Statut DocuSign : ${display}.`, "success");
+      showToast(
+        payload.status === "completed" && !contract.contractFileUrl
+          ? "Contrat signé archivé dans la fiche RH."
+          : `Statut DocuSign : ${display}.`,
+        "success",
+      );
     } catch (error) {
       showToast(error?.message || "Statut DocuSign indisponible.", "error");
     } finally {

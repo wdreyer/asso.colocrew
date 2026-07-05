@@ -180,3 +180,23 @@ export async function getDocusignEnvelope(envelopeId) {
     statusChangedDateTime: result.statusChangedDateTime || "",
   };
 }
+
+export async function downloadDocusignEnvelopePdf(envelopeId) {
+  const token = await accessToken();
+  const { accountId, basePath } = await accountContext(token);
+  const response = await fetch(
+    `${basePath}/v2.1/accounts/${encodeURIComponent(accountId)}/envelopes/${encodeURIComponent(envelopeId)}/documents/combined?certificate=true`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/pdf",
+      },
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(`Téléchargement DocuSign impossible : ${payload.message || payload.errorCode || response.status}`);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
