@@ -128,6 +128,26 @@ export async function sendDocusignEnvelope({ subject, html, signers, documentNam
           customDateFormat: "dd/MM/yyyy",
         },
       }],
+      ...((signer.textTabs || []).length ? {
+        textTabs: signer.textTabs.map((tab) => ({
+          anchorString: tab.anchor,
+          anchorUnits: "pixels",
+          anchorXOffset: String(tab.anchorXOffset ?? 2),
+          anchorYOffset: String(tab.anchorYOffset ?? -15),
+          width: String(tab.width || 180),
+          height: String(tab.height || 18),
+          font: "Arial",
+          fontSize: "Size9",
+          required: "true",
+          locked: "false",
+          tabLabel: tab.tabLabel,
+          value: String(tab.value || ""),
+          ...(tab.validationPattern ? {
+            validationPattern: tab.validationPattern,
+            validationMessage: tab.validationMessage || "Valeur invalide.",
+          } : {}),
+        })),
+      } : {}),
     },
   }));
 
@@ -172,12 +192,33 @@ export async function getDocusignEnvelope(envelopeId) {
   if (!response.ok) {
     throw new Error(`Lecture DocuSign impossible : ${result.message || result.errorCode || response.status}`);
   }
+  let formData = {};
+  if (result.status === "completed") {
+    const recipientsResponse = await fetch(
+      `${basePath}/v2.1/accounts/${encodeURIComponent(accountId)}/envelopes/${encodeURIComponent(envelopeId)}/recipients?include_tabs=true`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      },
+    );
+    const recipients = await recipientsResponse.json().catch(() => ({}));
+    if (recipientsResponse.ok) {
+      const staffSigner = (recipients.signers || []).find((signer) => String(signer.routingOrder) === "1")
+        || recipients.signers?.[0];
+      formData = Object.fromEntries(
+        (staffSigner?.tabs?.textTabs || [])
+          .filter((tab) => tab.tabLabel)
+          .map((tab) => [tab.tabLabel, String(tab.value || "").trim()]),
+      );
+    }
+  }
   return {
     envelopeId: result.envelopeId || envelopeId,
     status: result.status || "unknown",
     sentDateTime: result.sentDateTime || "",
     completedDateTime: result.completedDateTime || "",
     statusChangedDateTime: result.statusChangedDateTime || "",
+    formData,
   };
 }
 

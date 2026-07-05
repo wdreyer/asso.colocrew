@@ -1453,19 +1453,18 @@ export default function HumanResources() {
       showToast("Ajoutez d'abord l'adresse e-mail de l'animateur·ice.", "error");
       return;
     }
-    const missingInformation = missingPersonalInformation(member);
-    if (missingInformation.length) {
-      showToast(`Complétez d'abord : ${missingInformation.map((item) => item.label).join(", ")}.`, "error");
-      openMemberFile(member, true);
-      return;
-    }
     if (contract.docusignEnvelopeId) {
       showToast("Ce contrat possède déjà une enveloppe DocuSign.", "error");
       return;
     }
+    const missingInformation = missingPersonalInformation(member)
+      .filter((item) => !["firstName", "lastName", "email"].includes(item.key));
+    const completionNote = missingInformation.length
+      ? `\n\nL'animateur·ice devra compléter dans DocuSign : ${missingInformation.map((item) => item.label).join(", ")}.`
+      : "";
     const confirmed = window.confirm(
       `Envoyer maintenant le contrat de ${member.firstName} ${member.lastName} à ${member.email} ?\n\n` +
-      "L'animateur·ice signera en premier, puis ColoCrew recevra la demande de contresignature.",
+      "L'animateur·ice signera en premier, puis ColoCrew recevra la demande de contresignature." + completionNote,
     );
     if (!confirmed) return;
 
@@ -1499,6 +1498,27 @@ export default function HumanResources() {
     }
   };
 
+  const syncDocusignPersonalInformation = async (contract, formData) => {
+    const mapping = {
+      cc_phone: "phone",
+      cc_address: "address",
+      cc_birth_date: "dateOfBirth",
+      cc_birth_place: "birthPlace",
+      cc_social_security: "socialSecurityNumber",
+      cc_nationality: "nationality",
+    };
+    const updates = Object.fromEntries(
+      Object.entries(mapping)
+        .filter(([tabLabel]) => String(formData?.[tabLabel] || "").trim())
+        .map(([tabLabel, memberField]) => [memberField, String(formData[tabLabel]).trim()]),
+    );
+    if (!Object.keys(updates).length) return;
+    await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, contract.memberId), updates);
+    const applyUpdates = (member) => member.id === contract.memberId ? { ...member, ...updates } : member;
+    setMembers((previous) => previous.map(applyUpdates));
+    setFiche((previous) => previous ? applyUpdates(previous) : previous);
+  };
+
   const refreshDocusignStatus = async (contract) => {
     if (!currentUser || !contract?.docusignEnvelopeId || docusignBusyId) return;
     setDocusignBusyId(contract.id);
@@ -1510,6 +1530,9 @@ export default function HumanResources() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Statut DocuSign indisponible.");
       const updatedAt = payload.statusChangedDateTime || new Date().toISOString();
+      if (payload.status === "completed") {
+        await syncDocusignPersonalInformation(contract, payload.formData);
+      }
       if (payload.status === "completed" && !contract.contractFileUrl) {
         await archiveSignedContract(contract, payload, token);
       } else {

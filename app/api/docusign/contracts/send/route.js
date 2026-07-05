@@ -36,6 +36,37 @@ function sanitizedContract(input) {
   };
 }
 
+const DOCUSIGN_PERSONAL_FIELDS = [
+  {
+    key: "phone", tabLabel: "cc_phone", anchor: "/cc-field-phone/", width: 170,
+    valid: (value) => String(value || "").replace(/\D/g, "").length >= 8,
+    validationPattern: "^[0-9 +().-]{8,25}$",
+    validationMessage: "Saisissez un numéro de téléphone valide.",
+  },
+  {
+    key: "address", tabLabel: "cc_address", anchor: "/cc-field-address/", width: 290,
+    valid: (value) => String(value || "").trim().length >= 8,
+  },
+  {
+    key: "dateOfBirth", tabLabel: "cc_birth_date", anchor: "/cc-field-birth-date/", width: 110,
+    valid: (value) => String(value || "").trim().length >= 8,
+  },
+  {
+    key: "birthPlace", tabLabel: "cc_birth_place", anchor: "/cc-field-birth-place/", width: 190,
+    valid: (value) => String(value || "").trim().length >= 2,
+  },
+  {
+    key: "socialSecurityNumber", tabLabel: "cc_social_security", anchor: "/cc-field-social-security/", width: 220,
+    valid: (value) => String(value || "").replace(/\D/g, "").length === 15,
+    validationPattern: "^(?:[0-9][ .-]?){14}[0-9]$",
+    validationMessage: "Saisissez votre numéro de Sécurité sociale complet (15 chiffres).",
+  },
+  {
+    key: "nationality", tabLabel: "cc_nationality", anchor: "/cc-field-nationality/", width: 140,
+    valid: (value) => String(value || "").trim().length >= 2,
+  },
+];
+
 export async function POST(request) {
   try {
     await requireFirebaseAdmin(request);
@@ -52,16 +83,28 @@ export async function POST(request) {
 
     const fullName = `${member.firstName} ${member.lastName}`.trim();
     const stayLabel = [contract.stayCode || contract.stay, contract.week].filter(Boolean).join(" — ");
+    const missingFields = DOCUSIGN_PERSONAL_FIELDS.filter((field) => !field.valid(member[field.key]));
+    const memberForDocument = { ...member };
+    missingFields.forEach((field) => { memberForDocument[field.key] = ""; });
+    const staffTextTabs = missingFields.map((field) => ({
+      anchor: field.anchor,
+      tabLabel: field.tabLabel,
+      width: field.width,
+      value: member[field.key],
+      validationPattern: field.validationPattern,
+      validationMessage: field.validationMessage,
+    }));
     const result = await sendDocusignEnvelope({
       subject: `Contrat d'engagement éducatif ColoCrew — ${fullName}`,
       emailBlurb: `Bonjour ${member.firstName}, merci de vérifier puis signer votre contrat ColoCrew. Une fois votre signature terminée, ColoCrew le contresignera.`,
-      html: generateContractHTML(member, contract),
+      html: generateContractHTML(memberForDocument, contract),
       documentName: `Contrat CEE - ${fullName}${stayLabel ? ` - ${stayLabel}` : ""}.html`,
       signers: [
         {
           email: member.email,
           name: fullName,
           anchor: "/cc-staff-signature/",
+          textTabs: staffTextTabs,
           emailBody: `Bonjour ${member.firstName}, merci de vérifier puis signer votre contrat d'engagement éducatif ColoCrew. Une fois votre signature terminée, ColoCrew le contresignera.`,
         },
         {

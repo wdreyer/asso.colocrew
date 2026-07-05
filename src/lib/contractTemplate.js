@@ -7,6 +7,11 @@ function esc(str) {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function contractInputLine(value, anchor, minWidth = 180) {
+  const content = String(value || "").trim() ? `<strong>${esc(value)}</strong>` : "&nbsp;";
+  return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px"><span class="cc-field-anchor">${anchor}</span>${content}</span>`;
+}
+
 function frDate(isoOrSlash) {
   if (!isoOrSlash) return "___________";
   // Accepte "YYYY-MM-DD" ou "DD/MM/YYYY"
@@ -87,12 +92,13 @@ export function generateContractHTML(member, contract) {
   const c = contract || {};
 
   const fullName    = esc(`${m.firstName || ""} ${m.lastName || ""}`.trim()) || "___________";
-  const address     = esc(m.address || "___________");
-  const phone       = esc(m.phone   || "___________");
-  const email       = esc(m.email   || "___________");
-  const secu        = esc(m.socialSecurityNumber || "___________");
-  const dob         = esc([m.dateOfBirth, m.birthPlace].filter(Boolean).join(" à ") || "___________");
-  const nationality = esc(m.nationality || "Française");
+  const address     = contractInputLine(m.address, "/cc-field-address/", 300);
+  const phone       = contractInputLine(m.phone, "/cc-field-phone/", 180);
+  const email       = contractInputLine(m.email, "/cc-field-email/", 240);
+  const secu        = contractInputLine(m.socialSecurityNumber, "/cc-field-social-security/", 230);
+  const birthDate   = contractInputLine(m.dateOfBirth, "/cc-field-birth-date/", 120);
+  const birthPlace  = contractInputLine(m.birthPlace, "/cc-field-birth-place/", 200);
+  const nationality = contractInputLine(m.nationality, "/cc-field-nationality/", 150);
   const roleKey     = contractRoleKey(c);
   const poste       = esc(contractRoleLabel(c));
   const lieuExercice = esc(exercisePlace(c));
@@ -229,6 +235,18 @@ export function generateContractHTML(member, contract) {
   .cc-article ul li { margin-bottom: 4px; line-height: 1.5; }
   .cc-bold { font-weight: bold; }
   .cc-fill { border-bottom: 1px solid #555; display: inline-block; min-width: 120px; }
+  .cc-contract-input {
+    min-height: 18px;
+    vertical-align: bottom;
+    position: relative;
+    padding: 0 3px 1px;
+  }
+  .cc-field-anchor {
+    color: #fff;
+    font-size: 1px;
+    line-height: 1px;
+    user-select: none;
+  }
 
   /* ── Signatures ── */
   .cc-signatures { margin-top: 32px; }
@@ -318,12 +336,13 @@ export function generateContractHTML(member, contract) {
 
     <div class="cc-party-block">
       <p>Monsieur/Madame (Nom, Prénom) : <strong>${fullName}</strong></p>
-      <p>Adresse : <strong>${address}</strong></p>
-      <p>Téléphone : <strong>${phone}</strong></p>
-      <p>Email : <strong>${email}</strong></p>
-      <p>Numéro de Sécurité sociale : <strong>${secu}</strong></p>
-      <p>Date et lieu de naissance : <strong>${dob}</strong></p>
-      <p>Nationalité : <strong>${nationality}</strong></p>
+      <p>Adresse : ${address}</p>
+      <p>Téléphone : ${phone}</p>
+      <p>Email : ${email}</p>
+      <p>Numéro de Sécurité sociale : ${secu}</p>
+      <p>Date de naissance : ${birthDate}</p>
+      <p>Lieu de naissance : ${birthPlace}</p>
+      <p>Nationalité : ${nationality}</p>
       <p>Poste : <strong>${poste}</strong></p>
     </div>
     <p class="cc-designation"><em>Ci-après dénommé·e « ${poste} »</em></p>
