@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDocs, onSnapshot, setDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import Modal from "@/src/components/dashboard/ui/Modal";
@@ -17,6 +17,7 @@ import {
 import "@/src/styles/day-plans.css";
 
 const DATES = dayPlanDates();
+const LEAVE_DATES = DATES.slice(2, -2);
 const EMPTY_TASK = {
   category: "morning", title: "", startTime: "10:00", endTime: "11:00",
   location: "", groups: "", details: "", assigneeIds: [], documents: [],
@@ -132,6 +133,12 @@ export default function DayPlans() {
       if (missing.length) {
         await Promise.all(missing.map((date) => setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${DAY_PLAN_STAY.id}-${date}`), seedDay(date))));
       }
+      const forbiddenLeaveDates = [...DATES.slice(0, 2), ...DATES.slice(-2)];
+      await Promise.all(forbiddenLeaveDates.filter((date) => (existing[date]?.leaveMemberIds || []).length).map((date) => setDoc(
+        doc(db, COLLECTIONS.DAY_PLANS, `${DAY_PLAN_STAY.id}-${date}`),
+        { leaveMemberIds: [], updatedAt: new Date().toISOString() },
+        { merge: true },
+      )));
     }).catch((error) => showToast(error?.message || "Chargement du planning impossible.", "error"));
 
     const unsubscribe = onSnapshot(collection(db, COLLECTIONS.DAY_PLANS), (snapshot) => {
@@ -293,6 +300,7 @@ export default function DayPlans() {
 function DayHeader({ date, plan, members, saving, onToggleLeave }) {
   const [open, setOpen] = useState(false);
   const leave = plan.leaveMemberIds || [];
+  const leaveAllowed = LEAVE_DATES.includes(date);
   return (
     <section className="dp-day-head">
       <div>
@@ -301,8 +309,8 @@ function DayHeader({ date, plan, members, saving, onToggleLeave }) {
         <p>{plan.tasks?.length || 0} tâches programmées · mise à jour automatique pour toute l’équipe</p>
       </div>
       <div className="dp-leave-control">
-        <button type="button" onClick={() => setOpen((value) => !value)}>🌴 En congé aujourd’hui <b>{leave.length}</b></button>
-        {open && <div className="dp-leave-menu">
+        <button type="button" disabled={!leaveAllowed} title={leaveAllowed ? "" : "Aucun congé pendant les 2 premiers et les 2 derniers jours"} onClick={() => setOpen((value) => !value)}>{leaveAllowed ? "🌴 En congé aujourd’hui" : "Congés non disponibles"} {leaveAllowed && <b>{leave.length}</b>}</button>
+        {leaveAllowed && open && <div className="dp-leave-menu">
           <strong>Congé du {dateLabel(previousDate(date), true)} à 19 h au {dateLabel(date, true)} à 19 h</strong>
           {members.map((member) => <label key={member.id}>
             <input type="checkbox" checked={leave.includes(member.id)} disabled={saving} onChange={() => onToggleLeave(member.id)} />
@@ -377,10 +385,12 @@ function LeavePeople({ members }) {
 }
 
 function WeekOverview({ plans, members, onSelect }) {
+  const scrollRef = useRef(null);
   const memberById = Object.fromEntries(members.map((member) => [member.id, member]));
   return <section className="dp-overview">
     <header><span className="dp-eyebrow">Planning général</span><h2>My Creative Surf Camp — S1</h2><p>Comme sur le planning Excel : les jours en colonnes et les moments de la journée en lignes.</p></header>
-    <div className="dp-excel-wrap">
+    <div className="dp-scroll-controls"><span>Déplacer le planning</span><div><button type="button" aria-label="Déplacer le planning vers la gauche" onClick={() => scrollRef.current?.scrollBy({ left: -700, behavior: "smooth" })}>←</button><button type="button" aria-label="Déplacer le planning vers la droite" onClick={() => scrollRef.current?.scrollBy({ left: 700, behavior: "smooth" })}>→</button></div></div>
+    <div className="dp-excel-wrap" ref={scrollRef}>
       <div className="dp-excel-grid" style={{ "--day-count": DATES.length }}>
         <div className="dp-excel-corner">PLANNING</div>
         {DATES.map((date, index) => <button type="button" className="dp-excel-date" key={date} onClick={() => onSelect(date)}><small>J{index + 1}</small><strong>{dateLabel(date, true)}</strong></button>)}
@@ -437,11 +447,13 @@ function leaveAssessment(plans, members, member, date) {
   const conflicts = [...eveningTasks, ...daytimeTasks].filter((task) => (task.assigneeIds || []).includes(member.id));
   const selectedIds = new Set(plans[date]?.leaveMemberIds || []);
   const alreadySelected = selectedIds.has(member.id);
+  const memberLeaveCount = LEAVE_DATES.filter((leaveDate) => (plans[leaveDate]?.leaveMemberIds || []).includes(member.id)).length;
   selectedIds.add(member.id);
   const projectedOff = selectedIds.size;
   const available = Math.max(members.length - projectedOff, 0);
   const minimumComfort = Math.ceil(members.length * 0.6);
 
+  if (!alreadySelected && memberLeaveCount >= 2) return { level: "danger", label: "Quota atteint", detail: "Cette personne a déjà ses 2 congés.", projectedOff, available, alreadySelected, limitReached: true };
   if (conflicts.length) return { level: "danger", label: `${conflicts.length} conflit${conflicts.length > 1 ? "s" : ""}`, detail: `Affecté·e à : ${conflicts.map((task) => task.title).join(", ")}`, projectedOff, available, alreadySelected };
   if (available < Math.ceil(members.length / 2)) return { level: "danger", label: "Équipe trop réduite", detail: `Il ne resterait que ${available} personne${available > 1 ? "s" : ""} disponible${available > 1 ? "s" : ""}.`, projectedOff, available, alreadySelected };
   if (available < minimumComfort || projectedOff >= 3) return { level: "warning", label: "À vérifier", detail: `${projectedOff} personnes en congé, ${available} disponibles.`, projectedOff, available, alreadySelected };
@@ -453,7 +465,7 @@ function LeavesOverview({ plans, members, saving, onToggle }) {
     <header><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></header>
     <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
     <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier : plusieurs congés</span><span className="is-danger">● Conflit : activité affectée ou équipe trop réduite</span></div>
-    <div className="dp-leave-capacity">{DATES.map((date) => {
+    <div className="dp-leave-capacity">{LEAVE_DATES.map((date) => {
       const off = plans[date]?.leaveMemberIds || [];
       const conflictCount = off.filter((memberId) => {
         const member = members.find((item) => item.id === memberId);
@@ -462,21 +474,32 @@ function LeavesOverview({ plans, members, saving, onToggle }) {
       const level = conflictCount ? "danger" : off.length >= 3 ? "warning" : "safe";
       return <div key={date} className={`is-${level}`}><strong>{dateLabel(date, true)}</strong><span>{members.length - off.length} disponibles</span><small>{off.length} en congé{conflictCount ? ` · ${conflictCount} conflit` : ""}</small></div>;
     })}</div>
-    <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{DATES.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
-      {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role}</small></span></th>{DATES.map((date) => {
+    <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{LEAVE_DATES.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
+      {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role}</small></span></th>{LEAVE_DATES.map((date) => {
         const selected = (plans[date]?.leaveMemberIds || []).includes(member.id);
         const assessment = leaveAssessment(plans, members, member, date);
         const change = () => {
           if (!selected && assessment.level === "danger" && !window.confirm(`${assessment.label}\n${assessment.detail}\n\nConfirmer quand même ce congé ?`)) return;
           onToggle(member.id, date);
         };
-        return <td key={date} className={`${selected ? "is-leave " : ""}is-${assessment.level}`}><label title={`${assessment.label} — ${assessment.detail}`}><input type="checkbox" checked={selected} disabled={saving} onChange={change} /><span>{selected ? "Congé" : assessment.label}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : assessment.detail}</small></label></td>;
+        return <td key={date} className={`${selected ? "is-leave " : ""}is-${assessment.level}`}><label title={`${assessment.label} — ${assessment.detail}`}><input type="checkbox" checked={selected} disabled={saving || assessment.limitReached} onChange={change} /><span>{selected ? "Congé" : assessment.label}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : assessment.detail}</small></label></td>;
       })}</tr>)}
     </tbody></table></div>
     <div className="dp-leave-summary"><h3>Récapitulatif</h3>{members.map((member) => {
-      const days = DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id));
+      const days = LEAVE_DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id));
       return <div key={member.id}><strong>{memberName(member)}</strong><span>{days.length ? days.map((date) => `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`).join(" · ") : "Aucun congé renseigné"}</span></div>;
     })}</div>
+    <LeaveValidation plans={plans} members={members} />
+  </section>;
+}
+
+function LeaveValidation({ plans, members }) {
+  const counts = members.map((member) => ({ member, count: LEAVE_DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)).length }));
+  const valid = counts.length > 0 && counts.every((item) => item.count === 2);
+  const missing = counts.reduce((total, item) => total + Math.max(2 - item.count, 0), 0);
+  return <section className={`dp-leave-validation ${valid ? "is-valid" : "is-invalid"}`}>
+    <div><span>{valid ? "✓" : "!"}</span><div><strong>{valid ? "Planning des congés validé" : "Planning des congés non validé"}</strong><small>{valid ? "Chaque personne dispose de 2 congés." : `${missing} congé${missing > 1 ? "s" : ""} reste${missing > 1 ? "nt" : ""} à attribuer.`}</small></div></div>
+    <div className="dp-leave-quotas">{counts.map(({ member, count }) => <span key={member.id} className={count === 2 ? "is-complete" : ""}>{member.firstName || memberName(member)} <b>{count}/2</b></span>)}</div>
   </section>;
 }
 
