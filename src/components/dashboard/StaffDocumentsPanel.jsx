@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { getDownloadURL, ref } from "firebase/storage";
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import {
@@ -30,7 +30,7 @@ function completionFor(member, documents) {
   return { validated, pending, missing: STAFF_DOCUMENT_TYPES.length - states.filter((items) => items.length).length };
 }
 
-export default function StaffDocumentsPanel({ members, contracts, documents, onDocumentChange }) {
+export default function StaffDocumentsPanel({ members, contracts, documents, onDocumentChange, onDocumentDelete }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [busy, setBusy] = useState("");
@@ -165,6 +165,38 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     }
   };
 
+  const deleteStaffDocument = async (member, document) => {
+    const label = document.originalName || "ce document";
+    if (!window.confirm(`Supprimer définitivement « ${label} » du dossier de ${memberName(member)} ?`)) return;
+    const key = `${document.id}-delete`;
+    setBusy(key);
+    setMessage("");
+    try {
+      if (document.storagePath) {
+        try {
+          await deleteObject(ref(storage, document.storagePath));
+        } catch (storageError) {
+          if (storageError?.code !== "storage/object-not-found") throw storageError;
+        }
+      }
+      await deleteDoc(doc(db, COLLECTIONS.STAFF_DOCUMENTS, document.id));
+
+      const remaining = documentsByType(documents, member.id, document.documentType)
+        .filter((item) => item.id !== document.id);
+      const validated = remaining.some((item) => item.status === "validated" && item.locked);
+      const fallbackStatus = validated
+        ? "validated"
+        : remaining.find((item) => item.status !== "validated")?.status || "missing";
+      await syncStatus(member, document.documentType, fallbackStatus, validated);
+      onDocumentDelete(document.id);
+      setMessage(`${STAFF_DOCUMENT_TYPE_MAP_SAFE(document.documentType)} supprimé du dossier de ${memberName(member)}.`);
+    } catch (error) {
+      setMessage(error?.message || "Suppression impossible.");
+    } finally {
+      setBusy("");
+    }
+  };
+
   return (
     <div className="hr-doc-manager">
       <div className="hr-doc-summary">
@@ -209,6 +241,9 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
                           {document.status !== "validated" && <button type="button" className="is-validate" onClick={() => changeStatus(member, document, "validated", true)} disabled={Boolean(busy)}>Valider</button>}
                           {document.status === "validated" && <button type="button" onClick={() => changeStatus(member, document, "pending", false)} disabled={Boolean(busy)}>Rouvrir</button>}
                           {document.status !== "rejected" && !document.virtual && <button type="button" className="is-reject" onClick={() => changeStatus(member, document, "rejected", false)} disabled={Boolean(busy)}>À remplacer</button>}
+                          <button type="button" className="is-delete" onClick={() => deleteStaffDocument(member, document)} disabled={Boolean(busy)}>
+                            {busy === `${document.id}-delete` ? "Suppression…" : "Supprimer"}
+                          </button>
                         </div>
                       </div>
                     ))}</div> : <p className="hr-doc-missing">Aucun fichier reçu.</p>}

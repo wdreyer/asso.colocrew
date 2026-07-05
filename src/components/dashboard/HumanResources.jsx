@@ -1784,6 +1784,10 @@ export default function HumanResources() {
     });
   };
 
+  const handleDocumentDelete = (documentId) => {
+    setStaffDocuments((previous) => previous.filter((document) => document.id !== documentId));
+  };
+
   const animCount = members.filter((m) => m.staffType !== "directeur").length;
   const dirCount  = members.filter((m) => m.staffType === "directeur").length;
 
@@ -1862,7 +1866,13 @@ export default function HumanResources() {
             onDocusignReset={resetDocusignContract}
             docusignBusyId={docusignBusyId}
           />}
-          {tab === "documents" && <StaffDocumentsPanel members={members} contracts={contracts} documents={staffDocuments} onDocumentChange={handleDocumentChange} />}
+          {tab === "documents" && <StaffDocumentsPanel
+            members={members}
+            contracts={contracts}
+            documents={staffDocuments}
+            onDocumentChange={handleDocumentChange}
+            onDocumentDelete={handleDocumentDelete}
+          />}
         </div>
       )}
 
