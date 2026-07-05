@@ -58,8 +58,18 @@ export async function POST(request) {
       html: generateContractHTML(member, contract),
       documentName: `Contrat CEE - ${fullName}${stayLabel ? ` - ${stayLabel}` : ""}.html`,
       signers: [
-        { email: member.email, name: fullName, anchor: "/cc-staff-signature/" },
-        { email: adminEmail, name: adminName, anchor: "/cc-organizer-signature/" },
+        {
+          email: member.email,
+          name: fullName,
+          anchor: "/cc-staff-signature/",
+          emailBody: `Bonjour ${member.firstName}, merci de vérifier puis signer votre contrat d'engagement éducatif ColoCrew. Une fois votre signature terminée, ColoCrew le contresignera.`,
+        },
+        {
+          email: adminEmail,
+          name: adminName,
+          anchor: "/cc-organizer-signature/",
+          emailBody: `Le contrat de ${fullName} a été signé par l'animateur·ice. Merci de le vérifier puis de le contresigner pour ColoCrew.`,
+        },
       ],
     });
 

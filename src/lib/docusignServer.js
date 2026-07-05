@@ -100,6 +100,13 @@ export async function sendDocusignEnvelope({ subject, html, signers, documentNam
     name: signer.name,
     recipientId: String(index + 1),
     routingOrder: String(index + 1),
+    emailNotification: {
+      supportedLanguage: "fr",
+      emailSubject: String(signer.emailSubject || subject).slice(0, 100),
+      emailBody: String(
+        signer.emailBody || emailBlurb || "Merci de vérifier et signer ce document ColoCrew.",
+      ).slice(0, 10000),
+    },
     tabs: {
       signHereTabs: [{
         anchorString: signer.anchor,
