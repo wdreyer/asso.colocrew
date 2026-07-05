@@ -200,3 +200,40 @@ export async function downloadDocusignEnvelopePdf(envelopeId) {
   }
   return Buffer.from(await response.arrayBuffer());
 }
+
+export async function voidDocusignEnvelope(envelopeId, reason = "Réinitialisé depuis ColoCrew") {
+  const token = await accessToken();
+  const { accountId, basePath } = await accountContext(token);
+  const envelopeUrl = `${basePath}/v2.1/accounts/${encodeURIComponent(accountId)}/envelopes/${encodeURIComponent(envelopeId)}`;
+  const currentResponse = await fetch(envelopeUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  const current = await currentResponse.json().catch(() => ({}));
+  if (!currentResponse.ok) {
+    throw new Error(`Lecture DocuSign impossible : ${current.message || current.errorCode || currentResponse.status}`);
+  }
+
+  const terminalStatuses = new Set(["completed", "declined", "voided"]);
+  if (terminalStatuses.has(current.status)) {
+    return { envelopeId, previousStatus: current.status, status: current.status, voided: false };
+  }
+
+  const response = await fetch(envelopeUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status: "voided",
+      voidedReason: String(reason || "Réinitialisé depuis ColoCrew").slice(0, 200),
+    }),
+    cache: "no-store",
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`Annulation DocuSign impossible : ${result.message || result.errorCode || response.status}`);
+  }
+  return { envelopeId, previousStatus: current.status, status: "voided", voided: true };
+}

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, doc, getDocs, updateDoc, arrayUnion, addDoc, setDoc, deleteDoc, onSnapshot,
+  collection, doc, getDocs, updateDoc, arrayUnion, arrayRemove, addDoc, setDoc, deleteDoc, onSnapshot,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import DataTable from "@/src/components/dashboard/ui/DataTable";
 import Badge from "@/src/components/dashboard/ui/Badge";
 import Modal from "@/src/components/dashboard/ui/Modal";
@@ -456,7 +456,7 @@ const DOCUSIGN_STATUS = {
   voided: { label: "Annulé", variant: "error" },
 };
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onDocusignSend, onDocusignRefresh, docusignBusyId }) {
+function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
 
   const columns = [
@@ -530,6 +530,17 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
                 disabled={docusignBusyId === row.id}
               >
                 Actualiser
+              </button>
+            )}
+            {row.docusignEnvelopeId && (
+              <button
+                type="button"
+                className="hr-btn-contract"
+                onClick={() => onDocusignReset(row)}
+                disabled={docusignBusyId === row.id}
+                title="Annuler l'enveloppe active et remettre ce contrat à zéro"
+              >
+                Réinitialiser
               </button>
             )}
             {row.contractFileUrl && (
@@ -1418,6 +1429,77 @@ export default function HumanResources() {
     }
   };
 
+  const resetDocusignContract = async (contract) => {
+    if (!currentUser || !contract?.docusignEnvelopeId || docusignBusyId) return;
+    const confirmed = window.confirm(
+      "Réinitialiser ce contrat DocuSign ?\n\n" +
+      "L'enveloppe encore active sera annulée, le PDF signé archivé sera retiré de la fiche RH et le contrat pourra être renvoyé. Les informations du contrat seront conservées.",
+    );
+    if (!confirmed) return;
+
+    setDocusignBusyId(contract.id);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(
+        `/api/docusign/envelopes/${encodeURIComponent(contract.docusignEnvelopeId)}/reset`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Réinitialisation impossible.");
+
+      if (contract.signedContractStoragePath) {
+        try { await deleteObject(ref(storage, contract.signedContractStoragePath)); } catch {}
+      }
+
+      const member = members.find((item) => item.id === contract.memberId);
+      const linkedDocuments = (member?.documents || []).filter((document) => (
+        document.contractId === contract.id || document.docusignEnvelopeId === contract.docusignEnvelopeId
+      ));
+      if (member && linkedDocuments.length) {
+        await updateDoc(
+          doc(db, COLLECTIONS.STAFF_MEMBERS, member.id),
+          { documents: arrayRemove(...linkedDocuments) },
+        );
+      }
+
+      const resetFields = {
+        docusignEnvelopeId: "",
+        docusignStatus: "",
+        docusignSentAt: "",
+        docusignUpdatedAt: "",
+        docusignCompletedAt: "",
+        contractFileUrl: "",
+        signedContractStoragePath: "",
+      };
+      await persistDocusignState(contract.id, resetFields);
+      if (member && linkedDocuments.length) {
+        const removeLinkedDocuments = (item) => item.id === member.id
+          ? {
+              ...item,
+              documents: (item.documents || []).filter((document) => (
+                document.contractId !== contract.id && document.docusignEnvelopeId !== contract.docusignEnvelopeId
+              )),
+            }
+          : item;
+        setMembers((previous) => previous.map(removeLinkedDocuments));
+        setFiche((previous) => previous ? removeLinkedDocuments(previous) : previous);
+      }
+      showToast(
+        payload.voided
+          ? "Enveloppe annulée et contrat réinitialisé."
+          : "Contrat réinitialisé. L'ancienne enveloppe terminée reste conservée dans DocuSign.",
+        "success",
+      );
+    } catch (error) {
+      showToast(error?.message || "Réinitialisation impossible.", "error");
+    } finally {
+      setDocusignBusyId("");
+    }
+  };
+
   useEffect(() => {
     async function load() {
       try {
@@ -1592,6 +1674,7 @@ export default function HumanResources() {
             onNewContract={() => openNewContract(null)}
             onDocusignSend={sendContractWithDocusign}
             onDocusignRefresh={refreshDocusignStatus}
+            onDocusignReset={resetDocusignContract}
             docusignBusyId={docusignBusyId}
           />}
           {tab === "documents" && <StaffDocumentsPanel members={members} contracts={contracts} documents={staffDocuments} onDocumentChange={handleDocumentChange} />}
