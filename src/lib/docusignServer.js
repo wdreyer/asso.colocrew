@@ -90,10 +90,9 @@ export async function checkDocusignConnection() {
   return { accountId: account.accountId, accountName: account.accountName };
 }
 
-export async function sendDocusignEnvelope({ subject, html, signers, documentName = "Contrat ColoCrew.html", emailBlurb = "" }) {
+async function createDocusignEnvelope(context, { subject, html, signers, documentName = "Contrat ColoCrew.html", emailBlurb = "" }) {
   if (!Array.isArray(signers) || !signers.length) throw new Error("Aucun signataire DocuSign.");
-  const token = await accessToken();
-  const { accountId, basePath } = await accountContext(token);
+  const { token, accountId, basePath } = context;
 
   const recipients = signers.map((signer, index) => ({
     email: signer.email,
@@ -176,6 +175,26 @@ export async function sendDocusignEnvelope({ subject, html, signers, documentNam
     throw new Error(`Envoi DocuSign impossible : ${result.message || result.errorCode || response.status}`);
   }
   return { envelopeId: result.envelopeId, status: result.status || "sent" };
+}
+
+export async function sendDocusignEnvelope(envelope) {
+  const token = await accessToken();
+  const account = await accountContext(token);
+  return createDocusignEnvelope({ token, ...account }, envelope);
+}
+
+export async function sendDocusignEnvelopeBatch(envelopes, concurrency = 4) {
+  if (!Array.isArray(envelopes) || !envelopes.length) return [];
+  const token = await accessToken();
+  const account = await accountContext(token);
+  const context = { token, ...account };
+  const results = [];
+  const batchSize = Math.max(1, Math.min(Number(concurrency) || 4, 5));
+  for (let index = 0; index < envelopes.length; index += batchSize) {
+    const batch = envelopes.slice(index, index + batchSize);
+    results.push(...await Promise.all(batch.map((envelope) => createDocusignEnvelope(context, envelope))));
+  }
+  return results;
 }
 
 export async function getDocusignEnvelope(envelopeId) {

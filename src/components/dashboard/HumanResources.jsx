@@ -1312,6 +1312,7 @@ export default function HumanResources() {
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
   const [gridModalOpen, setGridModalOpen]  = useState(false);
   const [docusignTesting, setDocusignTesting] = useState(false);
+  const [goLiveTesting, setGoLiveTesting] = useState(false);
   const [docusignBusyId, setDocusignBusyId] = useState("");
 
   const openMemberFile = (member, startEditing = false) => {
@@ -1345,6 +1346,29 @@ export default function HumanResources() {
       showToast(error?.message || "Test DocuSign impossible.", "error");
     } finally {
       setDocusignTesting(false);
+    }
+  };
+
+  const runDocusignGoLiveTests = async () => {
+    if (!currentUser || goLiveTesting) return;
+    if (!window.confirm(
+      "Envoyer 16 enveloppes de test DocuSign à ton adresse administrateur ?\n\n" +
+      "Tu recevras 16 e-mails. Ne clique qu'une seule fois sur ce bouton.",
+    )) return;
+    setGoLiveTesting(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch("/api/docusign/go-live-tests", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Tests Go Live impossibles.");
+      showToast(`${payload.sent} tests DocuSign envoyés à ${payload.recipient}.`, "success");
+    } catch (error) {
+      showToast(error?.message || "Tests Go Live impossibles.", "error");
+    } finally {
+      setGoLiveTesting(false);
     }
   };
 
@@ -1785,6 +1809,9 @@ export default function HumanResources() {
           </a>
           <button type="button" className="dash-btn" onClick={testDocusign} disabled={docusignTesting}>
             {docusignTesting ? "Test en cours…" : "Envoyer un test DocuSign"}
+          </button>
+          <button type="button" className="dash-btn" onClick={runDocusignGoLiveTests} disabled={goLiveTesting}>
+            {goLiveTesting ? "Envoi des 16 tests…" : "Envoyer 16 tests Go Live"}
           </button>
           <a className="dash-btn" href="/rh" target="_blank" rel="noreferrer">
             Ouvrir le dépôt public
