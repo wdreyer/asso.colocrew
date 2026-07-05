@@ -1255,6 +1255,70 @@
 
 .hr-btn-contract:hover { background: #ede9fe; }
 
+/* ── Tableau contrats compact ── */
+.hr-page .dash-table-tools.is-inline {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) repeat(5, minmax(100px, 145px));
+}
+
+.hr-page .dash-table-tools.is-inline .dash-input,
+.hr-page .dash-table-tools.is-inline .dash-input:first-child {
+  width: 100%;
+  min-width: 0;
+}
+
+.hr-page .dash-table th,
+.hr-page .dash-table td {
+  padding: 9px 8px;
+  font-size: 12.5px;
+}
+
+.hr-page .dash-table th {
+  font-size: 10px;
+  letter-spacing: .035em;
+}
+
+.hr-contract-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #4c3b68;
+}
+
+.hr-contract-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+.hr-contract-actions-select {
+  width: 105px;
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid #d8cde6;
+  border-radius: 7px;
+  background: #fff;
+  color: #5b3d78;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 1200px) {
+  .hr-page .dash-table-tools.is-inline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hr-page .dash-table-tools.is-inline .dash-input:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ═══ FICHE MODALE ═══════════════════════════════════════════════ */
 
 .hr-overlay {

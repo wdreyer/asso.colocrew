@@ -66,6 +66,27 @@ function fmtDate(v) {
   if (isNaN(d)) return v;
   return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(d);
 }
+function fmtDateShort(v) {
+  if (!v) return "—";
+  const raw = String(v).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [, month, day] = raw.split("-");
+    return `${day}/${month}`;
+  }
+  const parsed = new Date(v);
+  return Number.isNaN(parsed.getTime())
+    ? String(v).slice(0, 5)
+    : new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit" }).format(parsed);
+}
+function compactRole(contract) {
+  const key = String(contract?.roleKey || "").toLowerCase();
+  if (key === "ds") return "Direction";
+  if (key === "dsa") return "Adjoint·e";
+  if (key === "as-sb") return "AS / SB";
+  if (key === "bafa") return "BAFA";
+  if (key === "stagiaire") return "Stagiaire";
+  return contract?.role || "—";
+}
 function avatarColor(str) {
   let h = 0;
   for (let i = 0; i < (str || "").length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffffffff;
@@ -124,7 +145,8 @@ function mapContract(snap) {
   const gross   = amount(d.grossSalary);
   const net     = amount(d.netSalary);
   const paid    = amount(d.paidAmount);
-  const outstanding = Math.max(amount(d.outstandingAmount ?? gross - paid), 0);
+  const paymentValidated = d.paymentValidated === true || (d.paymentValidated == null && net > 0 && paid >= net);
+  const outstanding = paymentValidated ? 0 : Math.max(net - paid, 0);
   return {
     id: snap.id,
     memberId:   d.memberId   || "",
@@ -144,7 +166,11 @@ function mapContract(snap) {
     grossSalary: gross,
     paidAmount:  paid,
     outstandingAmount: outstanding,
-    status: gross > 0 && paid >= gross ? "Payé" : "À régler",
+    status: paymentValidated ? "Payé" : "À régler",
+    paymentValidated,
+    paymentValidatedAt: d.paymentValidatedAt || d.paidAt || "",
+    ceaDeclarationValidated: d.ceaDeclarationValidated === true,
+    ceaDeclarationValidatedAt: d.ceaDeclarationValidatedAt || "",
     contractFileUrl: d.contractFileUrl || "",
     signedContractStoragePath: d.signedContractStoragePath || "",
     docusignEnvelopeId: d.docusignEnvelopeId || "",
@@ -469,19 +495,19 @@ function StaffCard({ member: m, contracts, documents, onFiche, onContract, onEdi
 
 const DOCUSIGN_STATUS = {
   created: { label: "Brouillon", variant: "neutral" },
-  sent: { label: "Signatures en cours", variant: "warning" },
+  sent: { label: "En cours", variant: "warning" },
   delivered: { label: "Ouvert", variant: "info" },
   completed: { label: "Signé", variant: "success" },
   declined: { label: "Refusé", variant: "error" },
   voided: { label: "Annulé", variant: "error" },
 };
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
+function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
 
   const columns = [
     {
-      key: "memberName", label: "Animateur",
+      key: "memberName", label: "Anim.",
       render: (row) => {
         const m = memberById[row.memberId];
         return (
@@ -492,32 +518,40 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
         );
       },
     },
-    { key: "week", label: "Semaine", filterable: true, filterLabel: "Toutes les semaines" },
-    { key: "stay", label: "Séjour",  filterable: true, filterLabel: "Tous les séjours" },
-    { key: "role", label: "Poste",   filterable: true, filterLabel: "Tous les postes" },
+    { key: "week", label: "S.", filterable: true, filterLabel: "Toutes les semaines" },
+    { key: "stay", label: "Séj.", filterable: true, filterLabel: "Tous les séjours", render: (row) => row.stayCode || row.stay },
+    { key: "role", label: "Poste", filterable: true, filterLabel: "Tous les postes", render: compactRole },
     {
-      key: "_personalInformation", label: "Dossier personnel", sortable: false,
+      key: "_personalInformation", label: "Infos", sortable: false,
       render: (row) => {
         const member = memberById[row.memberId];
         const missing = missingPersonalInformation(member);
         return missing.length ? (
           <span title={missing.map((item) => item.label).join(", ")}>
-            <Badge label={`${missing.length} information${missing.length > 1 ? "s" : ""} manquante${missing.length > 1 ? "s" : ""}`} variant="warning" />
+            <Badge label={`${missing.length} manq.`} variant="warning" />
           </span>
         ) : <Badge label="Complet" variant="success" />;
       },
     },
-    { key: "datesLabel", label: "Dates", sortValue: (r) => r.startDate },
+    { key: "datesLabel", label: "Dates", render: (row) => <span style={{ whiteSpace: "nowrap" }}>{fmtDateShort(row.startDate)} → {fmtDateShort(row.endDate)}</span>, sortValue: (r) => r.startDate },
     { key: "netSalary", label: "Net", render: (r) => currency(r.netSalary), sortValue: (r) => r.netSalary },
-    { key: "grossSalary", label: "Brut", render: (r) => currency(r.grossSalary), sortValue: (r) => r.grossSalary },
-    { key: "primeCount", label: "Primes", render: (r) => r.primeCount || 0, sortValue: (r) => r.primeCount },
-    { key: "paidAmount",  label: "Réglé", render: (r) => <span className="hr-paid">{currency(r.paidAmount)}</span>, sortValue: (r) => r.paidAmount },
-    { key: "outstandingAmount", label: "Reste",
-      render: (r) => <span className={r.outstandingAmount ? "hr-due" : "hr-paid"}>{currency(r.outstandingAmount)}</span>,
-      sortValue: (r) => r.outstandingAmount },
+    {
+      key: "ceaDeclarationValidated", label: "CEA", sortable: false,
+      render: (row) => (
+        <label className="hr-contract-check" title="Déclaration CEA validée">
+          <input type="checkbox" checked={row.ceaDeclarationValidated} onChange={(event) => onToggleCea(row, event.target.checked)} />
+          <span>Validée</span>
+        </label>
+      ),
+    },
     {
       key: "status", label: "Paiement", filterable: true, filterLabel: "Tous",
-      render: (r) => <Badge label={r.status} variant={r.status === "Payé" ? "success" : "warning"} />,
+      render: (row) => (
+        <label className="hr-contract-check" title={`${currency(row.netSalary)} net`}>
+          <input type="checkbox" checked={row.paymentValidated} onChange={(event) => onTogglePayment(row, event.target.checked)} />
+          <span>{row.paymentValidated ? "Payé" : "À payer"}</span>
+        </label>
+      ),
       sortValue: (r) => r.status,
     },
     {
@@ -534,68 +568,42 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
       render: (row) => {
         const m = memberById[row.memberId];
         return (
-          <span style={{ display: "flex", gap: 6 }}>
-            <button type="button" className="hr-btn-contract" onClick={() => onEditContract(m, row)}>
-              Modifier
-            </button>
-            {m && missingPersonalInformation(m).length > 0 && (
-              <button type="button" className="hr-btn-contract" onClick={() => onCompleteMember(m)}>
-                Compléter la fiche
-              </button>
-            )}
-            {m && (
-              <button type="button" className="hr-btn-contract" onClick={() => onContract(m, row)}>
-                Générer contrat
-              </button>
-            )}
-            {m && !row.docusignEnvelopeId && (
-              <button
-                type="button"
-                className="hr-btn-contract"
-                onClick={() => onDocusignSend(m, row)}
-                disabled={docusignBusyId === row.id || !m.email}
-                title={!m.email ? "Adresse e-mail manquante" : ""}
-              >
-                {docusignBusyId === row.id ? "En cours…" : "Envoyer DocuSign"}
-              </button>
-            )}
-            {row.docusignEnvelopeId && (
-              <button
-                type="button"
-                className="hr-btn-contract"
-                onClick={() => onDocusignRefresh(row)}
-                disabled={docusignBusyId === row.id}
-              >
-                Actualiser
-              </button>
-            )}
-            {row.docusignEnvelopeId && (
-              <button
-                type="button"
-                className="hr-btn-contract"
-                onClick={() => onDocusignReset(row)}
-                disabled={docusignBusyId === row.id}
-                title="Annuler l'enveloppe active et remettre ce contrat à zéro"
-              >
-                Réinitialiser
-              </button>
-            )}
-            {row.contractFileUrl && (
-              <a className="hr-btn-contract" href={row.contractFileUrl} target="_blank" rel="noopener noreferrer">
-                PDF signé
-              </a>
-            )}
-          </span>
+          <select
+            className="hr-contract-actions-select"
+            defaultValue=""
+            disabled={docusignBusyId === row.id}
+            onChange={(event) => {
+              const action = event.target.value;
+              event.target.value = "";
+              if (action === "edit") onEditContract(m, row);
+              if (action === "profile") onCompleteMember(m);
+              if (action === "preview") onContract(m, row);
+              if (action === "send") onDocusignSend(m, row);
+              if (action === "refresh") onDocusignRefresh(row);
+              if (action === "reset") onDocusignReset(row);
+              if (action === "pdf") window.open(row.contractFileUrl, "_blank", "noopener,noreferrer");
+            }}
+            aria-label={`Actions pour ${row.memberName}`}
+          >
+            <option value="">Actions…</option>
+            <option value="edit">Modifier contrat</option>
+            {m && missingPersonalInformation(m).length > 0 && <option value="profile">Compléter fiche</option>}
+            {m && <option value="preview">Aperçu PDF</option>}
+            {m && !row.docusignEnvelopeId && m.email && <option value="send">Envoyer DocuSign</option>}
+            {row.docusignEnvelopeId && <option value="refresh">Actualiser signature</option>}
+            {row.docusignEnvelopeId && <option value="reset">Réinitialiser</option>}
+            {row.contractFileUrl && <option value="pdf">Ouvrir PDF signé</option>}
+          </select>
         );
       },
     },
   ];
 
   const exportCsv = () => {
-    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Brut", "Réglé", "Reste", "Statut"];
+    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net", "Déclaration CEA", "Paiement", "Signature"];
     const lines = contracts.map((c) => [
       c.memberName, c.week, c.stay, c.role, c.startDate, c.endDate,
-      c.grossSalary, c.paidAmount, c.outstandingAmount, c.status,
+      c.netSalary, c.ceaDeclarationValidated ? "Validée" : "À faire", c.status, c.docusignStatus || "Non envoyé",
     ]);
     const csv = [headers, ...lines]
       .map((l) => l.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";"))
@@ -973,6 +981,7 @@ function emptyContractForm(member, contract) {
     netSalary: contract?.netSalary || 0,
     grossSalary: contract?.grossSalary || 0,
     paidAmount: contract?.paidAmount || 0,
+    paymentValidated: contract?.paymentValidated === true,
   };
 }
 
@@ -1044,7 +1053,8 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         }
       }
 
-      const outstandingAmount = Math.max(amount(form.grossSalary) - amount(form.paidAmount), 0);
+      const paymentValidated = form.paymentValidated === true && amount(form.paidAmount) >= amount(form.netSalary);
+      const outstandingAmount = paymentValidated ? 0 : Math.max(amount(form.netSalary) - amount(form.paidAmount), 0);
       const payload = {
         memberId,
         memberName,
@@ -1060,6 +1070,7 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         grossSalary: amount(form.grossSalary),
         paidAmount: amount(form.paidAmount),
         outstandingAmount,
+        paymentValidated,
       };
 
       if (isEdit) {
@@ -1342,6 +1353,37 @@ export default function HumanResources() {
     setContracts((previous) => previous.map((contract) => (
       contract.id === contractId ? { ...contract, ...fields } : contract
     )));
+  };
+
+  const toggleCeaDeclaration = async (contract, checked) => {
+    try {
+      await persistDocusignState(contract.id, {
+        ceaDeclarationValidated: checked,
+        ceaDeclarationValidatedAt: checked ? new Date().toISOString() : "",
+      });
+      showToast(checked ? "Déclaration CEA validée." : "Validation CEA retirée.", "success");
+    } catch (error) {
+      showToast(error?.message || "Mise à jour CEA impossible.", "error");
+    }
+  };
+
+  const toggleContractPayment = async (contract, checked) => {
+    const confirmation = checked
+      ? `Confirmer le paiement net de ${currency(contract.netSalary)} pour ${contract.memberName} ?`
+      : "Retirer la validation du paiement de ce contrat ?";
+    if (!window.confirm(confirmation)) return;
+    try {
+      await persistDocusignState(contract.id, {
+        paymentValidated: checked,
+        paymentValidatedAt: checked ? new Date().toISOString() : "",
+        paidAmount: checked ? contract.netSalary : 0,
+        outstandingAmount: checked ? 0 : contract.netSalary,
+        status: checked ? "Payé" : "À régler",
+      });
+      showToast(checked ? `Paiement net de ${currency(contract.netSalary)} validé.` : "Validation du paiement retirée.", "success");
+    } catch (error) {
+      showToast(error?.message || "Mise à jour du paiement impossible.", "error");
+    }
   };
 
   const archiveSignedContract = async (contract, statusPayload, firebaseToken) => {
@@ -1735,6 +1777,8 @@ export default function HumanResources() {
             onEditContract={openEditContract}
             onNewContract={() => openNewContract(null)}
             onCompleteMember={(member) => openMemberFile(member, true)}
+            onToggleCea={toggleCeaDeclaration}
+            onTogglePayment={toggleContractPayment}
             onDocusignSend={sendContractWithDocusign}
             onDocusignRefresh={refreshDocusignStatus}
             onDocusignReset={resetDocusignContract}
