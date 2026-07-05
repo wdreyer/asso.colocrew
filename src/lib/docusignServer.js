@@ -178,20 +178,6 @@ export async function sendDocusignEnvelope(envelope) {
   return createDocusignEnvelope({ token, ...account }, envelope);
 }
 
-export async function sendDocusignEnvelopeBatch(envelopes, concurrency = 4) {
-  if (!Array.isArray(envelopes) || !envelopes.length) return [];
-  const token = await accessToken();
-  const account = await accountContext(token);
-  const context = { token, ...account };
-  const results = [];
-  const batchSize = Math.max(1, Math.min(Number(concurrency) || 4, 5));
-  for (let index = 0; index < envelopes.length; index += batchSize) {
-    const batch = envelopes.slice(index, index + batchSize);
-    results.push(...await Promise.all(batch.map((envelope) => createDocusignEnvelope(context, envelope))));
-  }
-  return results;
-}
-
 export async function getDocusignEnvelope(envelopeId) {
   const token = await accessToken();
   const { accountId, basePath } = await accountContext(token);
