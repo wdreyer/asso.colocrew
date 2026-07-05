@@ -9,6 +9,7 @@
   STAFF_CONTRACTS: "staff_contracts",
   STAFF_DOCUMENTS: "staff_documents",
   STAFF_PUBLIC_PROFILES: "staff_public_profiles",
+  DAY_PLANS: "day_plans",
   SALARY_GRID: "salary_grid",
   PAGES: "pages",
   BLOG: "blog",
