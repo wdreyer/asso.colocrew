@@ -513,7 +513,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
         return (
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {m && <Avatar member={m} size={28} />}
-            {row.memberName}
+            {m ? `${m.firstName || ""} ${m.lastName || ""}`.trim() : row.memberName}
           </span>
         );
       },
@@ -1637,13 +1637,30 @@ export default function HumanResources() {
           getDocs(collection(db, COLLECTIONS.SALARY_GRID)),
           getDocs(collection(db, COLLECTIONS.STAFF_DOCUMENTS)),
         ]);
-        const mappedContracts = cSnap.docs.map(mapContract);
+        const mappedMembers = mSnap.docs.map(mapMember).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+        const memberNameById = Object.fromEntries(mappedMembers.map((member) => [
+          member.id,
+          `${member.firstName || ""} ${member.lastName || ""}`.trim() || member.name,
+        ]));
+        const storedContracts = cSnap.docs.map(mapContract);
+        const mappedContracts = storedContracts.map((contract) => ({
+          ...contract,
+          memberName: memberNameById[contract.memberId] || contract.memberName,
+        }));
+        const staleContractNames = storedContracts.filter((contract) => (
+          memberNameById[contract.memberId]
+          && memberNameById[contract.memberId] !== contract.memberName
+        ));
+        Promise.all(staleContractNames.map((contract) => updateDoc(
+          doc(db, COLLECTIONS.STAFF_CONTRACTS, contract.id),
+          { memberName: memberNameById[contract.memberId] },
+        ))).catch(() => {});
         const directionMemberIds = new Set(
           mappedContracts.filter(isDirectionContract).map((contract) => contract.memberId),
         );
-        setMembers(mSnap.docs.map(mapMember).map((member) => (
+        setMembers(mappedMembers.map((member) => (
           directionMemberIds.has(member.id) ? { ...member, staffType: "directeur" } : member
-        )).sort((a, b) => a.name.localeCompare(b.name, "fr")));
+        )));
         setContracts(mappedContracts);
         setGridRows(gSnap.docs.map(mapGridRow));
         setStaffDocuments(dSnap.docs.map(mapStaffDocument));
@@ -1686,6 +1703,17 @@ export default function HumanResources() {
   const updateMember = (updated) => {
     setMembers((prev) => prev.map((m) => m.id === updated.id ? updated : m));
     setFiche((prev) => prev?.id === updated.id ? updated : prev);
+    const memberName = `${updated.firstName || ""} ${updated.lastName || ""}`.trim() || updated.name;
+    const linkedContracts = contracts.filter((contract) => contract.memberId === updated.id);
+    setContracts((previous) => previous.map((contract) => (
+      contract.memberId === updated.id ? { ...contract, memberName } : contract
+    )));
+    Promise.all(
+      linkedContracts.map((contract) => updateDoc(
+        doc(db, COLLECTIONS.STAFF_CONTRACTS, contract.id),
+        { memberName },
+      )),
+    ).catch(() => showToast("Le nom est enregistré dans la fiche, mais sa synchronisation vers un contrat a échoué.", "error"));
   };
 
   const handleContract = (member, contract) => {
