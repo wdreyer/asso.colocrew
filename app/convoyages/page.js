@@ -334,15 +334,24 @@ function citySchedule(transport, city, direction = transport.direction) {
   return { time: direction === "retour" ? transport.arrivalTime || "" : transport.departureTime || "", segment: "" };
 }
 
+function meetingTimeOrOneHourBefore(meetingTime, departureTime) {
+  if (meetingTime) return meetingTime;
+  const match = String(departureTime || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const minutes = ((Number(match[1]) * 60 + Number(match[2]) - 60) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
 function recapMeetingInfo(transport, city, isReturnConnection = false) {
   const target = normalizePlace(city);
   const isFamilyReturn = transport.direction === "retour" && !isReturnConnection;
 
   for (const portion of orderedTransportPortions(transport)) {
     if (!isFamilyReturn && normalizePlace(portion.from) === target) {
+      const trainTime = portion.departureTime || "";
       return {
-        meetingTime: portion.meetingTime || "",
-        trainTime: portion.departureTime || "",
+        meetingTime: meetingTimeOrOneHourBefore(portion.meetingTime, trainTime),
+        trainTime,
         meetingPoint: portion.meetingPoint || city || "",
       };
     }
@@ -357,9 +366,10 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
           meetingPoint: stop.meetingPoint || "À la descente du quai — l’animateur·ice vous contactera",
         };
       }
+      const trainTime = stop.departureTime || stop.arrivalTime || "";
       return {
-        meetingTime: stop.meetingTime || "",
-        trainTime: stop.departureTime || stop.arrivalTime || "",
+        meetingTime: meetingTimeOrOneHourBefore(stop.meetingTime, trainTime),
+        trainTime,
         meetingPoint: stop.meetingPoint || portion.meetingPoint || city || "",
       };
     }
@@ -373,9 +383,10 @@ function recapMeetingInfo(transport, city, isReturnConnection = false) {
     }
   }
 
+  const trainTime = isFamilyReturn ? transport.arrivalTime || "" : transport.departureTime || "";
   return {
-    meetingTime: isFamilyReturn ? transport.arrivalTime || "" : transport.meetingTime || "",
-    trainTime: isFamilyReturn ? transport.arrivalTime || "" : transport.departureTime || "",
+    meetingTime: isFamilyReturn ? trainTime : meetingTimeOrOneHourBefore(transport.meetingTime, trainTime),
+    trainTime,
     meetingPoint: isFamilyReturn
       ? "À la descente du quai — l’animateur·ice vous contactera"
       : transport.meetingPoint || city || "",
