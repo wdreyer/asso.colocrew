@@ -11,7 +11,6 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import {
   DAY_PLAN_SECTIONS,
   DAY_PLAN_STAY,
-  TASK_TEMPLATES,
   dayPlanDates,
   seedDay,
 } from "@/src/lib/dayPlansSeed";
@@ -141,40 +140,43 @@ export default function DayPlans() {
 
   const unavailability = (memberId, time, date = selectedDate) => {
     const hour = Number(String(time || "12:00").split(":")[0]);
-    if (hour >= 19) {
+    if (hour < 19) {
       return (plans[date]?.leaveMemberIds || []).includes(memberId)
-        ? `Congé du ${dateLabel(date, true)} 19 h au ${dateLabel(nextDate(date), true)} 19 h` : "";
+        ? `Congé du ${dateLabel(previousDate(date), true)} 19 h au ${dateLabel(date, true)} 19 h` : "";
     }
-    const prior = previousDate(date);
-    return (plans[prior]?.leaveMemberIds || []).includes(memberId)
-      ? `Congé jusqu’à 19 h` : "";
+    const following = nextDate(date);
+    return (plans[following]?.leaveMemberIds || []).includes(memberId)
+      ? `Congé du ${dateLabel(date, true)} 19 h au ${dateLabel(following, true)} 19 h` : "";
   };
 
-  const toggleLeave = async (memberId) => {
-    const leave = new Set(selectedPlan.leaveMemberIds || []);
+  const toggleLeave = async (memberId, date = selectedDate) => {
+    const plan = plans[date] || seedDay(date);
+    const leave = new Set(plan.leaveMemberIds || []);
     leave.has(memberId) ? leave.delete(memberId) : leave.add(memberId);
-    await saveDay(selectedDate, { leaveMemberIds: [...leave] }, "Congés mis à jour.");
+    await saveDay(date, { leaveMemberIds: [...leave] }, "Congés mis à jour.");
   };
 
-  const saveTask = async (draft, files = []) => {
+  const saveTask = async (draft, photoFile = null) => {
     const taskId = draft.id || newId();
-    const uploaded = [];
-    for (const file of files) {
-      const safeName = file.name.replace(/[^a-zA-Z0-9À-ÿ._-]/g, "-");
+    let photo = draft.photo || null;
+    if (photoFile) {
+      const safeName = photoFile.name.replace(/[^a-zA-Z0-9À-ÿ._-]/g, "-");
       const storageRef = ref(storage, `day-plans/${DAY_PLAN_STAY.id}/${selectedDate}/${taskId}/${Date.now()}-${safeName}`);
-      await uploadBytes(storageRef, file, { contentType: file.type || "application/octet-stream" });
-      uploaded.push({ id: `${Date.now()}-${safeName}`, name: file.name, url: await getDownloadURL(storageRef) });
+      await uploadBytes(storageRef, photoFile, { contentType: photoFile.type || "image/jpeg" });
+      photo = { name: photoFile.name, url: await getDownloadURL(storageRef) };
     }
-    const complete = { ...EMPTY_TASK, ...draft, id: taskId, documents: [...(draft.documents || []), ...uploaded] };
+    const complete = { ...EMPTY_TASK, ...draft, id: taskId, photo };
     const tasks = [...(selectedPlan.tasks || []).filter((task) => task.id !== taskId), complete];
     await saveDay(selectedDate, { tasks: sortTasks(tasks) }, "Activité enregistrée.");
     setEditor(null);
   };
 
-  const deleteTask = async (taskId) => {
-    if (!window.confirm("Supprimer cette tâche du déroulé ?")) return;
-    await saveDay(selectedDate, { tasks: (selectedPlan.tasks || []).filter((task) => task.id !== taskId) }, "Tâche supprimée.");
-    setEditor(null);
+  const toggleTaskAssignee = async (task, memberId) => {
+    const assigned = new Set(task.assigneeIds || []);
+    if (unavailability(memberId, task.startTime) && !assigned.has(memberId)) return;
+    assigned.has(memberId) ? assigned.delete(memberId) : assigned.add(memberId);
+    const tasks = (selectedPlan.tasks || []).map((item) => item.id === task.id ? { ...item, assigneeIds: [...assigned] } : item);
+    await saveDay(selectedDate, { tasks }, "");
   };
 
   return (
@@ -188,7 +190,8 @@ export default function DayPlans() {
         <div className="dp-top-actions">
           <div className="dp-view-switch">
             <button type="button" className={view === "day" ? "is-active" : ""} onClick={() => setView("day")}>Jour</button>
-            <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Vue générale</button>
+            <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Planning général</button>
+            <button type="button" className={view === "leaves" ? "is-active" : ""} onClick={() => setView("leaves")}>Congés</button>
           </div>
           {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK })}>+ Ajouter une tâche</button>}
         </div>
@@ -214,14 +217,18 @@ export default function DayPlans() {
         <main className="dp-main">
           {loading ? <div className="dp-loading">Chargement du déroulé…</div> : view === "week" ? (
             <WeekOverview plans={plans} members={members} onSelect={(date) => { setSelectedDate(date); setView("day"); }} />
+          ) : view === "leaves" ? (
+            <LeavesOverview plans={plans} members={members} saving={saving} onToggle={toggleLeave} />
           ) : (
             <>
               <DayHeader date={selectedDate} plan={selectedPlan} members={members} saving={saving} onToggleLeave={toggleLeave} />
               <DayTimeline
                 plan={selectedPlan}
+                members={members}
                 memberById={memberById}
                 unavailability={unavailability}
                 onEdit={setEditor}
+                onToggleAssignee={toggleTaskAssignee}
               />
               <label className="dp-notes">
                 <span>Notes générales de la journée</span>
@@ -234,14 +241,13 @@ export default function DayPlans() {
         </main>
       </div>
 
-      <TaskEditor
+      <TaskDetails
         task={editor}
         members={members}
-        unavailability={unavailability}
+        memberById={memberById}
         saving={saving}
         onClose={() => setEditor(null)}
         onSave={saveTask}
-        onDelete={editor?.id ? () => deleteTask(editor.id) : null}
       />
     </div>
   );
@@ -258,9 +264,9 @@ function DayHeader({ date, plan, members, saving, onToggleLeave }) {
         <p>{plan.tasks?.length || 0} tâches programmées · mise à jour automatique pour toute l’équipe</p>
       </div>
       <div className="dp-leave-control">
-        <button type="button" onClick={() => setOpen((value) => !value)}>🌴 Congés 19 h → 19 h <b>{leave.length}</b></button>
+        <button type="button" onClick={() => setOpen((value) => !value)}>🌴 En congé aujourd’hui <b>{leave.length}</b></button>
         {open && <div className="dp-leave-menu">
-          <strong>Congé du {dateLabel(date, true)} 19 h au {dateLabel(nextDate(date), true)} 19 h</strong>
+          <strong>Congé du {dateLabel(previousDate(date), true)} à 19 h au {dateLabel(date, true)} à 19 h</strong>
           {members.map((member) => <label key={member.id}>
             <input type="checkbox" checked={leave.includes(member.id)} disabled={saving} onChange={() => onToggleLeave(member.id)} />
             <span className="dp-mini-avatar">{initials(member)}</span>{memberName(member)}
@@ -271,7 +277,7 @@ function DayHeader({ date, plan, members, saving, onToggleLeave }) {
   );
 }
 
-function DayTimeline({ plan, memberById, unavailability, onEdit }) {
+function DayTimeline({ plan, members, memberById, unavailability, onEdit, onToggleAssignee }) {
   return <div className="dp-schedule-table">
     <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span></div>
     {DAY_PLAN_SECTIONS.map((section) => {
@@ -283,18 +289,31 @@ function DayTimeline({ plan, memberById, unavailability, onEdit }) {
       return tasks.map((task, index) => {
         const assigned = (task.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
         const unavailable = assigned.filter((member) => unavailability(member.id, task.startTime));
-        return <button type="button" className={`dp-table-row ${unavailable.length ? "has-conflict" : ""}`} key={task.id} onClick={() => onEdit(task)}>
+        return <div className={`dp-table-row ${unavailable.length ? "has-conflict" : ""}`} key={task.id}>
           <div className={`dp-moment ${index > 0 ? "is-repeat" : ""}`} style={{ "--section-color": section.color }}>
             {index === 0 && <><i>{section.icon}</i><strong>{section.label}</strong></>}
           </div>
-          <div className="dp-activity">
+          <button type="button" className="dp-activity" onClick={() => onEdit(task)}>
             <span className="dp-inline-time">{task.startTime || "—"}{task.endTime ? ` – ${task.endTime}` : ""}</span>
             <strong>{task.title || "Sans titre"}</strong>
             <small>{[task.location, task.groups].filter(Boolean).join(" · ")}</small>
-            {(task.kitchen || task.documents?.length > 0 || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.documents?.length > 0 && <i>📎 {task.documents.length}</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
+            {(task.kitchen || task.photo?.url || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.photo?.url && <i>📷 Photo</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
+          </button>
+          <div className="dp-quick-assign" aria-label={`Affectations pour ${task.title}`}>
+            {members.map((member) => {
+              const selected = (task.assigneeIds || []).includes(member.id);
+              const reason = unavailability(member.id, task.startTime);
+              return <button
+                type="button"
+                key={member.id}
+                className={selected ? "is-selected" : reason ? "is-unavailable" : ""}
+                disabled={Boolean(reason) && !selected}
+                title={reason || `${selected ? "Retirer" : "Affecter"} ${memberName(member)}`}
+                onClick={() => onToggleAssignee(task, member.id)}
+              ><i>{initials(member)}</i><span>{member.firstName || memberName(member)}</span></button>;
+            })}
           </div>
-          <div className="dp-people">{assigned.length ? assigned.map((member) => <span key={member.id}><i>{initials(member)}</i><b>{member.firstName || memberName(member)}</b></span>) : <em>À affecter</em>}</div>
-        </button>;
+        </div>;
       });
     })}
   </div>;
@@ -303,80 +322,78 @@ function DayTimeline({ plan, memberById, unavailability, onEdit }) {
 function WeekOverview({ plans, members, onSelect }) {
   const memberById = Object.fromEntries(members.map((member) => [member.id, member]));
   return <section className="dp-overview">
-    <header><span className="dp-eyebrow">Planning général</span><h2>Vue d’ensemble du séjour</h2><p>Les activités principales, repas, veillées et congés en un seul écran.</p></header>
-    <div className="dp-week-grid">
-      {DATES.map((date, index) => {
-        const plan = plans[date] || seedDay(date);
-        return <button type="button" key={date} onClick={() => onSelect(date)}>
-          <div className="dp-week-day"><span>J{index + 1}</span><strong>{dateLabel(date, true)}</strong><i>{plan.tasks?.length || 0}</i></div>
-          <div className="dp-week-content">
-            {DAY_PLAN_SECTIONS.map((section) => {
-              const tasks = sortTasks((plan.tasks || []).filter((task) => task.category === section.key));
-              return <div key={section.key}><span>{section.icon}</span><p>{tasks.length ? tasks.map((task) => task.title).join(" · ") : "—"}</p></div>;
-            })}
-          </div>
-          <div className="dp-week-leave">🌴 {(plan.leaveMemberIds || []).length ? plan.leaveMemberIds.map((id) => memberName(memberById[id])).join(", ") : "Aucun congé saisi"}</div>
-        </button>;
-      })}
+    <header><span className="dp-eyebrow">Planning général</span><h2>My Creative Surf Camp — S1</h2><p>Comme sur le planning Excel : les jours en colonnes et les moments de la journée en lignes.</p></header>
+    <div className="dp-excel-wrap">
+      <div className="dp-excel-grid" style={{ "--day-count": DATES.length }}>
+        <div className="dp-excel-corner">PLANNING</div>
+        {DATES.map((date, index) => <button type="button" className="dp-excel-date" key={date} onClick={() => onSelect(date)}><small>J{index + 1}</small><strong>{dateLabel(date, true)}</strong></button>)}
+        {DAY_PLAN_SECTIONS.map((section) => <div className="dp-excel-line" key={section.key} style={{ display: "contents" }}>
+          <div className="dp-excel-label" style={{ "--section-color": section.color }}><span>{section.icon}</span><strong>{section.label}</strong></div>
+          {DATES.map((date) => {
+            const tasks = sortTasks(((plans[date] || seedDay(date)).tasks || []).filter((task) => task.category === section.key));
+            return <button type="button" className="dp-excel-cell" key={`${section.key}-${date}`} onClick={() => onSelect(date)}>
+              {tasks.length ? tasks.map((task) => <span key={task.id}><b>{task.startTime}</b>{task.title}<small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ")}</small></span>) : <em>—</em>}
+            </button>;
+          })}
+        </div>)}
+      </div>
     </div>
   </section>;
 }
 
-function TeamAvailability({ members, selectedDate, unavailability, onClose }) {
-  return <div className="dp-team-panel">
-    <div><strong>Disponibilités · {dateLabel(selectedDate)}</strong><button type="button" onClick={onClose}>×</button></div>
-    <p>La disponibilité change à 19 h selon les congés saisis.</p>
-    <div className="dp-team-grid">{members.map((member) => {
-      const before = unavailability(member.id, "12:00");
-      const after = unavailability(member.id, "20:00");
-      return <article key={member.id}><span className="dp-mini-avatar">{initials(member)}</span><div><strong>{memberName(member)}</strong><small>{member.role || "Animateur·ice"}</small></div><p><i className={before ? "is-off" : ""}>Journée {before ? "indisponible" : "disponible"}</i><i className={after ? "is-off" : ""}>Après 19 h {after ? "indisponible" : "disponible"}</i></p></article>;
+function LeavesOverview({ plans, members, saving, onToggle }) {
+  return <section className="dp-leaves-view">
+    <header><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></header>
+    <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
+    <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{DATES.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
+      {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role}</small></span></th>{DATES.map((date) => {
+        const selected = (plans[date]?.leaveMemberIds || []).includes(member.id);
+        return <td key={date} className={selected ? "is-leave" : ""}><label title={`${dateLabel(previousDate(date))} 19 h → ${dateLabel(date)} 19 h`}><input type="checkbox" checked={selected} disabled={saving} onChange={() => onToggle(member.id, date)} /><span>{selected ? "Congé" : "Disponible"}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : ""}</small></label></td>;
+      })}</tr>)}
+    </tbody></table></div>
+    <div className="dp-leave-summary"><h3>Récapitulatif</h3>{members.map((member) => {
+      const days = DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id));
+      return <div key={member.id}><strong>{memberName(member)}</strong><span>{days.length ? days.map((date) => `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`).join(" · ") : "Aucun congé renseigné"}</span></div>;
     })}</div>
-  </div>;
+  </section>;
 }
 
-function TaskEditor({ task, members, unavailability, saving, onClose, onSave, onDelete }) {
+function TaskDetails({ task, memberById, saving, onClose, onSave }) {
   const [draft, setDraft] = useState(null);
-  const [files, setFiles] = useState([]);
-  useEffect(() => { setDraft(task ? { ...EMPTY_TASK, ...task } : null); setFiles([]); }, [task]);
+  const [editing, setEditing] = useState(false);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  useEffect(() => {
+    setDraft(task ? { ...EMPTY_TASK, ...task } : null);
+    setEditing(Boolean(task && !task.id));
+    setPhotoFile(null);
+    setPhotoPreview("");
+  }, [task]);
   if (!draft) return null;
   const set = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
-  const toggleMember = (id) => set("assigneeIds", draft.assigneeIds.includes(id) ? draft.assigneeIds.filter((item) => item !== id) : [...draft.assigneeIds, id]);
-  const applyTemplate = (event) => {
-    const template = TASK_TEMPLATES[Number(event.target.value)];
-    if (template) setDraft((current) => ({ ...current, ...template }));
+  const section = DAY_PLAN_SECTIONS.find((item) => item.key === draft.category);
+  const assigned = (draft.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
+  const choosePhoto = (file) => {
+    setPhotoFile(file || null);
+    setPhotoPreview(file ? URL.createObjectURL(file) : "");
   };
-  return <Modal isOpen={Boolean(task)} onClose={onClose} title={draft.id ? "Détails de la tâche" : "Nouvelle tâche"} size="lg">
-    <form className="dp-editor" onSubmit={(event) => { event.preventDefault(); if (draft.title.trim()) onSave(draft, files); }}>
-      {!draft.id && <label className="dp-template"><span>Modèle rapide</span><select defaultValue="" onChange={applyTemplate}><option value="">Choisir un modèle…</option>{TASK_TEMPLATES.map((template, index) => <option value={index} key={template.label}>{template.label}</option>)}</select></label>}
-      <div className="dp-form-grid">
-        <label className="is-wide"><span>Titre *</span><input value={draft.title} onChange={(event) => set("title", event.target.value)} placeholder="Nom de l’activité ou de la tâche" required /></label>
-        <label><span>Type de moment</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((section) => <option key={section.key} value={section.key}>{section.label}</option>)}</select></label>
-        <label><span>Début</span><input type="time" value={draft.startTime} onChange={(event) => set("startTime", event.target.value)} /></label>
-        <label><span>Fin</span><input type="time" value={draft.endTime} onChange={(event) => set("endTime", event.target.value)} /></label>
-        <label><span>Lieu</span><input value={draft.location} onChange={(event) => set("location", event.target.value)} placeholder="Forum, plage, camping…" /></label>
-        <label className="is-wide"><span>Groupes d’enfants</span><input value={draft.groups} onChange={(event) => set("groups", event.target.value)} placeholder="Groupe 1 et 2, mobil-homes référents…" /></label>
-        <label className="is-wide"><span>Déroulé détaillé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Objectif, déroulement, matériel, répartition des rôles…" /></label>
-      </div>
 
-      <fieldset className="dp-member-picker"><legend>Animateur·ices affecté·es</legend><p>Les personnes en congé sur ce créneau ne peuvent pas être sélectionnées.</p><div>{members.map((member) => {
-        const reason = unavailability(member.id, draft.startTime);
-        const selected = draft.assigneeIds.includes(member.id);
-        return <button key={member.id} type="button" disabled={Boolean(reason) && !selected} title={reason} className={selected ? "is-selected" : reason ? "is-unavailable" : ""} onClick={() => toggleMember(member.id)}><span className="dp-mini-avatar">{initials(member)}</span><strong>{memberName(member)}</strong><small>{reason || member.role || "Disponible"}</small></button>;
-      })}</div></fieldset>
-
-      <section className="dp-kitchen-editor">
-        <label className="dp-check"><input type="checkbox" checked={draft.kitchen} onChange={(event) => set("kitchen", event.target.checked)} /><span>Cette tâche comprend de la cuisine ou un repas</span></label>
-        {draft.kitchen && <div className="dp-form-grid">
-          <label className="is-wide"><span>Menu / préparation</span><textarea value={draft.menu || ""} onChange={(event) => set("menu", event.target.value)} placeholder="Menu, quantités ou étapes de préparation…" /></label>
-          <label><span>Lieu du repas</span><select value={draft.mealLocation || "inside"} onChange={(event) => set("mealLocation", event.target.value)}><option value="inside">À l’intérieur</option><option value="outside">À l’extérieur</option><option value="picnic">Pique-nique</option><option value="city">En ville</option></select></label>
-          <label><span>Groupe cuisine</span><input value={draft.groups || ""} onChange={(event) => set("groups", event.target.value)} placeholder="Groupe 1, volontaires…" /></label>
-          <label className="is-wide"><span>Régimes, allergies et organisation</span><textarea value={draft.dietaryNotes || ""} onChange={(event) => set("dietaryNotes", event.target.value)} placeholder="Alternatives prévues, service, vaisselle…" /></label>
-        </div>}
-      </section>
-
-      <section className="dp-attachments"><strong>Documents du déroulé</strong><p>Fiche de jeu, menu, répartition des groupes, matériel…</p>{draft.documents?.length > 0 && <div>{draft.documents.map((file) => <a key={file.id || file.url} href={file.url} target="_blank" rel="noreferrer">📎 {file.name}</a>)}</div>}<label><input type="file" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} /><span>{files.length ? `${files.length} fichier(s) prêt(s) à envoyer` : "+ Ajouter des documents"}</span></label></section>
-
-      <div className="dp-editor-actions">{onDelete && <button type="button" className="is-delete" onClick={onDelete}>Supprimer</button>}<span /><button type="button" onClick={onClose}>Annuler</button><button type="submit" className="is-primary" disabled={saving || !draft.title.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</button></div>
-    </form>
+  return <Modal isOpen={Boolean(task)} onClose={onClose} title={draft.id ? "Détail de l’activité" : "Nouvelle activité"} size="md">
+    {!editing ? <article className="dp-task-detail">
+      {(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt={draft.title} />}
+      <div className="dp-detail-meta"><span>{section?.icon} {section?.label}</span><strong>{draft.startTime || "—"}{draft.endTime ? ` – ${draft.endTime}` : ""}</strong></div>
+      <h2>{draft.title}</h2>
+      {(draft.location || draft.groups) && <p className="dp-detail-place">{[draft.location, draft.groups].filter(Boolean).join(" · ")}</p>}
+      <div className="dp-detail-text">{draft.details || draft.menu || "Aucun détail ajouté pour le moment."}</div>
+      {assigned.length > 0 && <div className="dp-detail-team"><strong>Équipe</strong>{assigned.map((member) => <span key={member.id}><i>{initials(member)}</i>{memberName(member)}</span>)}</div>}
+      <div className="dp-detail-actions"><button type="button" onClick={onClose}>Fermer</button><button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button></div>
+    </article> : <form className="dp-simple-editor" onSubmit={(event) => { event.preventDefault(); if (draft.title.trim()) onSave(draft, photoFile); }}>
+      <label><span>Moment de la journée</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+      <label><span>Nom de l’activité</span><input value={draft.title} onChange={(event) => set("title", event.target.value)} required /></label>
+      <div><label><span>Début</span><input type="time" value={draft.startTime} onChange={(event) => set("startTime", event.target.value)} /></label><label><span>Fin</span><input type="time" value={draft.endTime} onChange={(event) => set("endTime", event.target.value)} /></label></div>
+      <label><span>Texte / déroulé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Écrivez ici tout ce que l’équipe doit savoir…" /></label>
+      <label className="dp-photo-field"><span>Photo facultative</span>{(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt="Aperçu" />}<input type="file" accept="image/*" onChange={(event) => choosePhoto(event.target.files?.[0])} /><i>{photoFile ? photoFile.name : draft.photo?.name || "Choisir une photo"}</i></label>
+      <div className="dp-detail-actions">{draft.id && <button type="button" onClick={() => setEditing(false)}>Annuler</button>}<button type="submit" className="is-primary" disabled={saving || !draft.title.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</button></div>
+    </form>}
   </Modal>;
 }
