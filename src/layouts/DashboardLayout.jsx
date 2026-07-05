@@ -13,7 +13,6 @@ const NAV_STRUCTURE = [
       { label: "Réservations",        href: "/dashboard/reservations", icon: "calendar" },
       { label: "Finances",            href: "/dashboard/finances",     icon: "finance" },
       { label: "Ressources humaines", href: "/dashboard/rh",           icon: "users" },
-      { label: "Déroulés",            href: "/dashboard/deroules",     icon: "clipboard" },
       { label: "Transport", href: "/dashboard/transport", icon: "transport" },
       { label: "Séjours",             href: "/dashboard/sejours",      icon: "sun" },
     ],
@@ -43,7 +42,6 @@ function Icon({ type, size = 15 }) {
     case "finance":   return <svg {...p}><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/><path d="m3 6 6-3 6 5 6-4"/></svg>;
     case "users":     return <svg {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
     case "transport": return <svg {...p}><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 4v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
-    case "clipboard": return <svg {...p}><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6M9 13h6M9 17h4"/></svg>;
     case "sun":       return <svg {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>;
     case "file":      return <svg {...p}><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5M9 12h6M9 16h4"/></svg>;
     case "image":     return <svg {...p}><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 16-5-5-4 4-2-2-4 4"/></svg>;

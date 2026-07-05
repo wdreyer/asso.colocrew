@@ -79,7 +79,6 @@ export default function DayPlans() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editor, setEditor] = useState(null);
-  const [showTeam, setShowTeam] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -187,15 +186,13 @@ export default function DayPlans() {
           <p>{DAY_PLAN_STAY.name} · {DAY_PLAN_STAY.week} · 6–17 juillet 2026</p>
         </div>
         <div className="dp-top-actions">
-          <button type="button" className="dp-team-button" onClick={() => setShowTeam((value) => !value)}>Équipe · {members.length}</button>
           <div className="dp-view-switch">
             <button type="button" className={view === "day" ? "is-active" : ""} onClick={() => setView("day")}>Jour</button>
             <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Vue générale</button>
           </div>
+          {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK })}>+ Ajouter une tâche</button>}
         </div>
       </header>
-
-      {showTeam && <TeamAvailability members={members} plans={plans} selectedDate={selectedDate} unavailability={unavailability} onClose={() => setShowTeam(false)} />}
 
       <div className="dp-layout">
         <aside className="dp-days">
@@ -222,11 +219,9 @@ export default function DayPlans() {
               <DayHeader date={selectedDate} plan={selectedPlan} members={members} saving={saving} onToggleLeave={toggleLeave} />
               <DayTimeline
                 plan={selectedPlan}
-                members={members}
                 memberById={memberById}
                 unavailability={unavailability}
                 onEdit={setEditor}
-                onAdd={(category) => setEditor({ ...EMPTY_TASK, category })}
               />
               <label className="dp-notes">
                 <span>Notes générales de la journée</span>
@@ -276,28 +271,31 @@ function DayHeader({ date, plan, members, saving, onToggleLeave }) {
   );
 }
 
-function DayTimeline({ plan, members, memberById, unavailability, onEdit, onAdd }) {
-  return <div className="dp-sections">
+function DayTimeline({ plan, memberById, unavailability, onEdit }) {
+  return <div className="dp-schedule-table">
+    <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span></div>
     {DAY_PLAN_SECTIONS.map((section) => {
       const tasks = sortTasks((plan.tasks || []).filter((task) => task.category === section.key));
-      return <section className="dp-section" key={section.key} style={{ "--section-color": section.color }}>
-        <header><span>{section.icon}</span><div><h3>{section.label}</h3><small>{tasks.length ? `${tasks.length} tâche${tasks.length > 1 ? "s" : ""}` : "À organiser"}</small></div><button type="button" onClick={() => onAdd(section.key)}>+ Ajouter</button></header>
-        <div className="dp-task-list">
-          {!tasks.length && <button type="button" className="dp-empty-task" onClick={() => onAdd(section.key)}>Ajouter une première tâche</button>}
-          {tasks.map((task) => {
-            const assigned = (task.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
-            const unavailable = assigned.filter((member) => unavailability(member.id, task.startTime));
-            return <button type="button" className={`dp-task ${unavailable.length ? "has-conflict" : ""}`} key={task.id} onClick={() => onEdit(task)}>
-              <span className="dp-time"><strong>{task.startTime || "—"}</strong><small>{task.endTime ? `→ ${task.endTime}` : ""}</small></span>
-              <span className="dp-task-body"><strong>{task.title || "Sans titre"}</strong><small>{[task.location, task.groups].filter(Boolean).join(" · ") || "Cliquer pour ajouter les détails"}</small>
-                <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.documents?.length > 0 && <i>📎 {task.documents.length}</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>
-              </span>
-              <span className="dp-assignees">{assigned.length ? assigned.slice(0, 4).map((member) => <i key={member.id} title={memberName(member)}>{initials(member)}</i>) : <em>À affecter</em>}{assigned.length > 4 && <b>+{assigned.length - 4}</b>}</span>
-              <span className="dp-chevron">›</span>
-            </button>;
-          })}
-        </div>
-      </section>;
+      if (!tasks.length) return <div className="dp-table-row is-empty" key={section.key}>
+        <div className="dp-moment" style={{ "--section-color": section.color }}><i>{section.icon}</i><strong>{section.label}</strong></div>
+        <div className="dp-activity"><span>À organiser</span></div><div className="dp-people"><em>—</em></div>
+      </div>;
+      return tasks.map((task, index) => {
+        const assigned = (task.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
+        const unavailable = assigned.filter((member) => unavailability(member.id, task.startTime));
+        return <button type="button" className={`dp-table-row ${unavailable.length ? "has-conflict" : ""}`} key={task.id} onClick={() => onEdit(task)}>
+          <div className={`dp-moment ${index > 0 ? "is-repeat" : ""}`} style={{ "--section-color": section.color }}>
+            {index === 0 && <><i>{section.icon}</i><strong>{section.label}</strong></>}
+          </div>
+          <div className="dp-activity">
+            <span className="dp-inline-time">{task.startTime || "—"}{task.endTime ? ` – ${task.endTime}` : ""}</span>
+            <strong>{task.title || "Sans titre"}</strong>
+            <small>{[task.location, task.groups].filter(Boolean).join(" · ")}</small>
+            {(task.kitchen || task.documents?.length > 0 || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.documents?.length > 0 && <i>📎 {task.documents.length}</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
+          </div>
+          <div className="dp-people">{assigned.length ? assigned.map((member) => <span key={member.id}><i>{initials(member)}</i><b>{member.firstName || memberName(member)}</b></span>) : <em>À affecter</em>}</div>
+        </button>;
+      });
     })}
   </div>;
 }
