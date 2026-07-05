@@ -222,6 +222,7 @@ export default function DayPlans() {
           <div className="dp-view-switch">
             <button type="button" className={view === "day" ? "is-active" : ""} onClick={() => setView("day")}>Jour</button>
             <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Planning général</button>
+            <button type="button" className={view === "food" ? "is-active" : ""} onClick={() => setView("food")}>Repas</button>
             <button type="button" className={view === "leaves" ? "is-active" : ""} onClick={() => setView("leaves")}>Congés</button>
           </div>
           {view === "day" && <button type="button" className="dp-pdf-button" onClick={() => {
@@ -251,6 +252,8 @@ export default function DayPlans() {
         <main className="dp-main">
           {loading ? <div className="dp-loading">Chargement du déroulé…</div> : view === "week" ? (
             <WeekOverview plans={plans} members={members} onSelect={(date) => { setSelectedDate(date); setView("day"); }} />
+          ) : view === "food" ? (
+            <FoodOverview plans={plans} memberById={memberById} onOpen={(date, task) => { setSelectedDate(date); setEditor(task); }} />
           ) : view === "leaves" ? (
             <LeavesOverview plans={plans} members={members} saving={saving} onToggle={toggleLeave} />
           ) : (
@@ -398,6 +401,35 @@ function WeekOverview({ plans, members, onSelect }) {
   </section>;
 }
 
+function FoodOverview({ plans, memberById, onOpen }) {
+  const mealSections = [
+    { key: "breakfast", label: "Petit déjeuner", icon: "☕", color: "#d97706" },
+    { key: "lunch", label: "Repas du midi", icon: "🥗", color: "#16a34a" },
+    { key: "dinner", label: "Dîner", icon: "🍽️", color: "#ea580c" },
+  ];
+  return <section className="dp-food-view">
+    <header><span className="dp-eyebrow">Cuisine et repas</span><h2>Planning nourriture</h2><p>Menus, horaires, groupes cuisine et personnes affectées pour tout le séjour.</p></header>
+    <div className="dp-food-wrap"><table><thead><tr><th>Jour</th>{mealSections.map((section) => <th key={section.key}><span>{section.icon}</span>{section.label}</th>)}</tr></thead><tbody>
+      {DATES.map((date, index) => {
+        const tasks = plans[date]?.tasks || [];
+        return <tr key={date}><th><small>J{index + 1}</small><strong>{dateLabel(date)}</strong></th>{mealSections.map((section) => {
+          const meals = sortTasks(tasks.filter((task) => task.category === section.key));
+          return <td key={section.key}>{meals.length ? meals.map((task) => {
+            const team = (task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean);
+            return <button type="button" key={task.id} style={{ "--meal-color": section.color }} onClick={() => onOpen(date, task)}>
+              <span className="dp-food-time">{task.startTime || "—"}{task.endTime ? ` – ${task.endTime}` : ""}</span>
+              <strong>{task.title}</strong>
+              {(task.menu && task.menu !== "À renseigner") || task.details ? <p>{task.menu && task.menu !== "À renseigner" ? task.menu : task.details}</p> : <i>Menu à compléter</i>}
+              {task.groups && <small>Groupe : {task.groups}</small>}
+              <em>{team.length ? `👥 ${team.join(", ")}` : "👥 À affecter"}</em>
+            </button>;
+          }) : <div className="dp-food-empty">À renseigner</div>}</td>;
+        })}</tr>;
+      })}
+    </tbody></table></div>
+  </section>;
+}
+
 function leaveAssessment(plans, members, member, date) {
   const previous = previousDate(date);
   const eveningTasks = (plans[previous]?.tasks || []).filter((task) => Number(String(task.startTime || "0").split(":")[0]) >= 19);
@@ -481,7 +513,7 @@ function TaskDetails({ task, memberById, saving, onClose, onSave }) {
       <label><span>Moment de la journée</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
       <label><span>Nom de l’activité</span><input value={draft.title} onChange={(event) => set("title", event.target.value)} required /></label>
       <div><label><span>Début</span><input type="time" value={draft.startTime} onChange={(event) => set("startTime", event.target.value)} /></label><label><span>Fin</span><input type="time" value={draft.endTime} onChange={(event) => set("endTime", event.target.value)} /></label></div>
-      <label><span>Texte / déroulé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Écrivez ici tout ce que l’équipe doit savoir…" /></label>
+      <label><span>Texte / menu / déroulé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Écrivez ici tout ce que l’équipe doit savoir…" /></label>
       <label className="dp-photo-field"><span>Photo facultative</span>{(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt="Aperçu" />}<input type="file" accept="image/*" onChange={(event) => choosePhoto(event.target.files?.[0])} /><i>{photoFile ? photoFile.name : draft.photo?.name || "Choisir une photo"}</i></label>
       <div className="dp-detail-actions">{draft.id && <button type="button" onClick={() => setEditing(false)}>Annuler</button>}<button type="submit" className="is-primary" disabled={saving || !draft.title.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</button></div>
     </form>}
