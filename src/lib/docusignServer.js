@@ -112,14 +112,21 @@ export async function sendDocusignEnvelope({ subject, html, signers, documentNam
         anchorString: signer.anchor,
         anchorUnits: "pixels",
         anchorXOffset: "0",
-        anchorYOffset: "4",
+        anchorYOffset: "24",
         scaleValue: "0.85",
       }],
       dateSignedTabs: [{
         anchorString: signer.anchor,
         anchorUnits: "pixels",
         anchorXOffset: "0",
-        anchorYOffset: "42",
+        anchorYOffset: "80",
+        font: "Arial",
+        fontSize: "Size9",
+        localePolicy: {
+          cultureName: "fr-FR",
+          dateFormat: "dd/MM/yyyy",
+          customDateFormat: "dd/MM/yyyy",
+        },
       }],
     },
   }));

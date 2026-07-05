@@ -240,7 +240,7 @@ export function generateContractHTML(member, contract) {
     gap: 40px;
   }
   .cc-sign-box { flex: 1; }
-  .cc-sign-box p { font-weight: bold; margin-bottom: 50px; }
+  .cc-sign-box p { font-weight: bold; margin-bottom: 95px; }
   .cc-docusign-anchor {
     color: #fff;
     font-size: 1px;
