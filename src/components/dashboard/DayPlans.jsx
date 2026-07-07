@@ -54,11 +54,11 @@ function defaultSelectedDate() {
 }
 
 function memberName(member) {
-  return `${member?.firstName || ""} ${member?.lastName || ""}`.trim() || member?.name || "Animateur·ice";
+  return member?.firstName || String(member?.name || "").split(" ")[0] || "Anim";
 }
 
 function initials(member) {
-  return `${member?.firstName?.[0] || ""}${member?.lastName?.[0] || ""}`.toUpperCase() || "?";
+  return `${member?.firstName?.[0] || member?.name?.[0] || ""}`.toUpperCase() || "?";
 }
 
 function newId() {
@@ -196,16 +196,49 @@ export default function DayPlans() {
 
   const saveTask = async (draft, photoFile = null) => {
     const taskId = draft.id || newId();
+    const sourceDate = draft._sourceDate || selectedDate;
+    const targetDate = draft.targetDate || sourceDate;
     let photo = draft.photo || null;
     if (photoFile) {
       const safeName = photoFile.name.replace(/[^a-zA-Z0-9À-ÿ._-]/g, "-");
-      const storageRef = ref(storage, `day-plans/${DAY_PLAN_STAY.id}/${selectedDate}/${taskId}/${Date.now()}-${safeName}`);
+      const storageRef = ref(storage, `day-plans/${DAY_PLAN_STAY.id}/${targetDate}/${taskId}/${Date.now()}-${safeName}`);
       await uploadBytes(storageRef, photoFile, { contentType: photoFile.type || "image/jpeg" });
       photo = { name: photoFile.name, url: await getDownloadURL(storageRef) };
     }
-    const complete = { ...EMPTY_TASK, ...draft, id: taskId, photo };
-    const tasks = [...(selectedPlan.tasks || []).filter((task) => task.id !== taskId), complete];
-    await saveDay(selectedDate, { tasks: sortTasks(tasks) }, "Activité enregistrée.");
+    const { _sourceDate, targetDate: _targetDate, ...publicDraft } = draft;
+    const complete = { ...EMPTY_TASK, ...publicDraft, id: taskId, photo };
+    if (sourceDate === targetDate) {
+      const sourcePlan = plans[sourceDate] || seedDay(sourceDate);
+      const tasks = [...(sourcePlan.tasks || []).filter((task) => task.id !== taskId), complete];
+      await saveDay(targetDate, { tasks: sortTasks(tasks) }, "Activité enregistrée.");
+    } else {
+      setSaving(true);
+      try {
+        const sourcePlan = plans[sourceDate] || seedDay(sourceDate);
+        const targetPlan = plans[targetDate] || seedDay(targetDate);
+        await Promise.all([
+          setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${DAY_PLAN_STAY.id}-${sourceDate}`), {
+            ...sourcePlan,
+            tasks: sortTasks((sourcePlan.tasks || []).filter((task) => task.id !== taskId)),
+            updatedAt: new Date().toISOString(),
+            updatedBy: currentUser?.email || "",
+          }, { merge: true }),
+          setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${DAY_PLAN_STAY.id}-${targetDate}`), {
+            ...targetPlan,
+            tasks: sortTasks([...(targetPlan.tasks || []).filter((task) => task.id !== taskId), complete]),
+            updatedAt: new Date().toISOString(),
+            updatedBy: currentUser?.email || "",
+          }, { merge: true }),
+        ]);
+        showToast("Activité déplacée.", "success");
+      } catch (error) {
+        showToast(error?.message || "Déplacement impossible.", "error");
+        throw error;
+      } finally {
+        setSaving(false);
+      }
+    }
+    setSelectedDate(targetDate);
     setEditor(null);
   };
 
@@ -235,7 +268,7 @@ export default function DayPlans() {
           {view === "day" && <button type="button" className="dp-pdf-button" onClick={() => {
             if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members, memberById, unavailability })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
           }}>PDF du jour</button>}
-          {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK })}>+ Ajouter une tâche</button>}
+          {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK, _sourceDate: selectedDate, targetDate: selectedDate })}>+ Ajouter une tâche</button>}
         </div>
       </header>
 
@@ -260,7 +293,7 @@ export default function DayPlans() {
           {loading ? <div className="dp-loading">Chargement du déroulé…</div> : view === "week" ? (
             <WeekOverview plans={plans} members={members} onSelect={(date) => { setSelectedDate(date); setView("day"); }} />
           ) : view === "food" ? (
-            <FoodOverview plans={plans} memberById={memberById} onOpen={(date, task) => { setSelectedDate(date); setEditor(task); }} />
+            <FoodOverview plans={plans} memberById={memberById} onOpen={(date, task) => { setSelectedDate(date); setEditor({ ...task, _sourceDate: date, targetDate: date }); }} />
           ) : view === "leaves" ? (
             <LeavesOverview plans={plans} members={members} saving={saving} onToggle={toggleLeave} />
           ) : (
@@ -271,7 +304,7 @@ export default function DayPlans() {
                 members={members}
                 memberById={memberById}
                 unavailability={unavailability}
-                onEdit={setEditor}
+                onEdit={(task) => setEditor({ ...task, _sourceDate: selectedDate, targetDate: selectedDate })}
                 onToggleAssignee={toggleTaskAssignee}
               />
               <label className="dp-notes">
@@ -453,18 +486,19 @@ function leaveAssessment(plans, members, member, date) {
   const available = Math.max(members.length - projectedOff, 0);
   const minimumComfort = Math.ceil(members.length * 0.6);
 
-  if (!alreadySelected && memberLeaveCount >= 2) return { level: "danger", label: "Quota atteint", detail: "Cette personne a déjà ses 2 congés.", projectedOff, available, alreadySelected, limitReached: true };
+  if (!alreadySelected && memberLeaveCount >= 2) return { level: "quota", label: "2/2 atteint", detail: "Quota déjà complet.", projectedOff, available, alreadySelected, limitReached: true, memberLeaveCount };
   if (conflicts.length) return { level: "danger", label: `${conflicts.length} conflit${conflicts.length > 1 ? "s" : ""}`, detail: `Affecté·e à : ${conflicts.map((task) => task.title).join(", ")}`, projectedOff, available, alreadySelected };
   if (available < Math.ceil(members.length / 2)) return { level: "danger", label: "Équipe trop réduite", detail: `Il ne resterait que ${available} personne${available > 1 ? "s" : ""} disponible${available > 1 ? "s" : ""}.`, projectedOff, available, alreadySelected };
   if (available < minimumComfort || projectedOff >= 3) return { level: "warning", label: "À vérifier", detail: `${projectedOff} personnes en congé, ${available} disponibles.`, projectedOff, available, alreadySelected };
-  return { level: "safe", label: "Possible", detail: `${available} personnes resteraient disponibles.`, projectedOff, available, alreadySelected };
+  return { level: "safe", label: "Possible", detail: `${available} personnes resteraient disponibles.`, projectedOff, available, alreadySelected, memberLeaveCount };
 }
 
 function LeavesOverview({ plans, members, saving, onToggle }) {
+  const countsByMember = Object.fromEntries(members.map((member) => [member.id, LEAVE_DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)).length]));
   return <section className="dp-leaves-view">
     <header><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></header>
     <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
-    <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier : plusieurs congés</span><span className="is-danger">● Conflit : activité affectée ou équipe trop réduite</span></div>
+    <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier</span><span className="is-danger">● Conflit</span><span className="is-quota">● Déjà 2 congés</span></div>
     <div className="dp-leave-capacity">{LEAVE_DATES.map((date) => {
       const off = plans[date]?.leaveMemberIds || [];
       const conflictCount = off.filter((memberId) => {
@@ -475,14 +509,14 @@ function LeavesOverview({ plans, members, saving, onToggle }) {
       return <div key={date} className={`is-${level}`}><strong>{dateLabel(date, true)}</strong><span>{members.length - off.length} disponibles</span><small>{off.length} en congé{conflictCount ? ` · ${conflictCount} conflit` : ""}</small></div>;
     })}</div>
     <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{LEAVE_DATES.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
-      {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role}</small></span></th>{LEAVE_DATES.map((date) => {
+      {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role} · {countsByMember[member.id] || 0}/2 congés</small></span></th>{LEAVE_DATES.map((date) => {
         const selected = (plans[date]?.leaveMemberIds || []).includes(member.id);
         const assessment = leaveAssessment(plans, members, member, date);
         const change = () => {
           if (!selected && assessment.level === "danger" && !window.confirm(`${assessment.label}\n${assessment.detail}\n\nConfirmer quand même ce congé ?`)) return;
           onToggle(member.id, date);
         };
-        return <td key={date} className={`${selected ? "is-leave " : ""}is-${assessment.level}`}><label title={`${assessment.label} — ${assessment.detail}`}><input type="checkbox" checked={selected} disabled={saving || assessment.limitReached} onChange={change} /><span>{selected ? "Congé" : assessment.label}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : assessment.detail}</small></label></td>;
+        return <td key={date} className={`${selected ? "is-leave " : ""}is-${assessment.level}`}><label title={`${assessment.label} — ${assessment.detail}`}><input type="checkbox" checked={selected} disabled={saving || (!selected && assessment.limitReached)} onChange={change} /><span>{selected ? "Congé posé" : assessment.label}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : assessment.level === "quota" ? "Décochez un autre congé pour changer." : assessment.detail}</small></label></td>;
       })}</tr>)}
     </tbody></table></div>
     <div className="dp-leave-summary"><h3>Récapitulatif</h3>{members.map((member) => {
@@ -533,7 +567,7 @@ function TaskDetails({ task, memberById, saving, onClose, onSave }) {
       {assigned.length > 0 && <div className="dp-detail-team"><strong>Équipe</strong>{assigned.map((member) => <span key={member.id}><i>{initials(member)}</i>{memberName(member)}</span>)}</div>}
       <div className="dp-detail-actions"><button type="button" onClick={onClose}>Fermer</button><button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button></div>
     </article> : <form className="dp-simple-editor" onSubmit={(event) => { event.preventDefault(); if (draft.title.trim()) onSave(draft, photoFile); }}>
-      <label><span>Moment de la journée</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+      <div><label><span>Jour</span><select value={draft.targetDate || draft._sourceDate || DATES[0]} onChange={(event) => set("targetDate", event.target.value)}>{DATES.map((date, index) => <option key={date} value={date}>J{index + 1} — {dateLabel(date, true)}</option>)}</select></label><label><span>Moment</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label></div>
       <label><span>Nom de l’activité</span><input value={draft.title} onChange={(event) => set("title", event.target.value)} required /></label>
       <div><label><span>Début</span><input type="time" value={draft.startTime} onChange={(event) => set("startTime", event.target.value)} /></label><label><span>Fin</span><input type="time" value={draft.endTime} onChange={(event) => set("endTime", event.target.value)} /></label></div>
       <label><span>Texte / menu / déroulé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Écrivez ici tout ce que l’équipe doit savoir…" /></label>
