@@ -8,7 +8,7 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
+export function AuthProvider({ children, allowAnonymous = false }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -54,6 +54,13 @@ export function AuthProvider({ children }) {
       setError(null);
       if (!user) {
         setCurrentUser(null);
+        setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+
+      if (allowAnonymous && user.isAnonymous) {
+        setCurrentUser(user);
         setIsAdmin(false);
         setLoading(false);
         return;
