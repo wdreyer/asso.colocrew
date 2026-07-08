@@ -833,6 +833,17 @@ function leadStaffMember(transport) {
   return (transport?.staff || []).find((member) => member.id === leadId) || null;
 }
 
+function staffMemberForPassengerStop(transport, passenger, staffMembers = []) {
+  if (!transport || !passenger) return null;
+  const routeStop = passengerRouteStop(transport, passenger);
+  const assignedIds = routeStop?.segment?.assignedStaffIds || routeStop?.branch?.assignedStaffIds || [];
+  const assignedId = assignedIds[0];
+  if (!assignedId) return null;
+  return (transport.staff || []).find((member) => member.id === assignedId || member.memberId === assignedId)
+    || (staffMembers || []).find((member) => member.id === assignedId || member.memberId === assignedId)
+    || null;
+}
+
 function requiredSeatsForSegment(transport, segment, segmentIndex) {
   if (!segment) return 0;
   return countChildren(passengersOnTicketPortion(transport, segment, segmentIndex)) + (segment.assignedStaffIds || []).length;
@@ -6822,6 +6833,15 @@ function ConvocEmailSender({ transport, allTransports }) {
     return `Convocation transport - ${short}${dates} - ${fmtDateLong(transport.date)}`;
   })();
 
+  const getAnimForPassenger = useCallback((passenger) => {
+    const assigned = staffMemberForPassengerStop(transport, passenger);
+    if (!assigned) return {};
+    return {
+      name: assigned.name || "",
+      phone: assigned.phone || "",
+    };
+  }, [transport]);
+
   const markSent = useCallback(async (reservationId) => {
     if (!reservationId) return;
     await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId), {
@@ -6845,7 +6865,8 @@ function ConvocEmailSender({ transport, allTransports }) {
     const merged   = mergeFamily(groupPax);
     const rdvInfo  = getEmailRdvInfo(transport, primary);
     const retourInfo = getRetourInfo(transport, primary, allTransports);
-    const html     = buildConvocEmailHtml(transport, merged, rdvInfo, allTransports, customIntro);
+    const animInfo = getAnimForPassenger(primary);
+    const html     = buildConvocEmailHtml(transport, merged, rdvInfo, allTransports, customIntro, animInfo);
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(transport.sejourName);
     const convocData = {
       sejourName: sejourReal,
@@ -6887,7 +6908,7 @@ function ConvocEmailSender({ transport, allTransports }) {
     });
     if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
     await Promise.all(groupPax.map((p) => p.reservationId ? markSent(p.reservationId) : null));
-  }, [transport, allTransports, emailSubject, customIntro, convocSettings, markSent]);
+  }, [transport, allTransports, emailSubject, customIntro, convocSettings, markSent, getAnimForPassenger]);
 
   const handleSendAll = useCallback(async () => {
     const groups  = groupPassengersByFamily(passengers, transport);
@@ -7074,7 +7095,7 @@ function ConvocEmailSender({ transport, allTransports }) {
                         type="button"
                         className="dash-btn"
                         style={{ fontSize: 12, padding: "4px 10px" }}
-                        onClick={() => setPreview(preview?._groupKey === groupKey ? null : { ...merged, _groupKey: groupKey, _groupPax: groupPax, _rdvInfo: rdvInfo })}
+                        onClick={() => setPreview(preview?._groupKey === groupKey ? null : { ...merged, _groupKey: groupKey, _groupPax: groupPax, _primary: primary, _rdvInfo: rdvInfo })}
                       >
                         Aperçu
                       </button>
@@ -7125,7 +7146,7 @@ function ConvocEmailSender({ transport, allTransports }) {
               <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>x</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: buildConvocEmailHtml(transport, preview, preview._rdvInfo, allTransports, customIntro) }} />
+              <div dangerouslySetInnerHTML={{ __html: buildConvocEmailHtml(transport, preview, preview._rdvInfo, allTransports, customIntro, getAnimForPassenger(preview._primary || preview)) }} />
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
               <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
@@ -7262,7 +7283,16 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     return true;
   }, [setFamilyEmailDraft, showToast]);
 
-  const getAnimForTrip = useCallback((trip) => {
+  const getAnimForTrip = useCallback((trip, passenger = null) => {
+    if (passenger) {
+      const assigned = staffMemberForPassengerStop(trip, passenger, staffMembers);
+      if (!assigned) return {};
+      const member = staffMembers.find((m) => m.id === assigned.memberId || m.id === assigned.id);
+      return {
+        name: member?.name || assigned.name || "",
+        phone: member?.phone || assigned.phone || "",
+      };
+    }
     const s = trip?.staff?.[0];
     if (!s) return {};
     const member = staffMembers.find((m) => m.id === s.memberId);
@@ -7454,7 +7484,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     if (!destinationEmail) throw new Error("Adresse e-mail manquante");
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
-    const animInfo = getAnimForTrip(trip);
+    const animInfo = getAnimForTrip(trip, primary);
     const convocationHtml = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo, convocSettings);
     const html     = reminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
@@ -8080,18 +8110,18 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => { const ai = getAnimForTrip(trip); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai))); }}>
+                              onClick={() => { const ai = getAnimForTrip(trip, primary); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai))); }}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => setPreview(isPreviewing ? null : { ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers })}>
+                              onClick={() => setPreview(isPreviewing ? null : { ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _primary: primary, _passengers: passengers })}>
                               {isPreviewing ? "Fermer" : "Aperçu"}
                             </button>
                             {hasEmail && (
                               <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
                                 disabled={!hasEmail || isSending || sendingAll}
                                 title={isSent ? "Prévisualiser le rappel J-3" : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
-                                onClick={() => setPreview({ ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _passengers: passengers, _isReminder: true, _canSendReminder: isSent })}>
+                                onClick={() => setPreview({ ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _primary: primary, _passengers: passengers, _isReminder: true, _canSendReminder: isSent })}>
                                 Rappel J-3
                               </button>
                             )}
@@ -8145,7 +8175,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     arrivalPoint: preview.cfg.lieu || "Lieu du séjour",
                     returnPoint:  preview.cfg.lieu || "Lieu du séjour",
                   }, customIntro, getAnimForOnSite(preview.reservation?.sejourName || "Séjour"))
-                  : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip), convocSettings);
+                  : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip, preview._primary || preview), convocSettings);
                 return preview._isReminder ? buildJ3ReminderHtml(html) : html;
               })() }} />
             </div>
