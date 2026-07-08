@@ -322,6 +322,14 @@ export default function DayPlans() {
     setEditor(null);
   };
 
+  const deleteTask = async (task) => {
+    const date = task._sourceDate || selectedDate;
+    const plan = plans[date] || seedDay(date);
+    const tasks = (plan.tasks || []).filter((item) => item.id !== task.id);
+    await saveDay(date, { tasks }, "Activité supprimée.");
+    setEditor(null);
+  };
+
   const toggleTaskAssignee = async (task, memberId) => {
     const assigned = new Set(task.assigneeIds || []);
     if (unavailability(memberId, task.startTime) && !assigned.has(memberId)) return;
@@ -405,6 +413,7 @@ export default function DayPlans() {
         saving={saving}
         onClose={() => setEditor(null)}
         onSave={saveTask}
+        onDelete={deleteTask}
       />
     </div>
   );
@@ -630,7 +639,7 @@ function LeaveValidation({ plans, members }) {
   </section>;
 }
 
-function TaskDetails({ task, memberById, saving, onClose, onSave }) {
+function TaskDetails({ task, memberById, saving, onClose, onSave, onDelete }) {
   const [draft, setDraft] = useState(null);
   const [editing, setEditing] = useState(false);
   const [photoFile, setPhotoFile] = useState(null);
@@ -658,14 +667,22 @@ function TaskDetails({ task, memberById, saving, onClose, onSave }) {
       {(draft.location || draft.groups) && <p className="dp-detail-place">{[draft.location, draft.groups].filter(Boolean).join(" · ")}</p>}
       <div className="dp-detail-text">{draft.details || draft.menu || "Aucun détail ajouté pour le moment."}</div>
       {assigned.length > 0 && <div className="dp-detail-team"><strong>Équipe</strong>{assigned.map((member) => <span key={member.id}><i>{initials(member)}</i>{memberName(member)}</span>)}</div>}
-      <div className="dp-detail-actions"><button type="button" onClick={onClose}>Fermer</button><button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button></div>
+      <div className="dp-detail-actions">
+        {draft.id && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Supprimer l’activité « ${draft.title} » ?`)) onDelete(draft); }}>Supprimer</button>}
+        <button type="button" onClick={onClose}>Fermer</button>
+        <button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button>
+      </div>
     </article> : <form className="dp-simple-editor" onSubmit={(event) => { event.preventDefault(); if (draft.title.trim()) onSave(draft, photoFile); }}>
       <div><label><span>Jour</span><select value={draft.targetDate || draft._sourceDate || DATES[0]} onChange={(event) => set("targetDate", event.target.value)}>{DATES.map((date, index) => <option key={date} value={date}>J{index + 1} — {dateLabel(date, true)}</option>)}</select></label><label><span>Moment</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label></div>
       <label><span>Nom de l’activité</span><input value={draft.title} onChange={(event) => set("title", event.target.value)} required /></label>
       <div><label><span>Début</span><input type="time" value={draft.startTime} onChange={(event) => set("startTime", event.target.value)} /></label><label><span>Fin</span><input type="time" value={draft.endTime} onChange={(event) => set("endTime", event.target.value)} /></label></div>
       <label><span>Texte / menu / déroulé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Écrivez ici tout ce que l’équipe doit savoir…" /></label>
       <label className="dp-photo-field"><span>Photo facultative</span>{(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt="Aperçu" />}<input type="file" accept="image/*" onChange={(event) => choosePhoto(event.target.files?.[0])} /><i>{photoFile ? photoFile.name : draft.photo?.name || "Choisir une photo"}</i></label>
-      <div className="dp-detail-actions">{draft.id && <button type="button" onClick={() => setEditing(false)}>Annuler</button>}<button type="submit" className="is-primary" disabled={saving || !draft.title.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</button></div>
+      <div className="dp-detail-actions">
+        {draft.id && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Supprimer l’activité « ${draft.title} » ?`)) onDelete(draft); }}>Supprimer</button>}
+        {draft.id && <button type="button" onClick={() => setEditing(false)}>Annuler</button>}
+        <button type="submit" className="is-primary" disabled={saving || !draft.title.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</button>
+      </div>
     </form>}
   </Modal>;
 }
