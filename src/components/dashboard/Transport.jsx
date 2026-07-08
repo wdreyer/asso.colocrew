@@ -787,8 +787,12 @@ function passengersOnTicketPortion(transport, portion, index) {
     : passengersOnSegment(transport, index);
 }
 
+function ticketCountsAsPurchased(ticket) {
+  return Boolean(ticket?.purchased || ticket?.option);
+}
+
 function purchasedTicketsForSegment(tickets, segmentId) {
-  return (tickets || []).filter((ticket) => ticket.segmentId === segmentId && ticket.purchased);
+  return (tickets || []).filter((ticket) => ticket.segmentId === segmentId && ticketCountsAsPurchased(ticket));
 }
 
 function ticketsLinkedToSegments(transport) {
@@ -836,7 +840,7 @@ function requiredSeatsForSegment(transport, segment, segmentIndex) {
 
 function purchasedSeatsForSegmentTickets(tickets) {
   return (tickets || [])
-    .filter((ticket) => ticket.purchased)
+    .filter(ticketCountsAsPurchased)
     .reduce((sum, ticket) => sum + Number(ticket.seats || 0), 0);
 }
 
@@ -913,7 +917,7 @@ function segmentLegCoverage(transport, segment, segmentIndex, segmentTickets = [
     const neededSeats = countChildren(passengers) + assignedStaffCount;
     const purchasedSeats = segmentTickets
       .filter((ticket) => {
-        if (!ticket.purchased) return false;
+        if (!ticketCountsAsPurchased(ticket)) return false;
         const { fromIndex, toIndex } = ticketCoverageIndexes(ticket, routePoints);
         return fromIndex <= legIndex && toIndex >= legIndex + 1;
       })
@@ -939,7 +943,7 @@ function normalizeSegmentLabel(value) {
 }
 
 function displayTicketForSegment(ticket, transport, segment, segmentIndex, segmentTickets = []) {
-  if (!ticket || ticket.purchased || !segment) return ticket;
+  if (!ticket || ticketCountsAsPurchased(ticket) || !segment) return ticket;
   if (ticket.segmentLabel && normalizeSegmentLabel(ticket.segmentLabel) !== normalizeSegmentLabel(segmentRouteLabel(segment))) {
     return ticket;
   }
@@ -973,7 +977,7 @@ function ticketRowsForTransport(transport, { includeMissingSegments = true } = {
 
   entries.forEach(({ portion: segment, index: segmentIndex }) => {
     const segmentTickets = linkedTickets.filter((ticket) => ticket.segmentId === segment.id);
-    const hasPendingTicket = segmentTickets.some((ticket) => !ticket.purchased);
+    const hasPendingTicket = segmentTickets.some((ticket) => !ticketCountsAsPurchased(ticket));
     const coverage = segmentLegCoverage(transport, segment, segmentIndex, segmentTickets);
     const neededSeats = Math.max(0, ...coverage.map((leg) => leg.neededSeats));
     const missingSeats = Math.max(0, ...coverage.map((leg) => leg.missingSeats));
@@ -997,6 +1001,7 @@ function ticketRowsForTransport(transport, { includeMissingSegments = true } = {
         arrivalTime: segment.arrivalTime || "",
         bookingReference: "",
         purchased: false,
+        option: false,
         url: "",
         virtual: true,
       },
@@ -1007,7 +1012,7 @@ function ticketRowsForTransport(transport, { includeMissingSegments = true } = {
 }
 
 function ticketUsedSeats(ticket, segmentPassengers = [], segmentStaff = []) {
-  if (!ticket?.purchased) return 0;
+  if (!ticketCountsAsPurchased(ticket)) return 0;
   const seats = Number(ticket.seats || 0);
   const coveredIds = new Set(ticket.coveredReservationIds || []);
   const isSharedTicket = seats > 1;
@@ -1022,7 +1027,7 @@ function ticketUsedSeats(ticket, segmentPassengers = [], segmentStaff = []) {
 }
 
 function ticketFreeSeats(ticket, segmentPassengers = [], segmentStaff = []) {
-  if (!ticket?.purchased) return 0;
+  if (!ticketCountsAsPurchased(ticket)) return 0;
   return Math.max(0, Number(ticket.seats || 0) - ticketUsedSeats(ticket, segmentPassengers, segmentStaff));
 }
 
@@ -1836,7 +1841,7 @@ function buildStaffBriefingHTML(transport) {
   const ticketRows = tickets.map((ticket) => `
     <li><strong>${ticket.name || "Billet"}</strong> - ${ticketSegmentLabel(ticket, portions) || "segment non affecté"}
     - ${formatMoney(ticket.price)} - ${ticket.departureTime || "?"} / ${ticket.arrivalTime || "?"}
-    - <strong>${ticket.purchased ? "ACHETÉ" : "À ACHETER"}</strong>${ticket.url ? ` - <a href="${ticket.url}">ouvrir</a>` : ""}</li>
+    - <strong>${ticket.option ? "OPTION" : ticketCountsAsPurchased(ticket) ? "ACHETÉ" : "À ACHETER"}</strong>${ticket.url ? ` - <a href="${ticket.url}">ouvrir</a>` : ""}</li>
   `).join("");
 
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
@@ -2070,7 +2075,7 @@ function WeeksOverview({ transports, selectedId, onSelectTrip }) {
                 const trips = transports.filter((t) => t.date === date);
                 const totalChildren = countUniqueChildrenAcrossTransports(trips);
                 const totalSegs = trips.reduce((s, t) => s + routePortionCount(t), 0);
-                const boughtTickets = trips.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
+                const boughtTickets = trips.reduce((s, t) => s + (t.tickets || []).filter(ticketCountsAsPurchased).length, 0);
                 const totalTickets = trips.reduce((s, t) => s + (t.tickets || []).length, 0);
                 const missingSegs = trips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
                 const tickPct = totalTickets > 0 ? Math.round((boughtTickets / totalTickets) * 100) : 0;
@@ -2114,9 +2119,9 @@ function WeeksOverview({ transports, selectedId, onSelectTrip }) {
                       ) : trips.map((trip) => {
                         const segs = ticketPortions(trip);
                         const tix = trip.tickets || [];
-                        const tripBought = tix.filter((tk) => tk.purchased).length;
+                        const tripBought = tix.filter(ticketCountsAsPurchased).length;
                         const tripMissing = segs.filter((seg) => !tix.some((tk) => tk.segmentId === seg.id)).length;
-                        const tripPending = tix.filter((tk) => !tk.purchased).length;
+                        const tripPending = tix.filter((tk) => !ticketCountsAsPurchased(tk)).length;
                         const isOk = tripMissing === 0 && tripPending === 0 && tix.length > 0;
                         const isActive = selectedId === trip.id;
                         const mod = isOk ? "ok" : tripMissing > 0 ? "missing" : tripPending > 0 ? "pending" : "none";
@@ -2418,7 +2423,7 @@ function TransportHomeHeader({ reservations, transports, onCreate }) {
     const ticketCost = transports.reduce((sum, transport) =>
       sum + (transport.tickets || []).reduce((ticketSum, ticket) => ticketSum + Number(ticket.price || 0), 0), 0);
     const purchasedTickets = transports.reduce((sum, transport) =>
-      sum + (transport.tickets || []).filter((ticket) => ticket.purchased).length, 0);
+      sum + (transport.tickets || []).filter(ticketCountsAsPurchased).length, 0);
     const totalTickets = transports.reduce((sum, transport) => sum + (transport.tickets || []).length, 0);
     return {
       validChildren: valid.reduce((sum, reservation) => sum + reservation.childCount, 0),
@@ -2532,7 +2537,8 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
           id: ticket.id,
           name: ticket.name || "Billet",
           price: Number(ticket.price || 0),
-          purchased: !!ticket.purchased,
+          purchased: ticketCountsAsPurchased(ticket),
+          option: Boolean(ticket.option),
           bookingReference: ticket.bookingReference || "",
           label: accountingTicketLabel(ticket, t),
           url: ticket.url || null,
@@ -2709,7 +2715,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
                                       <td className="tr-ledger-detail">{ticket.label}</td>
                                       <td></td>
                                       <td className="tr-ledger-debit-val">{formatMoney(ticket.price)}</td>
-                                      <td><span className={`tr-ledger-badge${ticket.purchased ? " is-ok" : " is-warn"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span></td>
+                                      <td><span className={`tr-ledger-badge${ticket.purchased ? " is-ok" : " is-warn"}`}>{ticket.option ? "Option" : ticket.purchased ? "Acheté" : "À acheter"}</span></td>
                                     </tr>
                                   ))}
                                 </Fragment>
@@ -2722,7 +2728,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
                                 <td className="tr-ledger-detail">{ticket.label}</td>
                                 <td></td>
                                 <td className="tr-ledger-debit-val">{formatMoney(ticket.price)}</td>
-                                <td><span className={`tr-ledger-badge${ticket.purchased ? " is-ok" : " is-warn"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span></td>
+                                <td><span className={`tr-ledger-badge${ticket.purchased ? " is-ok" : " is-warn"}`}>{ticket.option ? "Option" : ticket.purchased ? "Acheté" : "À acheter"}</span></td>
                               </tr>
                             );
                           })}
@@ -3875,6 +3881,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
       arrivalTime: "",
       bookingReference: "",
       purchased: false,
+      option: false,
       url: "",
     }]);
     setEditingTicketId(newId);
@@ -4040,6 +4047,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
           arrivalTime: "",
           bookingReference: "",
           purchased: true,
+          option: false,
           uploadedAt: new Date().toISOString(),
         });
       }
@@ -4077,7 +4085,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
       : 1;
     setTickets((items) => [...items, {
       id: newId, name: `Billet à acheter - ${entry ? segmentRouteLabel(entry.portion) : "portion"}`, segmentId, seats: autoSeats || 1,
-      price: "", departureTime: "", arrivalTime: "", bookingReference: "", purchased: false, url: "",
+      price: "", departureTime: "", arrivalTime: "", bookingReference: "", purchased: false, option: false, url: "",
     }]);
     setEditingTicketId(newId);
   };
@@ -4450,6 +4458,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 <p className="tr-add-empty">Aucun billet pour ce segment.</p>
               )}
               {segTix.map((ticket) => {
+                const coveredTicket = ticketCountsAsPurchased(ticket);
                 const usedSeats = ticketUsedSeats(ticket, segPassengers, assignedStaff);
                 const freeSeats = ticketFreeSeats(ticket, segPassengers, assignedStaff);
                 const tCoveredIds = new Set(ticket.coveredReservationIds || []);
@@ -4460,14 +4469,14 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 const tChildCount = tCoveredIds.size > 0 ? tSegChildCount : Math.min(tSegChildCount, ticket.seats);
                 const tStaffCount = ticket.seats > 1 ? Math.min(assignedStaff.length, Math.max(0, ticket.seats - tChildCount)) : 0;
                 return (
-                  <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
-                    <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
+                  <div key={ticket.id} className={`tr-ticket-card${coveredTicket ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
+                    <span className={`tr-ticket-status${coveredTicket ? " is-bought" : " is-missing"}`}>{ticket.option ? "Option" : coveredTicket ? "Acheté" : "À acheter"}</span>
                     <div className="tr-ticket-card-info">
                       <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
                       <div className="tr-ticket-card-meta">
                         {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
-                        {ticket.purchased && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""} ({tChildCount} enf. + {tStaffCount} anim.)</span>}
-                        {ticket.purchased && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
+                        {coveredTicket && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""} ({tChildCount} enf. + {tStaffCount} anim.)</span>}
+                        {coveredTicket && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
                         {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
                         {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
                       </div>
@@ -4687,18 +4696,19 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                     {branchTix.length === 0 && (
                       <p className="tr-add-empty">Aucun billet pour cette branche.</p>
                     )}
-                    {branchTix.map((ticket) => {
-                      const usedSeats = ticketUsedSeats(ticket, branchPassengers, assignedStaff);
-                      const freeSeats = ticketFreeSeats(ticket, branchPassengers, assignedStaff);
-                      return (
-                        <div key={ticket.id} className={`tr-ticket-card${ticket.purchased ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
-                          <span className={`tr-ticket-status${ticket.purchased ? " is-bought" : " is-missing"}`}>{ticket.purchased ? "Acheté" : "À acheter"}</span>
+                      {branchTix.map((ticket) => {
+                        const coveredTicket = ticketCountsAsPurchased(ticket);
+                        const usedSeats = ticketUsedSeats(ticket, branchPassengers, assignedStaff);
+                        const freeSeats = ticketFreeSeats(ticket, branchPassengers, assignedStaff);
+                        return (
+                          <div key={ticket.id} className={`tr-ticket-card${coveredTicket ? " is-bought" : " is-missing"}`} onClick={() => setEditingTicketId(ticket.id)}>
+                            <span className={`tr-ticket-status${coveredTicket ? " is-bought" : " is-missing"}`}>{ticket.option ? "Option" : coveredTicket ? "Acheté" : "À acheter"}</span>
                           <div className="tr-ticket-card-info">
                             <span className="tr-ticket-card-name">{ticket.name || "Billet sans titre"}</span>
                             <div className="tr-ticket-card-meta">
                               {ticket.seats > 0 && <span>{ticket.seats} place{ticket.seats !== 1 ? "s" : ""}</span>}
-                              {ticket.purchased && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""}</span>}
-                              {ticket.purchased && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
+                              {coveredTicket && ticket.seats > 1 && <span>{usedSeats} utilisée{usedSeats !== 1 ? "s" : ""}</span>}
+                              {coveredTicket && ticket.seats > 1 && <span className={freeSeats > 0 ? "tr-ticket-free-seats" : ""}>{freeSeats} libre{freeSeats !== 1 ? "s" : ""}</span>}
                               {ticket.price ? <span>{formatMoney(Number(ticket.price))}</span> : null}
                               {ticket.bookingReference && <span>{ticket.bookingReference}</span>}
                             </div>
@@ -4797,8 +4807,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
               <div className="tr-ticket-modal-head">
                 <div className="tr-ticket-modal-head-info">
                   <span className="tr-ticket-modal-title">{ticket.name || "Nouveau billet"}</span>
-                  <span className={`tr-ticket-status ${ticket.purchased ? "is-bought" : "is-missing"}`}>
-                    {ticket.purchased ? "Billet acheté" : "Billet à acheter"}
+                  <span className={`tr-ticket-status ${ticketCountsAsPurchased(ticket) ? "is-bought" : "is-missing"}`}>
+                    {ticket.option ? "Option traitée comme billet" : ticketCountsAsPurchased(ticket) ? "Billet acheté" : "Billet à acheter"}
                   </span>
                 </div>
                 <button type="button" className="rp-close" onClick={() => setEditingTicketId(null)}>
@@ -4863,6 +4873,10 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <label className="tr-tmf-check tr-tmf-span2">
                     <input type="checkbox" checked={Boolean(ticket.purchased)} onChange={(e) => updateItem(setTickets, ticket.id, "purchased", e.target.checked)} />
                     <span>Billet acheté / confirmé</span>
+                  </label>
+                  <label className="tr-tmf-check tr-tmf-span2">
+                    <input type="checkbox" checked={Boolean(ticket.option)} onChange={(e) => updateItem(setTickets, ticket.id, "option", e.target.checked)} />
+                    <span>Option à compter comme billet réel</span>
                   </label>
                 </div>
               </div>
@@ -5372,6 +5386,7 @@ function ticketEditDraft(ticket) {
     arrivalTime: ticket.arrivalTime || "",
     bookingReference: ticket.bookingReference || "",
     purchased: Boolean(ticket.purchased),
+    option: Boolean(ticket.option),
   };
 }
 
@@ -5396,7 +5411,7 @@ function groupTicketRows(rows) {
   }
   return [...groups.values()].map((group) => {
     const total = group.rows.reduce((sum, row) => sum + Number(row.ticket.price || 0), 0);
-    const purchased = group.rows.filter((row) => row.ticket.purchased).length;
+    const purchased = group.rows.filter((row) => ticketCountsAsPurchased(row.ticket)).length;
     const seats = group.rows.reduce((sum, row) => sum + Number(row.ticket.seats || 1), 0);
     const first = group.rows[0];
     return {
@@ -5443,14 +5458,14 @@ function BilletsTab({ transports, onBulkUpdate }) {
 
   const filtered = useMemo(() => allRows.filter(({ ticket, transport }) => {
     if (filterWeek !== "all" && transport.week !== filterWeek) return false;
-    if (filterStatus === "purchased" && !ticket.purchased) return false;
-    if (filterStatus === "pending"   &&  ticket.purchased) return false;
+    if (filterStatus === "purchased" && !ticketCountsAsPurchased(ticket)) return false;
+    if (filterStatus === "pending"   &&  ticketCountsAsPurchased(ticket)) return false;
     return true;
   }), [allRows, filterWeek, filterStatus]);
 
   const totalCost     = allRows.reduce((s, r) => s + Number(r.ticket.price || 0), 0);
-  const purchasedRows = allRows.filter((r) => r.ticket.purchased);
-  const pendingRows   = allRows.filter((r) => !r.ticket.purchased);
+  const purchasedRows = allRows.filter((r) => ticketCountsAsPurchased(r.ticket));
+  const pendingRows   = allRows.filter((r) => !ticketCountsAsPurchased(r.ticket));
 
   const startTicketEdit = (transport, ticket) => {
     setEditingKey(`${transport.id}-${ticket.id}`);
@@ -5590,7 +5605,7 @@ function BilletsTab({ transports, onBulkUpdate }) {
           </div>
           {[...trips.values()].sort((a, b) => transportRouteLabel(a.transport).localeCompare(transportRouteLabel(b.transport), "fr")).map(({ transport, rows }) => {
             const tripCost      = rows.reduce((s, r) => s + Number(r.ticket.price || 0), 0);
-            const tripPurchased = rows.filter((r) => r.ticket.purchased).length;
+            const tripPurchased = rows.filter((r) => ticketCountsAsPurchased(r.ticket)).length;
             return (
               <div key={transport.id} className="tr-bil-trip-group">
                 <div className="tr-bil-trip-hd">
@@ -5649,10 +5664,10 @@ function BilletsTab({ transports, onBulkUpdate }) {
                             const editing = editingKey === rowKey;
                             return (
                               <Fragment key={rowKey}>
-                                <tr className={`tr-bil-row${ticket.purchased ? " is-bought" : " is-pending"}${group.isGroup ? " is-folder-child" : ""}`}>
+                                <tr className={`tr-bil-row${ticketCountsAsPurchased(ticket) ? " is-bought" : " is-pending"}${group.isGroup ? " is-folder-child" : ""}`}>
                                   <td>
-                                    <span className={`tr-bil-badge${ticket.purchased ? " is-ok" : " is-warn"}`}>
-                                      {ticket.purchased ? "Acheté" : "À acheter"}
+                                    <span className={`tr-bil-badge${ticketCountsAsPurchased(ticket) ? " is-ok" : " is-warn"}`}>
+                                      {ticket.option ? "Option" : ticketCountsAsPurchased(ticket) ? "Acheté" : "À acheter"}
                                     </span>
                                   </td>
                                   <td>
@@ -5724,6 +5739,10 @@ function BilletsTab({ transports, onBulkUpdate }) {
                                         <label className="bil-edit-check">
                                           <input type="checkbox" checked={Boolean(ticketDraft?.purchased)} onChange={(event) => setTicketField("purchased", event.target.checked)} />
                                           <span>Billet acheté</span>
+                                        </label>
+                                        <label className="bil-edit-check">
+                                          <input type="checkbox" checked={Boolean(ticketDraft?.option)} onChange={(event) => setTicketField("option", event.target.checked)} />
+                                          <span>Option à compter comme billet réel</span>
                                         </label>
                                         <div className="bil-edit-actions">
                                           <button type="button" className="dash-btn" onClick={cancelTicketEdit} disabled={savingTicket}>Annuler</button>
@@ -6208,7 +6227,7 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
   const childCount  = countChildren(trip.passengers);
   const segCount    = routePortionCount(trip);
   const totalTix    = (trip.tickets || []).length;
-  const boughtTix   = (trip.tickets || []).filter((tk) => tk.purchased).length;
+  const boughtTix   = (trip.tickets || []).filter(ticketCountsAsPurchased).length;
   const missingTix  = missingTicketPortionCount(trip);
   const sCfg = STATUS_CFG[trip.status] || STATUS_CFG.brouillon;
   const leadMember = leadStaffMember(trip);
@@ -8504,7 +8523,7 @@ export default function Transport({ focusDate = "" }) {
       (r) => !assignedIds.has(r.id) && normalizePlace(r.departureCity) !== "sur place",
     ).length;
     const ticketCost     = transports.reduce((s, t) => s + (t.tickets || []).reduce((ts, tk) => ts + Number(tk.price || 0), 0), 0);
-    const purchasedTix   = transports.reduce((s, t) => s + (t.tickets || []).filter((tk) => tk.purchased).length, 0);
+    const purchasedTix   = transports.reduce((s, t) => s + (t.tickets || []).filter(ticketCountsAsPurchased).length, 0);
     const totalTix       = transports.reduce((s, t) => s + (t.tickets || []).length, 0);
     const missingSegTix  = transports.reduce((s, t) => s + missingTicketPortionCount(t), 0);
     const summaryTransportRevenue = Number(financeSummary?.transportAccounting?.transportAmount ?? financeSummary?.transportAmount);
