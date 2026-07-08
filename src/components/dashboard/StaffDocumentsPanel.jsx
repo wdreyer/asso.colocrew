@@ -30,11 +30,44 @@ function completionFor(member, documents) {
   return { validated, pending, missing: STAFF_DOCUMENT_TYPES.length - states.filter((items) => items.length).length };
 }
 
+function assignmentLabel(assignment) {
+  return [assignment.role, assignment.stayCode || assignment.stay, assignment.week].filter(Boolean).join(" · ");
+}
+
+function assignmentMatches(assignments, stay, week) {
+  if (stay === "all" && week === "all") return true;
+  return assignments.some((assignment) => {
+    const assignmentStay = assignment.stayCode || assignment.stay || "";
+    return (stay === "all" || assignmentStay === stay) && (week === "all" || assignment.week === week);
+  });
+}
+
+function documentStatusForType(documents, memberId, typeKey) {
+  const typeDocuments = documentsByType(documents, memberId, typeKey);
+  const validated = typeDocuments.find((document) => document.status === "validated" && document.locked);
+  if (validated) return { tone: "valid", label: "Validé", count: typeDocuments.length };
+  if (typeDocuments.length) return { tone: "pending", label: "À vérifier", count: typeDocuments.length };
+  return { tone: "missing", label: "Manquant", count: 0 };
+}
+
+function rowTone(completion) {
+  if (completion.validated === STAFF_DOCUMENT_TYPES.length) return "valid";
+  if (completion.validated > 0 || completion.pending > 0) return "partial";
+  return "missing";
+}
+
 export default function StaffDocumentsPanel({ members, contracts, documents, onDocumentChange, onDocumentDelete }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [stayFilter, setStayFilter] = useState("all");
+  const [weekFilter, setWeekFilter] = useState("all");
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+
+  const stayOptions = useMemo(() => [...new Set(contracts.map((contract) => contract.stayCode || contract.stay).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "fr")), [contracts]);
+  const weekOptions = useMemo(() => [...new Set(contracts.map((contract) => contract.week).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "fr")), [contracts]);
 
   const rows = useMemo(() => members.map((member) => ({
     member,
@@ -47,8 +80,8 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
       || (filter === "complete" && row.completion.validated === STAFF_DOCUMENT_TYPES.length)
       || (filter === "missing" && row.completion.missing > 0)
       || (filter === "pending" && row.completion.pending > 0);
-    return matchesSearch && matchesFilter;
-  }).sort((left, right) => memberName(left.member).localeCompare(memberName(right.member), "fr")), [members, contracts, documents, search, filter]);
+    return matchesSearch && matchesFilter && assignmentMatches(row.assignments, stayFilter, weekFilter);
+  }).sort((left, right) => memberName(left.member).localeCompare(memberName(right.member), "fr")), [members, contracts, documents, search, filter, stayFilter, weekFilter]);
 
   const totals = useMemo(() => members.reduce((summary, member) => {
     const completion = completionFor(member, documents);
@@ -207,8 +240,62 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
         <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un animateur…" />
       </div>
 
+      <div className="hr-doc-filters">
+        <label>
+          <span>Séjour</span>
+          <select value={stayFilter} onChange={(event) => setStayFilter(event.target.value)}>
+            <option value="all">Tous les séjours</option>
+            {stayOptions.map((stay) => <option key={stay} value={stay}>{stay}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Semaine</span>
+          <select value={weekFilter} onChange={(event) => setWeekFilter(event.target.value)}>
+            <option value="all">Toutes les semaines</option>
+            {weekOptions.map((week) => <option key={week} value={week}>{week}</option>)}
+          </select>
+        </label>
+      </div>
+
       {message && <div className="hr-doc-message">{message}</div>}
       {!rows.length && <div className="hr-empty"><p>Aucun dossier ne correspond à ce filtre.</p></div>}
+
+      {!!rows.length && (
+        <div className="hr-doc-table-wrap">
+          <table className="hr-doc-table">
+            <thead>
+              <tr>
+                <th>Animateur·ice</th>
+                <th>Affectations</th>
+                {STAFF_DOCUMENT_TYPES.map((type) => <th key={type.key}>{type.label}</th>)}
+                <th>État</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ member, assignments, completion }) => {
+                const tone = rowTone(completion);
+                return (
+                  <tr key={member.id} className={`is-${tone}`}>
+                    <td><strong>{memberName(member)}</strong></td>
+                    <td>{assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</td>
+                    {STAFF_DOCUMENT_TYPES.map((type) => {
+                      const status = documentStatusForType(documents, member.id, type.key);
+                      return (
+                        <td key={type.key}>
+                          <span className={`hr-doc-pill is-${status.tone}`}>
+                            {status.label}{status.count > 1 ? ` · ${status.count}` : ""}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td><span className={`hr-doc-global is-${tone}`}>{completion.validated}/{STAFF_DOCUMENT_TYPES.length}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="hr-doc-members">
         {rows.map(({ member, assignments, completion }) => (
