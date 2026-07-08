@@ -81,6 +81,41 @@ function activityPalette(task, fallback = "#8b5cf6") {
   return { color: fallback, background: `${fallback}18` };
 }
 
+function isSurfTask(task) {
+  return /surf/i.test(`${task?.title || ""} ${task?.groups || ""}`);
+}
+
+function taskMinutes(value) {
+  const [hours, minutes] = String(value || "00:00").split(":").map(Number);
+  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+}
+
+function overlapsTask(a, b) {
+  const aStart = taskMinutes(a.startTime);
+  const aEnd = taskMinutes(a.endTime || a.startTime);
+  const bStart = taskMinutes(b.startTime);
+  const bEnd = taskMinutes(b.endTime || b.startTime);
+  return aStart < bEnd && bStart < aEnd;
+}
+
+function groupNumbers(text) {
+  return [...String(text || "").matchAll(/\b(?:groupe|groupes|g)\s*([1-9])/gi)].map((match) => Number(match[1]));
+}
+
+function otherGroupsLabel(task) {
+  const surfGroups = new Set(groupNumbers(`${task.title} ${task.groups}`));
+  const allGroups = [1, 2, 3, 4];
+  const others = allGroups.filter((number) => !surfGroups.has(number));
+  if (!others.length) return "Autres groupes";
+  return `Groupes ${others.join(" et ")}`;
+}
+
+function otherGroupsActivity(tasks, surfTask) {
+  const parallel = tasks.find((task) => !isSurfTask(task) && overlapsTask(task, surfTask));
+  if (parallel) return parallel.title;
+  return "Activité à renseigner";
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
 }
@@ -479,6 +514,17 @@ function WeekOverview({ plans, members, onSelect }) {
             return <button type="button" className="dp-excel-cell" key={`${section.key}-${date}`} onClick={() => onSelect(date)}>
               {tasks.length ? tasks.map((task) => {
                 const palette = activityPalette(task, section.color);
+                if (isSurfTask(task)) {
+                  const otherLabel = otherGroupsLabel(task);
+                  const otherActivity = otherGroupsActivity(tasks, task);
+                  return <span key={task.id} className="dp-surf-split" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}>
+                    <b>{task.startTime}</b>
+                    <strong>{task.title}</strong>
+                    <small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small>
+                    <em><i>Surf</i><u>{task.groups || "Groupes à préciser"}</u></em>
+                    <em className="is-other"><i>Autres</i><u>{otherLabel} · {otherActivity}</u></em>
+                  </span>;
+                }
                 return <span key={task.id} style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}><b>{task.startTime}</b><strong>{task.title}</strong><small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small></span>;
               }) : <em>—</em>}
             </button>;
