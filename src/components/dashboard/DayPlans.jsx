@@ -100,6 +100,51 @@ function openDayPdf({ date, plan, members, memberById, unavailability }) {
   return true;
 }
 
+function leaveWindowLabel(date) {
+  return `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`;
+}
+
+function openLeavesPdf({ plans, members }) {
+  const popup = window.open("", "_blank");
+  if (!popup) return false;
+  popup.opener = null;
+
+  const counts = members.map((member) => ({
+    member,
+    days: LEAVE_DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)),
+  }));
+  const alerts = [];
+  const memberRows = counts.map(({ member, days }) => {
+    const cells = LEAVE_DATES.map((date) => {
+      const selected = days.includes(date);
+      const assessment = leaveAssessment(plans, members, member, date);
+      if (selected && ["danger", "warning"].includes(assessment.level)) {
+        alerts.push({ member, date, assessment });
+      }
+      const label = selected ? leaveWindowLabel(date) : "—";
+      const status = selected ? (assessment.level === "danger" ? "Alerte" : assessment.level === "warning" ? "À vérifier" : "OK") : "";
+      return `<td class="${selected ? `is-leave is-${assessment.level}` : ""}"><strong>${escapeHtml(label)}</strong>${status ? `<small>${escapeHtml(status)}</small>` : ""}</td>`;
+    }).join("");
+    const statusClass = days.length === 2 ? "is-ok" : "is-alert";
+    const statusText = days.length === 2 ? "2/2 OK" : `${days.length}/2 à corriger`;
+    return `<tr><th><b>${escapeHtml(memberName(member))}</b><small>${escapeHtml(member.role || "")}</small><em class="${statusClass}">${escapeHtml(statusText)}</em></th>${cells}</tr>`;
+  }).join("");
+
+  const dayRows = LEAVE_DATES.map((date) => {
+    const offIds = plans[date]?.leaveMemberIds || [];
+    const offMembers = offIds.map((id) => members.find((member) => member.id === id)).filter(Boolean);
+    const conflictMembers = offMembers.filter((member) => leaveAssessment(plans, members, member, date).level === "danger");
+    const level = conflictMembers.length ? "danger" : offMembers.length >= 3 ? "warning" : "safe";
+    return `<tr class="is-${level}"><td><b>${escapeHtml(dateLabel(date))}</b><small>${escapeHtml(leaveWindowLabel(date))}</small></td><td>${escapeHtml(offMembers.map(memberName).join(", ") || "Personne")}</td><td>${members.length - offMembers.length}</td><td>${escapeHtml(conflictMembers.length ? conflictMembers.map(memberName).join(", ") : level === "warning" ? "Beaucoup de congés le même jour" : "OK")}</td></tr>`;
+  }).join("");
+
+  const alertRows = alerts.length ? alerts.map(({ member, date, assessment }) => `<tr><td>${escapeHtml(memberName(member))}</td><td>${escapeHtml(leaveWindowLabel(date))}</td><td>${escapeHtml(assessment.label)}</td><td>${escapeHtml(assessment.detail)}</td></tr>`).join("") : `<tr><td colspan="4">Aucune incompatibilité détectée sur les congés posés.</td></tr>`;
+
+  popup.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Congés ${escapeHtml(DAY_PLAN_STAY.week)}</title><style>@page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{margin:0;background:#f6f4fa;color:#24173d;font-family:Arial,sans-serif}.page{padding:16px}header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:14px;border-bottom:4px solid #b72f69;padding-bottom:10px}h1{margin:0;font-size:25px}.meta{color:#6f637a;font-size:12px;line-height:1.5}.rule{border:1px solid #efcf8b;border-radius:10px;background:#fff8e8;padding:10px;color:#76520b;font-size:12px;font-weight:700}.print{border:0;border-radius:9px;background:#b72f69;color:#fff;padding:9px 12px;font-weight:800;cursor:pointer}section{margin-top:15px}h2{margin:0 0 8px;font-size:17px}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #ddd4e5;border-radius:10px;overflow:hidden}th,td{border:1px solid #e4ddeb;padding:7px;text-align:left;vertical-align:top;font-size:10px}thead th{background:#281747;color:#fff;font-size:10px}tbody th{min-width:135px;background:#fbf9fd}tbody th b,tbody th small,tbody th em{display:block}tbody th small{margin-top:2px;color:#7a6d86;font-size:9px}tbody th em{margin-top:5px;border-radius:99px;padding:3px 6px;width:max-content;font-size:9px;font-style:normal}.is-ok{background:#e8f7ee;color:#13733a}.is-alert{background:#fff0ee;color:#b42318}td strong,td small{display:block}td small{margin-top:3px;color:#6d6078}.is-leave{background:#f0e6fb}.is-leave.is-warning{background:#fff7df}.is-leave.is-danger{background:#ffeceb;color:#9b1c13}.daily tr.is-warning td{background:#fff9e9}.daily tr.is-danger td{background:#fff0ee}.alerts td{font-size:11px}.alerts tr:nth-child(n+1) td{background:#fffaf0}@media(max-width:700px){@page{size:A4 portrait}.page{padding:10px}header{display:block}.print{display:none}table{font-size:9px}th,td{padding:5px;font-size:9px}}@media print{body{background:#fff}.page{padding:0}.print{display:none}section{break-inside:avoid}}</style></head><body><main class="page"><header><div><h1>Planning des congés — ${escapeHtml(DAY_PLAN_STAY.week)}</h1><div class="meta">${escapeHtml(DAY_PLAN_STAY.name)} · ${escapeHtml(DAY_PLAN_STAY.startDate)} au ${escapeHtml(DAY_PLAN_STAY.endDate)}<br>Export généré le ${escapeHtml(new Date().toLocaleString("fr-FR"))}</div></div><button class="print" onclick="window.print()">Imprimer / PDF</button></header><div class="rule">Règle de lecture : une case cochée le jour J signifie un congé de la veille à 19 h jusqu’au jour J à 19 h. Les deux premiers et deux derniers jours du séjour sont exclus des congés.</div><section><h2>Vue par animateur·ice</h2><table><thead><tr><th>Équipe</th>${LEAVE_DATES.map((date) => `<th>${escapeHtml(dateLabel(date, true))}</th>`).join("")}</tr></thead><tbody>${memberRows}</tbody></table></section><section><h2>Récap par jour</h2><table class="daily"><thead><tr><th>Jour</th><th>En congé</th><th>Disponibles</th><th>Signal</th></tr></thead><tbody>${dayRows}</tbody></table></section><section><h2>Incompatibilités / points à vérifier</h2><table class="alerts"><thead><tr><th>Anim</th><th>Créneau congé</th><th>Niveau</th><th>Détail</th></tr></thead><tbody>${alertRows}</tbody></table></section></main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350))<\/script></body></html>`);
+  popup.document.close();
+  return true;
+}
+
 export default function DayPlans() {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
@@ -295,7 +340,7 @@ export default function DayPlans() {
           ) : view === "food" ? (
             <FoodOverview plans={plans} memberById={memberById} onOpen={(date, task) => { setSelectedDate(date); setEditor({ ...task, _sourceDate: date, targetDate: date }); }} />
           ) : view === "leaves" ? (
-            <LeavesOverview plans={plans} members={members} saving={saving} onToggle={toggleLeave} />
+            <LeavesOverview plans={plans} members={members} saving={saving} onToggle={toggleLeave} showToast={showToast} />
           ) : (
             <>
               <DayHeader date={selectedDate} plan={selectedPlan} members={members} saving={saving} onToggleLeave={toggleLeave} />
@@ -493,10 +538,12 @@ function leaveAssessment(plans, members, member, date) {
   return { level: "safe", label: "Possible", detail: `${available} personnes resteraient disponibles.`, projectedOff, available, alreadySelected, memberLeaveCount };
 }
 
-function LeavesOverview({ plans, members, saving, onToggle }) {
+function LeavesOverview({ plans, members, saving, onToggle, showToast }) {
   const countsByMember = Object.fromEntries(members.map((member) => [member.id, LEAVE_DATES.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)).length]));
   return <section className="dp-leaves-view">
-    <header><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></header>
+    <header className="dp-leaves-header"><div><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></div><button type="button" className="dp-leaves-export" onClick={() => {
+      if (!openLeavesPdf({ plans, members })) showToast?.("Autorisez les fenêtres pop-up pour exporter les congés.", "error");
+    }}>Exporter les congés</button></header>
     <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
     <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier</span><span className="is-danger">● Conflit</span><span className="is-quota">● Déjà 2 congés</span></div>
     <div className="dp-leave-capacity">{LEAVE_DATES.map((date) => {
