@@ -9353,3 +9353,35 @@
   letter-spacing: 0.08em;
   color: var(--dash-accent);
 }
+
+/* RH documents: keep stay/week choices as clickable cards, documents as a table */
+.hr-doc-manager .hr-doc-table-wrap { display: block !important; }
+.hr-doc-manager .hr-doc-card-grid,
+.hr-doc-manager .hr-doc-detail-empty,
+.hr-doc-manager .hr-doc-members,
+.hr-doc-manager .hr-doc-person-card { display: none !important; }
+.hr-doc-manager .hr-doc-table { min-width: 1180px; }
+.hr-doc-manager .hr-doc-table th:nth-child(1) { width: 150px; }
+.hr-doc-manager .hr-doc-table th:nth-child(2) { width: 210px; }
+.hr-doc-manager .hr-doc-table th:nth-child(3),
+.hr-doc-manager .hr-doc-table th:nth-child(4),
+.hr-doc-manager .hr-doc-table th:nth-child(5) { width: 260px; }
+.hr-doc-person-cell strong { display: block; color: #1e1040; font-size: 13px; }
+.hr-doc-assignments-cell { max-width: 230px; color: #6b5a7e; line-height: 1.35; }
+.hr-doc-table-cell { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.hr-doc-table-cell-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hr-doc-table-cell-head em { flex: 0 0 auto; color: #15803d; font-size: 10px; font-style: normal; font-weight: 900; }
+.hr-doc-table-files { display: flex; max-height: 180px; flex-direction: column; gap: 8px; overflow: auto; }
+.hr-doc-table-file { display: flex; min-width: 0; flex-direction: column; gap: 6px; border: 1px solid #ebe5ef; border-radius: 8px; background: rgba(255,255,255,.75); padding: 7px; }
+.hr-doc-table-cell .hr-doc-file { min-width: 0; padding: 7px; }
+.hr-doc-table-cell .hr-doc-file span:first-child { color: #7c3aed; font-size: 10px; font-weight: 900; }
+.hr-doc-table-cell .hr-doc-actions { gap: 5px; }
+.hr-doc-table-cell .hr-doc-actions button { padding: 6px 7px; font-size: 9.5px; }
+.hr-doc-table-cell .hr-doc-actions button.is-delete { margin-left: 0; }
+.hr-doc-table-cell-foot { display: grid; grid-template-columns: minmax(74px, .8fr) minmax(120px, 1.2fr); gap: 6px; align-items: stretch; }
+.hr-doc-table-cell-foot .hr-doc-admin-upload span,
+.hr-doc-table-cell-foot .hr-doc-manual-validate { height: 100%; min-height: 31px; padding: 7px; }
+@media(max-width:1000px){
+  .hr-doc-manager .hr-doc-table{min-width:1080px}
+  .hr-doc-card-filters{grid-template-columns:1fr}
+}

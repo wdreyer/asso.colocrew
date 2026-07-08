@@ -1363,7 +1363,7 @@ function SalaryGridModal({ isOpen, gridRows, onClose, onChange }) {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export default function HumanResources() {
+export default function HumanResources({ initialTab = "sejours" }) {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
   const [members,   setMembers]   = useState([]);
@@ -1371,7 +1371,7 @@ export default function HumanResources() {
   const [staffDocuments, setStaffDocuments] = useState([]);
   const [gridRows,  setGridRows]  = useState(DEFAULT_SALARY_GRID);
   const [loading,   setLoading]   = useState(true);
-  const [tab,       setTab]       = useState("sejours");
+  const [tab,       setTab]       = useState(initialTab);
   const [fiche,     setFiche]     = useState(null);
   const [ficheStartsInEdit, setFicheStartsInEdit] = useState(false);
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
