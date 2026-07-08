@@ -78,6 +78,7 @@ function compensatoryRest(contractDays) {
 }
 
 function formatEuro(value) {
+  if (value == null || value === "") return "___________";
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "___________";
   return new Intl.NumberFormat("fr-FR", {
@@ -85,6 +86,79 @@ function formatEuro(value) {
     currency: "EUR",
     minimumFractionDigits: 2,
   }).format(amount);
+}
+
+const DEFAULT_PRIME_NET = 60;
+const DEFAULT_PRIME_GROSS = 81;
+
+function round2(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function positiveNumber(value, fallback = 0) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.max(amount, 0) : fallback;
+}
+
+function remunerationBreakdown(contract) {
+  const primeCount = positiveNumber(contract?.primeCount, 0);
+  const primeUnitNet = positiveNumber(contract?.primeUnitNet ?? contract?.primeNetUnit, DEFAULT_PRIME_NET);
+  const primeUnitGross = positiveNumber(contract?.primeUnitGross ?? contract?.primeGrossUnit, DEFAULT_PRIME_GROSS);
+  const totalNet = Number(contract?.netSalary);
+  const totalGross = Number(contract?.grossSalary);
+  const hasNet = Number.isFinite(totalNet);
+  const hasGross = Number.isFinite(totalGross);
+  const primeNet = round2(primeCount * primeUnitNet);
+  const primeGross = round2(primeCount * primeUnitGross);
+  const baseNet = hasNet ? Math.max(round2(totalNet - primeNet), 0) : null;
+  const baseGross = hasGross ? Math.max(round2(totalGross - primeGross), 0) : null;
+
+  return {
+    primeCount,
+    primeUnitNet,
+    primeUnitGross,
+    primeNet,
+    primeGross,
+    baseNet,
+    baseGross,
+    totalNet: hasNet ? totalNet : null,
+    totalGross: hasGross ? totalGross : null,
+  };
+}
+
+function remunerationTable(contract) {
+  const b = remunerationBreakdown(contract);
+  const primeLabel = b.primeCount > 0
+    ? `${b.primeCount} x ${formatEuro(b.primeUnitNet)} net`
+    : "Aucune prime";
+
+  return `
+    <table class="cc-remuneration-table">
+      <thead>
+        <tr>
+          <th>Élément</th>
+          <th>Net</th>
+          <th>Brut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Salaire de base</td>
+          <td><strong>${formatEuro(b.baseNet)}</strong></td>
+          <td>${formatEuro(b.baseGross)}</td>
+        </tr>
+        <tr>
+          <td>Prime d'ancienneté <span>${esc(primeLabel)}</span></td>
+          <td><strong>${formatEuro(b.primeNet)}</strong></td>
+          <td>${formatEuro(b.primeGross)}</td>
+        </tr>
+        <tr class="cc-remuneration-total">
+          <td>Total prévu</td>
+          <td><strong>${formatEuro(b.totalNet)}</strong></td>
+          <td>${formatEuro(b.totalGross)}</td>
+        </tr>
+      </tbody>
+    </table>`;
 }
 
 export function generateContractHTML(member, contract) {
@@ -152,6 +226,7 @@ export function generateContractHTML(member, contract) {
   const repos = compensatoryRest(nbJours);
   const netSalary = formatEuro(c.netSalary);
   const netPerDay = nbJours ? formatEuro(Number(c.netSalary) / nbJours) : "___________";
+  const remunerationDetails = remunerationTable(c);
 
   const today = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
@@ -233,6 +308,33 @@ export function generateContractHTML(member, contract) {
   .cc-article ol li { margin-bottom: 5px; line-height: 1.5; }
   .cc-article ul { margin: 6px 0 6px 22px; list-style: disc; }
   .cc-article ul li { margin-bottom: 4px; line-height: 1.5; }
+  .cc-remuneration-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 9.5pt;
+  }
+  .cc-remuneration-table th,
+  .cc-remuneration-table td {
+    border: 1px solid #bbb;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .cc-remuneration-table th {
+    background: #f4f0ff;
+    color: #2d1560;
+  }
+  .cc-remuneration-table span {
+    display: block;
+    margin-top: 2px;
+    color: #555;
+    font-size: 8pt;
+  }
+  .cc-remuneration-total td {
+    background: #fafafa;
+    font-weight: bold;
+  }
   .cc-bold { font-weight: bold; }
   .cc-fill { border-bottom: 1px solid #555; display: inline-block; min-width: 120px; }
   .cc-contract-input {
@@ -411,10 +513,10 @@ export function generateContractHTML(member, contract) {
   <!-- Article 5 -->
   <div class="cc-article">
     <h2>Article 5 – Rémunération</h2>
+    ${remunerationDetails}
     <ol>
       <li>Rémunération nette totale prévue pour le contrat : <strong>${netSalary}</strong>.</li>
       <li>Rémunération nette moyenne par jour d'engagement : <strong>${netPerDay}</strong>.</li>
-      <li>Ce montant correspond au salaire net enregistré pour ce contrat dans le dossier RH${Number(c.primeCount || 0) > 0 ? ` et comprend ${Number(c.primeCount)} prime${Number(c.primeCount) > 1 ? "s" : ""}` : ""}.</li>
       <li>Paiement par virement au plus tard le 5 du mois suivant.</li>
     </ol>
   </div>

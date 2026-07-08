@@ -157,6 +157,8 @@ function mapContract(snap) {
     role:     d.role      || "Poste non renseigné",
     roleKey:  d.roleKey   || "",
     primeCount: Math.max(Number(d.primeCount) || 0, 0),
+    primeUnitNet: Number(d.primeUnitNet) > 0 ? amount(d.primeUnitNet) : undefined,
+    primeUnitGross: Number(d.primeUnitGross) > 0 ? amount(d.primeUnitGross) : undefined,
     startDate: d.startDate || "",
     endDate:   d.endDate   || "",
     datesLabel: d.startDate && d.endDate
@@ -1131,6 +1133,8 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         startDate: form.startDate,
         endDate: form.endDate,
         primeCount: Math.max(Number(form.primeCount) || 0, 0),
+        primeUnitNet: amount(primeUnit?.perStayNet),
+        primeUnitGross: amount(primeUnit?.perStayGross),
         netSalary: amount(form.netSalary),
         grossSalary: amount(form.grossSalary),
         paidAmount: amount(form.paidAmount),

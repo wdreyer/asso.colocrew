@@ -8,6 +8,11 @@ function cleanText(value, max = 300) {
   return String(value || "").trim().slice(0, max);
 }
 
+function positiveAmount(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? amount : undefined;
+}
+
 function sanitizedMember(input) {
   return {
     firstName: cleanText(input?.firstName, 100),
@@ -33,6 +38,10 @@ function sanitizedContract(input) {
     startDate: cleanText(input?.startDate, 30),
     endDate: cleanText(input?.endDate, 30),
     netSalary: Number(input?.netSalary) || 0,
+    grossSalary: Number(input?.grossSalary) || 0,
+    primeCount: Math.max(Number(input?.primeCount) || 0, 0),
+    primeUnitNet: positiveAmount(input?.primeUnitNet),
+    primeUnitGross: positiveAmount(input?.primeUnitGross),
   };
 }
 
