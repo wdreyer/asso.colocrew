@@ -1237,8 +1237,10 @@ function mapReservationForTransport(snap) {
     id:   snap.id,
     numeroDeReservation: d.numeroDeReservation || "",
     nom:  legalName,
-    email: legal.email || "-",
-    phone: legal.phone || "-",
+    emails: contactEmailsFromLegal(legal),
+    phones: contactPhonesFromLegal(legal),
+    email: contactEmailsFromLegal(legal)[0] || "-",
+    phone: contactPhonesFromLegal(legal).join(" / ") || "-",
     children,
     childName: `${first.firstName || ""} ${first.lastName || ""}`.trim() || "-",
     sejourName:    sejour.name       || "-",
@@ -1280,6 +1282,8 @@ function hydrateTransportPassenger(passenger, reservation, transport) {
     ...passenger,
     numeroDeReservation: reservation.numeroDeReservation,
     nom: reservation.nom || "",
+    emails: reservation.emails || contactEmailsFromItem(reservation),
+    phones: reservation.phones || contactPhonesFromItem(reservation),
     email: reservation.email || "",
     phone: reservation.phone || "",
     children: reservation.children || [],
@@ -1656,7 +1660,7 @@ function buildOnSiteConvocHTML(reservations, week, options = {}) {
       <table><tbody>
         <tr><td>Nom</td><td>${reservation.nom}</td></tr>
         <tr><td>Téléphone</td><td><strong>${reservation.phone}</strong></td></tr>
-        <tr><td>Email</td><td>${reservation.email}</td></tr>
+        <tr><td>Email</td><td>${contactsDisplay([reservation.emails, reservation.email])}</td></tr>
       </tbody></table>
       <div class="sec">Rendez-vous aller</div>
       <div class="transport-card" style="border-color:#16a34a;background:#f0fdf4;margin-bottom:12px">
@@ -3197,8 +3201,8 @@ function PassengerEditModal({ passenger, transport, onSave, onClose }) {
   const { showToast } = useToast();
   const [form, setForm] = useState({
     nom:   passenger.nom || "",
-    email: passenger.email || "",
-    phone: passenger.phone || "",
+    email: contactsDisplay([passenger.emails, passenger.email], ""),
+    phone: contactsDisplay([passenger.phones, passenger.phone], ""),
     children: (passenger.children?.length
       ? passenger.children
       : [{ firstName: passenger.childName || "", lastName: "", birthDate: "" }]
@@ -3212,12 +3216,32 @@ function PassengerEditModal({ passenger, transport, onSave, onClose }) {
   const save = async () => {
     setSaving(true);
     try {
+      const emails = splitContactValues(form.email);
+      const phones = splitContactValues(form.phone);
+      const invalidEmail = emails.find((email) => !/^\S+@\S+\.\S+$/.test(email));
+      if (invalidEmail) {
+        showToast(`Adresse e-mail invalide : ${invalidEmail}`, "warning");
+        setSaving(false);
+        return;
+      }
       const updated = transport.passengers.map((p) =>
         p.reservationId === passenger.reservationId
-          ? { ...p, nom: form.nom, email: form.email, phone: form.phone, children: form.children }
+          ? { ...p, nom: form.nom, email: emails[0] || "", emails, phone: phones.join(" / "), phones, children: form.children }
           : p,
       );
-      await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), { passengers: updated, updatedAt: serverTimestamp() });
+      const writes = [
+        updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), { passengers: updated, updatedAt: serverTimestamp() }),
+      ];
+      if (passenger.reservationId) {
+        writes.push(updateDoc(doc(db, COLLECTIONS.RESERVATIONS, passenger.reservationId), {
+          "legal.email": emails[0] || "",
+          "legal.emails": emails,
+          "legal.phone": phones[0] || "",
+          "legal.phones": phones,
+          updatedAt: serverTimestamp(),
+        }));
+      }
+      await Promise.all(writes);
       onSave({ ...transport, passengers: updated });
       showToast("Passager mis à jour", "success");
       onClose();
@@ -3239,8 +3263,8 @@ function PassengerEditModal({ passenger, transport, onSave, onClose }) {
           <div className="tr-pedit-section">Informations famille</div>
           <div className="tr-pedit-row">
             <label><span>Responsable légal</span><input className="dash-input" value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} /></label>
-            <label><span>Email</span><input className="dash-input" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
-            <label><span>Téléphone</span><input className="dash-input" type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></label>
+            <label><span>Emails</span><textarea className="dash-input" rows={2} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="1 email par ligne, ou séparés par virgule" /></label>
+            <label><span>Téléphones</span><textarea className="dash-input" rows={2} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="1 téléphone par ligne, ou séparés par virgule" /></label>
           </div>
           <div className="tr-pedit-section">Enfant{form.children.length > 1 ? "s" : ""}</div>
           {form.children.map((child, idx) => (
@@ -6862,6 +6886,9 @@ function ConvocEmailSender({ transport, allTransports }) {
 
   const doSendGroup = useCallback(async (groupPax) => {
     const primary  = groupPax[0];
+    const destinationEmails = contactEmailsFromItem(primary);
+    const destinationEmail = destinationEmails.join(", ");
+    if (!destinationEmails.length) throw new Error("Adresse e-mail manquante");
     const merged   = mergeFamily(groupPax);
     const rdvInfo  = getEmailRdvInfo(transport, primary);
     const retourInfo = getRetourInfo(transport, primary, allTransports);
@@ -6897,7 +6924,7 @@ function ConvocEmailSender({ transport, allTransports }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        to: primary.email,
+        to: destinationEmail,
         subject: emailSubject,
         html,
         from_name: "ColoCrew",
@@ -7021,14 +7048,15 @@ function ConvocEmailSender({ transport, allTransports }) {
               const merged   = mergeFamily(groupPax);
               const allIds   = groupPax.map((p) => p.reservationId).filter(Boolean);
               const isSent   = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
-              const isSending = sendingId === (primary.email || primary.reservationId);
+              const primaryEmailList = contactEmailsFromItem(primary);
+              const isSending = sendingId === (primaryEmailList.join(", ") || primary.reservationId);
               const children  = merged.children?.length
                 ? merged.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
                 : merged.childName || "-";
               const city     = passengerCity(transport, primary);
-              const hasEmail = primary.email && primary.email !== "-";
+              const hasEmail = primaryEmailList.length > 0;
               const rdvInfo  = getEmailRdvInfo(transport, primary);
-              const groupKey = primary.email || primary.reservationId;
+              const groupKey = primaryEmailList.join(", ") || primary.reservationId;
 
               return (
                 <tr key={groupKey || i} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: i === 0 ? "none" : "1px solid #f0f0f0" }}>
@@ -7059,7 +7087,7 @@ function ConvocEmailSender({ transport, allTransports }) {
                   {/* Email */}
                   <td style={tdS}>
                     {hasEmail
-                      ? <span style={{ color: "#374151", fontSize: 12 }}>{primary.email}</span>
+                      ? <span style={{ color: "#374151", fontSize: 12 }}>{primaryEmailList.join(", ")}</span>
                       : <span style={{ color: "#ef4444", fontSize: 12, fontStyle: "italic" }}>Manquant</span>}
                   </td>
 
@@ -7108,7 +7136,7 @@ function ConvocEmailSender({ transport, allTransports }) {
                           setSendingId(groupKey);
                           try {
                             await doSendGroup(groupPax);
-                            showToast(`Convocation envoyée à ${primary.email}`, "success");
+                            showToast(`Convocation envoyée à ${primaryEmailList.join(", ")}`, "success");
                           } catch (e) {
                             showToast(`Erreur : ${e.message}`, "error");
                           } finally {
@@ -7185,6 +7213,46 @@ function normalizeEmailAddress(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function splitContactValues(value) {
+  if (Array.isArray(value)) return value.flatMap(splitContactValues);
+  return String(value || "")
+    .split(/[,\n;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueContactValues(values) {
+  const seen = new Set();
+  return splitContactValues(values).filter((value) => {
+    const key = normalizeSearchKey(value);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function contactEmailsFromLegal(legal = {}) {
+  return uniqueContactValues([legal.email, legal.emails]).filter((email) => /^\S+@\S+\.\S+$/.test(email));
+}
+
+function contactPhonesFromLegal(legal = {}) {
+  return uniqueContactValues([legal.phone, legal.phones, legal.telephone]);
+}
+
+function contactEmailsFromItem(item = {}) {
+  if (isExternalConvocation(item)) return [];
+  return uniqueContactValues([item.emails, item.email]).filter((email) => /^\S+@\S+\.\S+$/.test(email));
+}
+
+function contactPhonesFromItem(item = {}) {
+  return uniqueContactValues([item.phones, item.phone]);
+}
+
+function contactsDisplay(values, fallback = "—") {
+  const list = uniqueContactValues(values);
+  return list.length ? list.join(" / ") : fallback;
+}
+
 function isExternalConvocation(item) {
   return normalizeSearchKey(item?.convocationSentChannel) === "totemia";
 }
@@ -7193,10 +7261,10 @@ function isExternalConvocation(item) {
 function groupPassengersByFamily(passengers, transport = null) {
   const map = new Map();
   (passengers || []).forEach((p) => {
-    const email = normalizeEmailAddress(p.email);
+    const email = contactEmailsFromItem(p)[0] || "";
     const city = transport ? normalizePlace(passengerCity(transport, p)) : "";
     const stay = normalizeSearchKey(p.stayCode || p.sejourName || "");
-    const key = !isExternalConvocation(p) && email && email !== "-" ? `${email}|${city}|${stay}` : (p.reservationId || p.nom);
+    const key = !isExternalConvocation(p) && email ? `${normalizeEmailAddress(email)}|${city}|${stay}` : (p.reservationId || p.nom);
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(p);
   });
@@ -7206,9 +7274,9 @@ function groupPassengersByFamily(passengers, transport = null) {
 function groupOnSiteReservations(reservations) {
   const groups = new Map();
   (reservations || []).forEach((reservation) => {
-    const email = normalizeEmailAddress(reservation.email);
+    const email = contactEmailsFromItem(reservation)[0] || "";
     const stay = shortStayCode(reservation.sejourName || "Séjour");
-    const key = !isExternalConvocation(reservation) && email && email !== "-" ? `${email}|${stay}` : reservation.id;
+    const key = !isExternalConvocation(reservation) && email ? `${normalizeEmailAddress(email)}|${stay}` : reservation.id;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(reservation);
   });
@@ -7254,11 +7322,14 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [savingConvocSettings, setSavingConvocSettings] = useState(false);
   const [emailOverrides, setEmailOverrides] = useState({});
 
-  const emailFor = useCallback((item) => {
+  const emailsFor = useCallback((item) => {
     if (isExternalConvocation(item)) return "";
     const id = item?.reservationId || item?.id;
-    return String((id && emailOverrides[id] !== undefined ? emailOverrides[id] : item?.email) || "").trim();
+    const value = id && emailOverrides[id] !== undefined ? emailOverrides[id] : contactEmailsFromItem(item);
+    return splitContactValues(value).filter((email) => /^\S+@\S+\.\S+$/.test(email));
   }, [emailOverrides]);
+
+  const emailFor = useCallback((item) => emailsFor(item).join(", "), [emailsFor]);
 
   const setFamilyEmailDraft = useCallback((ids, value) => {
     setEmailOverrides((previous) => {
@@ -7269,17 +7340,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   }, []);
 
   const saveFamilyEmail = useCallback(async (ids, value) => {
-    const email = String(value || "").trim();
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
-      showToast("Adresse e-mail invalide", "warning");
+    const emails = splitContactValues(value);
+    const invalid = emails.find((email) => !/^\S+@\S+\.\S+$/.test(email));
+    if (invalid) {
+      showToast(`Adresse e-mail invalide : ${invalid}`, "warning");
       return false;
     }
     await Promise.all(ids.filter(Boolean).map((id) => updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), {
-      "legal.email": email,
+      "legal.email": emails[0] || "",
+      "legal.emails": emails,
       updatedAt: serverTimestamp(),
     })));
-    setFamilyEmailDraft(ids, email);
-    showToast("Adresse e-mail enregistrée", "success");
+    setFamilyEmailDraft(ids, emails.join(", "));
+    showToast(`${emails.length > 1 ? "Adresses e-mail enregistrées" : "Adresse e-mail enregistrée"}`, "success");
     return true;
   }, [setFamilyEmailDraft, showToast]);
 
@@ -7480,8 +7553,9 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
 
   const doSendFamily = useCallback(async (trip, passengers, { reminder = false } = {}) => {
     const primary  = passengers[0];
-    const destinationEmail = emailFor(primary);
-    if (!destinationEmail) throw new Error("Adresse e-mail manquante");
+    const destinationEmails = emailsFor(primary);
+    const destinationEmail = destinationEmails.join(", ");
+    if (!destinationEmails.length) throw new Error("Adresse e-mail manquante");
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
     const animInfo = getAnimForTrip(trip, primary);
@@ -7499,11 +7573,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const ids = passengers.map((p) => p.reservationId);
     if (reminder) await markReminderSent(ids);
     else await markAllSent(ids);
-  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getAnimForTrip, emailFor]);
+  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getAnimForTrip, emailsFor]);
 
   const doSendOnSite = useCallback(async (reservation, { reminder = false } = {}) => {
-    const destinationEmail = emailFor(reservation);
-    if (!destinationEmail) throw new Error("Adresse e-mail manquante");
+    const destinationEmails = emailsFor(reservation);
+    const destinationEmail = destinationEmails.join(", ");
+    if (!destinationEmails.length) throw new Error("Adresse e-mail manquante");
     const cfg = getOnSiteConfig(reservation.sejourName || "Séjour");
     const animInfo = getAnimForOnSite(reservation.sejourName || "Séjour");
     const convocationHtml = buildOnSiteEmailHtml(reservation, selectedWeek, {
@@ -7525,7 +7600,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const ids = reservation._reservationIds?.length ? reservation._reservationIds : [reservation.id];
     if (reminder) await markReminderSent(ids);
     else await markAllSent(ids);
-  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, emailFor]);
+  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, emailsFor]);
 
   // Pending = one entry per unique family (email) that hasn't been fully sent
   const pendingFamilies = useMemo(() => {
@@ -7634,7 +7709,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     for (let i = 0; i < pendingOnSiteReservations.length; i++) {
       const reservation = pendingOnSiteReservations[i];
       try { await doSendOnSite(reservation); }
-      catch (e) { errors.push({ email: reservation.email, error: e.message }); }
+      catch (e) { errors.push({ email: emailFor(reservation), error: e.message }); }
       done += 1;
       setSendProgress({ done, total, errors: [...errors] });
       if (done < total) await new Promise((r) => setTimeout(r, 350));
@@ -7935,13 +8010,13 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           {externalConvocation ? (
                             <span style={{ display: "inline-flex", padding: "5px 9px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 800 }}>Totemia · envoi externe</span>
                           ) : (
-                            <input
-                              type="email"
+                            <textarea
                               value={currentEmail === "-" ? "" : currentEmail}
                               onChange={(event) => setFamilyEmailDraft(reservationIds, event.target.value)}
                               onBlur={(event) => saveFamilyEmail(reservationIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
-                              placeholder="Adresse e-mail"
-                              style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
+                              placeholder="Emails séparés par virgule ou retour ligne"
+                              rows={Math.max(1, Math.min(3, splitContactValues(currentEmail).length || 1))}
+                              style={{ width: 205, minHeight: 30, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12, resize: "vertical" }}
                             />
                           )}
                         </td>
@@ -8016,7 +8091,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               });
               const pendingCount = familyGroups.filter((ps) => {
                 const allIds = ps.map((p) => p.reservationId).filter(Boolean);
-                return !allIds.every((id) => sentStatus[id]) && ps[0].email && ps[0].email !== "-";
+                return !allIds.every((id) => sentStatus[id]) && emailFor(ps[0]);
               }).length;
 
               return (
@@ -8076,13 +8151,13 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           {externalConvocation ? (
                             <span style={{ display: "inline-flex", padding: "5px 9px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 800 }}>Totemia · envoi externe</span>
                           ) : (
-                            <input
-                              type="email"
+                            <textarea
                               value={currentEmail === "-" ? "" : currentEmail}
                               onChange={(event) => setFamilyEmailDraft(allIds, event.target.value)}
                               onBlur={(event) => saveFamilyEmail(allIds, event.target.value).catch(() => showToast("Impossible d’enregistrer l’adresse e-mail", "error"))}
-                              placeholder="Adresse e-mail"
-                              style={{ width: 190, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12 }}
+                              placeholder="Emails séparés par virgule ou retour ligne"
+                              rows={Math.max(1, Math.min(3, splitContactValues(currentEmail).length || 1))}
+                              style={{ width: 205, minHeight: 30, padding: "5px 7px", border: `1px solid ${hasEmail ? "#d1d5db" : "#fca5a5"}`, borderRadius: 6, fontSize: 12, resize: "vertical" }}
                             />
                           )}
                         </td>

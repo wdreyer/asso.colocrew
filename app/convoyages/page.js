@@ -63,16 +63,51 @@ function legalName(legal = {}) {
   return `${legal.firstName || legal.prenom || ""} ${legal.lastName || legal.nom || ""}`.trim();
 }
 
+function splitContactValues(value) {
+  if (Array.isArray(value)) return value.flatMap(splitContactValues);
+  return String(value || "")
+    .split(/[,\n;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueContactValues(values) {
+  const seen = new Set();
+  return splitContactValues(values).filter((value) => {
+    const key = value.toLowerCase().replace(/\s+/g, "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function contactEmailsFromLegal(legal = {}) {
+  return uniqueContactValues([legal.email, legal.emails]).filter((email) => /^\S+@\S+\.\S+$/.test(email));
+}
+
+function contactPhonesFromLegal(legal = {}) {
+  return uniqueContactValues([legal.phone, legal.phones, legal.telephone]);
+}
+
+function contactsDisplay(values, fallback = "") {
+  const list = uniqueContactValues(values);
+  return list.length ? list.join(" / ") : fallback;
+}
+
 function mapReservationPassenger(snap) {
   const data = snap.data() || {};
   const children = Array.isArray(data.minor?.children) ? data.minor.children : [];
   const first = children[0] || {};
+  const emails = contactEmailsFromLegal(data.legal || {});
+  const phones = contactPhonesFromLegal(data.legal || {});
   return {
     id: snap.id,
     numeroDeReservation: data.numeroDeReservation || "",
     nom: legalName(data.legal || {}),
-    email: data.legal?.email || "",
-    phone: data.legal?.phone || "",
+    emails,
+    phones,
+    email: emails[0] || "",
+    phone: phones.join(" / ") || "",
     children,
     childName: childFullName(first),
     sejourName: data.sejour?.name || "",
@@ -93,6 +128,8 @@ function hydrateTransportPassengers(transport, reservations = []) {
         ...passenger,
         numeroDeReservation: reservation.numeroDeReservation,
         nom: reservation.nom,
+        emails: reservation.emails,
+        phones: reservation.phones,
         email: reservation.email,
         phone: reservation.phone,
         children: reservation.children,
@@ -1188,7 +1225,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                                 </div>
                                 <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                                   <a
-                                    href={`tel:${(p.phone || "").replace(/\s/g, "")}`}
+                                    href={`tel:${(p.phones?.[0] || p.phone || "").replace(/\s/g, "")}`}
                                     style={{ fontSize: 13, color: "#7c3aed", fontWeight: 600, textDecoration: "none" }}
                                   >
                                     📞 {p.phone || "—"}
@@ -1348,7 +1385,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                           </div>
                           <div style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>
                             {p.nom} ·{" "}
-                            <a href={`tel:${(p.phone || "").replace(/\s/g, "")}`} style={{ color: "#7c3aed", textDecoration: "none", fontWeight: 600 }}>
+                            <a href={`tel:${(p.phones?.[0] || p.phone || "").replace(/\s/g, "")}`} style={{ color: "#7c3aed", textDecoration: "none", fontWeight: 600 }}>
                               {p.phone || "—"}
                             </a>
                           </div>
