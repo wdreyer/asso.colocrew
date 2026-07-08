@@ -9354,34 +9354,43 @@
   color: var(--dash-accent);
 }
 
-/* RH documents: keep stay/week choices as clickable cards, documents as a table */
+/* RH documents: stay/week filters stay as cards; people are a simple status table. */
 .hr-doc-manager .hr-doc-table-wrap { display: block !important; }
 .hr-doc-manager .hr-doc-card-grid,
 .hr-doc-manager .hr-doc-detail-empty,
 .hr-doc-manager .hr-doc-members,
 .hr-doc-manager .hr-doc-person-card { display: none !important; }
-.hr-doc-manager .hr-doc-table { min-width: 1180px; }
-.hr-doc-manager .hr-doc-table th:nth-child(1) { width: 150px; }
-.hr-doc-manager .hr-doc-table th:nth-child(2) { width: 210px; }
-.hr-doc-manager .hr-doc-table th:nth-child(3),
-.hr-doc-manager .hr-doc-table th:nth-child(4),
-.hr-doc-manager .hr-doc-table th:nth-child(5) { width: 260px; }
+.hr-doc-manager .hr-doc-table.is-simple { min-width: 900px; }
+.hr-doc-manager .hr-doc-table.is-simple tbody tr { cursor: pointer; }
+.hr-doc-manager .hr-doc-table.is-simple tbody tr:hover td { background: #f8f4ff; }
+.hr-doc-manager .hr-doc-table.is-simple tbody tr.is-selected td { box-shadow: inset 0 0 0 999px rgba(124,58,237,.08); }
 .hr-doc-person-cell strong { display: block; color: #1e1040; font-size: 13px; }
-.hr-doc-assignments-cell { max-width: 230px; color: #6b5a7e; line-height: 1.35; }
-.hr-doc-table-cell { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
-.hr-doc-table-cell-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.hr-doc-table-cell-head em { flex: 0 0 auto; color: #15803d; font-size: 10px; font-style: normal; font-weight: 900; }
-.hr-doc-table-files { display: flex; max-height: 180px; flex-direction: column; gap: 8px; overflow: auto; }
-.hr-doc-table-file { display: flex; min-width: 0; flex-direction: column; gap: 6px; border: 1px solid #ebe5ef; border-radius: 8px; background: rgba(255,255,255,.75); padding: 7px; }
-.hr-doc-table-cell .hr-doc-file { min-width: 0; padding: 7px; }
-.hr-doc-table-cell .hr-doc-file span:first-child { color: #7c3aed; font-size: 10px; font-weight: 900; }
-.hr-doc-table-cell .hr-doc-actions { gap: 5px; }
-.hr-doc-table-cell .hr-doc-actions button { padding: 6px 7px; font-size: 9.5px; }
-.hr-doc-table-cell .hr-doc-actions button.is-delete { margin-left: 0; }
-.hr-doc-table-cell-foot { display: grid; grid-template-columns: minmax(74px, .8fr) minmax(120px, 1.2fr); gap: 6px; align-items: stretch; }
-.hr-doc-table-cell-foot .hr-doc-admin-upload span,
-.hr-doc-table-cell-foot .hr-doc-manual-validate { height: 100%; min-height: 31px; padding: 7px; }
+.hr-doc-assignments-cell { max-width: 280px; color: #6b5a7e; line-height: 1.35; }
+.hr-doc-status { display: inline-flex; align-items: center; justify-content: center; min-width: 86px; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 900; }
+.hr-doc-status.is-valid { background: #dcfce7; color: #15803d; }
+.hr-doc-status.is-pending { background: #ffedd5; color: #c2410c; }
+.hr-doc-status.is-missing { background: #fee2e2; color: #b91c1c; }
+.hr-doc-detail-panel { border: 1px solid #e4ddea; border-radius: 12px; background: #fff; overflow: hidden; }
+.hr-doc-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #eee8f2; background: #faf8fc; }
+.hr-doc-detail-head h3 { margin: 0; color: #1e1040; font-size: 16px; }
+.hr-doc-detail-head p { margin: 3px 0 0; color: #746681; font-size: 12px; }
+.hr-doc-detail-head button { border: 1px solid #ddd4e6; border-radius: 8px; background: #fff; padding: 7px 10px; color: #5b496d; font-size: 11px; font-weight: 800; cursor: pointer; }
+.hr-doc-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+.hr-doc-detail-card { display: flex; min-width: 0; flex-direction: column; gap: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; padding: 12px; }
+.hr-doc-detail-card.is-valid { border-color: #bbf7d0; background: #f7fff9; }
+.hr-doc-detail-card.is-pending { border-color: #fed7aa; background: #fffaf2; }
+.hr-doc-detail-card.is-missing { border-color: #fecaca; background: #fff7f7; }
+.hr-doc-detail-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hr-doc-detail-card-head strong { color: #1e1040; font-size: 13px; }
+.hr-doc-detail-files { display: flex; max-height: 220px; flex-direction: column; gap: 8px; overflow: auto; }
+.hr-doc-detail-file { display: flex; min-width: 0; flex-direction: column; gap: 6px; border: 1px solid #ebe5ef; border-radius: 8px; background: rgba(255,255,255,.8); padding: 7px; }
+.hr-doc-detail-file .hr-doc-actions { gap: 5px; }
+.hr-doc-detail-file .hr-doc-actions button { padding: 6px 7px; font-size: 9.5px; }
+.hr-doc-detail-file .hr-doc-actions button.is-delete { margin-left: 0; }
+.hr-doc-detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: auto; }
+.hr-doc-detail-actions .hr-doc-admin-upload span,
+.hr-doc-detail-actions .hr-doc-manual-validate { height: 100%; min-height: 32px; padding: 8px; }
 @media(max-width:1000px){
-  .hr-doc-manager .hr-doc-table{min-width:1080px}
   .hr-doc-card-filters{grid-template-columns:1fr}
+  .hr-doc-detail-grid{grid-template-columns:1fr}
 }

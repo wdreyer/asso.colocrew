@@ -17,19 +17,6 @@ function memberName(member) {
   return member.name || `${member.firstName || ""} ${member.lastName || ""}`.trim();
 }
 
-function statusOf(document) {
-  if (!document) return { key: "missing", label: "Manquant", tone: "missing" };
-  const status = STAFF_DOCUMENT_STATUS[document.status] || STAFF_DOCUMENT_STATUS.pending;
-  return { key: document.status || "pending", ...status };
-}
-
-function completionFor(member, documents) {
-  const states = STAFF_DOCUMENT_TYPES.map((type) => documentsByType(documents, member.id, type.key));
-  const validated = states.filter((items) => items.some((document) => document.status === "validated" && document.locked)).length;
-  const pending = states.filter((items) => items.some((document) => document.status !== "validated")).length;
-  return { validated, pending, missing: STAFF_DOCUMENT_TYPES.length - states.filter((items) => items.length).length };
-}
-
 function assignmentLabel(assignment) {
   return [assignment.role, assignment.stayCode || assignment.stay, assignment.week].filter(Boolean).join(" · ");
 }
@@ -42,9 +29,26 @@ function assignmentMatches(assignments, stay, week) {
   });
 }
 
+function statusForType(documents, memberId, typeKey) {
+  const typeDocuments = documentsByType(documents, memberId, typeKey);
+  const validated = typeDocuments.find((document) => document.status === "validated" && document.locked);
+  if (validated) return { key: "validated", tone: "valid", label: "Validé", count: typeDocuments.length };
+  if (typeDocuments.length) return { key: "pending", tone: "pending", label: "En cours", count: typeDocuments.length };
+  return { key: "missing", tone: "missing", label: "Pas validé", count: 0 };
+}
+
+function completionFor(member, documents) {
+  const statuses = STAFF_DOCUMENT_TYPES.map((type) => statusForType(documents, member.id, type.key));
+  return {
+    validated: statuses.filter((status) => status.key === "validated").length,
+    pending: statuses.filter((status) => status.key === "pending").length,
+    missing: statuses.filter((status) => status.key === "missing").length,
+  };
+}
+
 function rowTone(completion) {
   if (completion.validated === STAFF_DOCUMENT_TYPES.length) return "valid";
-  if (completion.validated > 0 || completion.pending > 0) return "partial";
+  if (completion.pending > 0 || completion.validated > 0) return "partial";
   return "missing";
 }
 
@@ -53,6 +57,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
   const [filter, setFilter] = useState("all");
   const [stayFilter, setStayFilter] = useState("all");
   const [weekFilter, setWeekFilter] = useState("all");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
 
@@ -79,10 +84,12 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
   const totals = useMemo(() => members.reduce((summary, member) => {
     const completion = completionFor(member, documents);
     if (completion.validated === STAFF_DOCUMENT_TYPES.length) summary.complete += 1;
-    if (completion.missing > 0) summary.missing += 1;
     if (completion.pending > 0) summary.pending += 1;
+    if (completion.missing > 0) summary.missing += 1;
     return summary;
   }, { complete: 0, missing: 0, pending: 0 }), [members, documents]);
+
+  const selectedRow = useMemo(() => rows.find((row) => row.member.id === selectedMemberId) || null, [rows, selectedMemberId]);
 
   const syncStatus = async (member, documentType, status, locked) => {
     const statusValue = { status, locked, updatedAt: new Date().toISOString() };
@@ -96,25 +103,24 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     ]);
   };
 
-  const changeStatus = async (member, document, status, locked) => {
-    const key = `${document.id}-${status}`;
-    setBusy(key);
+  const changeStatus = async (member, documentItem, status, locked) => {
+    setBusy(`${documentItem.id}-${status}`);
     setMessage("");
     try {
-      const updated = { ...document, status, locked, updatedAt: new Date().toISOString() };
-      await updateDoc(doc(db, COLLECTIONS.STAFF_DOCUMENTS, document.id), {
+      const updated = { ...documentItem, status, locked, updatedAt: new Date().toISOString() };
+      await updateDoc(doc(db, COLLECTIONS.STAFF_DOCUMENTS, documentItem.id), {
         status,
         locked,
         reviewedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      const siblingDocuments = documentsByType(documents, member.id, document.documentType)
-        .filter((item) => item.id !== document.id)
+      const siblingDocuments = documentsByType(documents, member.id, documentItem.documentType)
+        .filter((item) => item.id !== documentItem.id)
         .concat(updated);
       const categoryValidated = siblingDocuments.some((item) => item.status === "validated" && item.locked);
-      await syncStatus(member, document.documentType, categoryValidated ? "validated" : status, categoryValidated);
+      await syncStatus(member, documentItem.documentType, categoryValidated ? "validated" : status, categoryValidated);
       onDocumentChange(updated);
-      setMessage(`${STAFF_DOCUMENT_TYPE_MAP_SAFE(document.documentType)} de ${memberName(member)} mis à jour.`);
+      setMessage(`${documentTypeLabel(documentItem.documentType)} de ${memberName(member)} mis à jour.`);
     } catch (error) {
       setMessage(error?.message || "Mise à jour impossible.");
     } finally {
@@ -122,12 +128,11 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     }
   };
 
-  const openDocument = async (document) => {
-    const key = `${document.id}-open`;
-    setBusy(key);
+  const openDocument = async (documentItem) => {
+    setBusy(`${documentItem.id}-open`);
     setMessage("");
     try {
-      const url = await getDownloadURL(ref(storage, document.storagePath));
+      const url = await getDownloadURL(ref(storage, documentItem.storagePath));
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (error) {
       setMessage(error?.message || "Le fichier ne peut pas être ouvert.");
@@ -139,8 +144,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
   const adminUpload = async (member, documentType, selectedFiles) => {
     const files = Array.from(selectedFiles || []);
     if (!files.length) return;
-    const key = `${member.id}-${documentType}-upload`;
-    setBusy(key);
+    setBusy(`${member.id}-${documentType}-upload`);
     setMessage("");
     try {
       const createdDocuments = [];
@@ -148,7 +152,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
         createdDocuments.push(await uploadStaffDocument({ member, documentType, file, source: "admin" }));
       }
       const categoryAlreadyValidated = documentsByType(documents, member.id, documentType)
-        .some((document) => document.status === "validated" && document.locked);
+        .some((documentItem) => documentItem.status === "validated" && documentItem.locked);
       await syncStatus(member, documentType, categoryAlreadyValidated ? "validated" : "pending", categoryAlreadyValidated);
       createdDocuments.forEach(onDocumentChange);
       setMessage(`${files.length} fichier${files.length > 1 ? "s" : ""} ajouté${files.length > 1 ? "s" : ""} au dossier de ${memberName(member)}.`);
@@ -160,8 +164,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
   };
 
   const validateWithoutFile = async (member, documentType) => {
-    const key = `${member.id}-${documentType}-manual`;
-    setBusy(key);
+    setBusy(`${member.id}-${documentType}-manual`);
     setMessage("");
     try {
       const entry = {
@@ -183,7 +186,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
       const created = await addDoc(collection(db, COLLECTIONS.STAFF_DOCUMENTS), entry);
       await syncStatus(member, documentType, "validated", true);
       onDocumentChange({ id: created.id, ...entry, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      setMessage(`${STAFF_DOCUMENT_TYPE_MAP_SAFE(documentType)} de ${memberName(member)} validé sans fichier.`);
+      setMessage(`${documentTypeLabel(documentType)} de ${memberName(member)} validé sans fichier.`);
     } catch (error) {
       setMessage(error?.message || "Validation impossible.");
     } finally {
@@ -191,31 +194,30 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     }
   };
 
-  const deleteStaffDocument = async (member, document) => {
-    const label = document.originalName || "ce document";
+  const deleteStaffDocument = async (member, documentItem) => {
+    const label = documentItem.originalName || "ce document";
     if (!window.confirm(`Supprimer définitivement « ${label} » du dossier de ${memberName(member)} ?`)) return;
-    const key = `${document.id}-delete`;
-    setBusy(key);
+    setBusy(`${documentItem.id}-delete`);
     setMessage("");
     try {
-      if (document.storagePath) {
+      if (documentItem.storagePath) {
         try {
-          await deleteObject(ref(storage, document.storagePath));
+          await deleteObject(ref(storage, documentItem.storagePath));
         } catch (storageError) {
           if (storageError?.code !== "storage/object-not-found") throw storageError;
         }
       }
-      await deleteDoc(doc(db, COLLECTIONS.STAFF_DOCUMENTS, document.id));
+      await deleteDoc(doc(db, COLLECTIONS.STAFF_DOCUMENTS, documentItem.id));
 
-      const remaining = documentsByType(documents, member.id, document.documentType)
-        .filter((item) => item.id !== document.id);
+      const remaining = documentsByType(documents, member.id, documentItem.documentType)
+        .filter((item) => item.id !== documentItem.id);
       const validated = remaining.some((item) => item.status === "validated" && item.locked);
       const fallbackStatus = validated
         ? "validated"
         : remaining.find((item) => item.status !== "validated")?.status || "missing";
-      await syncStatus(member, document.documentType, fallbackStatus, validated);
-      onDocumentDelete(document.id);
-      setMessage(`${STAFF_DOCUMENT_TYPE_MAP_SAFE(document.documentType)} supprimé du dossier de ${memberName(member)}.`);
+      await syncStatus(member, documentItem.documentType, fallbackStatus, validated);
+      onDocumentDelete(documentItem.id);
+      setMessage(`${documentTypeLabel(documentItem.documentType)} supprimé du dossier de ${memberName(member)}.`);
     } catch (error) {
       setMessage(error?.message || "Suppression impossible.");
     } finally {
@@ -223,60 +225,13 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     }
   };
 
-  const renderDocumentCell = (member, type) => {
-    const typeDocuments = documentsByType(documents, member.id, type.key);
-    const validatedDocument = typeDocuments.find((document) => document.status === "validated" && document.locked);
-    const current = validatedDocument || typeDocuments[0] || null;
-    const status = statusOf(current);
-    const uploadKey = `${member.id}-${type.key}-upload`;
-
-    return (
-      <div className={`hr-doc-table-cell is-${status.tone}`}>
-        <div className="hr-doc-table-cell-head">
-          <span className={`hr-doc-pill is-${status.tone}`}>
-            {status.label}{typeDocuments.length > 1 ? ` · ${typeDocuments.length}` : ""}
-          </span>
-          {current?.locked && <em>Verrouillé</em>}
-        </div>
-        {typeDocuments.length ? (
-          <div className="hr-doc-table-files">
-            {typeDocuments.map((document) => (
-              <div key={document.id} className="hr-doc-table-file">
-                {document.storagePath ? (
-                  <button type="button" className="hr-doc-file" onClick={() => openDocument(document)} disabled={busy === `${document.id}-open`} title={document.originalName}>
-                    <span>Doc</span><span>{document.originalName}</span><em>{busy === `${document.id}-open` ? "Ouverture..." : "Ouvrir"}</em>
-                  </button>
-                ) : <div className="hr-doc-manual">Validation administrative sans fichier</div>}
-                <div className="hr-doc-actions">
-                  {document.status !== "validated" && <button type="button" className="is-validate" onClick={() => changeStatus(member, document, "validated", true)} disabled={Boolean(busy)}>Valider</button>}
-                  {document.status === "validated" && <button type="button" onClick={() => changeStatus(member, document, "pending", false)} disabled={Boolean(busy)}>Rouvrir</button>}
-                  {document.status !== "rejected" && !document.virtual && <button type="button" className="is-reject" onClick={() => changeStatus(member, document, "rejected", false)} disabled={Boolean(busy)}>À remplacer</button>}
-                  <button type="button" className="is-delete" onClick={() => deleteStaffDocument(member, document)} disabled={Boolean(busy)}>
-                    {busy === `${document.id}-delete` ? "Suppression..." : "Supprimer"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <p className="hr-doc-missing">Aucun fichier reçu.</p>}
-        <div className="hr-doc-table-cell-foot">
-          <label className="hr-doc-admin-upload">
-            <input type="file" multiple accept={type.accept} onChange={(event) => { adminUpload(member, type.key, event.target.files); event.target.value = ""; }} disabled={Boolean(busy)} />
-            <span>{busy === uploadKey ? "Envoi..." : current ? "Ajouter" : "Importer"}</span>
-          </label>
-          {!validatedDocument && <button type="button" className="hr-doc-manual-validate" onClick={() => validateWithoutFile(member, type.key)} disabled={Boolean(busy)}>Valider sans fichier</button>}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="hr-doc-manager">
       <div className="hr-doc-summary">
         <button type="button" className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}><strong>{members.length}</strong><span>Dossiers</span></button>
         <button type="button" className={filter === "complete" ? "is-active" : ""} onClick={() => setFilter("complete")}><strong>{totals.complete}</strong><span>Complets</span></button>
-        <button type="button" className={filter === "pending" ? "is-active" : ""} onClick={() => setFilter("pending")}><strong>{totals.pending}</strong><span>À vérifier</span></button>
-        <button type="button" className={filter === "missing" ? "is-active" : ""} onClick={() => setFilter("missing")}><strong>{totals.missing}</strong><span>Incomplets</span></button>
+        <button type="button" className={filter === "pending" ? "is-active" : ""} onClick={() => setFilter("pending")}><strong>{totals.pending}</strong><span>En cours</span></button>
+        <button type="button" className={filter === "missing" ? "is-active" : ""} onClick={() => setFilter("missing")}><strong>{totals.missing}</strong><span>Pas validés</span></button>
         <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un animateur…" />
       </div>
 
@@ -306,7 +261,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
 
       {!!rows.length && (
         <div className="hr-doc-table-wrap">
-          <table className="hr-doc-table">
+          <table className="hr-doc-table is-simple">
             <thead>
               <tr>
                 <th>Animateur</th>
@@ -319,10 +274,23 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
               {rows.map(({ member, assignments, completion }) => {
                 const tone = rowTone(completion);
                 return (
-                  <tr key={member.id} className={`is-${tone}`}>
+                  <tr
+                    key={member.id}
+                    className={`is-${tone} ${selectedMemberId === member.id ? "is-selected" : ""}`}
+                    onClick={() => setSelectedMemberId(member.id)}
+                  >
                     <td className="hr-doc-person-cell"><strong>{memberName(member)}</strong></td>
                     <td className="hr-doc-assignments-cell">{assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</td>
-                    {STAFF_DOCUMENT_TYPES.map((type) => <td key={type.key}>{renderDocumentCell(member, type)}</td>)}
+                    {STAFF_DOCUMENT_TYPES.map((type) => {
+                      const status = statusForType(documents, member.id, type.key);
+                      return (
+                        <td key={type.key}>
+                          <span className={`hr-doc-status is-${status.tone}`}>
+                            {status.label}{status.count > 1 ? ` · ${status.count}` : ""}
+                          </span>
+                        </td>
+                      );
+                    })}
                     <td><span className={`hr-doc-global is-${tone}`}>{completion.validated}/{STAFF_DOCUMENT_TYPES.length}</span></td>
                   </tr>
                 );
@@ -331,10 +299,82 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
           </table>
         </div>
       )}
+
+      {selectedRow && (
+        <section className="hr-doc-detail-panel">
+          <div className="hr-doc-detail-head">
+            <div>
+              <h3>{memberName(selectedRow.member)}</h3>
+              <p>{selectedRow.assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</p>
+            </div>
+            <button type="button" onClick={() => setSelectedMemberId("")}>Fermer</button>
+          </div>
+          <div className="hr-doc-detail-grid">
+            {STAFF_DOCUMENT_TYPES.map((type) => (
+              <DocumentTypePanel
+                key={type.key}
+                type={type}
+                member={selectedRow.member}
+                documents={documentsByType(documents, selectedRow.member.id, type.key)}
+                busy={busy}
+                onOpen={openDocument}
+                onUpload={adminUpload}
+                onValidate={changeStatus}
+                onManualValidate={validateWithoutFile}
+                onDelete={deleteStaffDocument}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
-function STAFF_DOCUMENT_TYPE_MAP_SAFE(key) {
+function DocumentTypePanel({ type, member, documents, busy, onOpen, onUpload, onValidate, onManualValidate, onDelete }) {
+  const validatedDocument = documents.find((documentItem) => documentItem.status === "validated" && documentItem.locked);
+  const current = validatedDocument || documents[0] || null;
+  const status = statusForType(documents, member.id, type.key);
+  const uploadKey = `${member.id}-${type.key}-upload`;
+
+  return (
+    <article className={`hr-doc-detail-card is-${status.tone}`}>
+      <div className="hr-doc-detail-card-head">
+        <strong>{type.label}</strong>
+        <span className={`hr-doc-status is-${status.tone}`}>{status.label}</span>
+      </div>
+      {documents.length ? (
+        <div className="hr-doc-detail-files">
+          {documents.map((documentItem) => (
+            <div key={documentItem.id} className="hr-doc-detail-file">
+              {documentItem.storagePath ? (
+                <button type="button" className="hr-doc-file" onClick={() => onOpen(documentItem)} disabled={busy === `${documentItem.id}-open`} title={documentItem.originalName}>
+                  <span>Doc</span><span>{documentItem.originalName}</span><em>{busy === `${documentItem.id}-open` ? "Ouverture..." : "Ouvrir"}</em>
+                </button>
+              ) : <div className="hr-doc-manual">Validation administrative sans fichier</div>}
+              <div className="hr-doc-actions">
+                {documentItem.status !== "validated" && <button type="button" className="is-validate" onClick={() => onValidate(member, documentItem, "validated", true)} disabled={Boolean(busy)}>Valider</button>}
+                {documentItem.status === "validated" && <button type="button" onClick={() => onValidate(member, documentItem, "pending", false)} disabled={Boolean(busy)}>Rouvrir</button>}
+                {documentItem.status !== "rejected" && !documentItem.virtual && <button type="button" className="is-reject" onClick={() => onValidate(member, documentItem, "rejected", false)} disabled={Boolean(busy)}>À remplacer</button>}
+                <button type="button" className="is-delete" onClick={() => onDelete(member, documentItem)} disabled={Boolean(busy)}>
+                  {busy === `${documentItem.id}-delete` ? "Suppression..." : "Supprimer"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : <p className="hr-doc-missing">Aucun fichier reçu.</p>}
+      <div className="hr-doc-detail-actions">
+        <label className="hr-doc-admin-upload">
+          <input type="file" multiple accept={type.accept} onChange={(event) => { onUpload(member, type.key, event.target.files); event.target.value = ""; }} disabled={Boolean(busy)} />
+          <span>{busy === uploadKey ? "Envoi..." : current ? "Ajouter un fichier" : "Importer un fichier"}</span>
+        </label>
+        {!validatedDocument && <button type="button" className="hr-doc-manual-validate" onClick={() => onManualValidate(member, type.key)} disabled={Boolean(busy)}>Valider sans fichier</button>}
+      </div>
+    </article>
+  );
+}
+
+function documentTypeLabel(key) {
   return STAFF_DOCUMENT_TYPES.find((type) => type.key === key)?.label || "Document";
 }
