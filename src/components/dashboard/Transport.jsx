@@ -847,7 +847,16 @@ function portionRoutePoints(portion) {
 }
 
 function ticketCoverageIndexes(ticket, routePoints) {
-  const findIndex = (city) => routePoints.findIndex((point) => normalizePlace(point) === normalizePlace(city));
+  const findIndex = (city) => {
+    const normalizedCity = normalizePlace(city);
+    if (!normalizedCity) return -1;
+    return routePoints.findIndex((point) => {
+      const normalizedPoint = normalizePlace(point);
+      return normalizedPoint === normalizedCity
+        || normalizedCity.includes(normalizedPoint)
+        || normalizedPoint.includes(normalizedCity);
+    });
+  };
   const labelPoints = String(ticket?.segmentLabel || "")
     .split(/\s*(?:→|>)\s*/)
     .map((city) => city.trim())
@@ -856,9 +865,11 @@ function ticketCoverageIndexes(ticket, routePoints) {
   const to = ticket?.coverageTo || ticket?.to || labelPoints.at(-1);
   const fromIndex = findIndex(from);
   const toIndex = findIndex(to);
+  const safeFromIndex = fromIndex >= 0 ? fromIndex : 0;
+  const safeToIndex = toIndex >= 0 ? toIndex : routePoints.length - 1;
   return {
-    fromIndex: fromIndex >= 0 ? fromIndex : 0,
-    toIndex: toIndex >= 0 ? toIndex : routePoints.length - 1,
+    fromIndex: Math.min(safeFromIndex, safeToIndex),
+    toIndex: Math.max(safeFromIndex, safeToIndex),
   };
 }
 
