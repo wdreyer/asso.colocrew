@@ -7323,7 +7323,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [emailOverrides, setEmailOverrides] = useState({});
 
   const emailsFor = useCallback((item) => {
-    if (isExternalConvocation(item)) return "";
+    if (isExternalConvocation(item)) return [];
     const id = item?.reservationId || item?.id;
     const value = id && emailOverrides[id] !== undefined ? emailOverrides[id] : contactEmailsFromItem(item);
     return splitContactValues(value).filter((email) => /^\S+@\S+\.\S+$/.test(email));
