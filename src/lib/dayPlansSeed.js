@@ -7,6 +7,15 @@ export const DAY_PLAN_STAY = {
   endDate: "2026-07-17",
 };
 
+export const EVCC_S3_DAY_PLAN_STAY = {
+  id: "evcc-s3-2026",
+  code: "EVCC",
+  week: "S3",
+  name: "Eaux Vives Creative Camp",
+  startDate: "2026-08-03",
+  endDate: "2026-08-14",
+};
+
 export const DAY_PLAN_SECTIONS = [
   { key: "breakfast", label: "Petit déjeuner", icon: "☕", color: "#f59e0b" },
   { key: "morning", label: "Activités du matin", icon: "☀️", color: "#0ea5e9" },
@@ -138,24 +147,175 @@ const spreadsheetDays = {
   ],
 };
 
-export function seedDay(date) {
+const evccS3Days = {
+  "2026-08-03": [
+    task("evcc-s3-0308-dinner", "dinner", "Dîner d'arrivée", "19:30", "20:30", { kitchen: true, groups: "Tous les groupes" }),
+    task("evcc-s3-0308-evening", "evening", "Arrivée du groupe et installation", "21:00", "22:30", { details: "Accueil, installation, règles de vie et lancement du séjour." }),
+  ],
+  "2026-08-04": [
+    task("evcc-s3-0408-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-0408-morning", "morning", "Vie quotidienne et lancement des projets", "10:00", "12:00", { details: "Créneaux projets artistiques à caler selon l'équipe." }),
+    task("evcc-s3-0408-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-0408-afternoon", "afternoon", "Activités ColoCrew sur site", "14:30", "17:30", { details: "Créneau disponible pour projets artistiques, jeux et dynamique de groupe." }),
+    task("evcc-s3-0408-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-0408-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-05": [
+    task("evcc-s3-0508-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-0508-morning", "morning", "Projets artistiques / activités sur site", "10:00", "12:00", { details: "Créneau disponible avant activité eaux vives." }),
+    task("evcc-s3-0508-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-0508-raft", "afternoon", "Rafting - groupe entier", "13:30", "17:00", { location: "Base eaux vives", groups: "Groupe entier", details: "1ère session rafting. Tout le groupe est en activité." }),
+    task("evcc-s3-0508-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-0508-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-06": [
+    task("evcc-s3-0608-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-0608-morning", "morning", "Projets artistiques / activités sur site", "10:00", "12:00", { details: "Créneau disponible avant rotation eaux vives." }),
+    task("evcc-s3-0608-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-0608-eaux-vives", "afternoon", "Eaux vives - rotation 1", "13:30", "17:00", {
+      location: "Base eaux vives",
+      groups: "A: Miniraft / B: Canoraft / C: Hydrospeed / D: Packraft",
+      details: "Groupe A : miniraft\nGroupe B : canoraft\nGroupe C : hydrospeed\nGroupe D : packraft\nTout le groupe est en activité sur le créneau.",
+      rotationSegments: [
+        { label: "Miniraft", groups: "Groupe A" },
+        { label: "Canoraft", groups: "Groupe B" },
+        { label: "Hydrospeed", groups: "Groupe C" },
+        { label: "Packraft", groups: "Groupe D" },
+      ],
+    }),
+    task("evcc-s3-0608-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-0608-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-07": [
+    task("evcc-s3-0708-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:00", { kitchen: true }),
+    task("evcc-s3-0708-via-ferrata", "morning", "Parc aventure via ferrata - groupe entier", "09:30", "12:00", { location: "Parc aventure", groups: "Groupe entier" }),
+    task("evcc-s3-0708-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-0708-eaux-vives", "afternoon", "Eaux vives - rotation 2", "13:30", "17:00", {
+      location: "Base eaux vives",
+      groups: "B: Miniraft / C: Canoraft / D: Hydrospeed / A: Packraft",
+      details: "Groupe B : miniraft\nGroupe C : canoraft\nGroupe D : hydrospeed\nGroupe A : packraft\nTout le groupe est en activité sur le créneau.",
+      rotationSegments: [
+        { label: "Miniraft", groups: "Groupe B" },
+        { label: "Canoraft", groups: "Groupe C" },
+        { label: "Hydrospeed", groups: "Groupe D" },
+        { label: "Packraft", groups: "Groupe A" },
+      ],
+    }),
+    task("evcc-s3-0708-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-0708-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-08": [
+    task("evcc-s3-0808-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-0808-morning", "morning", "Activité ColoCrew / projets", "10:00", "12:00", { details: "Créneau disponible pour 5-6 créneaux projets artistiques sur le séjour." }),
+    task("evcc-s3-0808-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-0808-afternoon", "afternoon", "Activités sur site", "14:30", "17:30", { details: "Créneau sans activité prestataire." }),
+    task("evcc-s3-0808-dinner", "dinner", "Dîner dehors / à confirmer", "19:30", "20:30", { kitchen: true, mealLocation: "outside" }),
+    task("evcc-s3-0808-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-09": [
+    task("evcc-s3-0908-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-0908-morning", "morning", "Activité ColoCrew / projets", "10:00", "12:00"),
+    task("evcc-s3-0908-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-0908-afternoon", "afternoon", "Activités sur site", "14:30", "17:30"),
+    task("evcc-s3-0908-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-0908-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-10": [
+    task("evcc-s3-1008-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-1008-morning", "morning", "Projets artistiques / activités sur site", "10:00", "12:00"),
+    task("evcc-s3-1008-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-1008-eaux-vives", "afternoon", "Eaux vives - rotation 3", "13:30", "17:00", {
+      location: "Base eaux vives",
+      groups: "C: Miniraft / D: Canoraft / A: Hydrospeed / B: Packraft",
+      details: "Groupe C : miniraft\nGroupe D : canoraft\nGroupe A : hydrospeed\nGroupe B : packraft\nTout le groupe est en activité sur le créneau.",
+      rotationSegments: [
+        { label: "Miniraft", groups: "Groupe C" },
+        { label: "Canoraft", groups: "Groupe D" },
+        { label: "Hydrospeed", groups: "Groupe A" },
+        { label: "Packraft", groups: "Groupe B" },
+      ],
+    }),
+    task("evcc-s3-1008-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-1008-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-11": [
+    task("evcc-s3-1108-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-1108-morning", "morning", "Projets artistiques / activités sur site", "10:00", "12:00"),
+    task("evcc-s3-1108-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-1108-eaux-vives", "afternoon", "Eaux vives - rotation 4", "13:30", "17:00", {
+      location: "Base eaux vives",
+      groups: "D: Miniraft / A: Canoraft / B: Hydrospeed / C: Packraft",
+      details: "Groupe D : miniraft\nGroupe A : canoraft\nGroupe B : hydrospeed\nGroupe C : packraft\nTout le groupe est en activité sur le créneau.",
+      rotationSegments: [
+        { label: "Miniraft", groups: "Groupe D" },
+        { label: "Canoraft", groups: "Groupe A" },
+        { label: "Hydrospeed", groups: "Groupe B" },
+        { label: "Packraft", groups: "Groupe C" },
+      ],
+    }),
+    task("evcc-s3-1108-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-1108-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-12": [
+    task("evcc-s3-1208-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:30", { kitchen: true }),
+    task("evcc-s3-1208-morning", "morning", "Projets artistiques / activités sur site", "10:00", "12:00"),
+    task("evcc-s3-1208-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-1208-raft", "afternoon", "Rafting - groupe entier", "13:30", "17:00", { location: "Base eaux vives", groups: "Groupe entier", details: "2ème session rafting. Tout le groupe est en activité." }),
+    task("evcc-s3-1208-dinner", "dinner", "Dîner", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-1208-evening", "evening", "Veillée à construire", "21:00", "22:30"),
+  ],
+  "2026-08-13": [
+    task("evcc-s3-1308-breakfast", "breakfast", "Petit déjeuner", "08:00", "09:00", { kitchen: true }),
+    task("evcc-s3-1308-co", "morning", "Course d'orientation avec épreuves force basque", "10:00", "12:00", { location: "À confirmer", groups: "Groupe entier" }),
+    task("evcc-s3-1308-lunch", "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+    task("evcc-s3-1308-afternoon", "afternoon", "Finalisation projets / rangement", "14:30", "17:30"),
+    task("evcc-s3-1308-dinner", "dinner", "Dîner de fin de séjour", "19:30", "20:30", { kitchen: true }),
+    task("evcc-s3-1308-evening", "evening", "Veillée de fin de séjour", "21:00", "23:00"),
+  ],
+  "2026-08-14": [
+    task("evcc-s3-1408-breakfast", "breakfast", "Petit déjeuner et rangement", "08:00", "10:00", { kitchen: true }),
+    task("evcc-s3-1408-departure", "morning", "Départ du groupe", "10:00", "12:00"),
+  ],
+};
+
+export const DAY_PLAN_CONFIGS = {
+  "mcsc-s1-2026": {
+    stay: DAY_PLAN_STAY,
+    seedDays: spreadsheetDays,
+    createdFrom: "Planning acti ColoCrew S1.xlsx",
+  },
+  "evcc-s3-2026": {
+    stay: EVCC_S3_DAY_PLAN_STAY,
+    seedDays: evccS3Days,
+    createdFrom: "Planning acti ColoCrew S3.xlsx",
+  },
+};
+
+export function getDayPlanConfig(stayCode = "MCSC", week = "S1") {
+  const key = `${String(stayCode).toLowerCase()}-${String(week).toLowerCase()}-2026`;
+  return DAY_PLAN_CONFIGS[key] || DAY_PLAN_CONFIGS["mcsc-s1-2026"];
+}
+
+export function seedDay(date, config = DAY_PLAN_CONFIGS["mcsc-s1-2026"]) {
+  const stay = config.stay || DAY_PLAN_STAY;
   return {
-    stayId: DAY_PLAN_STAY.id,
-    stayCode: DAY_PLAN_STAY.code,
-    week: DAY_PLAN_STAY.week,
+    stayId: stay.id,
+    stayCode: stay.code,
+    week: stay.week,
     date,
-    tasks: spreadsheetDays[date] || [],
+    tasks: config.seedDays?.[date] || [],
     leaveMemberIds: [],
     notes: "",
-    createdFrom: "Planning acti ColoCrew S1.xlsx",
+    createdFrom: config.createdFrom || "Planning acti ColoCrew S1.xlsx",
     updatedAt: new Date().toISOString(),
   };
 }
 
-export function dayPlanDates() {
+export function dayPlanDates(config = DAY_PLAN_CONFIGS["mcsc-s1-2026"]) {
+  const stay = config.stay || DAY_PLAN_STAY;
   const dates = [];
-  let cursor = new Date(`${DAY_PLAN_STAY.startDate}T12:00:00`);
-  const end = new Date(`${DAY_PLAN_STAY.endDate}T12:00:00`);
+  let cursor = new Date(`${stay.startDate}T12:00:00`);
+  const end = new Date(`${stay.endDate}T12:00:00`);
   while (cursor <= end) {
     dates.push(cursor.toISOString().slice(0, 10));
     cursor.setDate(cursor.getDate() + 1);
