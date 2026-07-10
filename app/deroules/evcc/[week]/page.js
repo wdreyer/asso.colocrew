@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { notFound } from "next/navigation";
 import { signInAnonymously } from "firebase/auth";
 import DayPlans from "@/src/components/dashboard/DayPlans";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { auth } from "@/src/lib/firebase";
 
-export default function EvccS3DayPlansPage() {
+export default function EvccDayPlansPage({ params }) {
+  const requestedWeek = String(params?.week || "").toUpperCase();
   const { currentUser, loading } = useAuth();
   const [authError, setAuthError] = useState("");
+
+  if (requestedWeek !== "S3") notFound();
 
   useEffect(() => {
     if (!loading && !currentUser) {
