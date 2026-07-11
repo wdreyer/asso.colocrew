@@ -21,6 +21,15 @@ const EMPTY_TASK = {
   kitchen: false, menu: "", mealLocation: "inside", dietaryNotes: "",
 };
 
+const SECTION_DEFAULT_TIMES = {
+  breakfast: ["08:00", "09:30"],
+  morning: ["10:00", "12:00"],
+  lunch: ["12:30", "13:30"],
+  afternoon: ["14:30", "17:30"],
+  dinner: ["19:30", "20:30"],
+  evening: ["21:00", "22:30"],
+};
+
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const shortFormatter = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric" });
 
@@ -348,6 +357,26 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     await saveDay(selectedDate, { tasks }, "");
   };
 
+  const openTaskEditor = (date, task) => {
+    setSelectedDate(date);
+    setView("day");
+    setEditor({ ...EMPTY_TASK, ...task, _sourceDate: date, targetDate: date });
+  };
+
+  const openNewTaskEditor = (date, sectionKey) => {
+    const [startTime, endTime] = SECTION_DEFAULT_TIMES[sectionKey] || SECTION_DEFAULT_TIMES.morning;
+    setSelectedDate(date);
+    setView("day");
+    setEditor({
+      ...EMPTY_TASK,
+      category: sectionKey,
+      startTime,
+      endTime,
+      _sourceDate: date,
+      targetDate: date,
+    });
+  };
+
   return (
     <div className="dp-page">
       <header className="dp-topbar">
@@ -389,9 +418,18 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
 
         <main className="dp-main">
           {loading ? <div className="dp-loading">Chargement du déroulé…</div> : view === "week" ? (
-            <WeekOverview plans={plans} members={members} dates={dates} config={config} stay={stay} onSelect={(date) => { setSelectedDate(date); setView("day"); }} />
+            <WeekOverview
+              plans={plans}
+              members={members}
+              dates={dates}
+              config={config}
+              stay={stay}
+              onOpenTask={openTaskEditor}
+              onAddTask={openNewTaskEditor}
+              onSelect={(date) => { setSelectedDate(date); setView("day"); }}
+            />
           ) : view === "food" ? (
-            <FoodOverview plans={plans} dates={dates} memberById={memberById} onOpen={(date, task) => { setSelectedDate(date); setEditor({ ...task, _sourceDate: date, targetDate: date }); }} />
+            <FoodOverview plans={plans} dates={dates} memberById={memberById} onOpen={(date, task) => openTaskEditor(date, task)} />
           ) : view === "leaves" ? (
             <LeavesOverview plans={plans} members={members} leaveDates={leaveDates} stay={stay} saving={saving} onToggle={toggleLeave} showToast={showToast} />
           ) : (
@@ -402,7 +440,8 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
                 members={members}
                 memberById={memberById}
                 unavailability={unavailability}
-                onEdit={(task) => setEditor({ ...task, _sourceDate: selectedDate, targetDate: selectedDate })}
+                onEdit={(task) => openTaskEditor(selectedDate, task)}
+                onAdd={(sectionKey) => openNewTaskEditor(selectedDate, sectionKey)}
                 onToggleAssignee={toggleTaskAssignee}
               />
               <label className="dp-notes">
@@ -418,6 +457,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
 
       <TaskDetails
         task={editor}
+        dates={dates}
         members={members}
         memberById={memberById}
         saving={saving}
@@ -454,7 +494,7 @@ function DayHeader({ date, plan, dates, leaveDates, stay, members, saving, onTog
   );
 }
 
-function DayTimeline({ plan, members, memberById, unavailability, onEdit, onToggleAssignee }) {
+function DayTimeline({ plan, members, memberById, unavailability, onEdit, onAdd, onToggleAssignee }) {
   return <div className="dp-schedule-table">
     <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span><span>En congé</span></div>
     {DAY_PLAN_SECTIONS.map((section) => {
@@ -463,7 +503,7 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onTogg
       const sectionLeave = members.filter((member) => unavailability(member.id, referenceTime));
       if (!tasks.length) return <div className="dp-table-row is-empty" key={section.key}>
         <div className="dp-moment" style={{ "--section-color": section.color }}><i>{section.icon}</i><strong>{section.label}</strong></div>
-        <div className="dp-activity"><span>À organiser</span></div><div className="dp-people"><em>—</em></div>
+        <button type="button" className="dp-activity dp-add-slot" onClick={() => onAdd(section.key)}><span>À organiser</span><b>+</b></button><div className="dp-people"><em>—</em></div>
         <LeavePeople members={sectionLeave} />
       </div>;
       return tasks.map((task, index) => {
@@ -482,6 +522,7 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onTogg
           </button>
           <QuickAssign task={task} members={members} unavailability={unavailability} onToggle={onToggleAssignee} />
           <LeavePeople members={peopleOnLeave} />
+          {index === tasks.length - 1 && <button type="button" className="dp-row-add-task" onClick={() => onAdd(section.key)} title={`Ajouter dans ${section.label}`}>+</button>}
         </div>;
       });
     })}
@@ -516,7 +557,7 @@ function LeavePeople({ members }) {
   </div>;
 }
 
-function WeekOverview({ plans, members, dates, config, stay, onSelect }) {
+function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTask, onAddTask }) {
   const scrollRef = useRef(null);
   const memberById = Object.fromEntries(members.map((member) => [member.id, member]));
   return <section className="dp-overview">
@@ -530,7 +571,12 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect }) {
           <div className="dp-excel-label" style={{ "--section-color": section.color }}><span>{section.icon}</span><strong>{section.label}</strong></div>
           {dates.map((date) => {
             const tasks = sortTasks(((plans[date] || seedDay(date, config)).tasks || []).filter((task) => task.category === section.key));
-            return <button type="button" className="dp-excel-cell" key={`${section.key}-${date}`} onClick={() => onSelect(date)}>
+            return <button
+              type="button"
+              className="dp-excel-cell"
+              key={`${section.key}-${date}`}
+              onClick={() => tasks[0] ? onOpenTask(date, tasks[0]) : onAddTask(date, section.key)}
+            >
               {tasks.length ? tasks.map((task) => {
                 const palette = activityPalette(task, section.color);
                 if (isSplitTask(task)) {
@@ -539,7 +585,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect }) {
                       <b>{task.startTime}</b>
                       <strong>{task.title}</strong>
                       <small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small>
-                      {task.rotationSegments.map((segment) => (
+                      {(task.rotationSegments || []).map((segment) => (
                         <em key={`${task.id}-${segment.label}`}><i>{segment.label}</i><u>{segment.groups}</u></em>
                       ))}
                     </span>;
@@ -665,8 +711,14 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
   useEffect(() => {
-    setDraft(task ? { ...EMPTY_TASK, ...task } : null);
-    setEditing(Boolean(task && !task.id));
+    setDraft(task ? {
+      ...EMPTY_TASK,
+      ...task,
+      assigneeIds: Array.isArray(task.assigneeIds) ? task.assigneeIds : [],
+      documents: Array.isArray(task.documents) ? task.documents : [],
+      rotationSegments: Array.isArray(task.rotationSegments) ? task.rotationSegments : [],
+    } : null);
+    setEditing(Boolean(task));
     setPhotoFile(null);
     setPhotoPreview("");
   }, [task]);
