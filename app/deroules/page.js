@@ -6,36 +6,36 @@ export default function DeroulesIndexPage() {
 
   return (
     <main className="dp-standalone">
-      <section className="dp-page">
-        <header className="dp-topbar">
+      <section className="dp-page dp-menu-page">
+        <header className="dp-menu-header">
           <div>
-            <span className="dp-eyebrow">Deroules publics</span>
-            <h1>Deroules des sejours</h1>
-            <p>Choisissez un sejour pour ouvrir son planning, ses repas et ses conges.</p>
+            <span className="dp-eyebrow">Été 2026</span>
+            <h1>Déroulés des séjours</h1>
+            <p>Planning, repas et congés de chaque équipe.</p>
           </div>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-          {stays.map((stay) => (
-            <Link
-              key={stay.id}
-              href={stay.href}
-              style={{
-                display: "block",
-                border: "1px solid #e4ddeb",
-                borderRadius: 10,
-                background: "#fff",
-                color: "#24173d",
-                padding: 18,
-                textDecoration: "none",
-                boxShadow: "0 10px 24px rgba(36, 23, 61, 0.06)",
-              }}
-            >
-              <small style={{ color: "#b72f69", fontWeight: 900, letterSpacing: ".08em" }}>{stay.code} - {stay.week}</small>
-              <h2 style={{ margin: "8px 0 4px", fontSize: 22 }}>{stay.name}</h2>
-              <p style={{ margin: 0, color: "#6f637a" }}>{stay.dateLabel}</p>
-            </Link>
-          ))}
+        <div className="dp-menu-table">
+          <div className="dp-menu-row dp-menu-row-head">
+            <span>Séjour</span>
+            <span>Session</span>
+            <span>Dates</span>
+            <span>Accès</span>
+          </div>
+          {stays.map((stay) => {
+            const type = stay.code.toLowerCase();
+            return (
+              <Link key={stay.id} href={stay.href} className={`dp-menu-row is-${type}`}>
+                <span>
+                  <i>{stay.code}</i>
+                  <strong>{stay.name}</strong>
+                </span>
+                <span>{stay.week}</span>
+                <span>{stay.dateLabel}</span>
+                <span>Ouvrir</span>
+              </Link>
+            );
+          })}
         </div>
       </section>
     </main>
