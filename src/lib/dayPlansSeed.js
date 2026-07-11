@@ -16,6 +16,43 @@ export const EVCC_S3_DAY_PLAN_STAY = {
   endDate: "2026-08-14",
 };
 
+export const DAY_PLAN_STAY_OPTIONS = [
+  DAY_PLAN_STAY,
+  {
+    id: "mcsc-s2-2026",
+    code: "MCSC",
+    week: "S2",
+    name: "My Creative Surf Camp",
+    startDate: "2026-07-20",
+    endDate: "2026-07-31",
+  },
+  {
+    id: "mcsc-s3-2026",
+    code: "MCSC",
+    week: "S3",
+    name: "My Creative Surf Camp",
+    startDate: "2026-08-03",
+    endDate: "2026-08-14",
+  },
+  {
+    id: "mcsc-s4-2026",
+    code: "MCSC",
+    week: "S4",
+    name: "My Creative Surf Camp",
+    startDate: "2026-08-17",
+    endDate: "2026-08-28",
+  },
+  {
+    id: "evcc-s2-2026",
+    code: "EVCC",
+    week: "S2",
+    name: "Eaux Vives Creative Camp",
+    startDate: "2026-07-20",
+    endDate: "2026-07-31",
+  },
+  EVCC_S3_DAY_PLAN_STAY,
+];
+
 export const DAY_PLAN_SECTIONS = [
   { key: "breakfast", label: "Petit déjeuner", icon: "☕", color: "#f59e0b" },
   { key: "morning", label: "Activités du matin", icon: "☀️", color: "#0ea5e9" },
@@ -278,22 +315,106 @@ const evccS3Days = {
   ],
 };
 
+function datesBetween(startDate, endDate) {
+  const dates = [];
+  let cursor = new Date(`${startDate}T12:00:00`);
+  const end = new Date(`${endDate}T12:00:00`);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
+function dayKey(date) {
+  return date.slice(8, 10) + date.slice(5, 7);
+}
+
+function basicStayDays(stay) {
+  const prefix = stay.id.replace("-2026", "");
+  const isEvcc = stay.code === "EVCC";
+  const dates = datesBetween(stay.startDate, stay.endDate);
+  return Object.fromEntries(dates.map((date, index) => {
+    const key = `${prefix}-${dayKey(date)}`;
+    if (index === 0) {
+      return [date, [
+        task(`${key}-dinner`, "dinner", "Diner d'arrivee", "19:30", "20:30", { kitchen: true, groups: "Tous les groupes" }),
+        task(`${key}-evening`, "evening", "Accueil, installation et lancement du sejour", "21:00", "22:30", { details: "Presentation de l'equipe, regles de vie et installation." }),
+      ]];
+    }
+    if (index === dates.length - 1) {
+      return [date, [
+        task(`${key}-breakfast`, "breakfast", "Petit dejeuner et rangement", "08:00", "10:00", { kitchen: true }),
+        task(`${key}-departure`, "morning", "Depart du groupe", "10:00", "12:00", { details: "Inventaire, rangement et departs." }),
+      ]];
+    }
+    return [date, [
+      task(`${key}-breakfast`, "breakfast", "Petit dejeuner", "08:00", "09:30", { kitchen: true }),
+      task(`${key}-morning`, "morning", isEvcc ? "Activite eaux vives / projets" : "Activite principale / projets", "10:00", "12:00", {
+        details: isEvcc ? "Creneau a ajuster selon les rotations prestataire." : "Creneau a completer selon le planning d'activites.",
+      }),
+      task(`${key}-lunch`, "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
+      task(`${key}-afternoon`, "afternoon", isEvcc ? "Rotation eaux vives / activites sur site" : "Activites ColoCrew / surf / grand jeu", "14:30", "17:30", {
+        groups: isEvcc ? "Groupes a preciser" : "Groupes a renseigner",
+        details: "Deroule a preciser par l'equipe.",
+      }),
+      task(`${key}-projects`, "afternoon", "Temps projets / vie quotidienne", "17:30", "19:00"),
+      task(`${key}-dinner`, "dinner", "Diner", "19:30", "20:30", { kitchen: true }),
+      task(`${key}-evening`, "evening", "Veillee a construire", "21:00", "22:30"),
+    ]];
+  }));
+}
+
+const stayById = Object.fromEntries(DAY_PLAN_STAY_OPTIONS.map((stay) => [stay.id, stay]));
+
 export const DAY_PLAN_CONFIGS = {
   "mcsc-s1-2026": {
-    stay: DAY_PLAN_STAY,
+    stay: stayById["mcsc-s1-2026"],
     seedDays: spreadsheetDays,
     createdFrom: "Planning acti ColoCrew S1.xlsx",
   },
+  "mcsc-s2-2026": {
+    stay: stayById["mcsc-s2-2026"],
+    seedDays: basicStayDays(stayById["mcsc-s2-2026"]),
+    createdFrom: "Seed basique ColoCrew 2026",
+  },
+  "mcsc-s3-2026": {
+    stay: stayById["mcsc-s3-2026"],
+    seedDays: basicStayDays(stayById["mcsc-s3-2026"]),
+    createdFrom: "Seed basique ColoCrew 2026",
+  },
+  "mcsc-s4-2026": {
+    stay: stayById["mcsc-s4-2026"],
+    seedDays: basicStayDays(stayById["mcsc-s4-2026"]),
+    createdFrom: "Seed basique ColoCrew 2026",
+  },
+  "evcc-s2-2026": {
+    stay: stayById["evcc-s2-2026"],
+    seedDays: basicStayDays(stayById["evcc-s2-2026"]),
+    createdFrom: "Seed basique ColoCrew 2026",
+  },
   "evcc-s3-2026": {
-    stay: EVCC_S3_DAY_PLAN_STAY,
+    stay: stayById["evcc-s3-2026"],
     seedDays: evccS3Days,
     createdFrom: "Planning acti ColoCrew S3.xlsx",
   },
 };
 
-export function getDayPlanConfig(stayCode = "MCSC", week = "S1") {
+export function findDayPlanConfig(stayCode = "MCSC", week = "S1") {
   const key = `${String(stayCode).toLowerCase()}-${String(week).toLowerCase()}-2026`;
-  return DAY_PLAN_CONFIGS[key] || DAY_PLAN_CONFIGS["mcsc-s1-2026"];
+  return DAY_PLAN_CONFIGS[key] || null;
+}
+
+export function getDayPlanConfig(stayCode = "MCSC", week = "S1") {
+  return findDayPlanConfig(stayCode, week) || DAY_PLAN_CONFIGS["mcsc-s1-2026"];
+}
+
+export function getDayPlanMenuItems() {
+  return DAY_PLAN_STAY_OPTIONS.map((stay) => ({
+    ...stay,
+    href: `/deroules/${stay.code.toLowerCase()}/${stay.week}`,
+    dateLabel: `${stay.startDate.split("-").reverse().join("/")} - ${stay.endDate.split("-").reverse().join("/")}`,
+  }));
 }
 
 export function seedDay(date, config = DAY_PLAN_CONFIGS["mcsc-s1-2026"]) {

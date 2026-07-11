@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDocs, onSnapshot, setDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import Modal from "@/src/components/dashboard/ui/Modal";
-import { useAuth } from "@/src/contexts/AuthContext";
 import { useToast } from "@/src/contexts/ToastContext";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
@@ -185,11 +184,11 @@ function openLeavesPdf({ plans, members, leaveDates, stay }) {
 }
 
 export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
-  const { currentUser } = useAuth();
   const { showToast } = useToast();
   const config = useMemo(() => getDayPlanConfig(stayCode, week), [stayCode, week]);
   const stay = config.stay;
   const dates = useMemo(() => dayPlanDates(config), [config]);
+  const seededPlans = useMemo(() => Object.fromEntries(dates.map((date) => [date, seedDay(date, config)])), [dates, config]);
   const leaveDates = useMemo(() => dates.slice(2, -2), [dates]);
   const [plans, setPlans] = useState({});
   const [members, setMembers] = useState([]);
@@ -205,11 +204,13 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setPlans(seededPlans);
     Promise.all([
       getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
       getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
       getDocs(collection(db, COLLECTIONS.DAY_PLANS)),
-    ]).then(async ([memberSnap, contractSnap, planSnap]) => {
+    ]).then(([memberSnap, contractSnap, planSnap]) => {
       if (!active) return;
       const contracts = contractSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
       const memberIds = new Set(contracts.filter((contract) => contract.week === stay.week && String(contract.stayCode || "").toUpperCase() === stay.code).map((contract) => contract.memberId));
@@ -221,17 +222,14 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         .map((item) => ({ id: item.id, ...item.data() }))
         .filter((plan) => plan.stayId === stay.id)
         .map((plan) => [plan.date, plan]));
-      const missing = dates.filter((date) => !existing[date]);
-      if (missing.length) {
-        await Promise.all(missing.map((date) => setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${date}`), seedDay(date, config))));
-      }
-      const forbiddenLeaveDates = [...dates.slice(0, 2), ...dates.slice(-2)];
-      await Promise.all(forbiddenLeaveDates.filter((date) => (existing[date]?.leaveMemberIds || []).length).map((date) => setDoc(
-        doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${date}`),
-        { leaveMemberIds: [], updatedAt: new Date().toISOString() },
-        { merge: true },
-      )));
-    }).catch((error) => showToast(error?.message || "Chargement du planning impossible.", "error"));
+      setPlans({ ...seededPlans, ...existing });
+      setLoading(false);
+    }).catch((error) => {
+      if (!active) return;
+      setPlans(seededPlans);
+      setLoading(false);
+      showToast(error?.message || "Chargement du planning impossible.", "error");
+    });
 
     const unsubscribe = onSnapshot(collection(db, COLLECTIONS.DAY_PLANS), (snapshot) => {
       if (!active) return;
@@ -240,11 +238,11 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         const data = item.data();
         if (data.stayId === stay.id) next[data.date] = { id: item.id, ...data };
       });
-      setPlans(next);
+      setPlans({ ...seededPlans, ...next });
       setLoading(false);
     }, () => setLoading(false));
     return () => { active = false; unsubscribe(); };
-  }, [config, dates, stay, showToast]);
+  }, [seededPlans, stay, showToast]);
 
   const selectedPlan = plans[selectedDate] || seedDay(selectedDate, config);
   const memberById = useMemo(() => Object.fromEntries(members.map((member) => [member.id, member])), [members]);
@@ -257,7 +255,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         ...current,
         ...fields,
         updatedAt: new Date().toISOString(),
-        updatedBy: currentUser?.email || "",
+        updatedBy: "",
       }, { merge: true });
       if (successMessage) showToast(successMessage, "success");
     } catch (error) {
@@ -313,13 +311,13 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
             ...sourcePlan,
             tasks: sortTasks((sourcePlan.tasks || []).filter((task) => task.id !== taskId)),
             updatedAt: new Date().toISOString(),
-            updatedBy: currentUser?.email || "",
+            updatedBy: "",
           }, { merge: true }),
           setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${targetDate}`), {
             ...targetPlan,
             tasks: sortTasks([...(targetPlan.tasks || []).filter((task) => task.id !== taskId), complete]),
             updatedAt: new Date().toISOString(),
-            updatedBy: currentUser?.email || "",
+            updatedBy: "",
           }, { merge: true }),
         ]);
         showToast("Activité déplacée.", "success");
