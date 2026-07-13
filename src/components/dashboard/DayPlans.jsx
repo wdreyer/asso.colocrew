@@ -81,6 +81,33 @@ function sortTasks(tasks) {
   return [...(tasks || [])].sort((a, b) => `${a.startTime || "99:99"}-${a.title}`.localeCompare(`${b.startTime || "99:99"}-${b.title}`, "fr"));
 }
 
+function isMcscS2(stay) {
+  return stay?.id === "mcsc-s2-2026" || (stay?.code === "MCSC" && stay?.week === "S2");
+}
+
+function normalizeMcscS2Plan(plan, seededPlan) {
+  const seededTasks = seededPlan?.tasks || [];
+  const managedSeedTasks = seededTasks.filter((task) => (
+    String(task.id || "").startsWith("s2-") && (/surf/i.test(task.title || "") || task.category === "evening")
+  ));
+  const managedIds = new Set(managedSeedTasks.map((task) => task.id));
+  const cleanedExistingTasks = (plan?.tasks || []).filter((task) => (
+    task.title !== "Activites ColoCrew / surf / grand jeu"
+    && task.title !== "Activites ColoCrew / grand jeu"
+    && task.title !== "Veillee a construire"
+    && !managedIds.has(task.id)
+  ));
+  return {
+    ...plan,
+    tasks: sortTasks([...cleanedExistingTasks, ...managedSeedTasks]),
+  };
+}
+
+function normalizePlanForDisplay(plan, seededPlan, stay) {
+  if (!isMcscS2(stay)) return plan;
+  return normalizeMcscS2Plan(plan, seededPlan);
+}
+
 function activityPalette(task, fallback = "#8b5cf6") {
   const text = `${task?.title || ""} ${task?.category || ""} ${task?.location || ""} ${task?.groups || ""} ${task?.details || ""}`.toLocaleLowerCase("fr");
   if (text.includes("surf")) return { color: "#0284c7", background: "#e0f2fe" };
@@ -252,7 +279,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
       const existing = Object.fromEntries(planSnap.docs
         .map((item) => ({ id: item.id, ...item.data() }))
         .filter((plan) => plan.stayId === stay.id)
-        .map((plan) => [plan.date, plan]));
+        .map((plan) => [plan.date, normalizePlanForDisplay(plan, seededPlans[plan.date], stay)]));
       setPlans({ ...seededPlans, ...existing });
       setLoading(false);
     }).catch((error) => {
@@ -267,7 +294,10 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
       const next = {};
       snapshot.docs.forEach((item) => {
         const data = item.data();
-        if (data.stayId === stay.id) next[data.date] = { id: item.id, ...data };
+        if (data.stayId === stay.id) {
+          const plan = { id: item.id, ...data };
+          next[data.date] = normalizePlanForDisplay(plan, seededPlans[plan.date], stay);
+        }
       });
       setPlans({ ...seededPlans, ...next });
       setLoading(false);
