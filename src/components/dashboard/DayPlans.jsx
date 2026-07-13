@@ -82,7 +82,7 @@ function sortTasks(tasks) {
 }
 
 function activityPalette(task, fallback = "#8b5cf6") {
-  const text = `${task?.title || ""} ${task?.category || ""}`.toLocaleLowerCase("fr");
+  const text = `${task?.title || ""} ${task?.category || ""} ${task?.location || ""} ${task?.groups || ""} ${task?.details || ""}`.toLocaleLowerCase("fr");
   if (text.includes("surf")) return { color: "#0284c7", background: "#e0f2fe" };
   if (/repas|d[îi]ner|petit d[ée]jeuner|brunch|cuisine|pique-nique/.test(text)) return { color: "#c56a08", background: "#fff1d6" };
   if (/projet artistique|art|cr[ée]a/.test(text)) return { color: "#7c3aed", background: "#f1e8ff" };
@@ -94,7 +94,7 @@ function activityPalette(task, fallback = "#8b5cf6") {
 }
 
 function isSplitTask(task) {
-  return Boolean(task?.rotationSegments?.length) || /surf|eaux vives|miniraft|canoraft|hydrospeed|packraft/i.test(`${task?.title || ""} ${task?.groups || ""}`);
+  return Boolean(task?.rotationSegments?.length);
 }
 
 function taskMinutes(value) {
@@ -149,6 +149,28 @@ function openDayPdf({ date, plan, members, memberById, unavailability, stay }) {
 
 function leaveWindowLabel(date) {
   return `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`;
+}
+
+function openWeekPdf({ plans, dates, config, stay, memberById }) {
+  const popup = window.open("", "_blank");
+  if (!popup) return false;
+  popup.opener = null;
+  const headerCells = dates.map((date, index) => `<th><small>J${index + 1}</small><strong>${escapeHtml(dateLabel(date, true))}</strong></th>`).join("");
+  const rows = DAY_PLAN_SECTIONS.map((section) => {
+    const cells = dates.map((date) => {
+      const tasks = sortTasks(((plans[date] || seedDay(date, config)).tasks || []).filter((task) => task.category === section.key));
+      const content = tasks.length ? tasks.map((task) => {
+        const palette = activityPalette(task, section.color);
+        const assigned = (task.assigneeIds || []).map((id) => memberById[id]?.firstName || memberById[id]?.name).filter(Boolean).join(", ");
+        return `<article style="--accent:${palette.color};--soft:${palette.background}"><b>${escapeHtml(task.startTime || "--:--")}${task.endTime ? ` - ${escapeHtml(task.endTime)}` : ""}</b><strong>${escapeHtml(task.title || "Sans titre")}</strong>${task.groups || task.location ? `<small>${escapeHtml([task.location, task.groups].filter(Boolean).join(" - "))}</small>` : ""}${assigned ? `<em>${escapeHtml(assigned)}</em>` : ""}</article>`;
+      }).join("") : `<span class="empty">-</span>`;
+      return `<td>${content}</td>`;
+    }).join("");
+    return `<tr><th class="moment" style="--section:${section.color}"><span>${escapeHtml(section.icon)}</span><strong>${escapeHtml(section.label)}</strong></th>${cells}</tr>`;
+  }).join("");
+  popup.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Planning semaine ${escapeHtml(stay.week)}</title><style>@page{size:A4 landscape;margin:7mm}*{box-sizing:border-box}body{margin:0;background:#f6f4fa;color:#24173d;font-family:Arial,sans-serif}.page{padding:12px}header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:10px;border-bottom:4px solid #b72f69;padding-bottom:9px}h1{margin:0;font-size:22px}.meta{margin-top:3px;color:#6f637a;font-size:11px;line-height:1.4}.print{border:0;border-radius:8px;background:#b72f69;color:#fff;padding:8px 11px;font-weight:800;cursor:pointer}table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff}th,td{border:1px solid #ddd5e4;vertical-align:top}thead th{background:#281747;color:#fff;padding:6px 5px;text-align:left}thead th:first-child{width:95px}thead small,thead strong{display:block}thead small{color:#d6c8e7;font-size:8px}thead strong{font-size:10px}.moment{width:95px;background:#fbf9fd;padding:8px 6px;border-left:5px solid var(--section);font-size:10px}.moment span,.moment strong{display:block}.moment span{font-size:16px;margin-bottom:4px}td{height:94px;padding:4px;background:#fff}article{margin-bottom:3px;border:1px solid color-mix(in srgb,var(--accent) 28%,white);border-left:4px solid var(--accent);border-radius:6px;background:var(--soft);padding:4px 5px;break-inside:avoid}article b{display:block;color:var(--accent);font-size:8px}article strong{display:block;margin-top:1px;font-size:9px;line-height:1.2}article small,article em{display:block;margin-top:2px;color:#5d5067;font-size:7px;line-height:1.25;font-style:normal}.empty{display:grid;place-items:center;height:100%;color:#9b8ca6;font-size:12px}@media print{body{background:#fff}.page{padding:0}.print{display:none}article{box-shadow:none}}</style></head><body><main class="page"><header><div><h1>Planning de la semaine - ${escapeHtml(stay.week)}</h1><div class="meta">${escapeHtml(stay.name)} - ${escapeHtml(stay.startDate)} au ${escapeHtml(stay.endDate)}<br>Export genere le ${escapeHtml(new Date().toLocaleString("fr-FR"))}</div></div><button class="print" onclick="window.print()">Imprimer / PDF</button></header><table><thead><tr><th>Moment</th>${headerCells}</tr></thead><tbody>${rows}</tbody></table></main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350))<\/script></body></html>`);
+  popup.document.close();
+  return true;
 }
 
 function openLeavesPdf({ plans, members, leaveDates, stay }) {
@@ -395,6 +417,9 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
           {view === "day" && <button type="button" className="dp-pdf-button" onClick={() => {
             if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members, memberById, unavailability, stay })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
           }}>PDF du jour</button>}
+          {view === "week" && <button type="button" className="dp-pdf-button" onClick={() => {
+            if (!openWeekPdf({ plans, dates, config, stay, memberById })) showToast("Autorisez les fenetres pop-up pour ouvrir le PDF.", "error");
+          }}>PDF semaine</button>}
           {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK, _sourceDate: selectedDate, targetDate: selectedDate })}>+ Ajouter une tâche</button>}
         </div>
       </header>

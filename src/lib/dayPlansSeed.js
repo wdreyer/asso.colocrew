@@ -367,6 +367,123 @@ function basicStayDays(stay) {
 
 const stayById = Object.fromEntries(DAY_PLAN_STAY_OPTIONS.map((stay) => [stay.id, stay]));
 
+function sortByTime(items) {
+  return [...items].sort((a, b) => `${a.startTime || "99:99"}-${a.title}`.localeCompare(`${b.startTime || "99:99"}-${b.title}`, "fr"));
+}
+
+const mcscS2BaseDays = Object.fromEntries(Object.entries(basicStayDays(stayById["mcsc-s2-2026"])).map(([date, tasks]) => [
+  date,
+  tasks.map((item) => item.title === "Activites ColoCrew / surf / grand jeu" ? { ...item, title: "Activites ColoCrew / grand jeu" } : item),
+]));
+const mcscS2SurfDetails = "Planning prestataire S2. Chaque creneau surf concerne 2 groupes : groupes 1 et 2 ensemble, groupes 3 et 4 ensemble.";
+
+function surfTask(id, title, startTime, endTime, groups) {
+  const hour = Number(startTime.split(":")[0]);
+  return task(id, hour < 12 ? "morning" : "afternoon", title, startTime, endTime, {
+    groups,
+    location: "Ecole de surf",
+    details: mcscS2SurfDetails,
+  });
+}
+
+function withSurf(date, surfTasks) {
+  const baseTasks = mcscS2BaseDays[date] || [];
+  const baseWithoutGenericActivities = baseTasks.filter((item) => {
+    if (!["morning", "afternoon"].includes(item.category)) return true;
+    return !/Activite principale|Temps projets|surf|grand jeu/i.test(`${item.title || ""} ${item.details || ""}`);
+  });
+  return sortByTime([...baseWithoutGenericActivities, ...surfTasks]);
+}
+
+function addEvenings(days, evenings) {
+  return Object.fromEntries(Object.entries(days).map(([date, tasks]) => {
+    const evening = evenings[date];
+    if (!evening) return [date, tasks];
+    return [date, sortByTime([
+      ...tasks.filter((item) => item.category !== "evening"),
+      task(`s2-${dayKey(date)}-evening`, "evening", evening.title, evening.startTime || "21:00", evening.endTime || "22:30", {
+        details: evening.details,
+      }),
+    ])];
+  }));
+}
+
+const mcscS2Days = addEvenings({
+  ...mcscS2BaseDays,
+  "2026-07-22": withSurf("2026-07-22", [
+    surfTask("s2-2207-surf-1430-g12", "Surf - groupes 1 et 2", "14:30", "16:00", "Groupes 1 et 2"),
+    surfTask("s2-2207-surf-1600-g34", "Surf - groupes 3 et 4", "16:00", "17:30", "Groupes 3 et 4"),
+  ]),
+  "2026-07-23": withSurf("2026-07-23", [
+    surfTask("s2-2307-surf-1530-g12", "Surf - groupes 1 et 2", "15:30", "17:00", "Groupes 1 et 2"),
+    surfTask("s2-2307-surf-1700-g34", "Surf - groupes 3 et 4", "17:00", "18:30", "Groupes 3 et 4"),
+  ]),
+  "2026-07-24": withSurf("2026-07-24", [
+    surfTask("s2-2407-surf-0800-g34", "Surf - groupes 3 et 4", "08:00", "09:30", "Groupes 3 et 4"),
+    surfTask("s2-2407-surf-0930-g12", "Surf - groupes 1 et 2", "09:30", "11:00", "Groupes 1 et 2"),
+  ]),
+  "2026-07-25": withSurf("2026-07-25", [
+    surfTask("s2-2507-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
+    surfTask("s2-2507-surf-1800-g12", "Surf - groupes 1 et 2", "18:00", "19:30", "Groupes 1 et 2"),
+  ]),
+  "2026-07-26": withSurf("2026-07-26", [
+    surfTask("s2-2607-surf-0800-g12", "Surf - groupes 1 et 2", "08:00", "09:30", "Groupes 1 et 2"),
+    surfTask("s2-2607-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
+  ]),
+  "2026-07-28": withSurf("2026-07-28", [
+    surfTask("s2-2807-surf-0800-g34", "Surf - groupes 3 et 4", "08:00", "09:30", "Groupes 3 et 4"),
+  ]),
+  "2026-07-29": withSurf("2026-07-29", [
+    surfTask("s2-2907-surf-0830-g12", "Surf - groupes 1 et 2", "08:30", "10:00", "Groupes 1 et 2"),
+  ]),
+}, {
+  "2026-07-20": {
+    title: "Bienvenue a Messanges",
+    details: "Jeux de prenoms, installation de l'ambiance du sejour, presentation du cadre et petit defi collectif pour lancer les equipes.",
+  },
+  "2026-07-21": {
+    title: "Pyramide des defis",
+    details: "Defis rapides par equipes : adresse, mime, rapidite, logique et cooperation. Les equipes montent les etages de la pyramide.",
+  },
+  "2026-07-22": {
+    title: "Bookmaker des vacances",
+    details: "Pronostics droles et bienveillants sur le sejour, les projets artistiques et les defis a venir. Pas de pronostics sportifs.",
+  },
+  "2026-07-23": {
+    title: "Pimp my camp",
+    details: "Chaque groupe customise son espace, cree son blason et prepare une mini-presentation creative.",
+  },
+  "2026-07-24": {
+    title: "Cluedo grandeur nature",
+    details: "Enquete par equipes avec personnages, indices et fausses pistes sur le centre.",
+  },
+  "2026-07-25": {
+    title: "Sagamore nocturne",
+    details: "Jeu de strategie en exterieur avec bases, roles secrets et captures symboliques.",
+  },
+  "2026-07-26": {
+    title: "Zombies",
+    details: "Grand jeu de poursuite et de missions : survivants, zombies, zones refuges et objectifs a valider.",
+  },
+  "2026-07-27": {
+    title: "La Fureur ColoCrew",
+    details: "Blind tests, battles de choregraphies, paroles a completer et defis scene par equipes.",
+  },
+  "2026-07-28": {
+    title: "Loup-garou scenarise",
+    details: "Version immersive avec roles bonus, meneur de jeu et ambiance village de vacances.",
+  },
+  "2026-07-29": {
+    title: "Casino des defis",
+    details: "Tables de jeux sans argent : mise en jetons, defis d'adresse, quiz, bluff et cooperation.",
+  },
+  "2026-07-30": {
+    title: "Restitution des projets / boom",
+    endTime: "23:00",
+    details: "Presentation des projets artistiques, valorisation du groupe, puis soiree de fin de sejour.",
+  },
+});
+
 export const DAY_PLAN_CONFIGS = {
   "mcsc-s1-2026": {
     stay: stayById["mcsc-s1-2026"],
@@ -375,8 +492,8 @@ export const DAY_PLAN_CONFIGS = {
   },
   "mcsc-s2-2026": {
     stay: stayById["mcsc-s2-2026"],
-    seedDays: basicStayDays(stayById["mcsc-s2-2026"]),
-    createdFrom: "Seed basique ColoCrew 2026",
+    seedDays: mcscS2Days,
+    createdFrom: "Planning surf prestataire S2 2026",
   },
   "mcsc-s3-2026": {
     stay: stayById["mcsc-s3-2026"],
