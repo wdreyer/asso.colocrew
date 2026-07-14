@@ -44,10 +44,10 @@ function nbDaysBetween(start, end) {
   return Math.max(Math.round((b - a) / 86400000) + 1, 1);
 }
 
-const TYPE_LABEL   = { animateur: "Animateur", directeur: "Directeur", "": "—" };
-const TYPE_VARIANT = { animateur: "info", directeur: "primary" };
-const TYPE_COLOR   = { animateur: "#1d4ed8", directeur: "#7c3aed" };
-const TYPE_BG      = { animateur: "#eff6ff", directeur: "#f5f0ff" };
+const TYPE_LABEL   = { animateur: "Animateur", directeur: "Directeur", benevole: "Benevole", "": "—" };
+const TYPE_VARIANT = { animateur: "info", directeur: "primary", benevole: "success" };
+const TYPE_COLOR   = { animateur: "#1d4ed8", directeur: "#7c3aed", benevole: "#047857" };
+const TYPE_BG      = { animateur: "#eff6ff", directeur: "#f5f0ff", benevole: "#ecfdf5" };
 
 const AVATAR_COLORS = [
   ["#1d4ed8","#eff6ff"], ["#7c3aed","#f5f0ff"], ["#0891b2","#ecfeff"],
@@ -1072,6 +1072,10 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
 
   const recalculate = () => {
     const gridRow = posteRows.find((r) => r.id === form.roleKey);
+    if (gridRow?.id === "benevole") {
+      setForm((p) => ({ ...p, primeCount: 0, netSalary: 0, grossSalary: 0, paidAmount: 0, paymentValidated: true }));
+      return;
+    }
     const nbDays = nbDaysBetween(form.startDate, form.endDate);
     const { net, gross } = computeSalary({ gridRow, primeUnit, primeCount: form.primeCount, nbDays });
     setForm((p) => ({ ...p, netSalary: net, grossSalary: gross }));
@@ -1100,13 +1104,14 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       let createdMember = null;
 
       const directionRole = gridRow.id === "ds" || gridRow.id === "dsa";
+      const volunteerRole = gridRow.id === "benevole";
 
       if (addingMember) {
         const newMemberData = {
           firstName: form.newFirstName.trim(),
           lastName:  form.newLastName.trim(),
           name: `${form.newFirstName.trim()} ${form.newLastName.trim()}`.trim(),
-          email: "", phone: "", staffType: directionRole ? "directeur" : "animateur", active: true,
+          email: "", phone: "", staffType: volunteerRole ? "benevole" : directionRole ? "directeur" : "animateur", active: true,
         };
         const memberRef = await addDoc(collection(db, COLLECTIONS.STAFF_MEMBERS), newMemberData);
         memberId = memberRef.id;
@@ -1115,12 +1120,13 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       } else {
         const m = members.find((mm) => mm.id === memberId);
         memberName = m ? `${m.firstName} ${m.lastName}`.trim() : "Animateur non renseigné";
-        if (directionRole && m?.staffType !== "directeur") {
-          await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, memberId), { staffType: "directeur" });
+        const nextStaffType = volunteerRole ? "benevole" : directionRole ? "directeur" : "";
+        if (nextStaffType && m?.staffType !== nextStaffType) {
+          await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, memberId), { staffType: nextStaffType });
         }
       }
 
-      const paymentValidated = form.paymentValidated === true && amount(form.paidAmount) >= amount(form.netSalary);
+      const paymentValidated = volunteerRole || (form.paymentValidated === true && amount(form.paidAmount) >= amount(form.netSalary));
       const outstandingAmount = paymentValidated ? 0 : Math.max(amount(form.netSalary) - amount(form.paidAmount), 0);
       const payload = {
         memberId,
@@ -1132,12 +1138,12 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         roleKey: gridRow.id,
         startDate: form.startDate,
         endDate: form.endDate,
-        primeCount: Math.max(Number(form.primeCount) || 0, 0),
+        primeCount: volunteerRole ? 0 : Math.max(Number(form.primeCount) || 0, 0),
         primeUnitNet: amount(primeUnit?.perStayNet),
         primeUnitGross: amount(primeUnit?.perStayGross),
-        netSalary: amount(form.netSalary),
-        grossSalary: amount(form.grossSalary),
-        paidAmount: amount(form.paidAmount),
+        netSalary: volunteerRole ? 0 : amount(form.netSalary),
+        grossSalary: volunteerRole ? 0 : amount(form.grossSalary),
+        paidAmount: volunteerRole ? 0 : amount(form.paidAmount),
         outstandingAmount,
         paymentValidated,
       };

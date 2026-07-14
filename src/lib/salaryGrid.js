@@ -8,6 +8,7 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 export const REFERENCE_DAYS = 12;
 
 export const DEFAULT_SALARY_GRID = [
+  { id: "benevole",        label: "Benevole",             perDay: 0,  perStayNet: 0,    perStayGross: 0,    order: 0, isPrime: false },
   { id: "stagiaire",       label: "Stagiaire/SS Diplôme", perDay: 50, perStayNet: 600,  perStayGross: 810,  order: 1, isPrime: false },
   { id: "bafa",            label: "BAFA",                 perDay: 55, perStayNet: 660,  perStayGross: 891,  order: 2, isPrime: false },
   { id: "as-sb",           label: "AS/SB",                perDay: 60, perStayNet: 720,  perStayGross: 972,  order: 3, isPrime: false },
@@ -18,9 +19,10 @@ export const DEFAULT_SALARY_GRID = [
 
 export async function ensureSalaryGridSeeded(db) {
   const snap = await getDocs(collection(db, COLLECTIONS.SALARY_GRID));
-  if (!snap.empty) return false;
+  const existingIds = new Set(snap.docs.map((item) => item.id));
+  if (!snap.empty && DEFAULT_SALARY_GRID.every((row) => existingIds.has(row.id))) return false;
   const batch = writeBatch(db);
-  DEFAULT_SALARY_GRID.forEach((row) => {
+  DEFAULT_SALARY_GRID.filter((row) => !existingIds.has(row.id)).forEach((row) => {
     const { id, ...data } = row;
     batch.set(doc(db, COLLECTIONS.SALARY_GRID, id), data);
   });

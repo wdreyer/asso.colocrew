@@ -45,6 +45,12 @@ function sanitizedContract(input) {
   };
 }
 
+function isVolunteerContract(contract) {
+  const key = String(contract?.roleKey || "").trim().toLowerCase();
+  const role = String(contract?.role || "").trim().toLowerCase();
+  return key === "benevole" || role.includes("benevol") || role.includes("bÃ©nÃ©vol") || role.includes("bÃƒÂ©nÃƒÂ©vol");
+}
+
 const DOCUSIGN_PERSONAL_FIELDS = [
   {
     key: "phone", tabLabel: "cc_phone", anchor: "/cc-field-phone/", width: 170,
@@ -92,7 +98,12 @@ export async function POST(request) {
 
     const fullName = `${member.firstName} ${member.lastName}`.trim();
     const stayLabel = [contract.stayCode || contract.stay, contract.week].filter(Boolean).join(" — ");
-    const missingFields = DOCUSIGN_PERSONAL_FIELDS.filter((field) => !field.valid(member[field.key]));
+    const isVolunteer = isVolunteerContract(contract);
+    const personalFields = isVolunteer
+      ? DOCUSIGN_PERSONAL_FIELDS.filter((field) => field.key !== "socialSecurityNumber")
+      : DOCUSIGN_PERSONAL_FIELDS;
+    const documentLabel = isVolunteer ? "Convention de bÃ©nÃ©volat" : "Contrat d'engagement Ã©ducatif";
+    const missingFields = personalFields.filter((field) => !field.valid(member[field.key]));
     const memberForDocument = { ...member };
     missingFields.forEach((field) => { memberForDocument[field.key] = ""; });
     const staffTextTabs = missingFields.map((field) => ({
@@ -108,6 +119,9 @@ export async function POST(request) {
       emailBlurb: `Bonjour ${member.firstName}, merci de vérifier puis signer votre contrat ColoCrew. Une fois votre signature terminée, ColoCrew le contresignera.`,
       html: generateContractHTML(memberForDocument, contract),
       documentName: `Contrat CEE - ${fullName}${stayLabel ? ` - ${stayLabel}` : ""}.html`,
+      subject: `${documentLabel} ColoCrew - ${fullName}`,
+      emailBlurb: `Bonjour ${member.firstName}, merci de verifier puis signer votre ${isVolunteer ? "convention de benevolat" : "contrat"} ColoCrew. Une fois votre signature terminee, ColoCrew le contresignera.`,
+      documentName: `${isVolunteer ? "Convention benevolat" : "Contrat CEE"} - ${fullName}${stayLabel ? ` - ${stayLabel}` : ""}.html`,
       signers: [
         {
           email: member.email,

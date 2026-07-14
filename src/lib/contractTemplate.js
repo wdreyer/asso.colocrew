@@ -31,6 +31,7 @@ function daysBetween(start, end) {
 }
 
 const CONTRACT_ROLE_LABELS = {
+  benevole: "Benevole",
   ds: "Directeur·rice",
   dsa: "Adjoint·e de direction",
   bafa: "Animateur·rice",
@@ -42,6 +43,7 @@ function contractRoleKey(contract) {
   const key = String(contract?.roleKey || "").trim().toLowerCase();
   if (CONTRACT_ROLE_LABELS[key]) return key;
   const role = String(contract?.role || "").trim().toLowerCase().replace(/\s+/g, "");
+  if (role.includes("benevol") || role.includes("bÃ©nÃ©vol")) return "benevole";
   if (role === "ds") return "ds";
   if (role === "dsa") return "dsa";
   if (role === "bafa") return "bafa";
@@ -56,6 +58,10 @@ function contractRoleLabel(contract) {
   const key = contractRoleKey(contract);
   if (CONTRACT_ROLE_LABELS[key]) return CONTRACT_ROLE_LABELS[key];
   return contract?.role || "Animateur·rice";
+}
+
+function isVolunteerContract(contract) {
+  return contractRoleKey(contract) === "benevole";
 }
 
 function exercisePlace(contract) {
@@ -161,7 +167,133 @@ function remunerationTable(contract) {
     </table>`;
 }
 
+function generateVolunteerContractHTML(member, contract) {
+  const m = member || {};
+  const c = contract || {};
+  const fullName = esc(`${m.firstName || ""} ${m.lastName || ""}`.trim()) || "___________";
+  const address = contractInputLine(m.address, "/cc-field-address/", 300);
+  const phone = contractInputLine(m.phone, "/cc-field-phone/", 180);
+  const email = contractInputLine(m.email, "/cc-field-email/", 240);
+  const birthDate = contractInputLine(m.dateOfBirth, "/cc-field-birth-date/", 120);
+  const birthPlace = contractInputLine(m.birthPlace, "/cc-field-birth-place/", 200);
+  const nationality = contractInputLine(m.nationality, "/cc-field-nationality/", 150);
+  const startFr = frDate(c.startDate);
+  const endFr = frDate(c.endDate);
+  const lieuExercice = esc(exercisePlace(c));
+  const stayLabel = esc([c.stayName || c.stayCode, c.week].filter(Boolean).join(" - "));
+  const today = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Convention benevole - ${fullName}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; background: #fff; }
+  @page { margin: 18mm 20mm; }
+  .page { max-width: 700px; margin: 0 auto; padding: 30px 20px 40px; }
+  .cc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #c41e6c; }
+  .cc-logo-text { font-size: 22pt; font-weight: 900; color: #2d1560; letter-spacing: -0.5px; }
+  .cc-tagline { font-size: 8pt; color: #c41e6c; font-style: italic; margin-top: 2px; }
+  .cc-contact { text-align: right; font-size: 8pt; color: #555; line-height: 1.6; }
+  .cc-title { text-align: center; font-size: 16pt; font-weight: bold; text-decoration: underline; margin: 28px 0 24px; }
+  .cc-party-block p, .cc-article p { line-height: 1.6; margin-bottom: 6px; }
+  .cc-article { margin-bottom: 18px; }
+  .cc-article h2 { font-size: 11pt; font-weight: bold; margin-bottom: 8px; text-decoration: underline; }
+  .cc-article ul { margin: 6px 0 6px 22px; }
+  .cc-article li { margin-bottom: 5px; line-height: 1.5; }
+  .cc-fill { border-bottom: 1px solid #555; display: inline-block; min-width: 120px; }
+  .cc-contract-input { min-height: 18px; vertical-align: bottom; position: relative; padding: 0 3px 1px; }
+  .cc-field-anchor, .cc-docusign-anchor { color: #fff; font-size: 1px; line-height: 1px; user-select: none; }
+  .cc-signatures { margin-top: 32px; }
+  .cc-sign-place { margin-bottom: 16px; }
+  .cc-sign-row { display: flex; justify-content: space-between; margin-top: 30px; gap: 40px; }
+  .cc-sign-box { flex: 1; }
+  .cc-sign-box p { font-weight: bold; margin-bottom: 95px; }
+  .cc-footer { margin-top: 40px; padding-top: 10px; border-top: 1.5px solid #c41e6c; text-align: center; font-size: 8pt; color: #888; line-height: 1.6; }
+  .no-print { position: fixed; top: 16px; right: 16px; z-index: 999; }
+  .btn-print { background: #7c3aed; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  @media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="no-print"><button class="btn-print" onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
+<div class="page">
+  <div class="cc-header">
+    <div><div class="cc-logo-text">ColoCrew</div><div class="cc-tagline">reinventons les colos !</div></div>
+    <div class="cc-contact">info@colocrew.com - 01 84 21 02 30<br>colocrew.com</div>
+  </div>
+
+  <div class="cc-title">Convention de benevolat</div>
+
+  <div class="cc-article">
+    <p><strong>Entre l'association ColoCrew</strong>, 1 rue Magenta - 93500 Pantin, representee par Monsieur Dreyer William,</p>
+    <p><strong>Et le/la benevole :</strong> ${fullName}</p>
+    <div class="cc-party-block">
+      <p>Adresse : ${address}</p>
+      <p>Telephone : ${phone}</p>
+      <p>Email : ${email}</p>
+      <p>Date de naissance : ${birthDate}</p>
+      <p>Lieu de naissance : ${birthPlace}</p>
+      <p>Nationalite : ${nationality}</p>
+    </div>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 1 - Objet</h2>
+    <p>La presente convention precise les conditions dans lesquelles le/la benevole participe, sans lien de subordination salariee et sans remuneration, aux activites organisees par ColoCrew.</p>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 2 - Mission et periode</h2>
+    <p>Le/la benevole intervient du <strong>${startFr}</strong> au <strong>${endFr}</strong>, dans le cadre du sejour <strong>${stayLabel || "___________"}</strong>, principalement a <strong>${lieuExercice}</strong>.</p>
+    <p>Ses missions peuvent inclure l'appui logistique, l'accompagnement de la vie collective, l'aide aux activites et tout soutien utile a l'equipe, dans le respect du projet educatif et des consignes de securite.</p>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 3 - Absence de remuneration</h2>
+    <p>Cette participation est effectuee a titre benevole. Elle ne donne lieu a aucun salaire, prime ou contrepartie financiere. Les frais eventuellement engages ne peuvent etre rembourses que sur accord prealable de ColoCrew et sur presentation de justificatifs.</p>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 4 - Engagements du/de la benevole</h2>
+    <ul>
+      <li>Respecter les regles de fonctionnement, de securite, d'hygiene et de confidentialite de ColoCrew ;</li>
+      <li>Adopter une posture bienveillante et adaptee a l'accueil collectif de mineurs ;</li>
+      <li>Signaler sans delai tout incident ou difficulte a la direction du sejour ;</li>
+      <li>Ne pas se substituer aux responsabilites legales de l'equipe de direction.</li>
+    </ul>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 5 - Assurance et responsabilite</h2>
+    <p>ColoCrew declare disposer d'une assurance responsabilite civile pour ses activites. Le/la benevole s'engage a informer l'association de toute situation personnelle susceptible d'affecter sa participation.</p>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 6 - Fin de la convention</h2>
+    <p>La presente convention peut prendre fin a tout moment, a l'initiative du/de la benevole ou de ColoCrew, notamment en cas d'impossibilite de poursuivre la mission ou de non-respect des regles applicables.</p>
+  </div>
+
+  <div class="cc-signatures">
+    <p class="cc-sign-place">Fait a Pantin, le ${today}</p>
+    <p><strong>Signatures :</strong></p>
+    <div class="cc-sign-row">
+      <div class="cc-sign-box"><p>Pour ColoCrew :<br><span class="cc-docusign-anchor">/cc-organizer-signature/</span></p></div>
+      <div class="cc-sign-box"><p>Pour le/la benevole :<br><span class="cc-docusign-anchor">/cc-staff-signature/</span></p></div>
+    </div>
+  </div>
+
+  <div class="cc-footer"><strong>Association ColoCrew</strong> - SIRET : 9 3 2 1 7 1 4 3 2 0 0 0 1 0</div>
+</div>
+</body>
+</html>`;
+}
+
 export function generateContractHTML(member, contract) {
+  if (isVolunteerContract(contract)) return generateVolunteerContractHTML(member, contract);
+
   const m = member   || {};
   const c = contract || {};
 
