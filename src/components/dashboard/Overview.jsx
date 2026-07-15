@@ -312,7 +312,7 @@ export default function Overview() {
           if (!week) return;
           const stay = resolveStayCode(data?.sejour?.name || data?.sejourName);
           const cell = ensureCell(week, stay);
-          cell.validated += 1;
+          cell.validated += childCountFromReservation(data);
         });
 
         contractsSnap.docs.forEach((contractDoc) => {
