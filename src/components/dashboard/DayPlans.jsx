@@ -200,6 +200,44 @@ function openWeekPdf({ plans, dates, config, stay, memberById }) {
   return true;
 }
 
+function openMenusPdf({ plans, dates, config, stay, memberById }) {
+  const popup = window.open("", "_blank");
+  if (!popup) return false;
+  popup.opener = null;
+
+  const mealSections = [
+    { key: "breakfast", label: "Petit dejeuner", color: "#d97706" },
+    { key: "lunch", label: "Repas du midi", color: "#16a34a" },
+    { key: "dinner", label: "Diner", color: "#ea580c" },
+  ];
+
+  const mealContent = (task, color) => {
+    const menu = task.menu && !/renseigner/i.test(task.menu) ? task.menu : task.details;
+    const team = (task.assigneeIds || []).map((id) => memberById[id]?.firstName || memberById[id]?.name).filter(Boolean).join(", ");
+    const meta = [
+      task.groups ? `Groupe : ${task.groups}` : "",
+      task.mealLocation === "outside" ? "Repas dehors" : "",
+      task.dietaryNotes ? `Regimes : ${task.dietaryNotes}` : "",
+      team ? `Equipe : ${team}` : "",
+    ].filter(Boolean);
+
+    return `<article style="--meal:${color}"><b>${escapeHtml(task.startTime || "--:--")}${task.endTime ? ` - ${escapeHtml(task.endTime)}` : ""}</b><strong>${escapeHtml(task.title || "Repas")}</strong>${menu ? `<p>${escapeHtml(menu).replace(/\n/g, "<br>")}</p>` : `<em>Menu a completer</em>`}${meta.length ? `<small>${escapeHtml(meta.join(" - "))}</small>` : ""}</article>`;
+  };
+
+  const rows = dates.map((date, index) => {
+    const plan = plans[date] || seedDay(date, config);
+    const cells = mealSections.map((section) => {
+      const meals = sortTasks((plan.tasks || []).filter((task) => task.category === section.key));
+      return `<td>${meals.length ? meals.map((task) => mealContent(task, section.color)).join("") : `<span class="empty">A renseigner</span>`}</td>`;
+    }).join("");
+    return `<tr><th><small>J${index + 1}</small><strong>${escapeHtml(dateLabel(date))}</strong></th>${cells}</tr>`;
+  }).join("");
+
+  popup.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Menus ${escapeHtml(stay.name)} ${escapeHtml(stay.week)}</title><style>@page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{margin:0;background:#f6f4fa;color:#24173d;font-family:Arial,sans-serif}.page{padding:14px}header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:12px;border-bottom:4px solid #b72f69;padding-bottom:10px}h1{margin:0;font-size:25px}.meta{margin-top:3px;color:#6f637a;font-size:12px;line-height:1.5}.print{border:0;border-radius:9px;background:#b72f69;color:#fff;padding:9px 12px;font-weight:800;cursor:pointer}table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff}th,td{border:1px solid #ddd5e4;vertical-align:top}thead th{background:#281747;color:#fff;padding:8px;text-align:left;font-size:11px}thead th:first-child{width:150px}tbody th{background:#fbf9fd;padding:8px;text-align:left}tbody th small,tbody th strong{display:block}tbody th small{color:#b72f69;font-size:9px}tbody th strong{margin-top:2px;font-size:11px;line-height:1.25}td{padding:6px;height:92px}article{margin-bottom:5px;border:1px solid color-mix(in srgb,var(--meal) 28%,white);border-left:5px solid var(--meal);border-radius:7px;background:color-mix(in srgb,var(--meal) 8%,white);padding:7px;break-inside:avoid}article:last-child{margin-bottom:0}article b{display:block;color:var(--meal);font-size:9px}article strong{display:block;margin-top:2px;font-size:11px;line-height:1.25}article p{margin:5px 0 0;color:#46384f;font-size:10px;line-height:1.35}article em{display:block;margin-top:4px;color:#a3620d;font-size:9px;font-style:normal;font-weight:800}article small{display:block;margin-top:5px;color:#66586f;font-size:8px;line-height:1.35}.empty{display:grid;place-items:center;min-height:66px;border:1px dashed #d9cfe0;border-radius:7px;color:#9b8ca6;font-size:10px}@media print{body{background:#fff}.page{padding:0}.print{display:none}}</style></head><body><main class="page"><header><div><h1>Menus du sejour - ${escapeHtml(stay.week)}</h1><div class="meta">${escapeHtml(stay.name)} - ${escapeHtml(stay.startDate)} au ${escapeHtml(stay.endDate)}<br>Export genere le ${escapeHtml(new Date().toLocaleString("fr-FR"))}</div></div><button class="print" onclick="window.print()">Imprimer / PDF</button></header><table><thead><tr><th>Jour</th>${mealSections.map((section) => `<th>${escapeHtml(section.label)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350))<\/script></body></html>`);
+  popup.document.close();
+  return true;
+}
+
 function openLeavesPdf({ plans, members, leaveDates, stay }) {
   const popup = window.open("", "_blank");
   if (!popup) return false;
@@ -450,6 +488,9 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
           {view === "week" && <button type="button" className="dp-pdf-button" onClick={() => {
             if (!openWeekPdf({ plans, dates, config, stay, memberById })) showToast("Autorisez les fenetres pop-up pour ouvrir le PDF.", "error");
           }}>PDF semaine</button>}
+          {view === "food" && <button type="button" className="dp-pdf-button" onClick={() => {
+            if (!openMenusPdf({ plans, dates, config, stay, memberById })) showToast("Autorisez les fenetres pop-up pour exporter les menus.", "error");
+          }}>PDF menus</button>}
           {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK, _sourceDate: selectedDate, targetDate: selectedDate })}>+ Ajouter une tâche</button>}
         </div>
       </header>
