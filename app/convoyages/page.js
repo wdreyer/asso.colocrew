@@ -782,6 +782,7 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
             const isAller = t.direction !== "retour";
             const dirColor = isAller ? "#16a34a" : "#ea580c";
             const staffCount = (t.staff || []).length;
+            const staffNamesList = (t.staff || []).map((member) => firstNameOf(member.name)).filter(Boolean);
             const childCount = countChildren(t.passengers || []);
             const stageCities = transportStageCities(t);
             const branches = t.branches || [];
@@ -817,7 +818,7 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
                   <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                     {staffCount > 0 && (
                       <span style={{ fontSize: 11, color: "#7c3aed", fontWeight: 600 }}>
-                        {staffCount} anim.
+                        {staffCount} anim. : {staffNamesList.join(", ")}
                       </span>
                     )}
                     {childCount > 0 && (
@@ -914,6 +915,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
   const passengerGroups = groupPassengersByCity(transport);
   const firstName = firstNameOf(staff?.name);
   const leadMember = leadStaffMember(transport);
+  const transportStaffNames = (transport.staff || []).map((member) => member.name).filter(Boolean);
   const stageCities = transportStageCities(transport);
   const coordinationEvents = staffCoordinationEvents(transport);
   const cityRecap = transportCityRecap(transport);
@@ -1015,6 +1017,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               ["Départ train", transport.departureTime || null],
               ["Arrivée", transport.arrivalTime || null],
               ["Passagers", `${totalChildren} enfant${totalChildren > 1 ? "s" : ""}`],
+              ["Équipe", transportStaffNames.length ? transportStaffNames.join(", ") : null],
               ["Chef de convoi", leadMember?.name || "À désigner"],
             ]
               .filter(([, v]) => v)
@@ -1107,6 +1110,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               const stopPassengers = passengersAtStop(transport, seg);
               const childCount = Number(seg.sharedChildrenCount || 0) || countChildren(stopPassengers);
               const finalDropoffs = passengersDroppingAt(transport, seg.to);
+              const segmentStaffNames = staffNames(transport, seg.assignedStaffIds || []);
               return (
                 <details key={seg.id || i} style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
@@ -1129,6 +1133,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                   {/* Segment details */}
                   <div style={{ padding: "14px 16px" }}>
                     <InfoRow label="Point de RDV" value={seg.meetingPoint || "À définir"} />
+                    <InfoRow label="Anim(s)" value={segmentStaffNames.length ? segmentStaffNames.join(", ") : null} />
                     <InfoRow label="Heure de RDV" value={seg.meetingTime} />
                     <InfoRow label="Voie / quai" value={seg.platform} />
                     <InfoRow label="Départ" value={seg.departureTime} />

@@ -4548,8 +4548,14 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             const trainLabel = `${branch.mode || "Transport"}${branch.number ? ` ${branch.number}` : ""}`;
             const branchCityChoices = cityChoicesFor(branch.from, branch.to, branch.joinsAt);
             const branchActionCities = isRetour
-              ? [...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.arrivalTime || stop.departureTime || "" })), { city: branch.to, time: branch.arrivalTime || "" }]
-              : [{ city: branch.from, time: branch.meetingTime || branch.departureTime || "" }, ...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.meetingTime || stop.departureTime || stop.arrivalTime || "" }))];
+              ? [
+                  ...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.arrivalTime || stop.departureTime || "", kind: "step" })),
+                  { city: branch.to, time: branch.arrivalTime || "", kind: "destination" },
+                ]
+              : [
+                  { city: branch.from, time: branch.meetingTime || branch.departureTime || "", kind: "origin" },
+                  ...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.meetingTime || stop.departureTime || stop.arrivalTime || "", kind: "step" })),
+                ];
             const branchActionGroups = branchActionCities.map((action) => ({
               ...action,
               passengers: branchPassengers.filter((passenger) => normalizePlace(passengerCity(activeT, passenger)) === normalizePlace(action.city)),
@@ -4686,20 +4692,28 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   <details className="tr-ops-details">
                     <summary>Enfants <span>{branchKids.length}</span></summary>
                     <div className="tr-ops-enfants">
-                      {branchActionGroups.map((group, groupIndex) => {
+                      {branchActionGroups.map((group) => {
                         const childrenAtCity = group.passengers.flatMap((passenger) =>
                           (passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }])
                             .map((child) => ({ ...child, reservationId: passenger.reservationId })),
                         );
+                        const badgeLabel = group.kind === "step"
+                          ? "Ville étape"
+                          : group.kind === "origin"
+                            ? "Départ"
+                            : "Destination";
+                        const movementLabel = isRetour
+                          ? group.kind === "step" ? "Descendent ici" : "Descendent"
+                          : group.kind === "step" ? "Montent ici" : "Montent";
                         return (
                           <div key={`${branch.id}-${group.city}`} className="tr-ops-stop-group is-inline">
                             <div className="tr-ops-stop-main">
-                              <span className="tr-ops-stop-badge">{groupIndex < branchActionGroups.length - 1 ? "Étape" : "Destination"}</span>
+                              <span className="tr-ops-stop-badge">{badgeLabel}</span>
                               <strong>{group.city}</strong>
                               <span className="tr-ops-stop-time">{isRetour ? "Arrivée" : "RDV"} {group.time || "à compléter"}</span>
                             </div>
                             <div className="tr-ops-stop-counts">
-                              <span>{isRetour ? "Descendent" : "Montent"} <strong>{childrenAtCity.length}</strong></span>
+                              <span>{movementLabel} <strong>{childrenAtCity.length}</strong></span>
                             </div>
                             <div className="tr-ops-stop-kids">
                               {childrenAtCity.map((child, childIndex) => (
