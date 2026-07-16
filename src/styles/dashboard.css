@@ -8263,7 +8263,7 @@
 
 .tr-ops-substop-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1.3fr) 96px 96px minmax(100px, 1fr) auto;
+  grid-template-columns: minmax(140px, 1.3fr) 96px 96px minmax(100px, 1fr) 94px auto;
   align-items: end;
   gap: 8px;
   padding: 8px;
@@ -8282,6 +8282,29 @@
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.tr-ops-substop-duration {
+  display: grid;
+  gap: 4px;
+  min-height: 36px;
+  align-content: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.tr-ops-substop-duration span {
+  color: #64748b;
+  font-size: 8.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tr-ops-substop-duration strong {
+  color: #24173d;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 /* Enfants par segment */

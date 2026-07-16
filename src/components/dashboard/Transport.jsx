@@ -1154,6 +1154,16 @@ function durationBetween(start, end) {
   return formatDurationFromMinutes(diff);
 }
 
+function stopTimeSummary(stop) {
+  const duration = durationBetween(stop?.arrivalTime, stop?.departureTime);
+  return [
+    stop?.arrivalTime ? `Arrivée ${stop.arrivalTime}` : null,
+    stop?.departureTime ? `Départ ${stop.departureTime}` : null,
+    duration ? `Arrêt ${duration}` : null,
+    stop?.platform ? `Voie ${stop.platform}` : null,
+  ].filter(Boolean);
+}
+
 function timelineActionInfo(transport, city, { isFirst = false } = {}) {
   const leavingCount = countChildren(passengersLeavingAtStop(transport, city));
   if (leavingCount > 0) {
@@ -3749,6 +3759,24 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         }],
       };
     }));
+    setBranches((items) => items.map((branch) => {
+      if (branch.id !== segmentId) return branch;
+      const stops = segmentSubStops(branch);
+      return {
+        ...branch,
+        stops: [...stops, {
+          id: crypto.randomUUID(),
+          city: "",
+          stopType: "quai",
+          meetingPoint: "",
+          meetingTime: "",
+          departureTime: "",
+          arrivalTime: "",
+          platform: "",
+          instructions: "Montée/descente sur le quai uniquement, pas de rendez-vous organisé.",
+        }],
+      };
+    }));
   };
 
   const updateSubStop = (segmentId, stopId, key, value) => {
@@ -3759,6 +3787,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         stops: segmentSubStops(segment).map((stop) => stop.id === stopId ? { ...stop, [key]: value } : stop),
       };
     }));
+    setBranches((items) => items.map((branch) => {
+      if (branch.id !== segmentId) return branch;
+      return {
+        ...branch,
+        stops: segmentSubStops(branch).map((stop) => stop.id === stopId ? { ...stop, [key]: value } : stop),
+      };
+    }));
   };
 
   const removeSubStop = (segmentId, stopId) => {
@@ -3767,6 +3802,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
       return {
         ...segment,
         stops: segmentSubStops(segment).filter((stop) => stop.id !== stopId),
+      };
+    }));
+    setBranches((items) => items.map((branch) => {
+      if (branch.id !== segmentId) return branch;
+      return {
+        ...branch,
+        stops: segmentSubStops(branch).filter((stop) => stop.id !== stopId),
       };
     }));
   };
@@ -4416,11 +4458,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                     passengerChildren(p)
                   );
                   const leavingAtStop = passengersLeavingAtStop(activeT, stop.city).flatMap(passengerChildren);
-                  const stopTimes = [
-                    stop.arrivalTime ? `Arrivée ${stop.arrivalTime}` : null,
-                    stop.departureTime ? `Départ ${stop.departureTime}` : null,
-                    stop.platform ? `Voie ${stop.platform}` : null,
-                  ].filter(Boolean);
+                  const stopTimes = stopTimeSummary(stop);
                   return (
                     <div key={stop.id || `${stop.city}-${stopIndex}`} className="tr-ops-stop-group is-quai-stop is-inline" style={{ order: isRetour ? 1 : 3 }}>
                       <div className="tr-ops-stop-main">
@@ -4532,6 +4570,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         <div className="tr-ops-branch-list">
           {branches.map((branch, branchIndex) => {
             const branchPortion = { ...branch, kind: branch.kind || "branch" };
+            const branchStops = segmentSubStops(branch);
             const rawBranchTix = tickets.filter((ticket) => ticket.segmentId === branch.id);
             const branchTix = rawBranchTix.map((ticket) =>
               displayTicketForSegment(ticket, activeT, branchPortion, branchIndex, rawBranchTix),
@@ -4554,7 +4593,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 ]
               : [
                   { city: branch.from, time: branch.meetingTime || branch.departureTime || "", kind: "origin" },
-                  ...segmentSubStops(branch).map((stop) => ({ city: stop.city, time: stop.meetingTime || stop.departureTime || stop.arrivalTime || "", kind: "step" })),
+                  ...branchStops.map((stop) => ({ city: stop.city, time: stop.meetingTime || stop.departureTime || stop.arrivalTime || "", kind: "step", stop })),
                 ];
             const branchActionGroups = branchActionCities.map((action) => ({
               ...action,
@@ -4649,6 +4688,53 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
 
                 <details className="tr-ops-details">
                   <summary>
+                    Villes étapes
+                    {branchStops.length > 0 && <span>{branchStops.length}</span>}
+                  </summary>
+                  <div className="tr-ops-substops">
+                    <div className="tr-ops-substops-head">
+                      <span>Villes étapes</span>
+                      <small>Arrêt sur le quai, avec horaires de passage et temps d'arrêt.</small>
+                      <button type="button" className="dash-btn" onClick={() => addSubStop(branch.id)}>+ Ville étape</button>
+                    </div>
+                    {branchStops.length === 0 && (
+                      <p className="tr-add-empty">Aucune ville étape sur cette branche.</p>
+                    )}
+                    {branchStops.map((stop) => (
+                      <div key={stop.id} className="tr-ops-substop-row">
+                        <label>
+                          <span>Ville</span>
+                          <select className="dash-input" value={stop.city || ""} onChange={(e) => updateSubStop(branch.id, stop.id, "city", e.target.value)}>
+                            <option value="">Ville RDV...</option>
+                            {cityChoicesFor(stop.city, branch.from, branch.to, branch.joinsAt).map((city) => (
+                              <option key={`branch-stop-${branch.id}-${stop.id}-${city}`} value={city}>{city}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>Arrivée</span>
+                          <input className="dash-input" type="time" value={stop.arrivalTime || ""} onChange={(e) => updateSubStop(branch.id, stop.id, "arrivalTime", e.target.value)} />
+                        </label>
+                        <label>
+                          <span>Départ</span>
+                          <input className="dash-input" type="time" value={stop.departureTime || ""} onChange={(e) => updateSubStop(branch.id, stop.id, "departureTime", e.target.value)} />
+                        </label>
+                        <label>
+                          <span>Quai / voie</span>
+                          <input className="dash-input" value={stop.platform || ""} onChange={(e) => updateSubStop(branch.id, stop.id, "platform", e.target.value)} placeholder="Voie 3" />
+                        </label>
+                        <div className="tr-ops-substop-duration">
+                          <span>Temps d'arrêt</span>
+                          <strong>{durationBetween(stop.arrivalTime, stop.departureTime) || "à compléter"}</strong>
+                        </div>
+                        <button type="button" className="tr-pax-remove" title="Supprimer la ville étape" onClick={() => removeSubStop(branch.id, stop.id)}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                <details className="tr-ops-details">
+                  <summary>
                     Animateurs
                     {assignedStaff.length > 0 && <span>{assignedStaff.length}</span>}
                   </summary>
@@ -4710,7 +4796,11 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                             <div className="tr-ops-stop-main">
                               <span className="tr-ops-stop-badge">{badgeLabel}</span>
                               <strong>{group.city}</strong>
-                              <span className="tr-ops-stop-time">{isRetour ? "Arrivée" : "RDV"} {group.time || "à compléter"}</span>
+                              <span className="tr-ops-stop-time">
+                                {group.kind === "step"
+                                  ? stopTimeSummary(group.stop).join(" · ") || "Horaires à compléter"
+                                  : `${isRetour ? "Arrivée" : "RDV"} ${group.time || "à compléter"}`}
+                              </span>
                             </div>
                             <div className="tr-ops-stop-counts">
                               <span>{movementLabel} <strong>{childrenAtCity.length}</strong></span>
