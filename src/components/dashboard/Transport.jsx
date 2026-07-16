@@ -7425,6 +7425,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [showConvocSettings, setShowConvocSettings] = useState(false);
   const [savingConvocSettings, setSavingConvocSettings] = useState(false);
   const [emailOverrides, setEmailOverrides] = useState({});
+  const [showLastMinute, setShowLastMinute] = useState(false);
+  const [lastMinuteTripId, setLastMinuteTripId] = useState("");
+  const [lastMinuteSelected, setLastMinuteSelected] = useState({});
+  const [lastMinuteMessage, setLastMinuteMessage] = useState(
+    "Bonjour,\n\nSuite a une modification de derniere minute sur le transport, nous vous transmettons la nouvelle convocation mise a jour.\n\nMerci de bien prendre en compte les nouveaux horaires indiques ci-dessous. L'animateur du convoyage reste joignable en cas de besoin.",
+  );
 
   const emailsFor = useCallback((item) => {
     if (isExternalConvocation(item)) return [];
@@ -7490,6 +7496,11 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     [transports, selectedWeek],
   );
 
+  const weekAllTrips = useMemo(
+    () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé"),
+    [transports, selectedWeek],
+  );
+
   const convocationTrips = useMemo(
     () => weekTrips
       .map((trip) => ({
@@ -7499,6 +7510,66 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       .filter((trip) => trip.passengers.length > 0),
     [weekTrips],
   );
+
+  const lastMinuteTrips = useMemo(
+    () => weekAllTrips
+      .map((trip) => ({
+        ...trip,
+        passengers: (trip.passengers || []).filter((passenger) => Boolean(routeStopForCity(trip, passengerCity(trip, passenger)))),
+      }))
+      .filter((trip) => trip.passengers.length > 0)
+      .sort((a, b) => {
+        const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
+        if (dateCmp) return dateCmp;
+        if (a.direction !== b.direction) return a.direction === "aller" ? -1 : 1;
+        return String(a.departureTime || "").localeCompare(String(b.departureTime || ""));
+      }),
+    [weekAllTrips],
+  );
+
+  useEffect(() => {
+    if (!lastMinuteTrips.length) {
+      setLastMinuteTripId("");
+      return;
+    }
+    if (!lastMinuteTripId || !lastMinuteTrips.some((trip) => trip.id === lastMinuteTripId)) {
+      setLastMinuteTripId(lastMinuteTrips[0].id);
+    }
+  }, [lastMinuteTrips, lastMinuteTripId]);
+
+  const lastMinuteTrip = useMemo(
+    () => lastMinuteTrips.find((trip) => trip.id === lastMinuteTripId) || lastMinuteTrips[0] || null,
+    [lastMinuteTrips, lastMinuteTripId],
+  );
+
+  const lastMinuteFamilies = useMemo(() => {
+    if (!lastMinuteTrip) return [];
+    return groupPassengersByFamily(lastMinuteTrip.passengers, lastMinuteTrip)
+      .slice()
+      .sort((a, b) => {
+        const oa = cityRouteOrder(lastMinuteTrip, passengerCity(lastMinuteTrip, a[0]));
+        const ob = cityRouteOrder(lastMinuteTrip, passengerCity(lastMinuteTrip, b[0]));
+        if (oa !== ob) return oa - ob;
+        return passengerCity(lastMinuteTrip, a[0]).localeCompare(passengerCity(lastMinuteTrip, b[0]), "fr", { sensitivity: "base" });
+      })
+      .map((passengers, index) => {
+        const ids = passengers.map((passenger) => passenger.reservationId).filter(Boolean);
+        const primary = passengers[0];
+        const email = emailFor(primary);
+        return {
+          key: ids.length ? ids.slice().sort().join("|") : `${primary.reservationId || primary.nom || "famille"}-${index}`,
+          ids,
+          passengers,
+          primary,
+          email,
+          hasEmail: Boolean(email && email !== "-"),
+        };
+      });
+  }, [lastMinuteTrip, emailFor]);
+
+  useEffect(() => {
+    setLastMinuteSelected({});
+  }, [lastMinuteTripId]);
 
   const onSiteReservations = useMemo(
     () => reservations
@@ -7706,6 +7777,31 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     else await markAllSent(ids);
   }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, emailsFor]);
 
+  const doSendLastMinuteFamily = useCallback(async (trip, passengers) => {
+    const primary = passengers[0];
+    const destinationEmails = emailsFor(primary);
+    const destinationEmail = destinationEmails.join(", ");
+    if (!destinationEmails.length) throw new Error("Adresse e-mail manquante");
+    const merged = mergeFamily(passengers);
+    const rdvInfo = getEmailRdvInfo(trip, primary);
+    const animInfo = getAnimForTrip(trip, primary);
+    const html = buildConvocEmailHtml(trip, merged, rdvInfo, transports, lastMinuteMessage, animInfo, convocSettings);
+    const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
+    const subject = `IMPORTANT - Nouvelle convocation transport - ${sejourReal} - ${fmtDateLong(trip.date)}`;
+    const resp = await fetch("/api/communication/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
+    });
+    if (!resp.ok) { const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
+    const ids = passengers.map((passenger) => passenger.reservationId).filter(Boolean);
+    await Promise.all(ids.map((id) => updateDoc(doc(db, COLLECTIONS.RESERVATIONS, id), {
+      lastMinuteConvocationSentAt: serverTimestamp(),
+      lastMinuteConvocationTripId: trip.id,
+      lastMinuteConvocationSubject: subject,
+    })));
+  }, [transports, lastMinuteMessage, convocSettings, emailsFor, getAnimForTrip]);
+
   // Pending = one entry per unique family (email) that hasn't been fully sent
   const pendingFamilies = useMemo(() => {
     const seen = new Set();
@@ -7846,6 +7942,32 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     else showToast(`${total - errors.length} succès · ${errors.length} erreur(s)`, "error");
   }, [pendingReminderFamilies, doSendFamily, doSendOnSite, emailFor, showToast]);
 
+  const handleSendSelectedLastMinute = useCallback(async () => {
+    if (!lastMinuteTrip) return;
+    const selectedRows = lastMinuteFamilies.filter((row) => lastMinuteSelected[row.key] && row.hasEmail);
+    if (!selectedRows.length) {
+      showToast("Sélectionne au moins une famille avec email", "warning");
+      return;
+    }
+    if (!window.confirm(`Envoyer ${selectedRows.length} nouvelle(s) convocation(s) de dernière minute ?`)) return;
+    setSendingAll(true);
+    setSendProgress({ done: 0, total: selectedRows.length, errors: [] });
+    const errors = [];
+    for (let index = 0; index < selectedRows.length; index += 1) {
+      const row = selectedRows[index];
+      try {
+        await doSendLastMinuteFamily(lastMinuteTrip, row.passengers);
+      } catch (error) {
+        errors.push({ email: row.email, error: error.message });
+      }
+      setSendProgress({ done: index + 1, total: selectedRows.length, errors: [...errors] });
+      if (index < selectedRows.length - 1) await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    setSendingAll(false);
+    if (!errors.length) showToast(`${selectedRows.length} nouvelle(s) convocation(s) envoyée(s)`, "success");
+    else showToast(`${selectedRows.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
+  }, [lastMinuteTrip, lastMinuteFamilies, lastMinuteSelected, doSendLastMinuteFamily, showToast]);
+
   return (
     <div className="tr-convoc-tab">
       {/* Chips semaine */}
@@ -7912,6 +8034,148 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               Envoyer tout ({pendingMailCount})
             </button>
           </>
+        )}
+      </div>
+
+      {/* Module dernière minute */}
+      <div style={{ marginBottom: 14, border: "1.5px solid #fed7aa", borderRadius: 10, overflow: "hidden", background: "#fff7ed" }}>
+        <button type="button"
+          onClick={() => setShowLastMinute((value) => !value)}
+          style={{ width: "100%", border: "none", background: "transparent", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer", textAlign: "left" }}>
+          <span style={{ display: "grid", gap: 2 }}>
+            <strong style={{ color: "#9a3412", fontSize: 13 }}>Changement de dernière minute</strong>
+            <span style={{ color: "#c2410c", fontSize: 12 }}>Envoyer une nouvelle convocation aux familles concernées, avec les horaires recalculés du trajet.</span>
+          </span>
+          <span style={{ color: "#9a3412", fontSize: 12, fontWeight: 800 }}>{showLastMinute ? "Fermer" : "Ouvrir"}</span>
+        </button>
+
+        {showLastMinute && (
+          <div style={{ borderTop: "1px solid #fed7aa", padding: "14px 16px", display: "grid", gap: 12, background: "#fffaf5" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) auto auto", gap: 10, alignItems: "end" }}>
+              <label style={{ display: "grid", gap: 5 }}>
+                <span style={{ color: "#9a3412", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>Trajet concerné</span>
+                <select className="dash-input" value={lastMinuteTrip?.id || ""} onChange={(event) => setLastMinuteTripId(event.target.value)}>
+                  {lastMinuteTrips.map((trip) => (
+                    <option key={trip.id} value={trip.id}>
+                      {trip.week} · {trip.direction === "retour" ? "Retour" : "Aller"} · {fmtDate(trip.date)} · {trip.departureCity} → {trip.arrivalCity} · {trip.departureTime || "--:--"} → {trip.arrivalTime || "--:--"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="dash-btn"
+                disabled={!lastMinuteFamilies.length}
+                onClick={() => setLastMinuteSelected(Object.fromEntries(lastMinuteFamilies.filter((row) => row.hasEmail).map((row) => [row.key, true])))}>
+                Tout cocher
+              </button>
+              <button type="button" className="dash-btn"
+                disabled={!lastMinuteFamilies.length}
+                onClick={() => setLastMinuteSelected({})}>
+                Vider
+              </button>
+            </div>
+
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ color: "#9a3412", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>Message envoyé en introduction</span>
+              <textarea
+                value={lastMinuteMessage}
+                onChange={(event) => setLastMinuteMessage(event.target.value)}
+                rows={5}
+                style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #fdba74", borderRadius: 8, fontSize: 13, color: "#374151", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", outline: "none", background: "#fff" }}
+              />
+            </label>
+
+            <div style={{ border: "1px solid #ffedd5", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "#fff7ed", color: "#9a3412" }}>
+                    <th style={{ ...cTh, width: 42 }}></th>
+                    <th style={cTh}>Famille</th>
+                    <th style={cTh}>Enfants</th>
+                    <th style={cTh}>Ville</th>
+                    <th style={cTh}>Nouvel horaire</th>
+                    <th style={cTh}>Email</th>
+                    <th style={{ ...cTh, textAlign: "right" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!lastMinuteFamilies.length && (
+                    <tr><td colSpan={7} style={{ padding: "14px 16px", color: "#94a3b8", fontStyle: "italic" }}>Aucune famille sur ce trajet.</td></tr>
+                  )}
+                  {lastMinuteFamilies.map((row, index) => {
+                    const merged = mergeFamily(row.passengers);
+                    const rdvInfo = lastMinuteTrip ? getEmailRdvInfo(lastMinuteTrip, row.primary) : {};
+                    const children = merged.children?.length
+                      ? merged.children.map((child) => `${child.firstName || ""} ${child.lastName || ""}`.trim()).filter(Boolean).join(", ")
+                      : row.primary.childName || "—";
+                    const checked = Boolean(lastMinuteSelected[row.key]);
+                    return (
+                      <tr key={row.key} style={{ background: index % 2 === 0 ? "#fff" : "#fffaf5", borderTop: "1px solid #ffedd5" }}>
+                        <td style={{ ...cTd, textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={!row.hasEmail}
+                            onChange={(event) => setLastMinuteSelected((previous) => ({ ...previous, [row.key]: event.target.checked }))}
+                            style={{ width: 16, height: 16, accentColor: "#ea580c" }}
+                          />
+                        </td>
+                        <td style={cTd}><strong style={{ color: "#1e1040" }}>{row.primary.nom || "Famille"}</strong></td>
+                        <td style={cTd}><span style={{ color: "#7c3aed" }}>{children}</span></td>
+                        <td style={cTd}><strong>{lastMinuteTrip ? passengerCity(lastMinuteTrip, row.primary) : "—"}</strong></td>
+                        <td style={cTd}>
+                          {rdvInfo.rdvTime ? <strong style={{ color: "#16a34a" }}>{rdvInfo.rdvTime}</strong> : <span style={{ color: "#94a3b8" }}>—</span>}
+                          {rdvInfo.arrivalTime && <div style={{ color: "#64748b", fontSize: 11 }}>Arrivée {rdvInfo.arrivalTime}</div>}
+                        </td>
+                        <td style={cTd}>
+                          {row.hasEmail ? (
+                            <span style={{ color: "#374151" }}>{row.email}</span>
+                          ) : (
+                            <span style={{ color: "#dc2626", fontWeight: 700 }}>Email manquant</span>
+                          )}
+                        </td>
+                        <td style={{ ...cTd, textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
+                              disabled={!lastMinuteTrip}
+                              onClick={() => {
+                                const animInfo = getAnimForTrip(lastMinuteTrip, row.primary);
+                                openDoc(wrapForPrint(buildConvocEmailHtml(lastMinuteTrip, merged, rdvInfo, transports, lastMinuteMessage, animInfo, convocSettings)));
+                              }}>
+                              Aperçu
+                            </button>
+                            <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
+                              disabled={!row.hasEmail || !lastMinuteTrip || sendingAll}
+                              onClick={async () => {
+                                setSendingKey(row.key);
+                                try {
+                                  await doSendLastMinuteFamily(lastMinuteTrip, row.passengers);
+                                  showToast(`Nouvelle convocation envoyée à ${row.email}`, "success");
+                                } catch (error) {
+                                  showToast(`Erreur : ${error.message}`, "error");
+                                } finally {
+                                  setSendingKey(null);
+                                }
+                              }}>
+                              {sendingKey === row.key ? "..." : "Envoyer"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ color: "#9a3412", fontSize: 12 }}>
+                {Object.values(lastMinuteSelected).filter(Boolean).length} famille(s) sélectionnée(s)
+              </span>
+              <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendSelectedLastMinute} disabled={sendingAll || !Object.values(lastMinuteSelected).some(Boolean)}>
+                Envoyer les nouvelles convocations
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
