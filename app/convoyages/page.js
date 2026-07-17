@@ -1285,6 +1285,125 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
   );
 }
 
+function ConvoyageIndex({ transports, onSelect }) {
+  const activeTransports = [...transports]
+    .filter((transport) => normalizePlace(transport.status || "") !== "annule")
+    .sort((a, b) =>
+      (a.date || "").localeCompare(b.date || "")
+      || (a.week || "").localeCompare(b.week || "")
+      || journeyStageOrder(a) - journeyStageOrder(b)
+      || (a.departureTime || "").localeCompare(b.departureTime || "")
+      || (a.departureCity || "").localeCompare(b.departureCity || "", "fr"),
+    );
+  const byDate = activeTransports.reduce((groups, transport) => {
+    const date = transport.date || "Date à confirmer";
+    if (!groups.has(date)) groups.set(date, []);
+    groups.get(date).push(transport);
+    return groups;
+  }, new Map());
+
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 10px 60px" }}>
+      <style>{`
+        .convoyage-plain-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+        .convoyage-plain-table th,
+        .convoyage-plain-table td { border: 1px solid #b8b8b8; padding: 7px 8px; vertical-align: top; }
+        .convoyage-plain-table th { background: #e5e5e5; color: #111827; text-align: left; font-weight: 900; }
+        .convoyage-plain-table tr { cursor: pointer; }
+        .convoyage-plain-table tr:hover td { background: #fff7ed; }
+        @media (max-width: 760px) {
+          .convoyage-table-wrap { overflow-x: auto; margin-left: -10px; margin-right: -10px; padding: 0 10px; }
+          .convoyage-plain-table { min-width: 860px; font-size: 12px; }
+        }
+      `}</style>
+      <div style={{ marginBottom: 22 }}>
+        <div style={logo}>ColoCrew</div>
+        <h1 style={{ margin: "6px 0 4px", fontSize: 24, color: "#1e1040", fontWeight: 900 }}>Convoyages</h1>
+        <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
+          Cliquez directement sur votre ligne pour ouvrir votre trajet et le pointage.
+        </p>
+      </div>
+
+      {[...byDate.entries()].map(([date, dateTransports]) => (
+        <section key={date} style={{ marginBottom: 26 }}>
+          <h2 style={{
+            margin: "0 0 8px",
+            padding: "8px 10px",
+            background: "#1e1040",
+            color: "#fff",
+            fontSize: 16,
+            fontWeight: 900,
+          }}>
+            {fmtDate(date)}
+          </h2>
+          <div className="convoyage-table-wrap">
+            <table className="convoyage-plain-table">
+              <thead>
+                <tr>
+                  <th>Semaine</th>
+                  <th>Sens</th>
+                  <th>Trajet</th>
+                  <th>Anim</th>
+                  <th>Départ / mission</th>
+                  <th>RDV anim</th>
+                  <th>Heure</th>
+                  <th>Enfants</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dateTransports.flatMap((transport) => {
+                  const isAller = transport.direction !== "retour";
+                  const route = `${transport.departureCity || "?"} → ${transport.arrivalCity || "?"}`;
+                  const staffRows = staffRecapRows(transport);
+                  const fullRow = {
+                    key: `${transport.id}__all__`,
+                    staffId: "__all__",
+                    week: transport.week || "",
+                    direction: isAller ? "Aller" : "Retour",
+                    route,
+                    anim: "Vue complète",
+                    mission: "Tout le trajet + toutes les listes",
+                    meetingPoint: transport.meetingPoint || transport.departureCity || "",
+                    meetingTime: transport.meetingTime || transport.departureTime || "",
+                    passengerCount: countChildren(transport.passengers || []),
+                  };
+                  const rows = [
+                    fullRow,
+                    ...staffRows.map((row) => ({
+                      key: `${transport.id}_${row.member.id}`,
+                      staffId: row.member.id,
+                      week: transport.week || "",
+                      direction: isAller ? "Aller" : "Retour",
+                      route,
+                      anim: row.member.name || "Animateur",
+                      mission: row.assignment.badges.map((badge) => badge.label).join(" / ") || row.assignment.details.join(" / ") || row.member.role || "",
+                      meetingPoint: row.meeting.meetingPoint || row.meeting.city || "À confirmer",
+                      meetingTime: row.meeting.meetingTime || "",
+                      passengerCount: row.passengerCount,
+                    })),
+                  ];
+                  return rows.map((row) => (
+                    <tr key={row.key} onClick={() => onSelect(transport.id, row.staffId)}>
+                      <td><strong>{row.week}</strong></td>
+                      <td>{row.direction}</td>
+                      <td><strong>{row.route}</strong></td>
+                      <td>{row.anim}</td>
+                      <td>{row.mission || "—"}</td>
+                      <td>{row.meetingPoint || "—"}</td>
+                      <td><strong>{row.meetingTime || "—"}</strong></td>
+                      <td style={{ textAlign: "right" }}><strong>{row.passengerCount}</strong></td>
+                    </tr>
+                  ));
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 // ─── Briefing view ────────────────────────────────────────────────────────────
 
 function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBack, onTogglePresence }) {
@@ -1939,7 +2058,6 @@ export default function ConvoyagePage() {
   const [transports, setTransports] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [week, setWeek] = useState(null);
   const [transportId, setTransportId] = useState(null);
   const [staffId, setStaffId] = useState(null);
 
@@ -1980,11 +2098,6 @@ export default function ConvoyagePage() {
       unsubscribeReservations();
     };
   }, []);
-
-  const weekTransports = useMemo(
-    () => transports.filter((t) => t.week === week && normalizePlace(t.status || "") !== "annule"),
-    [transports, week],
-  );
 
   const selectedTransport = useMemo(
     () => transports.find((t) => t.id === transportId) || null,
@@ -2044,27 +2157,26 @@ export default function ConvoyagePage() {
     );
   }
 
-  if (!week) return <StepWeek onSelect={setWeek} />;
-
-  if (!transportId) {
+  if (!transportId || !staffId) {
     return (
-      <StepTransport
-        week={week}
-        transports={weekTransports}
-        weekInfo={WEEK_INFO[week]}
-        onBack={() => setWeek(null)}
-        onSelect={setTransportId}
+      <ConvoyageIndex
+        transports={transports}
+        onSelect={(nextTransportId, nextStaffId) => {
+          setTransportId(nextTransportId);
+          setStaffId(nextStaffId);
+        }}
       />
     );
   }
 
-  if (!staffId) {
+  if (!selectedTransport || !selectedStaff) {
     return (
-      <StepStaff
-        transport={selectedTransport}
-        weekInfo={WEEK_INFO[week]}
-        onBack={() => setTransportId(null)}
-        onSelect={setStaffId}
+      <ConvoyageIndex
+        transports={transports}
+        onSelect={(nextTransportId, nextStaffId) => {
+          setTransportId(nextTransportId);
+          setStaffId(nextStaffId);
+        }}
       />
     );
   }
@@ -2075,8 +2187,11 @@ export default function ConvoyagePage() {
       staff={selectedStaff}
       mySegments={mySegments}
       myTickets={myTickets}
-      weekInfo={WEEK_INFO[week]}
-      onBack={() => setStaffId(null)}
+      weekInfo={WEEK_INFO[selectedTransport.week]}
+      onBack={() => {
+        setTransportId(null);
+        setStaffId(null);
+      }}
       onTogglePresence={handleTogglePresence}
     />
   );
