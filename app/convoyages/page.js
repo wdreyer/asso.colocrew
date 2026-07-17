@@ -960,6 +960,64 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
   );
 }
 
+function PointageTable({ transport, onTogglePresence }) {
+  const passengers = [...(transport.passengers || [])].sort((left, right) => {
+    const leftCity = passengerBoardingCity(transport, left) || left.pickupCity || left.dropoffCity || "";
+    const rightCity = passengerBoardingCity(transport, right) || right.pickupCity || right.dropoffCity || "";
+    const leftName = childNamesForPassengers([left]).join(", ");
+    const rightName = childNamesForPassengers([right]).join(", ");
+    return leftCity.localeCompare(rightCity, "fr")
+      || leftName.localeCompare(rightName, "fr");
+  });
+
+  return (
+    <div style={{ overflowX: "auto", marginBottom: 20 }}>
+      <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse", background: "#fff", fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={pointageTh}>OK</th>
+            <th style={pointageTh}>Ville</th>
+            <th style={pointageTh}>Enfant</th>
+            <th style={pointageTh}>Séjour</th>
+            <th style={pointageTh}>Parent</th>
+            <th style={pointageTh}>Téléphone</th>
+          </tr>
+        </thead>
+        <tbody>
+          {passengers.map((passenger, index) => {
+            const checked = isPassengerChecked(passenger);
+            const city = passengerBoardingCity(transport, passenger) || passenger.pickupCity || passenger.dropoffCity || "—";
+            const childLabel = childNamesForPassengers([passenger]).join(", ") || passenger.childName || "—";
+            return (
+              <tr key={passenger.reservationId || index} style={{ background: checked ? "#eaffea" : index % 2 ? "#f7f7f7" : "#fff" }}>
+                <td style={{ ...pointageTd, textAlign: "center", width: 52 }}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => onTogglePresence?.(passenger, event.target.checked)}
+                    style={{ width: 24, height: 24 }}
+                  />
+                </td>
+                <td style={{ ...pointageTd, fontWeight: 800 }}>{city}</td>
+                <td style={pointageTd}>{childLabel}</td>
+                <td style={pointageTd}>{stayCodeOf(passenger) || "—"}</td>
+                <td style={pointageTd}>{passenger.nom || "—"}</td>
+                <td style={pointageTd}>
+                  {passenger.phone ? (
+                    <a href={`tel:${(passenger.phones?.[0] || passenger.phone || "").replace(/\s/g, "")}`} style={{ color: "#111", textDecoration: "underline" }}>
+                      {passenger.phone}
+                    </a>
+                  ) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BackBtn({ onClick, label }) {
   return (
     <button
@@ -1550,11 +1608,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
         </div>
 
         <SectionTitle color="#16a34a">Pointage rapide</SectionTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {(transport.passengers || []).map((passenger, index) => (
-            <PassengerCard key={passenger.reservationId || index} passenger={passenger} index={index} onTogglePresence={onTogglePresence} />
-          ))}
-        </div>
+        <PointageTable transport={transport} onTogglePresence={onTogglePresence} />
 
         {vehicleGroups.length > 0 && (
           <>
@@ -1588,7 +1642,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                   </summary>
                   <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
                     {group.passengers.map((passenger, index) => (
-                      <PassengerCard key={passenger.reservationId || index} passenger={passenger} index={index} onTogglePresence={onTogglePresence} compact />
+                      <PassengerCard key={passenger.reservationId || index} passenger={passenger} index={index} compact />
                     ))}
                   </div>
                 </details>
@@ -2050,6 +2104,22 @@ const callBtn = {
   fontSize: 15,
   fontWeight: 700,
   boxShadow: "0 4px 12px rgba(185,28,28,0.3)",
+};
+
+const pointageTh = {
+  border: "1px solid #999",
+  padding: "6px 8px",
+  background: "#ddd",
+  color: "#111",
+  fontWeight: 900,
+  textAlign: "left",
+};
+
+const pointageTd = {
+  border: "1px solid #aaa",
+  padding: "6px 8px",
+  color: "#111",
+  verticalAlign: "middle",
 };
 
 // ─── Page export ──────────────────────────────────────────────────────────────
