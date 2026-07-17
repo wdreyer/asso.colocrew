@@ -631,6 +631,116 @@ function staffNames(transport, ids = []) {
   return (transport.staff || []).filter((member) => wanted.has(member.id)).map((member) => member.name).filter(Boolean);
 }
 
+function staffAssignmentSummary(transport, staffId) {
+  if (!transport || !staffId) return { badges: [], details: [] };
+  const badges = [];
+  const details = [];
+  const addBadge = (label, tone = "segment") => {
+    if (label && !badges.some((badge) => normalizePlace(badge.label) === normalizePlace(label))) badges.push({ label, tone });
+  };
+  const addDetail = (label) => {
+    if (label && !details.includes(label)) details.push(label);
+  };
+
+  (transport.vehicleGroups || [])
+    .filter((group) => (group.staffIds || []).includes(staffId))
+    .forEach((group) => {
+      addBadge(`${group.type === "minibus" ? "Minibus" : group.label || "Véhicule"} ${group.from || ""}`.trim(), group.type === "minibus" ? "minibus" : "vehicle");
+      addDetail(`${group.label || "Véhicule"} : ${[group.from, group.to].filter(Boolean).join(" → ")}`);
+    });
+
+  const portions = orderedTransportPortions(transport).filter((portion) => (portion.assignedStaffIds || []).includes(staffId));
+  portions.forEach((portion) => {
+    const label = segmentPathLabel(portion);
+    const isBranch = portion._type === "branch" || Boolean(portion.joinsAt);
+    addBadge(`${isBranch ? "Embranchement" : "Présent sur tronçon"} ${portion.from || ""}`.trim(), isBranch ? "branch" : "segment");
+    addDetail(`${isBranch ? "Embranchement" : "Tronçon"} : ${label}`);
+  });
+  return { badges, details };
+}
+
+function assignmentBadgeStyle(tone) {
+  if (tone === "minibus") return { bg: "#f0fdfa", border: "#5eead4", color: "#0f766e" };
+  if (tone === "branch") return { bg: "#fff0f6", border: "#f3c0d6", color: "#B8336A" };
+  if (tone === "vehicle") return { bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8" };
+  return { bg: "#f8fafc", border: "#cbd5e1", color: "#475569" };
+}
+
+function staffAssignmentPassengers(transport, portions, groups) {
+  const explicitIds = new Set([
+    ...(groups || []).flatMap((group) => group.passengerReservationIds || []),
+    ...(portions || []).flatMap((portion) => portion.passengerReservationIds || portion.coveredReservationIds || []),
+  ].filter(Boolean));
+  if (explicitIds.size) {
+    return (transport.passengers || []).filter((passenger) => explicitIds.has(passenger.reservationId));
+  }
+  return (transport.passengers || []).filter((passenger) =>
+    (portions || []).some((portion) => passengerMatchesPortion(transport, passenger, portion)),
+  );
+}
+
+function staffAssignmentMeeting(transport, portions, groups) {
+  const candidates = [
+    ...(groups || []).map((group) => ({
+      city: group.from || "",
+      meetingPoint: group.meetingPoint || "",
+      meetingTime: group.meetingTime || group.departureTime || "",
+      departureTime: group.departureTime || "",
+      label: group.label || "Véhicule",
+    })),
+    ...(portions || []).map((portion) => ({
+      city: portion.from || "",
+      meetingPoint: portion.meetingPoint || "",
+      meetingTime: portion.meetingTime || "",
+      departureTime: portion.departureTime || "",
+      label: segmentPathLabel(portion),
+    })),
+  ].filter((candidate) => candidate.city || candidate.meetingTime || candidate.departureTime);
+
+  const first = candidates.sort((left, right) =>
+    timeMinutes(left.meetingTime || left.departureTime) - timeMinutes(right.meetingTime || right.departureTime),
+  )[0];
+
+  if (!first) {
+    return {
+      city: transport.departureCity || "",
+      meetingPoint: transport.meetingPoint || transport.departureCity || "À confirmer",
+      meetingTime: transport.meetingTime || "",
+      label: "",
+    };
+  }
+
+  const fallback = first.city ? recapMeetingInfo(transport, first.city, transport.sharedConnection && transport.direction === "retour") : {};
+  return {
+    city: first.city || fallback.city || transport.departureCity || "",
+    meetingPoint: first.meetingPoint || fallback.meetingPoint || first.city || "À confirmer",
+    meetingTime: first.meetingTime || fallback.meetingTime || first.departureTime || "",
+    label: first.label || "",
+  };
+}
+
+function staffRecapRows(transport) {
+  const portions = orderedTransportPortions(transport || {});
+  return (transport?.staff || []).map((member) => {
+    const staffPortions = portions.filter((portion) => (portion.assignedStaffIds || []).includes(member.id));
+    const staffGroups = (transport.vehicleGroups || []).filter((group) => (group.staffIds || []).includes(member.id));
+    const assignment = staffAssignmentSummary(transport, member.id);
+    const meeting = staffAssignmentMeeting(transport, staffPortions, staffGroups);
+    const passengers = staffAssignmentPassengers(transport, staffPortions, staffGroups);
+    return {
+      member,
+      assignment,
+      meeting,
+      passengerCount: countChildren(passengers),
+      passengerNames: childNamesForPassengers(passengers),
+    };
+  }).sort((left, right) =>
+    timeMinutes(left.meeting.meetingTime) - timeMinutes(right.meeting.meetingTime)
+    || normalizePlace(left.meeting.city).localeCompare(normalizePlace(right.meeting.city), "fr")
+    || (left.member.name || "").localeCompare(right.member.name || "", "fr"),
+  );
+}
+
 function vehicleGroupsForTransport(transport) {
   const passengers = transport.passengers || [];
   const byId = new Map(passengers.map((passenger) => [passenger.reservationId, passenger]));
@@ -1034,14 +1144,30 @@ function StepTransport({ week, transports, weekInfo, onBack, onSelect }) {
 
 function StepStaff({ transport, weekInfo, onBack, onSelect }) {
   const staff = transport?.staff || [];
+  const staffRows = staffRecapRows(transport);
   const isAller = transport?.direction !== "retour";
   const leadId = effectiveLeadStaffId(transport);
   return (
     <div style={wrap}>
+      <style>{`
+        @media (max-width: 620px) {
+          .staff-recap-header { display: none !important; }
+          .staff-recap-row {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 12px !important;
+            padding: 14px !important;
+          }
+          .staff-recap-count {
+            justify-content: space-between !important;
+            padding-top: 8px;
+            border-top: 1px solid #f1e7f5;
+          }
+        }
+      `}</style>
       <BackBtn onClick={onBack} label={`${transport?.departureCity} → ${transport?.arrivalCity}`} />
-      <h2 style={stepTitle}>Qui êtes-vous ?</h2>
+      <h2 style={stepTitle}>Récap anims et départs</h2>
       <p style={{ fontSize: 13, color: "#64748b", margin: "-16px 0 20px" }}>
-        {isAller ? "Aller" : "Retour"} · {fmtDate(transport?.date)}
+        {isAller ? "Aller" : "Retour"} · {fmtDate(transport?.date)} · cliquez sur votre ligne pour ouvrir votre trajet.
       </p>
       <button
         onClick={() => onSelect("__all__")}
@@ -1066,35 +1192,93 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {staff.map((member) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="staff-recap-header" style={{
+            display: "grid",
+            gridTemplateColumns: "1.15fr 1.45fr 1.35fr 80px",
+            gap: 8,
+            padding: "0 12px 2px",
+            color: "#7c6b91",
+            fontSize: 11,
+            fontWeight: 900,
+            textTransform: "uppercase",
+            letterSpacing: 0,
+          }}>
+            <div>Anim</div>
+            <div>Départ / mission</div>
+            <div>RDV anim</div>
+            <div style={{ textAlign: "right" }}>Enfants</div>
+          </div>
+          {staffRows.map((row) => {
+            const { member, assignment, meeting } = row;
+            return (
             <button
+              className="staff-recap-row"
               key={member.id}
               onClick={() => onSelect(member.id)}
               style={{
-                display: "flex", alignItems: "center", gap: 14,
+                display: "grid",
+                gridTemplateColumns: "minmax(120px, 1.15fr) minmax(160px, 1.45fr) minmax(150px, 1.35fr) 80px",
+                alignItems: "center", gap: 10,
                 padding: "14px 18px", background: "#fff",
                 border: "2px solid #e5e7eb", borderRadius: 12, cursor: "pointer", textAlign: "left",
               }}
             >
-              <div style={{
-                width: 42, height: 42, borderRadius: "50%",
-                background: "#f3eef8", color: "#7c3aed",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, fontWeight: 800, flexShrink: 0,
-                letterSpacing: "-0.02em",
-              }}>
-                {(member.name || "?").slice(0, 2).toUpperCase()}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#1e1040" }}>
-                  {member.name || "Animateur"}{member.id === leadId ? " · Chef de convoi" : ""}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: "50%",
+                  background: "#f3eef8", color: "#7c3aed",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 13, fontWeight: 800, flexShrink: 0,
+                  letterSpacing: 0,
+                }}>
+                  {(member.name || "?").slice(0, 2).toUpperCase()}
                 </div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>{member.role || "Animateur convoyeur"}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: "#1e1040", overflowWrap: "anywhere" }}>
+                    {member.name || "Animateur"}{member.id === leadId ? " · Chef" : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{member.role || "Animateur convoyeur"}</div>
+                </div>
               </div>
-              <span style={{ fontSize: 16, color: "#94a3b8" }}>→</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                  {assignment.badges.length > 0 ? assignment.badges.map((badge) => {
+                    const badgeStyle = assignmentBadgeStyle(badge.tone);
+                    return (
+                    <span key={badge.label} style={{
+                      display: "inline-flex", alignItems: "center",
+                      padding: "4px 8px", borderRadius: 999,
+                      background: badgeStyle.bg, border: `1px solid ${badgeStyle.border}`,
+                      color: badgeStyle.color, fontSize: 11, fontWeight: 900,
+                    }}>
+                      {badge.label}
+                    </span>
+                    );
+                  }) : (
+                    <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>Aucun tronçon assigné</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 5, lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                  {assignment.details.length > 0 ? assignment.details.join(" · ") : member.role || "Animateur convoyeur"}
+                </div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 900, color: "#1e1040" }}>{meeting.meetingTime || "Heure à confirmer"}</div>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.35, marginTop: 3, overflowWrap: "anywhere" }}>
+                  {meeting.meetingPoint || meeting.city || "Lieu à confirmer"}
+                </div>
+              </div>
+              <div className="staff-recap-count" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#B8336A" }}>{row.passengerCount}</div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 800 }}>enfants</div>
+                </div>
+                <span style={{ fontSize: 16, color: "#94a3b8" }}>→</span>
+              </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
