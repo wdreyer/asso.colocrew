@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
@@ -123,7 +123,7 @@ function hydrateTransportPassengers(transport, reservations = []) {
     ...transport,
     passengers: (transport.passengers || []).map((passenger) => {
       const reservation = byId.get(passenger.reservationId);
-      if (!reservation) return passenger;
+      if (!reservation || normalizePlace(reservation.status) !== "validated") return null;
       return {
         ...passenger,
         numeroDeReservation: reservation.numeroDeReservation,
@@ -140,12 +140,40 @@ function hydrateTransportPassengers(transport, reservations = []) {
         status: reservation.status,
         pickupCity: passenger.pickupCity || (transport.direction === "retour" ? reservation.returnCity : reservation.departureCity) || "",
       };
-    }),
+    }).filter(Boolean),
   };
 }
 
 function countChildren(passengers) {
   return (passengers || []).reduce((s, p) => s + Math.max(p.children?.length || 0, 1), 0);
+}
+
+function stayCodeOf(passenger) {
+  return passenger?.stayCode || shortStayCode(passenger?.sejourName);
+}
+
+function stayBadgeStyle(stayCode) {
+  const code = String(stayCode || "").toUpperCase();
+  if (code === "EVCC") {
+    return { label: "EVCC", bg: "#ecfeff", border: "#67e8f9", color: "#0e7490" };
+  }
+  if (code === "MCSC") {
+    return { label: "MCSC", bg: "#fff7ed", border: "#fdba74", color: "#c2410c" };
+  }
+  return { label: code || "Séjour", bg: "#f8fafc", border: "#cbd5e1", color: "#475569" };
+}
+
+function isPassengerChecked(passenger) {
+  return Boolean(passenger?.checkedIn || passenger?.attendance?.checkedIn);
+}
+
+function passengerCheckedAt(passenger) {
+  return passenger?.checkedInAt || passenger?.attendance?.checkedInAt || null;
+}
+
+function portionPassengerIdSet(portion) {
+  const ids = portion?.passengerReservationIds || portion?.coveredReservationIds || [];
+  return Array.isArray(ids) && ids.length ? new Set(ids.filter(Boolean)) : null;
 }
 
 function segmentPathLabel(segment) {
@@ -230,10 +258,10 @@ function transportRouteCities(transport) {
     if (!city || normalizePlace(cities.at(-1)) === normalizePlace(city)) return;
     cities.push(city);
   };
-  (transport?.segments || []).forEach((segment) => {
-    append(segment.from);
-    (segment.stops || []).forEach((stop) => append(stop.city));
-    append(segment.to);
+  orderedTransportPortions(transport || {}).forEach((portion) => {
+    append(portion.from);
+    (portion.stops || []).forEach((stop) => append(stop.city));
+    append(portion.to);
   });
   return cities;
 }
@@ -241,6 +269,63 @@ function transportRouteCities(transport) {
 function transportStageCities(transport) {
   const route = transportRouteCities(transport);
   return route.length > 2 ? route.slice(1, -1) : [];
+}
+
+function portionCities(portion) {
+  return [portion?.from, ...(portion?.stops || []).map((stop) => stop.city), portion?.to]
+    .filter(Boolean)
+    .map(normalizePlace)
+    .filter(Boolean);
+}
+
+function passengerDropoffCity(transport, passenger) {
+  return (
+    transport.direction === "retour"
+      ? passenger.dropoffCity || passenger.returnCity || passenger.pickupCity
+      : passenger.dropoffCity || passenger.returnCity || ""
+  );
+}
+
+function passengerMatchesPortion(transport, passenger, portion) {
+  const explicitIds = portionPassengerIdSet(portion);
+  if (explicitIds) return explicitIds.has(passenger?.reservationId);
+
+  const cities = new Set(portionCities(portion));
+  const boardingCity = normalizePlace(passengerBoardingCity(transport, passenger));
+  const dropoffCity = normalizePlace(passengerDropoffCity(transport, passenger));
+
+  if (boardingCity && cities.has(boardingCity)) return true;
+  if (dropoffCity && cities.has(dropoffCity)) return true;
+
+  // A branch represents a self-contained side route. Children on that branch
+  // should not leak into the common/main route just because the branch joins it.
+  if (portion?._type === "branch") return false;
+
+  return false;
+}
+
+function scopedTransportForStaff(transport, staff, portions) {
+  if (!transport || !staff || staff.id === "__all__") return transport;
+  const portionIds = new Set((portions || []).map((portion) => portion.id).filter(Boolean));
+  const passengerIds = new Set((portions || []).flatMap((portion) => portion.passengerReservationIds || []).filter(Boolean));
+  const scopedPassengers = (transport.passengers || []).filter((passenger) =>
+    passengerIds.size ? passengerIds.has(passenger.reservationId) : (portions || []).some((portion) => passengerMatchesPortion(transport, passenger, portion)),
+  );
+
+  return {
+    ...transport,
+    segments: (transport.segments || []).filter((segment) => portionIds.has(segment.id)),
+    branches: (transport.branches || []).filter((branch) => portionIds.has(branch.id)),
+    tickets: (transport.tickets || []).filter((ticket) => ticket.segmentId && portionIds.has(ticket.segmentId)),
+    passengers: scopedPassengers,
+    vehicleGroups: (transport.vehicleGroups || []).filter((group) => {
+      const groupPortionIds = new Set([group.segmentId, group.branchId, group.portionId].filter(Boolean));
+      const groupPassengerIds = new Set(group.passengerReservationIds || []);
+      return [...groupPortionIds].some((id) => portionIds.has(id)) || [...groupPassengerIds].some((id) => passengerIds.has(id));
+    }),
+    departureCity: portions?.[0]?.from || transport.departureCity,
+    arrivalCity: portions?.at(-1)?.to || portions?.at(-1)?.joinsAt || transport.arrivalCity,
+  };
 }
 
 function journeyStageOrder(transport) {
@@ -272,11 +357,16 @@ function segmentBoardingCity(transport, segment) {
 }
 
 function passengersAtStop(transport, segment) {
+  const explicitIds = portionPassengerIdSet(segment);
+  if (explicitIds) return (transport.passengers || []).filter((p) => explicitIds.has(p.reservationId));
+
   const city = normalizePlace(segmentBoardingCity(transport, segment));
   const subCities = (segment.stops || []).map((s) => normalizePlace(s.city));
+  const portionCitySet = new Set(portionCities(segment));
   return (transport.passengers || []).filter((p) => {
     const pCity = normalizePlace(passengerBoardingCity(transport, p));
-    return pCity === city || subCities.includes(pCity);
+    const dropoffCity = normalizePlace(passengerDropoffCity(transport, p));
+    return pCity === city || subCities.includes(pCity) || portionCitySet.has(dropoffCity);
   });
 }
 
@@ -541,6 +631,28 @@ function staffNames(transport, ids = []) {
   return (transport.staff || []).filter((member) => wanted.has(member.id)).map((member) => member.name).filter(Boolean);
 }
 
+function vehicleGroupsForTransport(transport) {
+  const passengers = transport.passengers || [];
+  const byId = new Map(passengers.map((passenger) => [passenger.reservationId, passenger]));
+  return (transport.vehicleGroups || []).map((group) => {
+    const groupPassengers = (group.passengerReservationIds || []).map((id) => byId.get(id)).filter(Boolean);
+    const checkedCount = groupPassengers.filter(isPassengerChecked).length;
+    const stayCounts = groupPassengers.reduce((acc, passenger) => {
+      const code = stayCodeOf(passenger);
+      acc[code] = (acc[code] || 0) + Math.max(passenger.children?.length || 0, 1);
+      return acc;
+    }, {});
+    return {
+      ...group,
+      passengers: groupPassengers,
+      childCount: countChildren(groupPassengers),
+      checkedCount,
+      stayCounts,
+      staffNames: staffNames(transport, group.staffIds || []),
+    };
+  }).filter((group) => group.passengers.length > 0);
+}
+
 function staffCoordinationEvents(transport) {
   const groups = new Map();
   (transport.branches || []).forEach((branch) => {
@@ -644,8 +756,8 @@ function childNamesForPassengers(passengers) {
   });
 }
 
-function ticketSegmentLabel(ticket, segments) {
-  const seg = (segments || []).find((s) => s.id === ticket.segmentId);
+function ticketSegmentLabel(ticket, portions) {
+  const seg = (portions || []).find((s) => s.id === ticket.segmentId);
   return seg ? `${seg.from || "?"} → ${seg.to || "?"}` : (ticket.segmentLabel || "");
 }
 
@@ -654,6 +766,89 @@ function firstNameOf(fullName) {
 }
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
+
+function StayBadge({ stayCode }) {
+  const badge = stayBadgeStyle(stayCode);
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      minWidth: 48, padding: "4px 8px", borderRadius: 999,
+      background: badge.bg, border: `1.5px solid ${badge.border}`,
+      color: badge.color, fontSize: 11, fontWeight: 900,
+    }}>
+      {badge.label}
+    </span>
+  );
+}
+
+function PassengerCard({ passenger, index, onTogglePresence, compact = false }) {
+  const children = passenger.children?.length
+    ? passenger.children
+    : [{ firstName: passenger.childName, lastName: "" }];
+  const checked = isPassengerChecked(passenger);
+  const checkedAt = passengerCheckedAt(passenger);
+  const childLabel = children.map((child) => childFullName(child)).filter(Boolean).join(", ") || passenger.childName || "—";
+
+  return (
+    <div style={{
+      padding: compact ? "9px 10px" : "11px 12px",
+      background: checked ? "#f0fdf4" : "#fff",
+      border: `1.5px solid ${checked ? "#86efac" : "#e9e0f8"}`,
+      borderRadius: 10,
+      display: "grid",
+      gridTemplateColumns: onTogglePresence ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)",
+      gap: 10,
+      alignItems: "center",
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {typeof index === "number" && (
+            <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#f3eef8", color: "#7c3aed", fontSize: 11, fontWeight: 900, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              {index + 1}
+            </span>
+          )}
+          <StayBadge stayCode={stayCodeOf(passenger)} />
+          <div style={{ fontWeight: 900, fontSize: compact ? 13 : 14, color: "#1e1040", overflowWrap: "anywhere" }}>
+            {childLabel}
+          </div>
+        </div>
+        <div style={{ marginTop: 5, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+          {passenger.pickupCity && <strong style={{ color: "#334155" }}>{passenger.pickupCity}</strong>}
+          {passenger.dropoffCity && <> → <strong style={{ color: "#334155" }}>{passenger.dropoffCity}</strong></>}
+          {passenger.nom && <> · {passenger.nom}</>}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 5, flexWrap: "wrap", alignItems: "center" }}>
+          <a href={`tel:${(passenger.phones?.[0] || passenger.phone || "").replace(/\s/g, "")}`} style={{ fontSize: 12, color: "#7c3aed", fontWeight: 800, textDecoration: "none" }}>
+            Tel. {passenger.phone || "—"}
+          </a>
+          {passenger.numeroDeReservation && (
+            <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "monospace" }}>{passenger.numeroDeReservation}</span>
+          )}
+        </div>
+        {checked && checkedAt && (
+          <div style={{ marginTop: 5, fontSize: 11, color: "#15803d", fontWeight: 800 }}>
+            Pointé {new Date(checkedAt?.seconds ? checkedAt.seconds * 1000 : checkedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+        )}
+      </div>
+      {onTogglePresence && (
+        <button
+          type="button"
+          onClick={() => onTogglePresence(passenger, !checked)}
+          style={{
+            minWidth: 92, minHeight: 44, borderRadius: 10,
+            border: `1.5px solid ${checked ? "#16a34a" : "#cbd5e1"}`,
+            background: checked ? "#16a34a" : "#f8fafc",
+            color: checked ? "#fff" : "#334155",
+            fontWeight: 900, fontSize: 12, cursor: "pointer",
+          }}
+        >
+          {checked ? "Présent" : "Pointer"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function BackBtn({ onClick, label }) {
   return (
@@ -908,10 +1103,11 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
 
 // ─── Briefing view ────────────────────────────────────────────────────────────
 
-function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBack }) {
+function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBack, onTogglePresence }) {
   const isAller = transport.direction !== "retour";
   const dirColor = isAller ? "#16a34a" : "#ea580c";
   const totalChildren = countChildren(transport.passengers || []);
+  const checkedChildren = countChildren((transport.passengers || []).filter(isPassengerChecked));
   const passengerGroups = groupPassengersByCity(transport);
   const firstName = firstNameOf(staff?.name);
   const leadMember = leadStaffMember(transport);
@@ -919,6 +1115,8 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
   const stageCities = transportStageCities(transport);
   const coordinationEvents = staffCoordinationEvents(transport);
   const cityRecap = transportCityRecap(transport);
+  const vehicleGroups = vehicleGroupsForTransport(transport);
+  const checkedPct = totalChildren ? Math.round((checkedChildren / totalChildren) * 100) : 0;
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 60 }}>
@@ -1017,6 +1215,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               ["Départ train", transport.departureTime || null],
               ["Arrivée", transport.arrivalTime || null],
               ["Passagers", `${totalChildren} enfant${totalChildren > 1 ? "s" : ""}`],
+              ["Pointage", `${checkedChildren}/${totalChildren} pointé${checkedChildren > 1 ? "s" : ""}`],
               ["Équipe", transportStaffNames.length ? transportStaffNames.join(", ") : null],
               ["Chef de convoi", leadMember?.name || "À désigner"],
             ]
@@ -1036,6 +1235,64 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
               ))}
           </div>
         </div>
+
+        <div style={{ marginBottom: 18, padding: 12, background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: "#1e1040" }}>Pointage enfants</div>
+            <div style={{ fontSize: 13, fontWeight: 900, color: checkedChildren === totalChildren ? "#16a34a" : "#B8336A" }}>{checkedChildren}/{totalChildren}</div>
+          </div>
+          <div style={{ height: 10, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
+            <div style={{ width: `${checkedPct}%`, height: "100%", background: checkedChildren === totalChildren ? "#16a34a" : "#B8336A", transition: "width 0.2s ease" }} />
+          </div>
+        </div>
+
+        <SectionTitle color="#16a34a">Pointage rapide</SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          {(transport.passengers || []).map((passenger, index) => (
+            <PassengerCard key={passenger.reservationId || index} passenger={passenger} index={index} onTogglePresence={onTogglePresence} />
+          ))}
+        </div>
+
+        {vehicleGroups.length > 0 && (
+          <>
+            <SectionTitle color="#0f766e">Répartition véhicules</SectionTitle>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+              {vehicleGroups.map((group) => (
+                <details key={group.id} open={group.highlight || vehicleGroups.length <= 2} style={{
+                  background: group.type === "minibus" ? "#f0fdfa" : "#fff",
+                  border: `2px solid ${group.type === "minibus" ? "#2dd4bf" : "#e2e8f0"}`,
+                  borderRadius: 14,
+                  overflow: "hidden",
+                }}>
+                  <summary style={{ padding: "12px 14px", cursor: "pointer", listStyle: "none", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: group.type === "minibus" ? "#0f766e" : "#1e1040" }}>
+                        {group.label || "Véhicule"} · {group.from} → {group.to}
+                      </div>
+                      <div style={{ marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                        {Object.entries(group.stayCounts || {}).map(([code, count]) => (
+                          <span key={code} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                            <StayBadge stayCode={code} />
+                            <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b" }}>{count}</span>
+                          </span>
+                        ))}
+                        {group.staffNames?.length > 0 && <span style={{ fontSize: 12, fontWeight: 800, color: "#0f766e" }}>Anim : {group.staffNames.join(", ")}</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: "#0f766e", whiteSpace: "nowrap" }}>
+                      {group.checkedCount}/{group.childCount}
+                    </div>
+                  </summary>
+                  <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                    {group.passengers.map((passenger, index) => (
+                      <PassengerCard key={passenger.reservationId || index} passenger={passenger} index={index} onTogglePresence={onTogglePresence} compact />
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </>
+        )}
 
         {cityRecap.length > 0 && (
           <>
@@ -1216,9 +1473,12 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                               : [{ firstName: p.childName, lastName: "" }];
                             return (
                               <div key={pi} style={{
-                                padding: "10px 12px", background: "#fff",
-                                border: "1.5px solid #e9e0f8", borderRadius: 10,
+                                padding: "10px 12px", background: isPassengerChecked(p) ? "#f0fdf4" : "#fff",
+                                border: `1.5px solid ${isPassengerChecked(p) ? "#86efac" : "#e9e0f8"}`, borderRadius: 10,
                               }}>
+                                <div style={{ marginBottom: 6 }}>
+                                  <StayBadge stayCode={stayCodeOf(p)} />
+                                </div>
                                 <div style={{ fontWeight: 800, fontSize: 14, color: "#1e1040" }}>
                                   {children.map((c) => childFullName(c)).filter(Boolean).join(", ") || p.childName || "—"}
                                 </div>
@@ -1284,7 +1544,7 @@ function BriefingView({ transport, staff, mySegments, myTickets, weekInfo, onBac
                 }}>
                   <div style={{ fontWeight: 800, fontSize: 14, color: "#0c4a6e" }}>{ticket.name || "Billet"}</div>
                   <div style={{ fontSize: 12, color: "#0369a1", marginTop: 3 }}>
-                    {ticketSegmentLabel(ticket, transport.segments || [])}
+                    {ticketSegmentLabel(ticket, orderedTransportPortions(transport))}
                   </div>
                   <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
                     {ticket.departureTime && (
@@ -1560,11 +1820,37 @@ export default function ConvoyagePage() {
       .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
   }, [selectedTransport, selectedStaff]);
 
+  const briefingTransport = useMemo(
+    () => scopedTransportForStaff(selectedTransport, selectedStaff, mySegments),
+    [selectedTransport, selectedStaff, mySegments],
+  );
+
   const myTickets = useMemo(() => {
-    if (!selectedTransport || !mySegments.length) return [];
+    if (!briefingTransport || !mySegments.length) return [];
     const ids = new Set(mySegments.map((s) => s.id).filter(Boolean));
-    return (selectedTransport.tickets || []).filter((t) => t.purchased && t.segmentId && ids.has(t.segmentId));
-  }, [selectedTransport, mySegments]);
+    return (briefingTransport.tickets || []).filter((t) => t.purchased && t.segmentId && ids.has(t.segmentId));
+  }, [briefingTransport, mySegments]);
+
+  const handleTogglePresence = useCallback(async (passenger, checked) => {
+    if (!selectedTransport || !passenger?.reservationId) return;
+    const now = new Date().toISOString();
+    const nextPassengers = (selectedTransport.passengers || []).map((item) => {
+      if (item.reservationId !== passenger.reservationId) return item;
+      return {
+        ...item,
+        attendance: {
+          checkedIn: checked,
+          checkedInAt: checked ? now : "",
+          checkedInBy: checked ? selectedStaff?.id || "" : "",
+          checkedInByName: checked ? selectedStaff?.name || "" : "",
+        },
+      };
+    });
+    await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, selectedTransport.id), {
+      passengers: nextPassengers,
+      updatedAt: serverTimestamp(),
+    });
+  }, [selectedTransport, selectedStaff]);
 
   if (loading) {
     return (
@@ -1601,12 +1887,13 @@ export default function ConvoyagePage() {
 
   return (
     <BriefingView
-      transport={selectedTransport}
+      transport={briefingTransport || selectedTransport}
       staff={selectedStaff}
       mySegments={mySegments}
       myTickets={myTickets}
       weekInfo={WEEK_INFO[week]}
       onBack={() => setStaffId(null)}
+      onTogglePresence={handleTogglePresence}
     />
   );
 }
