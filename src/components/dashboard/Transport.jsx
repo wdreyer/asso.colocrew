@@ -138,6 +138,30 @@ function countUniqueChildrenAcrossTransports(transports) {
   return [...passengers.values()].reduce((total, count) => total + count, 0);
 }
 
+function passengerLabel(passenger) {
+  const children = passenger?.children?.length
+    ? passenger.children
+    : [{ firstName: passenger?.childName || "", lastName: "" }];
+  return children.map(childFullName).filter(Boolean).join(", ") || passenger?.childName || "Enfant";
+}
+
+function vehicleGroupRows(transport) {
+  const passengerById = new Map((transport?.passengers || []).map((passenger) => [passenger.reservationId, passenger]));
+  const staffById = new Map((transport?.staff || []).map((member) => [member.id, member]));
+  return (transport?.vehicleGroups || [])
+    .map((group) => {
+      const passengers = (group.passengerReservationIds || []).map((id) => passengerById.get(id)).filter(Boolean);
+      const staff = (group.staffIds || []).map((id) => staffById.get(id)).filter(Boolean);
+      return {
+        ...group,
+        passengers,
+        staff,
+        childCount: countChildren(passengers),
+      };
+    })
+    .filter((group) => group.passengers.length || group.staff.length);
+}
+
 function normalizePlace(value) {
   return String(value || "")
     .normalize("NFD")
@@ -6380,6 +6404,7 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
   const missingTix  = missingTicketPortionCount(trip);
   const sCfg = STATUS_CFG[trip.status] || STATUS_CFG.brouillon;
   const leadMember = leadStaffMember(trip);
+  const vehicleRows = vehicleGroupRows(trip);
 
   return (
     <div className={`tr-trip-card-wrap${isExpanded ? " is-expanded" : ""}`}>
@@ -6408,6 +6433,61 @@ function TripCard({ trip, isExpanded, onToggle, reservations, staffMembers, staf
           <span className="tr-trip-chevron">{"›"}</span>
         </div>
       </button>
+
+      {vehicleRows.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 10,
+          padding: "10px 12px",
+          background: "#f8fafc",
+          borderLeft: "1px solid #e5e7eb",
+          borderRight: "1px solid #e5e7eb",
+          borderBottom: isExpanded ? "1px solid #e5e7eb" : "none",
+        }}>
+          {vehicleRows.map((group) => (
+            <div key={group.id} style={{
+              border: `2px solid ${group.type === "minibus" ? "#14b8a6" : "#cbd5e1"}`,
+              background: group.type === "minibus" ? "#f0fdfa" : "#fff",
+              borderRadius: 8,
+              padding: "10px 12px",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                <strong style={{ color: group.type === "minibus" ? "#0f766e" : "#1e1040", fontSize: 14 }}>
+                  {group.label || "Véhicule"}
+                </strong>
+                <span style={{ fontWeight: 900, color: "#B8336A", whiteSpace: "nowrap" }}>
+                  {group.childCount} enfant{group.childCount !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div style={{ marginTop: 3, color: "#64748b", fontSize: 12, fontWeight: 700 }}>
+                {[group.from, group.to].filter(Boolean).join(" → ")}
+                {group.meetingTime ? ` · RDV ${group.meetingTime}` : ""}
+              </div>
+              {group.staff.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#0f766e", fontWeight: 800 }}>
+                  Anim : {group.staff.map((member) => member.name).filter(Boolean).join(", ")}
+                </div>
+              )}
+              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 5 }}>
+                {group.passengers.map((passenger) => (
+                  <span key={passenger.reservationId} style={{
+                    border: "1px solid #d8d2e3",
+                    background: "#fff",
+                    borderRadius: 999,
+                    padding: "3px 7px",
+                    fontSize: 11,
+                    color: "#1e1040",
+                    fontWeight: 700,
+                  }}>
+                    {passengerLabel(passenger)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {isExpanded && (
         <TripDetail
