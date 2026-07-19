@@ -359,10 +359,14 @@ function passengerBoardingCity(transport, passenger) {
   );
 }
 
+function passengerInitialDepartureCity(passenger, fallback = "") {
+  return passenger?.departureCity || passenger?.pickupCity || fallback || "Ville à confirmer";
+}
+
 function groupPassengersByCity(transport) {
   const groups = new Map();
   (transport.passengers || []).forEach((p) => {
-    const city = passengerBoardingCity(transport, p) || "Ville inconnue";
+    const city = passengerInitialDepartureCity(p, passengerBoardingCity(transport, p) || "Ville inconnue");
     const key = normalizePlace(city);
     if (!groups.has(key)) groups.set(key, { city, passengers: [] });
     groups.get(key).passengers.push(p);
@@ -737,6 +741,17 @@ function staffAssignmentMeeting(transport, portions, groups) {
   };
 }
 
+function portionWithTicketPassengerIds(transport, portion) {
+  const ids = [
+    ...(portion?.passengerReservationIds || []),
+    ...(transport?.tickets || [])
+      .filter((ticket) => ticket.segmentId && ticket.segmentId === portion?.id)
+      .flatMap((ticket) => ticket.coveredReservationIds || []),
+  ].filter(Boolean);
+  if (!ids.length) return portion;
+  return { ...portion, passengerReservationIds: [...new Set(ids)] };
+}
+
 function staffRecapRows(transport) {
   const portions = orderedTransportPortions(transport || {});
   return (transport?.staff || []).map((member) => {
@@ -826,9 +841,7 @@ function passengerRecapRows(transport) {
       : isReturn
       ? passenger.dropoffCity || passenger.returnCity || passenger.pickupCity || "Ville à confirmer"
       : passenger.pickupCity || passenger.departureCity || "Ville à confirmer";
-    const displayCity = showPassengerOrigin
-      ? (isReturn ? passenger.returnCity || passenger.pickupCity || city : passenger.departureCity || passenger.pickupCity || city)
-      : city;
+    const displayCity = passengerInitialDepartureCity(passenger, city);
     const schedule = citySchedule(transport, city, isReturnConnection ? "aller" : transport.direction);
     const meeting = recapMeetingInfo(transport, city, isReturnConnection);
     const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
@@ -983,8 +996,8 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
 
 function PointageTable({ transport, onTogglePresence }) {
   const sortPassengers = (items) => [...(items || [])].sort((left, right) => {
-    const leftCity = passengerBoardingCity(transport, left) || left.pickupCity || left.dropoffCity || "";
-    const rightCity = passengerBoardingCity(transport, right) || right.pickupCity || right.dropoffCity || "";
+    const leftCity = passengerInitialDepartureCity(left, passengerBoardingCity(transport, left) || left.dropoffCity || "");
+    const rightCity = passengerInitialDepartureCity(right, passengerBoardingCity(transport, right) || right.dropoffCity || "");
     const leftName = childNamesForPassengers([left]).join(", ");
     const rightName = childNamesForPassengers([right]).join(", ");
     return leftCity.localeCompare(rightCity, "fr")
@@ -1048,7 +1061,7 @@ function PointageTable({ transport, onTogglePresence }) {
               <tbody>
                 {table.passengers.map((passenger, index) => {
                   const checked = isPassengerChecked(passenger);
-                  const city = passengerBoardingCity(transport, passenger) || passenger.pickupCity || passenger.dropoffCity || "—";
+                  const city = passengerInitialDepartureCity(passenger, passengerBoardingCity(transport, passenger) || passenger.dropoffCity || "—");
                   const childLabel = childNamesForPassengers([passenger]).join(", ") || passenger.childName || "—";
                   return (
                     <tr key={passenger.reservationId || index} style={{ background: checked ? "#eaffea" : index % 2 ? "#f7f7f7" : "#fff" }}>
@@ -1425,44 +1438,63 @@ function ConvoyageIndex({ transports, onSelect }) {
     return groups;
   }, new Map());
 
-  const staffIndexRows = (transport) => {
-    const isAller = transport.direction !== "retour";
-    const portions = orderedTransportPortions(transport);
-    return (transport.staff || [])
-      .map((member) => {
+  const staffIndexRows = (dateTransports) => {
+    const rows = new Map();
+    dateTransports.forEach((transport) => {
+      const isAller = transport.direction !== "retour";
+      const portions = orderedTransportPortions(transport).map((portion) => portionWithTicketPassengerIds(transport, portion));
+      (transport.staff || []).forEach((member) => {
         const assignedPortions = portions.filter((portion) => (portion.assignedStaffIds || []).includes(member.id));
-        if (!assignedPortions.length) return null;
-        const assignment = staffAssignmentSummary({
-          ...transport,
-          segments: assignedPortions.filter((portion) => portion._type === "segment"),
-          branches: assignedPortions.filter((portion) => portion._type === "branch"),
-          vehicleGroups: [],
-        }, member.id);
+        if (!assignedPortions.length) return;
+        const key = `${transport.date || ""}_${transport.direction || ""}_${member.id}`;
+        if (!rows.has(key)) {
+          rows.set(key, {
+            key,
+            staffId: member.id,
+            week: transport.week || "",
+            direction: isAller ? "Aller" : "Retour",
+            anim: member.name || "Animateur",
+            routeCities: [],
+            parts: [],
+            passengerIds: new Set(),
+            passengerCount: 0,
+            meetingPoint: "",
+            meetingTime: "",
+            mission: "Trajet complet",
+          });
+        }
+        const row = rows.get(key);
         const meeting = staffAssignmentMeeting(transport, assignedPortions, []);
         const passengers = staffAssignmentPassengers(transport, assignedPortions, []);
-        const routeCities = [];
+        const seenPassengerIds = row.passengerIds;
+        passengers.forEach((passenger) => {
+          const passengerKey = passenger.reservationId || passenger.childName || passenger.nom;
+          if (passengerKey && !seenPassengerIds.has(passengerKey)) {
+            seenPassengerIds.add(passengerKey);
+            row.passengerCount += Math.max(passenger.children?.length || 0, 1);
+          }
+        });
+        if (!row.meetingTime || timeMinutes(meeting.meetingTime || meeting.departureTime) < timeMinutes(row.meetingTime)) {
+          row.meetingTime = meeting.meetingTime || meeting.departureTime || "";
+          row.meetingPoint = meeting.meetingPoint || meeting.city || "";
+        }
         assignedPortions.forEach((portion) => {
           [portion.from, ...(portion.stops || []).map((stop) => stop.city), portion.to]
             .filter(Boolean)
             .forEach((city) => {
-              if (normalizePlace(routeCities.at(-1)) !== normalizePlace(city)) routeCities.push(city);
+              if (normalizePlace(row.routeCities.at(-1)) !== normalizePlace(city)) row.routeCities.push(city);
             });
         });
-        return {
-          key: `${transport.id}_${member.id}`,
-          staffId: member.id,
-          portionIds: assignedPortions.map((portion) => portion.id).filter(Boolean),
-          week: transport.week || "",
-          direction: isAller ? "Aller" : "Retour",
-          route: routeCities.length > 1 ? routeCities.join(" -> ") : `${transport.departureCity || "?"} -> ${transport.arrivalCity || "?"}`,
-          anim: member.name || "Animateur",
-          mission: assignment.details.join(" / ") || assignment.badges.map((badge) => badge.label).join(" / ") || member.role || "Trajet complet",
-          meetingPoint: meeting.meetingPoint || meeting.city || "A confirmer",
-          meetingTime: meeting.meetingTime || "",
-          passengerCount: countChildren(passengers),
-        };
-      })
-      .filter(Boolean);
+        row.parts.push({ transportId: transport.id, portionIds: assignedPortions.map((portion) => portion.id).filter(Boolean) });
+      });
+    });
+    return [...rows.values()].map((row) => ({
+      ...row,
+      route: row.routeCities.length > 1 ? row.routeCities.join(" -> ") : "Trajet a confirmer",
+    })).sort((left, right) =>
+      timeMinutes(left.meetingTime) - timeMinutes(right.meetingTime)
+      || left.anim.localeCompare(right.anim, "fr"),
+    );
   };
 
   return (
@@ -1514,10 +1546,8 @@ function ConvoyageIndex({ transports, onSelect }) {
                 </tr>
               </thead>
               <tbody>
-                {dateTransports.flatMap((transport) => {
-                  const rows = staffIndexRows(transport);
-                  return rows.map((row) => (
-                    <tr key={row.key} onClick={() => onSelect(transport.id, row.staffId, row.portionIds)}>
+                {staffIndexRows(dateTransports).map((row) => (
+                    <tr key={row.key} onClick={() => onSelect(row.parts[0]?.transportId, row.staffId, row.parts[0]?.portionIds || null, row.parts)}>
                       <td><strong>{row.week}</strong></td>
                       <td>{row.direction}</td>
                       <td><strong>{row.route}</strong></td>
@@ -1527,8 +1557,7 @@ function ConvoyageIndex({ transports, onSelect }) {
                       <td><strong>{row.meetingTime || "—"}</strong></td>
                       <td style={{ textAlign: "right" }}><strong>{row.passengerCount}</strong></td>
                     </tr>
-                  ));
-                })}
+                ))}
               </tbody>
             </table>
           </div>
@@ -2207,6 +2236,7 @@ export default function ConvoyagePage() {
   const [transportId, setTransportId] = useState(null);
   const [staffId, setStaffId] = useState(null);
   const [portionIds, setPortionIds] = useState(null);
+  const [journeyParts, setJourneyParts] = useState(null);
 
   useEffect(() => {
     let rawTransports = [];
@@ -2251,24 +2281,77 @@ export default function ConvoyagePage() {
     [transports, transportId],
   );
 
+  const selectedJourneyEntries = useMemo(() => {
+    if (!Array.isArray(journeyParts) || !journeyParts.length) return [];
+    return journeyParts.map((part) => {
+      const transport = transports.find((item) => item.id === part.transportId);
+      if (!transport) return null;
+      const scopedIds = new Set(part.portionIds || []);
+      const portions = orderedTransportPortions(transport)
+        .filter((portion) => scopedIds.has(portion.id))
+        .map((portion) => portionWithTicketPassengerIds(transport, portion));
+      return { transport, portions };
+    }).filter((entry) => entry && entry.portions.length);
+  }, [transports, journeyParts]);
+
   const selectedStaff = useMemo(
     () => staffId === "__all__"
       ? { id: "__all__", name: "Équipe", role: "Vue complète" }
-      : (selectedTransport?.staff || []).find((m) => m.id === staffId) || null,
-    [selectedTransport, staffId],
+      : selectedJourneyEntries.flatMap((entry) => entry.transport.staff || []).find((m) => m.id === staffId)
+        || (selectedTransport?.staff || []).find((m) => m.id === staffId)
+        || null,
+    [selectedTransport, selectedJourneyEntries, staffId],
   );
 
   const mySegments = useMemo(() => {
     if (!selectedTransport || !selectedStaff) return [];
+    if (selectedJourneyEntries.length) return selectedJourneyEntries.flatMap((entry) => entry.portions);
     const scopedIds = Array.isArray(portionIds) && portionIds.length ? new Set(portionIds) : null;
     return orderedTransportPortions(selectedTransport)
+      .map((seg) => portionWithTicketPassengerIds(selectedTransport, seg))
       .filter((seg) => (!scopedIds || scopedIds.has(seg.id)) && (selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id)));
-  }, [selectedTransport, selectedStaff, portionIds]);
+  }, [selectedTransport, selectedStaff, selectedJourneyEntries, portionIds]);
 
-  const briefingTransport = useMemo(
-    () => scopedTransportForStaff(selectedTransport, selectedStaff, mySegments),
-    [selectedTransport, selectedStaff, mySegments],
-  );
+  const briefingTransport = useMemo(() => {
+    if (!selectedTransport || !selectedStaff) return null;
+    if (!selectedJourneyEntries.length) return scopedTransportForStaff(selectedTransport, selectedStaff, mySegments);
+    const segmentIds = new Set(mySegments.map((segment) => segment.id).filter(Boolean));
+    const passengersById = new Map();
+    const tickets = [];
+    selectedJourneyEntries.forEach(({ transport, portions }) => {
+      const scoped = scopedTransportForStaff(transport, selectedStaff, portions);
+      (scoped.passengers || []).forEach((passenger) => {
+        const key = passenger.reservationId || passenger.childName || passenger.nom || `${transport.id}-${passengersById.size}`;
+        if (!passengersById.has(key)) passengersById.set(key, passenger);
+      });
+      (transport.tickets || [])
+        .filter((ticket) => ticket.purchased && ticket.segmentId && segmentIds.has(ticket.segmentId))
+        .forEach((ticket) => tickets.push(ticket));
+    });
+    const sortedSegments = [...mySegments].sort((left, right) =>
+      timeMinutes(left.meetingTime || left.departureTime || left.arrivalTime)
+      - timeMinutes(right.meetingTime || right.departureTime || right.arrivalTime),
+    );
+    const first = sortedSegments[0] || {};
+    const last = sortedSegments.at(-1) || {};
+    return {
+      ...selectedTransport,
+      id: `journey-${selectedStaff.id}-${selectedTransport.date || ""}-${selectedTransport.direction || ""}`,
+      departureCity: first.from || selectedTransport.departureCity,
+      arrivalCity: last.to || selectedTransport.arrivalCity,
+      meetingPoint: first.meetingPoint || selectedTransport.meetingPoint,
+      meetingTime: first.meetingTime || selectedTransport.meetingTime,
+      departureTime: first.departureTime || selectedTransport.departureTime,
+      arrivalTime: last.arrivalTime || selectedTransport.arrivalTime,
+      staff: [selectedStaff],
+      leadStaffId: selectedStaff.id,
+      segments: sortedSegments.filter((segment) => segment._type !== "branch"),
+      branches: sortedSegments.filter((segment) => segment._type === "branch"),
+      tickets,
+      passengers: [...passengersById.values()],
+      vehicleGroups: [],
+    };
+  }, [selectedTransport, selectedStaff, selectedJourneyEntries, mySegments]);
 
   const myTickets = useMemo(() => {
     if (!briefingTransport || !mySegments.length) return [];
@@ -2279,23 +2362,28 @@ export default function ConvoyagePage() {
   const handleTogglePresence = useCallback(async (passenger, checked) => {
     if (!selectedTransport || !passenger?.reservationId) return;
     const now = new Date().toISOString();
-    const nextPassengers = (selectedTransport.passengers || []).map((item) => {
-      if (item.reservationId !== passenger.reservationId) return item;
-      return {
-        ...item,
-        attendance: {
-          checkedIn: checked,
-          checkedInAt: checked ? now : "",
-          checkedInBy: checked ? selectedStaff?.id || "" : "",
-          checkedInByName: checked ? selectedStaff?.name || "" : "",
-        },
-      };
-    });
-    await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, selectedTransport.id), {
-      passengers: nextPassengers,
-      updatedAt: serverTimestamp(),
-    });
-  }, [selectedTransport, selectedStaff]);
+    const targets = selectedJourneyEntries.length ? selectedJourneyEntries.map((entry) => entry.transport) : [selectedTransport];
+    await Promise.all(targets.map((transport) => {
+      const hasPassenger = (transport.passengers || []).some((item) => item.reservationId === passenger.reservationId);
+      if (!hasPassenger) return Promise.resolve();
+      const nextPassengers = (transport.passengers || []).map((item) => {
+        if (item.reservationId !== passenger.reservationId) return item;
+        return {
+          ...item,
+          attendance: {
+            checkedIn: checked,
+            checkedInAt: checked ? now : "",
+            checkedInBy: checked ? selectedStaff?.id || "" : "",
+            checkedInByName: checked ? selectedStaff?.name || "" : "",
+          },
+        };
+      });
+      return updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
+        passengers: nextPassengers,
+        updatedAt: serverTimestamp(),
+      });
+    }));
+  }, [selectedTransport, selectedStaff, selectedJourneyEntries]);
 
   if (loading) {
     return (
@@ -2309,10 +2397,11 @@ export default function ConvoyagePage() {
     return (
       <ConvoyageIndex
         transports={transports}
-        onSelect={(nextTransportId, nextStaffId, nextPortionIds = null) => {
+        onSelect={(nextTransportId, nextStaffId, nextPortionIds = null, nextJourneyParts = null) => {
           setTransportId(nextTransportId);
           setStaffId(nextStaffId);
           setPortionIds(nextPortionIds);
+          setJourneyParts(nextJourneyParts);
         }}
       />
     );
@@ -2322,10 +2411,11 @@ export default function ConvoyagePage() {
     return (
       <ConvoyageIndex
         transports={transports}
-        onSelect={(nextTransportId, nextStaffId, nextPortionIds = null) => {
+        onSelect={(nextTransportId, nextStaffId, nextPortionIds = null, nextJourneyParts = null) => {
           setTransportId(nextTransportId);
           setStaffId(nextStaffId);
           setPortionIds(nextPortionIds);
+          setJourneyParts(nextJourneyParts);
         }}
       />
     );
@@ -2342,6 +2432,7 @@ export default function ConvoyagePage() {
         setTransportId(null);
         setStaffId(null);
         setPortionIds(null);
+        setJourneyParts(null);
       }}
       onTogglePresence={handleTogglePresence}
     />
