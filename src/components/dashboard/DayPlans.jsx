@@ -87,8 +87,10 @@ function isMcscS2(stay) {
 
 function normalizeMcscS2Plan(plan, seededPlan) {
   const seededTasks = seededPlan?.tasks || [];
+  const deletedTaskIds = new Set(plan?.deletedTaskIds || []);
   const managedSeedTasks = seededTasks.filter((task) => (
     String(task.id || "").startsWith("s2-") && (/surf/i.test(task.title || "") || task.category === "evening")
+    && !deletedTaskIds.has(task.id)
   ));
   const managedIds = new Set(managedSeedTasks.map((task) => task.id));
   const cleanedExistingTasks = (plan?.tasks || []).filter((task) => (
@@ -399,7 +401,10 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     if (sourceDate === targetDate) {
       const sourcePlan = plans[sourceDate] || seedDay(sourceDate, config);
       const tasks = [...(sourcePlan.tasks || []).filter((task) => task.id !== taskId), complete];
-      await saveDay(targetDate, { tasks: sortTasks(tasks) }, "Activité enregistrée.");
+      await saveDay(targetDate, {
+        tasks: sortTasks(tasks),
+        deletedTaskIds: (sourcePlan.deletedTaskIds || []).filter((id) => id !== taskId),
+      }, "Activité enregistrée.");
     } else {
       setSaving(true);
       try {
@@ -415,6 +420,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
           setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${targetDate}`), {
             ...targetPlan,
             tasks: sortTasks([...(targetPlan.tasks || []).filter((task) => task.id !== taskId), complete]),
+            deletedTaskIds: (targetPlan.deletedTaskIds || []).filter((id) => id !== taskId),
             updatedAt: new Date().toISOString(),
             updatedBy: "",
           }, { merge: true }),
@@ -435,7 +441,8 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     const date = task._sourceDate || selectedDate;
     const plan = plans[date] || seedDay(date, config);
     const tasks = (plan.tasks || []).filter((item) => item.id !== task.id);
-    await saveDay(date, { tasks }, "Activité supprimée.");
+    const deletedTaskIds = [...new Set([...(plan.deletedTaskIds || []), task.id].filter(Boolean))];
+    await saveDay(date, { tasks, deletedTaskIds }, "Activité supprimée.");
     setEditor(null);
   };
 
