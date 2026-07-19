@@ -374,6 +374,86 @@ function groupPassengersByCity(transport) {
   return [...groups.values()];
 }
 
+function passengerStageCity(transport, passenger) {
+  if (transport.direction === "retour" && !transport.sharedConnection) {
+    return passengerDropoffCity(transport, passenger) || passenger.returnCity || passenger.pickupCity || "";
+  }
+  return passengerBoardingCity(transport, passenger) || "";
+}
+
+function convoyageStagePoints(transport) {
+  const points = [];
+  const seen = new Set();
+  const isReturnDropoff = transport.direction === "retour" && !transport.sharedConnection;
+  const addPoint = (city, portion) => {
+    if (!city) return;
+    const key = normalizePlace(city);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const meeting = isReturnDropoff ? recapDropoffInfo(transport, city) : recapMeetingInfo(transport, city, transport.sharedConnection);
+    points.push({
+      city,
+      portion,
+      meetingTime: meeting.meetingTime || meeting.arrivalTime || meeting.departureTime || "",
+      meetingPoint: meeting.meetingPoint || "",
+    });
+  };
+
+  orderedTransportPortions(transport).forEach((portion) => {
+    if (isReturnDropoff) {
+      (portion.stops || []).forEach((stop) => addPoint(stop.city, portion));
+      addPoint(portion.to, portion);
+      return;
+    }
+    addPoint(portion.from, portion);
+    (portion.stops || []).forEach((stop) => addPoint(stop.city, portion));
+  });
+  return points;
+}
+
+function pointageStageTables(transport) {
+  const passengers = (transport.passengers || []).filter((passenger) => passengerMatchesTransport(transport, passenger));
+  const used = new Set();
+  const sortPassengers = (items) => [...(items || [])].sort((left, right) => {
+    const leftName = childNamesForPassengers([left]).join(", ");
+    const rightName = childNamesForPassengers([right]).join(", ");
+    return leftName.localeCompare(rightName, "fr");
+  });
+  const tables = convoyageStagePoints(transport).map((point) => {
+    const ids = portionPassengerIdSet(point.portion);
+    const pointKey = normalizePlace(point.city);
+    const pointPassengers = passengers.filter((passenger) => {
+      if (used.has(passenger.reservationId)) return false;
+      if (ids && !ids.has(passenger.reservationId)) return false;
+      return normalizePlace(passengerStageCity(transport, passenger)) === pointKey;
+    });
+    pointPassengers.forEach((passenger) => {
+      if (passenger.reservationId) used.add(passenger.reservationId);
+    });
+    return {
+      id: `stage-${pointKey}`,
+      label: `Étape ${point.city}`,
+      sub: `${countChildren(pointPassengers)} enfant${countChildren(pointPassengers) !== 1 ? "s" : ""}${point.meetingTime ? ` · RDV ${point.meetingTime}` : ""}`,
+      city: point.city,
+      passengers: sortPassengers(pointPassengers),
+      tone: "default",
+    };
+  }).filter((table) => table.passengers.length > 0);
+
+  const ungrouped = passengers.filter((passenger) => !used.has(passenger.reservationId));
+  if (ungrouped.length) {
+    tables.push({
+      id: "stage-ungrouped",
+      label: "Sans étape identifiée",
+      sub: `${countChildren(ungrouped)} enfant${countChildren(ungrouped) !== 1 ? "s" : ""}`,
+      city: "",
+      passengers: sortPassengers(ungrouped),
+      tone: "warning",
+    });
+  }
+  return tables;
+}
+
 function segmentBoardingCity(transport, segment) {
   return transport.direction === "aller" ? segment.from : segment.to;
 }
@@ -866,21 +946,56 @@ function passengerRecapRows(transport) {
   }).sort((left, right) => timeMinutes(left.meetingTime || left.arrivalTime || left.departureTime || left.time) - timeMinutes(right.meetingTime || right.arrivalTime || right.departureTime || right.time) || left.displayCity.localeCompare(right.displayCity, "fr"));
 }
 
+function passengerRecapStageTables(transport) {
+  const rows = passengerRecapRows(transport);
+  const used = new Set();
+  const rowKey = (row) => `${row.child}|${row.parent}|${row.phone}|${row.city}`;
+  const tables = convoyageStagePoints(transport).map((point) => {
+    const cityKey = normalizePlace(point.city);
+    const stageRows = rows.filter((row) => {
+      const key = rowKey(row);
+      if (used.has(key)) return false;
+      return normalizePlace(row.city) === cityKey;
+    });
+    stageRows.forEach((row) => used.add(rowKey(row)));
+    return {
+      id: `pdf-stage-${cityKey}`,
+      city: point.city,
+      meetingTime: point.meetingTime,
+      meetingPoint: point.meetingPoint,
+      rows: stageRows,
+    };
+  }).filter((table) => table.rows.length > 0);
+  const remaining = rows.filter((row) => !used.has(rowKey(row)));
+  if (remaining.length) {
+    tables.push({
+      id: "pdf-stage-ungrouped",
+      city: "Sans étape identifiée",
+      meetingTime: "",
+      meetingPoint: "",
+      rows: remaining,
+    });
+  }
+  return tables;
+}
+
 function openPassengerRecapPdf(transport) {
   const rows = passengerRecapRows(transport);
+  const stageTables = passengerRecapStageTables(transport);
   const coordination = staffCoordinationEvents(transport);
+  const tableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Arrivée train</th><th>Départ train</th><th>Temps d’arrêt</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Régime alimentaire</th><th>Médicament / traitement</th><th>Segment</th></tr></thead>`;
+  const renderRows = (tableRows) => tableRows.map((row, index) => {
+    const typeLabel = row.stopType === "quai" ? (row.isReturn ? "Récupération quai" : "RDV quai") : row.stopType === "return" ? "Récupération" : "RDV famille";
+    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="present">☐</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td class="notes">&nbsp;</td><td class="notes">&nbsp;</td><td>${escapeHtml(row.segment)}</td></tr>`;
+  }).join("");
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Récap convoyage</title><style>
-    @page{size:A4 landscape;margin:6mm}body{font:7.5px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}tr.quai{background:#fff8e8}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.type{width:58px;font-weight:bold}.type-quai{color:#b45309}.type-rdv{color:#15803d}.type-return{color:#7c3aed}.meeting{min-width:125px;white-space:normal;line-height:1.3}.action{width:68px}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.notes{min-width:82px;height:25px}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
+    @page{size:A4 landscape;margin:6mm}body{font:7.5px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}.stage{margin:8px 0 10px}.stage-title{font-size:10px;font-weight:bold;color:#1e1040;background:#f3eef8;border:1px solid #d8c9ef;padding:5px 7px;margin:0 0 3px}.stage-title span{color:#B8336A}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}tr.quai{background:#fff8e8}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.type{width:58px;font-weight:bold}.type-quai{color:#b45309}.type-rdv{color:#15803d}.type-return{color:#7c3aed}.meeting{min-width:125px;white-space:normal;line-height:1.3}.action{width:68px}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.notes{min-width:82px;height:25px}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
   </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
   <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  <table><thead><tr><th class="num">#</th><th>Présent</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Arrivée train</th><th>Départ train</th><th>Temps d’arrêt</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Régime alimentaire</th><th>Médicament / traitement</th><th>Segment</th></tr></thead><tbody>
-  ${rows.map((row, index) => {
-    const typeLabel = row.stopType === "quai" ? (row.isReturn ? "Récupération quai" : "RDV quai") : row.stopType === "return" ? "Récupération" : "RDV famille";
-    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="present">☐</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td class="notes">&nbsp;</td><td class="notes">&nbsp;</td><td>${escapeHtml(row.segment)}</td></tr>`;
-  }).join("")}
-  </tbody></table></body></html>`;
+  ${stageTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.meetingTime ? ` · RDV ${escapeHtml(table.meetingTime)}` : ""}${table.meetingPoint ? ` · ${escapeHtml(table.meetingPoint)}` : ""} · ${table.rows.length} enfant(s)</div><table>${tableHead}<tbody>${renderRows(table.rows)}</tbody></table></section>`).join("")}
+  </body></html>`;
   const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
   const win = window.open(blobUrl, "_blank", "width=1200,height=800");
   if (!win) {
@@ -996,41 +1111,7 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
 }
 
 function PointageTable({ transport, onTogglePresence }) {
-  const sortPassengers = (items) => [...(items || [])].sort((left, right) => {
-    const leftCity = passengerInitialDepartureCity(left, passengerBoardingCity(transport, left) || left.dropoffCity || "");
-    const rightCity = passengerInitialDepartureCity(right, passengerBoardingCity(transport, right) || right.dropoffCity || "");
-    const leftName = childNamesForPassengers([left]).join(", ");
-    const rightName = childNamesForPassengers([right]).join(", ");
-    return leftCity.localeCompare(rightCity, "fr")
-      || leftName.localeCompare(rightName, "fr");
-  });
-  const vehicleGroups = vehicleGroupsForTransport(transport);
-  const groupedReservationIds = new Set(vehicleGroups.flatMap((group) => group.passengers.map((passenger) => passenger.reservationId).filter(Boolean)));
-  const ungroupedPassengers = (transport.passengers || []).filter((passenger) => !groupedReservationIds.has(passenger.reservationId));
-  const tables = vehicleGroups.length
-    ? [
-      ...vehicleGroups.map((group) => ({
-        id: group.id,
-        label: `${group.label || "Véhicule"} · ${group.from || "Départ"} → ${group.to || "Arrivée"}`,
-        sub: `${group.childCount} enfant${group.childCount !== 1 ? "s" : ""}${group.staffNames?.length ? ` · Anim : ${group.staffNames.join(", ")}` : ""}`,
-        passengers: sortPassengers(group.passengers),
-        tone: group.type,
-      })),
-      ...(ungroupedPassengers.length ? [{
-        id: "ungrouped",
-        label: "Sans véhicule assigné",
-        sub: `${countChildren(ungroupedPassengers)} enfant${countChildren(ungroupedPassengers) !== 1 ? "s" : ""}`,
-        passengers: sortPassengers(ungroupedPassengers),
-        tone: "warning",
-      }] : []),
-    ]
-    : [{
-      id: "all",
-      label: "Tous les enfants",
-      sub: `${countChildren(transport.passengers || [])} enfant${countChildren(transport.passengers || []) !== 1 ? "s" : ""}`,
-      passengers: sortPassengers(transport.passengers || []),
-      tone: "default",
-    }];
+  const tables = pointageStageTables(transport);
 
   return (
     <div style={{ marginBottom: 20 }}>
