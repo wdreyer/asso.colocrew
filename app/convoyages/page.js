@@ -318,6 +318,10 @@ function passengerMatchesPortion(transport, passenger, portion) {
   return boardingCity ? allerBoardingCities.has(boardingCity) : false;
 }
 
+function passengerMatchesTransport(transport, passenger) {
+  return orderedTransportPortions(transport || {}).some((portion) => passengerMatchesPortion(transport, passenger, portion));
+}
+
 function scopedTransportForStaff(transport, staff, portions) {
   if (!transport || !staff || staff.id === "__all__") return transport;
   const portionIds = new Set((portions || []).map((portion) => portion.id).filter(Boolean));
@@ -816,7 +820,7 @@ function escapeHtml(value) {
 function passengerRecapRows(transport) {
   const isReturn = transport.direction === "retour";
   const isReturnConnection = isReturn && transport.sharedConnection;
-  return (transport.passengers || []).flatMap((passenger) => {
+  return (transport.passengers || []).filter((passenger) => passengerMatchesTransport(transport, passenger)).flatMap((passenger) => {
     const city = isReturnConnection
       ? passenger.pickupCity || "Centre à confirmer"
       : isReturn
