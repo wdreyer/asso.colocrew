@@ -979,7 +979,7 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
 }
 
 function PointageTable({ transport, onTogglePresence }) {
-  const passengers = [...(transport.passengers || [])].sort((left, right) => {
+  const sortPassengers = (items) => [...(items || [])].sort((left, right) => {
     const leftCity = passengerBoardingCity(transport, left) || left.pickupCity || left.dropoffCity || "";
     const rightCity = passengerBoardingCity(transport, right) || right.pickupCity || right.dropoffCity || "";
     const leftName = childNamesForPassengers([left]).join(", ");
@@ -987,51 +987,95 @@ function PointageTable({ transport, onTogglePresence }) {
     return leftCity.localeCompare(rightCity, "fr")
       || leftName.localeCompare(rightName, "fr");
   });
+  const vehicleGroups = vehicleGroupsForTransport(transport);
+  const groupedReservationIds = new Set(vehicleGroups.flatMap((group) => group.passengers.map((passenger) => passenger.reservationId).filter(Boolean)));
+  const ungroupedPassengers = (transport.passengers || []).filter((passenger) => !groupedReservationIds.has(passenger.reservationId));
+  const tables = vehicleGroups.length
+    ? [
+      ...vehicleGroups.map((group) => ({
+        id: group.id,
+        label: `${group.label || "Véhicule"} · ${group.from || "Départ"} → ${group.to || "Arrivée"}`,
+        sub: `${group.childCount} enfant${group.childCount !== 1 ? "s" : ""}${group.staffNames?.length ? ` · Anim : ${group.staffNames.join(", ")}` : ""}`,
+        passengers: sortPassengers(group.passengers),
+        tone: group.type,
+      })),
+      ...(ungroupedPassengers.length ? [{
+        id: "ungrouped",
+        label: "Sans véhicule assigné",
+        sub: `${countChildren(ungroupedPassengers)} enfant${countChildren(ungroupedPassengers) !== 1 ? "s" : ""}`,
+        passengers: sortPassengers(ungroupedPassengers),
+        tone: "warning",
+      }] : []),
+    ]
+    : [{
+      id: "all",
+      label: "Tous les enfants",
+      sub: `${countChildren(transport.passengers || [])} enfant${countChildren(transport.passengers || []) !== 1 ? "s" : ""}`,
+      passengers: sortPassengers(transport.passengers || []),
+      tone: "default",
+    }];
 
   return (
-    <div style={{ overflowX: "auto", marginBottom: 20 }}>
-      <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse", background: "#fff", fontSize: 13 }}>
-        <thead>
-          <tr>
-            <th style={pointageTh}>OK</th>
-            <th style={pointageTh}>Ville</th>
-            <th style={pointageTh}>Enfant</th>
-            <th style={pointageTh}>Séjour</th>
-            <th style={pointageTh}>Parent</th>
-            <th style={pointageTh}>Téléphone</th>
-          </tr>
-        </thead>
-        <tbody>
-          {passengers.map((passenger, index) => {
-            const checked = isPassengerChecked(passenger);
-            const city = passengerBoardingCity(transport, passenger) || passenger.pickupCity || passenger.dropoffCity || "—";
-            const childLabel = childNamesForPassengers([passenger]).join(", ") || passenger.childName || "—";
-            return (
-              <tr key={passenger.reservationId || index} style={{ background: checked ? "#eaffea" : index % 2 ? "#f7f7f7" : "#fff" }}>
-                <td style={{ ...pointageTd, textAlign: "center", width: 52 }}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(event) => onTogglePresence?.(passenger, event.target.checked)}
-                    style={{ width: 24, height: 24 }}
-                  />
-                </td>
-                <td style={{ ...pointageTd, fontWeight: 800 }}>{city}</td>
-                <td style={pointageTd}>{childLabel}</td>
-                <td style={pointageTd}>{stayCodeOf(passenger) || "—"}</td>
-                <td style={pointageTd}>{passenger.nom || "—"}</td>
-                <td style={pointageTd}>
-                  {passenger.phone ? (
-                    <a href={`tel:${(passenger.phones?.[0] || passenger.phone || "").replace(/\s/g, "")}`} style={{ color: "#111", textDecoration: "underline" }}>
-                      {passenger.phone}
-                    </a>
-                  ) : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div style={{ marginBottom: 20 }}>
+      {tables.map((table) => (
+        <div key={table.id} style={{ marginBottom: 14 }}>
+          <div style={{
+            border: "1px solid #999",
+            borderBottom: 0,
+            background: table.tone === "minibus" ? "#ccfbf1" : table.tone === "warning" ? "#fff7cc" : "#e5e5e5",
+            padding: "7px 8px",
+            color: "#111",
+            fontSize: 13,
+          }}>
+            <strong>{table.label}</strong>
+            <span style={{ marginLeft: 8 }}>{table.sub}</span>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse", background: "#fff", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={pointageTh}>OK</th>
+                  <th style={pointageTh}>Ville</th>
+                  <th style={pointageTh}>Enfant</th>
+                  <th style={pointageTh}>Séjour</th>
+                  <th style={pointageTh}>Parent</th>
+                  <th style={pointageTh}>Téléphone</th>
+                </tr>
+              </thead>
+              <tbody>
+                {table.passengers.map((passenger, index) => {
+                  const checked = isPassengerChecked(passenger);
+                  const city = passengerBoardingCity(transport, passenger) || passenger.pickupCity || passenger.dropoffCity || "—";
+                  const childLabel = childNamesForPassengers([passenger]).join(", ") || passenger.childName || "—";
+                  return (
+                    <tr key={passenger.reservationId || index} style={{ background: checked ? "#eaffea" : index % 2 ? "#f7f7f7" : "#fff" }}>
+                      <td style={{ ...pointageTd, textAlign: "center", width: 52 }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => onTogglePresence?.(passenger, event.target.checked)}
+                          style={{ width: 24, height: 24 }}
+                        />
+                      </td>
+                      <td style={{ ...pointageTd, fontWeight: 800 }}>{city}</td>
+                      <td style={pointageTd}>{childLabel}</td>
+                      <td style={pointageTd}>{stayCodeOf(passenger) || "—"}</td>
+                      <td style={pointageTd}>{passenger.nom || "—"}</td>
+                      <td style={pointageTd}>
+                        {passenger.phone ? (
+                          <a href={`tel:${(passenger.phones?.[0] || passenger.phone || "").replace(/\s/g, "")}`} style={{ color: "#111", textDecoration: "underline" }}>
+                            {passenger.phone}
+                          </a>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
