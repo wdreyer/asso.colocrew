@@ -855,6 +855,7 @@ function passengerRecapRows(transport) {
       stopType: meeting.stopType,
       isReturn: meeting.isReturn,
       city,
+      displayCity,
       action: isReturnConnection ? "Prise en charge au centre" : isReturn ? "Descente / remise à la famille" : "Montée / prise en charge",
       child: childFullName(child) || passenger.childName || "—",
       stay: passenger.stayCode || shortStayCode(passenger.sejourName),
