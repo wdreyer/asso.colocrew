@@ -2326,11 +2326,16 @@ export default function ConvoyagePage() {
     const segmentIds = new Set(mySegments.map((segment) => segment.id).filter(Boolean));
     const passengersById = new Map();
     const tickets = [];
+    const vehicleGroupsById = new Map();
     selectedJourneyEntries.forEach(({ transport, portions }) => {
       const scoped = scopedTransportForStaff(transport, selectedStaff, portions);
       (scoped.passengers || []).forEach((passenger) => {
         const key = passenger.reservationId || passenger.childName || passenger.nom || `${transport.id}-${passengersById.size}`;
         if (!passengersById.has(key)) passengersById.set(key, passenger);
+      });
+      (scoped.vehicleGroups || []).forEach((group) => {
+        const key = group.id || `${transport.id}-${group.type || "vehicle"}-${group.from || ""}-${group.to || ""}`;
+        if (!vehicleGroupsById.has(key)) vehicleGroupsById.set(key, group);
       });
       (transport.tickets || [])
         .filter((ticket) => ticket.purchased && ticket.segmentId && segmentIds.has(ticket.segmentId))
@@ -2342,6 +2347,23 @@ export default function ConvoyagePage() {
     );
     const first = sortedSegments[0] || {};
     const last = sortedSegments.at(-1) || {};
+    sortedSegments.forEach((segment) => {
+      const mode = normalizePlace(`${segment.mode || ""} ${segment.trainType || ""} ${segment.id || ""}`);
+      if (!isRoadMode(mode) || !(segment.passengerReservationIds || []).length) return;
+      const type = mode.includes("minibus") ? "minibus" : "autocar";
+      const key = segment.id || `${type}-${segment.from || ""}-${segment.to || ""}`;
+      if (vehicleGroupsById.has(key)) return;
+      vehicleGroupsById.set(key, {
+        id: key,
+        label: type === "minibus" ? "Minibus" : "Autocar",
+        type,
+        from: segment.from || selectedTransport.departureCity,
+        to: segment.to || selectedTransport.arrivalCity,
+        staffIds: [selectedStaff.id],
+        passengerReservationIds: segment.passengerReservationIds,
+        highlight: type === "minibus",
+      });
+    });
     return {
       ...selectedTransport,
       id: `journey-${selectedStaff.id}-${selectedTransport.date || ""}-${selectedTransport.direction || ""}`,
@@ -2357,7 +2379,7 @@ export default function ConvoyagePage() {
       branches: sortedSegments.filter((segment) => segment._type === "branch"),
       tickets,
       passengers: [...passengersById.values()],
-      vehicleGroups: [],
+      vehicleGroups: [...vehicleGroupsById.values()],
     };
   }, [selectedTransport, selectedStaff, selectedJourneyEntries, mySegments]);
 
