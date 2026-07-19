@@ -415,9 +415,12 @@ function pointageStageTables(transport) {
   const passengers = (transport.passengers || []).filter((passenger) => passengerMatchesTransport(transport, passenger));
   const used = new Set();
   const sortPassengers = (items) => [...(items || [])].sort((left, right) => {
+    const leftCity = passengerInitialDepartureCity(left, passengerStageCity(transport, left));
+    const rightCity = passengerInitialDepartureCity(right, passengerStageCity(transport, right));
     const leftName = childNamesForPassengers([left]).join(", ");
     const rightName = childNamesForPassengers([right]).join(", ");
-    return leftName.localeCompare(rightName, "fr");
+    return leftCity.localeCompare(rightCity, "fr")
+      || leftName.localeCompare(rightName, "fr");
   });
   const tables = convoyageStagePoints(transport).map((point) => {
     const ids = portionPassengerIdSet(point.portion);
@@ -440,17 +443,23 @@ function pointageStageTables(transport) {
     };
   }).filter((table) => table.passengers.length > 0);
 
-  const ungrouped = passengers.filter((passenger) => !used.has(passenger.reservationId));
-  if (ungrouped.length) {
+  const fallbackGroups = new Map();
+  passengers.filter((passenger) => !used.has(passenger.reservationId)).forEach((passenger) => {
+    const city = passengerInitialDepartureCity(passenger, passengerStageCity(transport, passenger));
+    const key = normalizePlace(city);
+    if (!fallbackGroups.has(key)) fallbackGroups.set(key, { city, passengers: [] });
+    fallbackGroups.get(key).passengers.push(passenger);
+  });
+  [...fallbackGroups.values()].sort((left, right) => left.city.localeCompare(right.city, "fr")).forEach((group) => {
     tables.push({
-      id: "stage-ungrouped",
-      label: "Sans étape identifiée",
-      sub: `${countChildren(ungrouped)} enfant${countChildren(ungrouped) !== 1 ? "s" : ""}`,
-      city: "",
-      passengers: sortPassengers(ungrouped),
-      tone: "warning",
+      id: `stage-origin-${normalizePlace(group.city)}`,
+      label: `Étape ${group.city}`,
+      sub: `${countChildren(group.passengers)} enfant${countChildren(group.passengers) !== 1 ? "s" : ""}`,
+      city: group.city,
+      passengers: sortPassengers(group.passengers),
+      tone: "default",
     });
-  }
+  });
   return tables;
 }
 
@@ -950,6 +959,10 @@ function passengerRecapStageTables(transport) {
   const rows = passengerRecapRows(transport);
   const used = new Set();
   const rowKey = (row) => `${row.child}|${row.parent}|${row.phone}|${row.city}`;
+  const sortRows = (items) => [...(items || [])].sort((left, right) =>
+    (left.displayCity || left.city || "").localeCompare(right.displayCity || right.city || "", "fr")
+    || (left.child || "").localeCompare(right.child || "", "fr"),
+  );
   const tables = convoyageStagePoints(transport).map((point) => {
     const cityKey = normalizePlace(point.city);
     const stageRows = rows.filter((row) => {
@@ -963,19 +976,25 @@ function passengerRecapStageTables(transport) {
       city: point.city,
       meetingTime: point.meetingTime,
       meetingPoint: point.meetingPoint,
-      rows: stageRows,
+      rows: sortRows(stageRows),
     };
   }).filter((table) => table.rows.length > 0);
-  const remaining = rows.filter((row) => !used.has(rowKey(row)));
-  if (remaining.length) {
+  const fallbackGroups = new Map();
+  rows.filter((row) => !used.has(rowKey(row))).forEach((row) => {
+    const city = row.displayCity || row.city || "Sans étape identifiée";
+    const key = normalizePlace(city);
+    if (!fallbackGroups.has(key)) fallbackGroups.set(key, { city, rows: [] });
+    fallbackGroups.get(key).rows.push(row);
+  });
+  [...fallbackGroups.values()].sort((left, right) => left.city.localeCompare(right.city, "fr")).forEach((group) => {
     tables.push({
-      id: "pdf-stage-ungrouped",
-      city: "Sans étape identifiée",
+      id: `pdf-stage-origin-${normalizePlace(group.city)}`,
+      city: group.city,
       meetingTime: "",
       meetingPoint: "",
-      rows: remaining,
+      rows: sortRows(group.rows),
     });
-  }
+  });
   return tables;
 }
 
