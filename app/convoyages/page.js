@@ -826,6 +826,9 @@ function passengerRecapRows(transport) {
       : isReturn
       ? passenger.dropoffCity || passenger.returnCity || passenger.pickupCity || "Ville à confirmer"
       : passenger.pickupCity || passenger.departureCity || "Ville à confirmer";
+    const displayCity = showPassengerOrigin
+      ? (isReturn ? passenger.returnCity || passenger.pickupCity || city : passenger.departureCity || passenger.pickupCity || city)
+      : city;
     const schedule = citySchedule(transport, city, isReturnConnection ? "aller" : transport.direction);
     const meeting = recapMeetingInfo(transport, city, isReturnConnection);
     const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "" }];
@@ -846,7 +849,7 @@ function passengerRecapRows(transport) {
       phone: passenger.phone || "—",
       segment: schedule.segment,
     }));
-  }).sort((left, right) => timeMinutes(left.meetingTime || left.arrivalTime || left.departureTime || left.time) - timeMinutes(right.meetingTime || right.arrivalTime || right.departureTime || right.time) || left.city.localeCompare(right.city, "fr"));
+  }).sort((left, right) => timeMinutes(left.meetingTime || left.arrivalTime || left.departureTime || left.time) - timeMinutes(right.meetingTime || right.arrivalTime || right.departureTime || right.time) || left.displayCity.localeCompare(right.displayCity, "fr"));
 }
 
 function openPassengerRecapPdf(transport) {
@@ -861,7 +864,7 @@ function openPassengerRecapPdf(transport) {
   <table><thead><tr><th class="num">#</th><th>Présent</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Arrivée train</th><th>Départ train</th><th>Temps d’arrêt</th><th>Ville</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Régime alimentaire</th><th>Médicament / traitement</th><th>Segment</th></tr></thead><tbody>
   ${rows.map((row, index) => {
     const typeLabel = row.stopType === "quai" ? (row.isReturn ? "Récupération quai" : "RDV quai") : row.stopType === "return" ? "Récupération" : "RDV famille";
-    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="present">☐</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td class="notes">&nbsp;</td><td class="notes">&nbsp;</td><td>${escapeHtml(row.segment)}</td></tr>`;
+    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="present">☐</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td class="notes">&nbsp;</td><td class="notes">&nbsp;</td><td>${escapeHtml(row.segment)}</td></tr>`;
   }).join("")}
   </tbody></table></body></html>`;
   const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));

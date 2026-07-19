@@ -48,7 +48,7 @@ function sanitizedContract(input) {
 function isVolunteerContract(contract) {
   const key = String(contract?.roleKey || "").trim().toLowerCase();
   const role = String(contract?.role || "").trim().toLowerCase();
-  return key === "benevole" || role.includes("benevol") || role.includes("bÃ©nÃ©vol") || role.includes("bÃƒÂ©nÃƒÂ©vol");
+  return key === "benevole" || role.includes("benevol") || role.includes("bénévol");
 }
 
 const DOCUSIGN_PERSONAL_FIELDS = [
@@ -102,7 +102,7 @@ export async function POST(request) {
     const personalFields = isVolunteer
       ? DOCUSIGN_PERSONAL_FIELDS.filter((field) => field.key !== "socialSecurityNumber")
       : DOCUSIGN_PERSONAL_FIELDS;
-    const documentLabel = isVolunteer ? "Convention de bÃ©nÃ©volat" : "Contrat d'engagement Ã©ducatif";
+    const documentLabel = isVolunteer ? "Convention de bénévolat" : "Contrat d'engagement éducatif";
     const missingFields = personalFields.filter((field) => !field.valid(member[field.key]));
     const memberForDocument = { ...member };
     missingFields.forEach((field) => { memberForDocument[field.key] = ""; });

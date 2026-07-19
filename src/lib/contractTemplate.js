@@ -43,7 +43,7 @@ function contractRoleKey(contract) {
   const key = String(contract?.roleKey || "").trim().toLowerCase();
   if (CONTRACT_ROLE_LABELS[key]) return key;
   const role = String(contract?.role || "").trim().toLowerCase().replace(/\s+/g, "");
-  if (role.includes("benevol") || role.includes("bÃ©nÃ©vol")) return "benevole";
+  if (role.includes("benevol") || role.includes("bénévol")) return "benevole";
   if (role === "ds") return "ds";
   if (role === "dsa") return "dsa";
   if (role === "bafa") return "bafa";
