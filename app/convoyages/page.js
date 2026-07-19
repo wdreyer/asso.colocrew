@@ -1422,6 +1422,46 @@ function ConvoyageIndex({ transports, onSelect }) {
     return groups;
   }, new Map());
 
+  const staffIndexRows = (transport) => {
+    const isAller = transport.direction !== "retour";
+    const portions = orderedTransportPortions(transport);
+    return (transport.staff || [])
+      .map((member) => {
+        const assignedPortions = portions.filter((portion) => (portion.assignedStaffIds || []).includes(member.id));
+        if (!assignedPortions.length) return null;
+        const assignment = staffAssignmentSummary({
+          ...transport,
+          segments: assignedPortions.filter((portion) => portion._type === "segment"),
+          branches: assignedPortions.filter((portion) => portion._type === "branch"),
+          vehicleGroups: [],
+        }, member.id);
+        const meeting = staffAssignmentMeeting(transport, assignedPortions, []);
+        const passengers = staffAssignmentPassengers(transport, assignedPortions, []);
+        const routeCities = [];
+        assignedPortions.forEach((portion) => {
+          [portion.from, ...(portion.stops || []).map((stop) => stop.city), portion.to]
+            .filter(Boolean)
+            .forEach((city) => {
+              if (normalizePlace(routeCities.at(-1)) !== normalizePlace(city)) routeCities.push(city);
+            });
+        });
+        return {
+          key: `${transport.id}_${member.id}`,
+          staffId: member.id,
+          portionIds: assignedPortions.map((portion) => portion.id).filter(Boolean),
+          week: transport.week || "",
+          direction: isAller ? "Aller" : "Retour",
+          route: routeCities.length > 1 ? routeCities.join(" -> ") : `${transport.departureCity || "?"} -> ${transport.arrivalCity || "?"}`,
+          anim: member.name || "Animateur",
+          mission: assignment.details.join(" / ") || assignment.badges.map((badge) => badge.label).join(" / ") || member.role || "Trajet complet",
+          meetingPoint: meeting.meetingPoint || meeting.city || "A confirmer",
+          meetingTime: meeting.meetingTime || "",
+          passengerCount: countChildren(passengers),
+        };
+      })
+      .filter(Boolean);
+  };
+
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "22px 10px 60px" }}>
       <style>{`
@@ -1472,62 +1512,7 @@ function ConvoyageIndex({ transports, onSelect }) {
               </thead>
               <tbody>
                 {dateTransports.flatMap((transport) => {
-                  const isAller = transport.direction !== "retour";
-                  const route = `${transport.departureCity || "?"} → ${transport.arrivalCity || "?"}`;
-                  const portions = orderedTransportPortions(transport);
-                  const fullRow = {
-                    key: `${transport.id}__all__`,
-                    staffId: "__all__",
-                    portionIds: null,
-                    week: transport.week || "",
-                    direction: isAller ? "Aller" : "Retour",
-                    route,
-                    anim: "Vue complète",
-                    mission: "Tout le trajet + toutes les listes",
-                    meetingPoint: transport.meetingPoint || transport.departureCity || "",
-                    meetingTime: transport.meetingTime || transport.departureTime || "",
-                    passengerCount: countChildren(transport.passengers || []),
-                  };
-                  const rows = [
-                    fullRow,
-                    ...(transport.staff || []).flatMap((member) =>
-                      portions
-                        .filter((portion) => (portion.assignedStaffIds || []).includes(member.id))
-                        .map((portion) => {
-                          const assignment = staffAssignmentSummary({ ...transport, segments: portion._type === "segment" ? [portion] : [], branches: portion._type === "branch" ? [portion] : [], vehicleGroups: [] }, member.id);
-                          const meeting = staffAssignmentMeeting(transport, [portion], []);
-                          const passengerCount = countChildren(staffAssignmentPassengers(transport, [portion], []));
-                          return {
-                            key: `${transport.id}_${member.id}_${portion.id}`,
-                            staffId: member.id,
-                            portionIds: [portion.id],
-                            week: transport.week || "",
-                            direction: isAller ? "Aller" : "Retour",
-                            route,
-                            anim: member.name || "Animateur",
-                            mission: assignment.badges.map((badge) => badge.label).join(" / ") || segmentPathLabel(portion) || member.role || "",
-                            meetingPoint: meeting.meetingPoint || meeting.city || "À confirmer",
-                            meetingTime: meeting.meetingTime || "",
-                            passengerCount,
-                          };
-                        })
-                    ),
-                    ...staffRecapRows(transport)
-                      .filter((row) => !portions.some((portion) => (portion.assignedStaffIds || []).includes(row.member.id)))
-                      .map((row) => ({
-                        key: `${transport.id}_${row.member.id}`,
-                        staffId: row.member.id,
-                        portionIds: null,
-                      week: transport.week || "",
-                      direction: isAller ? "Aller" : "Retour",
-                      route,
-                      anim: row.member.name || "Animateur",
-                      mission: row.assignment.badges.map((badge) => badge.label).join(" / ") || row.assignment.details.join(" / ") || row.member.role || "",
-                      meetingPoint: row.meeting.meetingPoint || row.meeting.city || "À confirmer",
-                      meetingTime: row.meeting.meetingTime || "",
-                      passengerCount: row.passengerCount,
-                      })),
-                  ];
+                  const rows = staffIndexRows(transport);
                   return rows.map((row) => (
                     <tr key={row.key} onClick={() => onSelect(transport.id, row.staffId, row.portionIds)}>
                       <td><strong>{row.week}</strong></td>
