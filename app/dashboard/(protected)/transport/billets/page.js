@@ -27,6 +27,19 @@ function directionIcon(direction) {
   return direction === "retour" ? "↓" : "↑";
 }
 
+function normalizeStatus(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function isActiveTransport(transport) {
+  const status = normalizeStatus(transport?.status);
+  return status !== "annule" && status !== "archive" && status !== "archivee";
+}
+
 function ticketDraft(ticket) {
   return {
     name: ticket.name || "",
@@ -98,7 +111,7 @@ export default function TousBilletsPage() {
 
   const rows = useMemo(() => {
     const out = [];
-    for (const transport of transports) {
+    for (const transport of transports.filter(isActiveTransport)) {
       out.push(...ticketRowsForTransport(transport));
     }
     return out.sort((a, b) => {

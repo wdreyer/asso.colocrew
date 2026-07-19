@@ -290,18 +290,32 @@ function passengerMatchesPortion(transport, passenger, portion) {
   const explicitIds = portionPassengerIdSet(portion);
   if (explicitIds) return explicitIds.has(passenger?.reservationId);
 
-  const cities = new Set(portionCities(portion));
+  const isBranch = portion?._type === "branch" || Boolean(portion?.joinsAt);
+  if (isBranch) {
+    const branchCities = [
+      ...(portion.stops || []).map((stop) => stop.city),
+      transport.direction === "retour" ? portion.to : portion.from,
+    ].map(normalizePlace).filter(Boolean);
+    const citySet = new Set(branchCities);
+    const passengerCity = normalizePlace(
+      transport.direction === "retour"
+        ? passengerDropoffCity(transport, passenger)
+        : passengerBoardingCity(transport, passenger),
+    );
+    return passengerCity ? citySet.has(passengerCity) : false;
+  }
+
   const boardingCity = normalizePlace(passengerBoardingCity(transport, passenger));
   const dropoffCity = normalizePlace(passengerDropoffCity(transport, passenger));
 
-  if (boardingCity && cities.has(boardingCity)) return true;
-  if (dropoffCity && cities.has(dropoffCity)) return true;
+  const stopCities = (portion.stops || []).map((stop) => normalizePlace(stop.city)).filter(Boolean);
+  if (transport.direction === "retour") {
+    const returnDropoffCities = new Set([...stopCities, normalizePlace(portion.to)].filter(Boolean));
+    return dropoffCity ? returnDropoffCities.has(dropoffCity) : false;
+  }
 
-  // A branch represents a self-contained side route. Children on that branch
-  // should not leak into the common/main route just because the branch joins it.
-  if (portion?._type === "branch") return false;
-
-  return false;
+  const allerBoardingCities = new Set([normalizePlace(portion.from), ...stopCities].filter(Boolean));
+  return boardingCity ? allerBoardingCities.has(boardingCity) : false;
 }
 
 function scopedTransportForStaff(transport, staff, portions) {
@@ -1345,7 +1359,7 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
 
 function ConvoyageIndex({ transports, onSelect }) {
   const activeTransports = [...transports]
-    .filter((transport) => normalizePlace(transport.status || "") !== "annule")
+    .filter((transport) => transport.week === "S2" && !["annule", "annulee", "archive", "archivé", "archivee"].includes(normalizePlace(transport.status || "")))
     .sort((a, b) =>
       (a.date || "").localeCompare(b.date || "")
       || (a.week || "").localeCompare(b.week || "")
@@ -1412,10 +1426,11 @@ function ConvoyageIndex({ transports, onSelect }) {
                 {dateTransports.flatMap((transport) => {
                   const isAller = transport.direction !== "retour";
                   const route = `${transport.departureCity || "?"} → ${transport.arrivalCity || "?"}`;
-                  const staffRows = staffRecapRows(transport);
+                  const portions = orderedTransportPortions(transport);
                   const fullRow = {
                     key: `${transport.id}__all__`,
                     staffId: "__all__",
+                    portionIds: null,
                     week: transport.week || "",
                     direction: isAller ? "Aller" : "Retour",
                     route,
@@ -1427,9 +1442,34 @@ function ConvoyageIndex({ transports, onSelect }) {
                   };
                   const rows = [
                     fullRow,
-                    ...staffRows.map((row) => ({
-                      key: `${transport.id}_${row.member.id}`,
-                      staffId: row.member.id,
+                    ...(transport.staff || []).flatMap((member) =>
+                      portions
+                        .filter((portion) => (portion.assignedStaffIds || []).includes(member.id))
+                        .map((portion) => {
+                          const assignment = staffAssignmentSummary({ ...transport, segments: portion._type === "segment" ? [portion] : [], branches: portion._type === "branch" ? [portion] : [], vehicleGroups: [] }, member.id);
+                          const meeting = staffAssignmentMeeting(transport, [portion], []);
+                          const passengerCount = countChildren(staffAssignmentPassengers(transport, [portion], []));
+                          return {
+                            key: `${transport.id}_${member.id}_${portion.id}`,
+                            staffId: member.id,
+                            portionIds: [portion.id],
+                            week: transport.week || "",
+                            direction: isAller ? "Aller" : "Retour",
+                            route,
+                            anim: member.name || "Animateur",
+                            mission: assignment.badges.map((badge) => badge.label).join(" / ") || segmentPathLabel(portion) || member.role || "",
+                            meetingPoint: meeting.meetingPoint || meeting.city || "À confirmer",
+                            meetingTime: meeting.meetingTime || "",
+                            passengerCount,
+                          };
+                        })
+                    ),
+                    ...staffRecapRows(transport)
+                      .filter((row) => !portions.some((portion) => (portion.assignedStaffIds || []).includes(row.member.id)))
+                      .map((row) => ({
+                        key: `${transport.id}_${row.member.id}`,
+                        staffId: row.member.id,
+                        portionIds: null,
                       week: transport.week || "",
                       direction: isAller ? "Aller" : "Retour",
                       route,
@@ -1438,10 +1478,10 @@ function ConvoyageIndex({ transports, onSelect }) {
                       meetingPoint: row.meeting.meetingPoint || row.meeting.city || "À confirmer",
                       meetingTime: row.meeting.meetingTime || "",
                       passengerCount: row.passengerCount,
-                    })),
+                      })),
                   ];
                   return rows.map((row) => (
-                    <tr key={row.key} onClick={() => onSelect(transport.id, row.staffId)}>
+                    <tr key={row.key} onClick={() => onSelect(transport.id, row.staffId, row.portionIds)}>
                       <td><strong>{row.week}</strong></td>
                       <td>{row.direction}</td>
                       <td><strong>{row.route}</strong></td>
@@ -2130,6 +2170,7 @@ export default function ConvoyagePage() {
 
   const [transportId, setTransportId] = useState(null);
   const [staffId, setStaffId] = useState(null);
+  const [portionIds, setPortionIds] = useState(null);
 
   useEffect(() => {
     let rawTransports = [];
@@ -2183,9 +2224,10 @@ export default function ConvoyagePage() {
 
   const mySegments = useMemo(() => {
     if (!selectedTransport || !selectedStaff) return [];
+    const scopedIds = Array.isArray(portionIds) && portionIds.length ? new Set(portionIds) : null;
     return orderedTransportPortions(selectedTransport)
-      .filter((seg) => selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id));
-  }, [selectedTransport, selectedStaff]);
+      .filter((seg) => (!scopedIds || scopedIds.has(seg.id)) && (selectedStaff.id === "__all__" || (seg.assignedStaffIds || []).includes(selectedStaff.id)));
+  }, [selectedTransport, selectedStaff, portionIds]);
 
   const briefingTransport = useMemo(
     () => scopedTransportForStaff(selectedTransport, selectedStaff, mySegments),
@@ -2231,9 +2273,10 @@ export default function ConvoyagePage() {
     return (
       <ConvoyageIndex
         transports={transports}
-        onSelect={(nextTransportId, nextStaffId) => {
+        onSelect={(nextTransportId, nextStaffId, nextPortionIds = null) => {
           setTransportId(nextTransportId);
           setStaffId(nextStaffId);
+          setPortionIds(nextPortionIds);
         }}
       />
     );
@@ -2243,9 +2286,10 @@ export default function ConvoyagePage() {
     return (
       <ConvoyageIndex
         transports={transports}
-        onSelect={(nextTransportId, nextStaffId) => {
+        onSelect={(nextTransportId, nextStaffId, nextPortionIds = null) => {
           setTransportId(nextTransportId);
           setStaffId(nextStaffId);
+          setPortionIds(nextPortionIds);
         }}
       />
     );
@@ -2261,6 +2305,7 @@ export default function ConvoyagePage() {
       onBack={() => {
         setTransportId(null);
         setStaffId(null);
+        setPortionIds(null);
       }}
       onTogglePresence={handleTogglePresence}
     />

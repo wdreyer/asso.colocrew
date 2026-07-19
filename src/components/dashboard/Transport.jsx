@@ -21,7 +21,7 @@ const ROUTE_GROUPS = [
   { value: "sud-ouest", label: "Sud / Ouest" },
   { value: "direct", label: "Direct / autre" },
 ];
-const WEEKS = ["S1", "S2", "S3", "S4"];
+const WEEKS = ["S2", "S3", "S4"];
 const KEY_DATES = [
   { date: "2026-07-06", week: "S1", direction: "aller",  label: "Jour de départ S1" },
   { date: "2026-07-17", week: "S1", direction: "retour", label: "Jour de retour S1" },
@@ -44,7 +44,17 @@ const STATUS_CFG = {
   brouillon: { label: "Brouillon",  variant: "neutral"  },
   "confirmé":  { label: "Confirmé",   variant: "success"  },
   "annulé":    { label: "Annulé",     variant: "error"    },
+  "archivé":   { label: "Archivé",    variant: "neutral"  },
 };
+
+function isArchivedTransport(transport) {
+  const status = normalizePlace(transport?.status || "");
+  return status === "archive" || status === "archivé" || status === "archivee";
+}
+
+function isActiveTransport(transport) {
+  return !isArchivedTransport(transport) && normalizePlace(transport?.status || "") !== "annule";
+}
 
 const EMERGENCY_PHONES = ["06 87 91 68 97", "06 11 91 37 64"];
 const CC_EMAIL = "equipe@colocrew.com";
@@ -6499,13 +6509,13 @@ function DayRecapModal({ day, transports, onClose }) {
 }
 
 function TrajetsTab({ transports, reservations, staffMembers, staffContracts, cityStops, onSave, onDelete, onCreated, onCreate }) {
-  const [selectedWeek, setSelectedWeek] = useState("S1");
+  const [selectedWeek, setSelectedWeek] = useState("S2");
   const [expandedId, setExpandedId]     = useState(null);
   const [recapDay, setRecapDay]         = useState(null);
   const cityOptions = useMemo(() => cityOptionsFromTransports(transports, cityStops), [transports, cityStops]);
 
   const weekTransports = useMemo(
-    () => transports.filter((t) => t.week === selectedWeek),
+    () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t)),
     [transports, selectedWeek],
   );
 
@@ -6518,7 +6528,7 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
         <nav className="dash-subtabs">
           {WEEKS.map((week) => {
             const info = WEEK_INFO[week];
-            const count = transports.filter((t) => t.week === week).length;
+            const count = transports.filter((t) => t.week === week && isActiveTransport(t)).length;
             return (
               <button key={week} type="button"
                 className={`dash-subtab${selectedWeek === week ? " is-active" : ""}`}
@@ -7409,7 +7419,7 @@ function isFamilyConvocationPassenger(transport, passenger) {
 
 function ConvocationsTab({ transports, reservations, staffMembers = [], staffContracts = [] }) {
   const { showToast } = useToast();
-  const [selectedWeek, setSelectedWeek] = useState("S1");
+  const [selectedWeek, setSelectedWeek] = useState("S2");
   const [sentStatus, setSentStatus]     = useState({});
   const [reminderStatus, setReminderStatus] = useState({});
   const [sendingKey, setSendingKey]     = useState(null);
@@ -7492,12 +7502,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   }, [onSiteConfigs]);
 
   const weekTrips = useMemo(
-    () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé" && t.direction === "aller"),
+    () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t) && t.direction === "aller"),
     [transports, selectedWeek],
   );
 
   const weekAllTrips = useMemo(
-    () => transports.filter((t) => t.week === selectedWeek && t.status !== "annulé"),
+    () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t)),
     [transports, selectedWeek],
   );
 
