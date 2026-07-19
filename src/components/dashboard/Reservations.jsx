@@ -156,8 +156,23 @@ function findPassengerSegment(transport, passenger, fallbackItem) {
   const city = normalizePlace(passengerTransportCity(transport, passenger, fallbackItem));
   if (!city) return null;
   return [...(transport.segments || []), ...(transport.branches || [])].find((segment) =>
-    normalizePlace(segmentStopCityForReservation(transport, segment)) === city,
+    normalizePlace(segmentStopCityForReservation(transport, segment)) === city
+    || (segment.stops || []).some((stop) => normalizePlace(stop.city) === city),
   ) || null;
+}
+
+function staffMemberById(transport, staffId) {
+  if (!transport || !staffId) return null;
+  return (transport.staff || []).find((member) => member.id === staffId || member.memberId === staffId) || null;
+}
+
+function convoyageLeadForSegment(transport, segment) {
+  if (!transport) return null;
+  const assignedIds = [...new Set(segment?.assignedStaffIds || [])].filter(Boolean);
+  const lead = staffMemberById(transport, transport.leadStaffId);
+  if (lead && (!assignedIds.length || assignedIds.includes(lead.id) || assignedIds.includes(lead.memberId))) return lead;
+  if (assignedIds.length === 1) return staffMemberById(transport, assignedIds[0]);
+  return assignedIds.map((id) => staffMemberById(transport, id)).find(Boolean) || lead || (transport.staff || [])[0] || null;
 }
 
 function ticketSegmentLabelForReservation(ticket, segments = []) {
@@ -1441,8 +1456,7 @@ function DocumentsTab({ item, onSave }) {
         const allerStop = allerEntry?.stop || null;
         const retourSegment = retourEntry?.segment || retour?.segments?.at(-1);
         const retourStop = retourEntry?.stop || null;
-        const assignedStaffIds = new Set(allerSegment?.assignedStaffIds || []);
-        const convoyeur = aller?.staff?.find((member) => assignedStaffIds.has(member.id)) || aller?.staff?.[0];
+        const convoyeur = convoyageLeadForSegment(aller, allerSegment);
 
         setExtra((current) => ({
           ...current,
@@ -1455,8 +1469,8 @@ function DocumentsTab({ item, onSave }) {
           trainNumber: saved.trainNumber || allerStop?.number || allerSegment?.number || current.trainNumber,
           returnMeetingPoint: saved.returnMeetingPoint || (retourStop && !isRoadTransportMode(retourSegment?.mode) ? STAGE_QUAI_RDV : retourStop?.meetingPoint) || retourSegment?.meetingPoint || current.returnMeetingPoint,
           returnTime: saved.returnTime || retourStop?.arrivalTime || retourSegment?.arrivalTime || current.returnTime,
-          convoyeur: saved.convoyeur || convoyeur?.name || current.convoyeur,
-          convoyeurPhone: saved.convoyeurPhone || convoyeur?.phone || current.convoyeurPhone,
+          convoyeur: convoyeur?.name || saved.convoyeur || current.convoyeur,
+          convoyeurPhone: convoyeur?.phone || saved.convoyeurPhone || current.convoyeurPhone,
         }));
       } catch (error) {
         console.error(error);
@@ -1731,7 +1745,8 @@ function ConvoyageInfoTab({ item }) {
             const segment = findPassengerSegment(transport, passenger, item);
             const city = passengerTransportCity(transport, passenger, item);
             const staffIds = new Set(segment?.assignedStaffIds || []);
-            const staff = (transport.staff || []).filter((member) => staffIds.has(member.id));
+            const leadStaff = convoyageLeadForSegment(transport, segment);
+            const staff = leadStaff ? [leadStaff] : (transport.staff || []).filter((member) => staffIds.has(member.id));
             const tickets = (transport.tickets || []).filter((ticket) =>
               ticket.segmentId === segment?.id
               && (
