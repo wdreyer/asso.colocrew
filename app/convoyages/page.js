@@ -1446,11 +1446,13 @@ function ConvoyageIndex({ transports, onSelect }) {
       (transport.staff || []).forEach((member) => {
         const assignedPortions = portions.filter((portion) => (portion.assignedStaffIds || []).includes(member.id));
         if (!assignedPortions.length) return;
-        const key = `${transport.date || ""}_${transport.direction || ""}_${member.id}`;
+        const staffNameKey = normalizePlace(member.name || member.id || "animateur");
+        const key = `${transport.date || ""}_${transport.direction || ""}_${staffNameKey}`;
         if (!rows.has(key)) {
           rows.set(key, {
             key,
             staffId: member.id,
+            staffIds: new Set([member.id]),
             week: transport.week || "",
             direction: isAller ? "Aller" : "Retour",
             anim: member.name || "Animateur",
@@ -1464,6 +1466,7 @@ function ConvoyageIndex({ transports, onSelect }) {
           });
         }
         const row = rows.get(key);
+        row.staffIds.add(member.id);
         const meeting = staffAssignmentMeeting(transport, assignedPortions, []);
         const passengers = staffAssignmentPassengers(transport, assignedPortions, []);
         const seenPassengerIds = row.passengerIds;
@@ -1485,7 +1488,11 @@ function ConvoyageIndex({ transports, onSelect }) {
               if (normalizePlace(row.routeCities.at(-1)) !== normalizePlace(city)) row.routeCities.push(city);
             });
         });
-        row.parts.push({ transportId: transport.id, portionIds: assignedPortions.map((portion) => portion.id).filter(Boolean) });
+        row.parts.push({
+          transportId: transport.id,
+          staffId: member.id,
+          portionIds: assignedPortions.map((portion) => portion.id).filter(Boolean),
+        });
       });
     });
     return [...rows.values()].map((row) => ({
