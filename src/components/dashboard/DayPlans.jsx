@@ -88,8 +88,10 @@ function isMcscS2(stay) {
 function normalizeMcscS2Plan(plan, seededPlan) {
   const seededTasks = seededPlan?.tasks || [];
   const deletedTaskIds = new Set(plan?.deletedTaskIds || []);
+  const hasImportedPlanning = Boolean(plan?.importedFrom);
   const managedSeedTasks = seededTasks.filter((task) => (
     String(task.id || "").startsWith("s2-") && (/surf/i.test(task.title || "") || task.category === "evening")
+    && !hasImportedPlanning
     && !deletedTaskIds.has(task.id)
   ));
   const managedIds = new Set(managedSeedTasks.map((task) => task.id));
