@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, doc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { useToast } from "@/src/contexts/ToastContext";
@@ -272,6 +272,36 @@ function resolveVars(text, reservation, extraVars = {}) {
     ...extraVars,
   };
   return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
+
+async function createDepositStripeLink(reservation) {
+  const { legal = {}, sejour = {}, transport = {}, payment = {}, options = {} } = reservation;
+  const response = await fetch("/api/create-stripe-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tokenUnique: reservation.tokenUnique,
+      amount: 100,
+      currency: "eur",
+      sejourTitle: sejour.name || "Séjour ColoCrew",
+      ageGroup: sejour.ageGroup || "",
+      startDate: sejour.startDate,
+      endDate: sejour.endDate,
+      transportFee: Number(transport.price || payment.transportAmount || 0),
+      insuranceOpted: Boolean(options.insurance || payment.insuranceFee || payment.assurance),
+      paymentOption: "deposit",
+      customer_email: legal.email || undefined,
+      metadata: {
+        paymentType: "deposit",
+        numeroDeReservation: reservation.numeroDeReservation || "",
+      },
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.url) {
+    throw new Error(data.error || "Lien Stripe acompte impossible à générer");
+  }
+  return data.url;
 }
 
 function bodyToHtml(bodyText) {
@@ -618,10 +648,22 @@ export default function Communication() {
     for (let i = 0; i < selectedList.length; i++) {
       const res = selectedList[i];
       try {
+        let reservationForEmail = res;
+        if (templateKey === LATEST_PLACES_TEMPLATE_KEY && !res.stripeDepositUrl) {
+          if (!res.tokenUnique) {
+            throw new Error("Token réservation manquant pour générer le lien Stripe acompte");
+          }
+          const stripeDepositUrl = await createDepositStripeLink(res);
+          reservationForEmail = { ...res, stripeDepositUrl };
+          await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), { stripeDepositUrl });
+          setReservations((prev) =>
+            prev.map((item) => item.id === res.id ? { ...item, stripeDepositUrl } : item),
+          );
+        }
         const payload = {
-          to: res.legal.email,
-          subject: resolveVars(subject, res, extraVars),
-          html: bodyToHtml(resolveVars(body, res, extraVars)),
+          to: reservationForEmail.legal.email,
+          subject: resolveVars(subject, reservationForEmail, extraVars),
+          html: bodyToHtml(resolveVars(body, reservationForEmail, extraVars)),
           from_name: sender.name,
           from_email: sender.email,
         };
