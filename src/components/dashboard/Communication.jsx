@@ -27,6 +27,13 @@ const SENDERS = [
 ];
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const LATEST_PLACES_TEMPLATE_KEY = "dernieres_places_aout";
+
+const STATUS_FILTERS = [
+  { value: "validated", label: "Validées" },
+  { value: "pending", label: "En cours non validées" },
+  { value: "all", label: "Tous statuts" },
+];
 
 const MISSING_DOCS_OPTIONS = [
   { key: "fiche_sanitaire",      label: "Fiche sanitaire de liaison" },
@@ -97,6 +104,32 @@ Ce rappel est générique : tous les documents ne concernent pas forcément tous
 Merci de nous envoyer les éléments manquants par retour de mail dès que possible, afin que les dossiers soient bien complets avant le départ.
 
 Nous reviendrons vers vous avec les dernières informations pratiques si nécessaire.
+
+À très bientôt,
+L'équipe ColoCrew`,
+  },
+  {
+    key: LATEST_PLACES_TEMPLATE_KEY,
+    label: "Dernières places août",
+    defaultSubject: "ColoCrew — Dernières places pour août : acompte à régler",
+    defaultBody: `Bonjour {{prenom_parent}},
+
+Nous revenons vers vous concernant la réservation N° {{numero_reservation}} de {{prenom_enfants}} pour le séjour {{nom_sejour}} — {{semaine}} ({{dates_sejour}}).
+
+Il nous reste seulement quelques places pour les séjours d'août. Pour bloquer définitivement la place de {{prenom_enfants}}, il faut régler l'acompte de 100€.
+
+Vous pouvez régler cet acompte directement en ligne via le lien suivant :
+{{lien_paiement}}
+
+Ou par virement bancaire :
+Titulaire : COLOCREW
+IBAN : FR76 1695 8000 0158 6780 6033 040
+BIC/SWIFT : QNTOFRP1XXX
+Référence : {{numero_reservation}}
+
+Sans acompte, la réservation reste en cours et la place n'est pas bloquée.
+
+Pour toute question, n'hésitez pas à nous contacter.
 
 À très bientôt,
 L'équipe ColoCrew`,
@@ -184,6 +217,10 @@ function weekFromStartDate(iso) {
 
 function isValidatedReservation(reservation) {
   return reservation?.status === "validated";
+}
+
+function isPendingReservation(reservation) {
+  return reservation?.status === "pending" || (!isValidatedReservation(reservation) && reservation?.status !== "deleted");
 }
 
 function reservationChildCount(reservation) {
@@ -357,6 +394,7 @@ export default function Communication() {
   // Filters
   const [filterSejour, setFilterSejour] = useState("all");
   const [filterWeek, setFilterWeek] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("validated");
   const [search, setSearch] = useState("");
 
   // Selection
@@ -414,15 +452,19 @@ export default function Communication() {
   }, [validatedReservations]);
 
   const sejourOptions = useMemo(() => {
-    const names = new Set(validatedReservations.map((r) => r.sejour?.name).filter(Boolean));
+    const names = new Set(reservations.map((r) => r.sejour?.name).filter(Boolean));
     return [...names].sort();
-  }, [validatedReservations]);
+  }, [reservations]);
 
   const filtered = useMemo(() => {
-    return validatedReservations.filter((r) => {
+    return reservations.filter((r) => {
       if (!r.legal?.email) return false;
+      if (filterStatus === "validated" && !isValidatedReservation(r)) return false;
+      if (filterStatus === "pending" && !isPendingReservation(r)) return false;
       if (filterSejour !== "all" && r.sejour?.name !== filterSejour) return false;
-      if (filterWeek !== "all" && weekFromStartDate(r.sejour?.startDate) !== filterWeek) return false;
+      const week = weekFromStartDate(r.sejour?.startDate);
+      if (filterWeek === "august" && !["S3", "S4"].includes(week)) return false;
+      if (filterWeek !== "all" && filterWeek !== "august" && week !== filterWeek) return false;
       if (search) {
         const q = search.toLowerCase();
         const name = `${r.legal?.firstName || ""} ${r.legal?.lastName || ""}`.toLowerCase();
@@ -433,7 +475,7 @@ export default function Communication() {
       }
       return true;
     });
-  }, [validatedReservations, filterSejour, filterWeek, search]);
+  }, [reservations, filterSejour, filterStatus, filterWeek, search]);
 
   const selectedList = useMemo(
     () => filtered.filter((r) => selected.has(r.id)),
@@ -457,6 +499,12 @@ export default function Communication() {
     setSubject(tpl.defaultSubject);
     setBody(tpl.defaultBody);
     setMissingDocs(new Set());
+    if (key === LATEST_PLACES_TEMPLATE_KEY) {
+      setFilterStatus("pending");
+      setFilterWeek("august");
+    } else {
+      setFilterStatus("validated");
+    }
   }, []);
 
   // ── Selection ─────────────────────────────────────────────────────────────
@@ -550,7 +598,11 @@ export default function Communication() {
   // ── Send ──────────────────────────────────────────────────────────────────
 
   const sendBatch = useCallback(async () => {
-    if (selectedList.some((res) => !isValidatedReservation(res))) {
+    if (templateKey === LATEST_PLACES_TEMPLATE_KEY && selectedList.some((res) => !isPendingReservation(res))) {
+      showToast("Ce modèle est prévu pour les réservations en cours non validées", "error");
+      return;
+    }
+    if (templateKey !== LATEST_PLACES_TEMPLATE_KEY && selectedList.some((res) => !isValidatedReservation(res))) {
       showToast("L'envoi famille est limité aux réservations validées", "error");
       return;
     }
@@ -606,7 +658,7 @@ export default function Communication() {
     } else {
       showToast(`${selectedList.length - errors.length} succès, ${errors.length} erreur(s)`, "error");
     }
-  }, [selectedList, subject, body, sender, attachments, getExtraVars, showToast]);
+  }, [selectedList, templateKey, subject, body, sender, attachments, getExtraVars, showToast]);
 
   const resetSend = useCallback(() => {
     setSendState("idle");
@@ -656,11 +708,19 @@ export default function Communication() {
               </select>
               <select value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
                 <option value="all">Toutes semaines</option>
+                <option value="august">Août S3 + S4</option>
                 {Object.entries(WEEK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
+              {STATUS_FILTERS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
             <div style={{ padding: "8px 10px", borderRadius: 8, background: "#ecfdf5", color: "#047857", fontSize: 12, fontWeight: 700, border: "1px solid #bbf7d0" }}>
-              {"Uniquement les réservations validées"}
+              {filterStatus === "pending"
+                ? "Réservations en cours non validées"
+                : filterStatus === "all"
+                  ? "Tous les statuts avec email"
+                  : "Uniquement les réservations validées"}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={selectAll} style={btnSmallStyle}>
@@ -789,6 +849,15 @@ export default function Communication() {
                   })}
                 </div>
               </div>
+
+              {templateKey === LATEST_PLACES_TEMPLATE_KEY && (
+                <div style={{ marginBottom: 20, padding: 16, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10 }}>
+                  <div style={{ ...labelStyle, color: "#c2410c", marginBottom: 6 }}>Ciblage dernières places août</div>
+                  <p style={{ margin: 0, fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
+                    Ce modèle sélectionne les réservations en cours non validées sur août (S3 + S4). Le texte reste modifiable avant envoi pour personnaliser les familles.
+                  </p>
+                </div>
+              )}
 
               {/* Documents manquants selector */}
               {templateKey === "documents_manquants" && (
