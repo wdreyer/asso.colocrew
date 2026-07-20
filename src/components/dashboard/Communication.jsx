@@ -531,7 +531,7 @@ export default function Communication() {
     setMissingDocs(new Set());
     if (key === LATEST_PLACES_TEMPLATE_KEY) {
       setFilterStatus("pending");
-      setFilterWeek("august");
+      setFilterWeek("all");
     } else {
       setFilterStatus("validated");
     }
@@ -896,7 +896,7 @@ export default function Communication() {
                 <div style={{ marginBottom: 20, padding: 16, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10 }}>
                   <div style={{ ...labelStyle, color: "#c2410c", marginBottom: 6 }}>Ciblage dernières places août</div>
                   <p style={{ margin: 0, fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
-                    Ce modèle sélectionne les réservations en cours non validées sur août (S3 + S4). Le texte reste modifiable avant envoi pour personnaliser les familles.
+                    Ce modèle sélectionne toutes les réservations en cours non validées avec email. Le texte reste modifiable avant envoi pour personnaliser les familles.
                   </p>
                 </div>
               )}
