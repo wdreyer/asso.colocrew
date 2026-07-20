@@ -119,8 +119,8 @@ async function createDocusignEnvelope(context, { subject, html, signers, documen
         textTabs: signer.textTabs.map((tab) => ({
           anchorString: tab.anchor,
           anchorUnits: "pixels",
-          anchorXOffset: String(tab.anchorXOffset ?? 0),
-          anchorYOffset: String(tab.anchorYOffset ?? -10),
+          anchorXOffset: String(tab.anchorXOffset ?? 3),
+          anchorYOffset: String(tab.anchorYOffset ?? 8),
           width: String(tab.width || 180),
           height: String(tab.height || 16),
           font: "Arial",
