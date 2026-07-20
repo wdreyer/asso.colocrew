@@ -767,7 +767,9 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
   const [, typeBg]  = [TYPE_BG[member.staffType]   || "#f5f0ff"];
 
   return (
-    <div className="hr-overlay" onClick={onClose}>
+    <div className="hr-overlay" onClick={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
       <div className="hr-fiche-modal" onClick={(e) => e.stopPropagation()}>
 
         {/* ── En-tête ── */}

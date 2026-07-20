@@ -1333,7 +1333,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.45);
-  z-index: 1200;
+  z-index: 5000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1341,6 +1341,8 @@
 }
 
 .hr-fiche-modal {
+  position: relative;
+  z-index: 5001;
   background: #fff;
   border-radius: 16px;
   width: 100%;
@@ -1356,6 +1358,7 @@
 .hr-fiche-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   padding: 18px 20px;
   border-bottom: 1.5px solid rgba(120,90,160,0.12);
@@ -1384,8 +1387,8 @@
   line-height: 1;
 }
 
-.hr-fiche-identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.hr-fiche-name { font-size: 17px; font-weight: 800; color: #1e1b4b; line-height: 1.2; }
+.hr-fiche-identity { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.hr-fiche-name { overflow-wrap: anywhere; font-size: 17px; font-weight: 800; color: #1e1b4b; line-height: 1.2; }
 .hr-fiche-contracts-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; }
 
 .hr-fiche-close {
