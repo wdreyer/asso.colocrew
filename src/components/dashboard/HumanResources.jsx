@@ -506,6 +506,10 @@ const DOCUSIGN_STATUS = {
 
 function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
+  const tableContracts = useMemo(() => contracts.map((contract) => ({
+    ...contract,
+    ceaStatus: contract.ceaDeclarationValidated ? "CEA fait" : "CEA à faire",
+  })), [contracts]);
 
   const columns = [
     {
@@ -538,11 +542,11 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
     { key: "datesLabel", label: "Dates", render: (row) => <span style={{ whiteSpace: "nowrap" }}>{fmtDateShort(row.startDate)} → {fmtDateShort(row.endDate)}</span>, sortValue: (r) => r.startDate },
     { key: "netSalary", label: "Net", render: (r) => currency(r.netSalary), sortValue: (r) => r.netSalary },
     {
-      key: "ceaDeclarationValidated", label: "CEA", sortable: false,
+      key: "ceaStatus", label: "CEA", sortable: false, filterable: true, filterLabel: "Tous CEA",
       render: (row) => (
         <label className="hr-contract-check" title="Déclaration CEA validée">
           <input type="checkbox" checked={row.ceaDeclarationValidated} onChange={(event) => onToggleCea(row, event.target.checked)} />
-          <span>Validée</span>
+          <span>{row.ceaDeclarationValidated ? "Fait" : "À faire"}</span>
         </label>
       ),
     },
@@ -578,7 +582,8 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
               const action = event.target.value;
               event.target.value = "";
               if (action === "edit") onEditContract(m, row);
-              if (action === "profile") onCompleteMember(m);
+              if (action === "profile") onCompleteMember(m, false);
+              if (action === "complete-profile") onCompleteMember(m, true);
               if (action === "preview") onContract(m, row);
               if (action === "send") onDocusignSend(m, row);
               if (action === "refresh") onDocusignRefresh(row);
@@ -588,8 +593,9 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
             aria-label={`Actions pour ${row.memberName}`}
           >
             <option value="">Actions…</option>
+            {m && <option value="profile">Voir fiche</option>}
             <option value="edit">Modifier contrat</option>
-            {m && missingPersonalInformation(m).length > 0 && <option value="profile">Compléter fiche</option>}
+            {m && missingPersonalInformation(m).length > 0 && <option value="complete-profile">Compléter fiche</option>}
             {m && <option value="preview">Aperçu PDF</option>}
             {m && !row.docusignEnvelopeId && m.email && <option value="send">Envoyer DocuSign</option>}
             {row.docusignEnvelopeId && <option value="refresh">Actualiser signature</option>}
@@ -630,8 +636,8 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
       </div>
       <DataTable
         columns={columns}
-        data={contracts}
-        searchableKeys={["memberName", "week", "stay", "role"]}
+        data={tableContracts}
+        searchableKeys={["memberName", "week", "stay", "role", "ceaStatus"]}
         defaultSortKey="week"
         emptyLabel="Aucun contrat enregistré."
         toolsInline
@@ -1878,7 +1884,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onContract={handleContract}
             onEditContract={openEditContract}
             onNewContract={() => openNewContract(null)}
-            onCompleteMember={(member) => openMemberFile(member, true)}
+            onCompleteMember={(member, startEditing = true) => openMemberFile(member, startEditing)}
             onToggleCea={toggleCeaDeclaration}
             onTogglePayment={toggleContractPayment}
             onDocusignSend={sendContractWithDocusign}
