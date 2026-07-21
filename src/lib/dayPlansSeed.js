@@ -418,10 +418,6 @@ const mcscS2Days = addEvenings({
     surfTask("s2-2307-surf-1530-g34", "Surf - groupes 3 et 4", "15:30", "17:00", "Groupes 3 et 4"),
     surfTask("s2-2307-surf-1700-g12", "Surf - groupes 1 et 2", "17:00", "18:30", "Groupes 1 et 2"),
   ]),
-  "2026-07-24": withSurf("2026-07-24", [
-    surfTask("s2-2407-surf-0800-g12", "Surf - groupes 1 et 2", "08:00", "09:30", "Groupes 1 et 2"),
-    surfTask("s2-2407-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
-  ]),
   "2026-07-25": withSurf("2026-07-25", [
     surfTask("s2-2507-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
     surfTask("s2-2507-surf-1800-g12", "Surf - groupes 1 et 2", "18:00", "19:30", "Groupes 1 et 2"),
