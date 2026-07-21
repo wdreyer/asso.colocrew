@@ -30,6 +30,15 @@ const SECTION_DEFAULT_TIMES = {
   evening: ["21:00", "22:30"],
 };
 
+const SECTION_CLICK_RANGES = {
+  breakfast: ["08:00", "09:30"],
+  morning: ["09:00", "12:30"],
+  lunch: ["12:00", "14:00"],
+  afternoon: ["14:00", "18:30"],
+  dinner: ["19:00", "21:00"],
+  evening: ["20:30", "23:30"],
+};
+
 const MCSC_S2_KITCHEN_CHILDREN = [
   "Marie-Olivia ACOUMIEN",
   "Jabran Aldgig",
@@ -250,6 +259,22 @@ function isSplitTask(task) {
 function taskMinutes(value) {
   const [hours, minutes] = String(value || "00:00").split(":").map(Number);
   return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+}
+
+function timeFromMinutes(minutes) {
+  const normalized = Math.max(0, Math.min(23 * 60 + 59, Math.round(minutes / 15) * 15));
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+function addMinutes(value, minutes) {
+  return timeFromMinutes(taskMinutes(value) + minutes);
+}
+
+function clickedSectionTime(event, sectionKey) {
+  const [start, end] = SECTION_CLICK_RANGES[sectionKey] || SECTION_DEFAULT_TIMES[sectionKey] || SECTION_DEFAULT_TIMES.morning;
+  const rect = event.currentTarget.getBoundingClientRect();
+  const ratio = rect.height ? Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)) : 0;
+  return timeFromMinutes(taskMinutes(start) + (taskMinutes(end) - taskMinutes(start)) * ratio);
 }
 
 function overlapsTask(a, b) {
@@ -579,16 +604,17 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     await saveDay(selectedDate, { tasks }, "");
   };
 
-  const openTaskEditor = (date, task, nextView = "day") => {
+  const openTaskEditor = (date, task, nextView = null) => {
     setSelectedDate(date);
     if (nextView) setView(nextView);
     setEditor({ ...EMPTY_TASK, ...task, _sourceDate: date, targetDate: date });
   };
 
-  const openNewTaskEditor = (date, sectionKey) => {
-    const [startTime, endTime] = SECTION_DEFAULT_TIMES[sectionKey] || SECTION_DEFAULT_TIMES.morning;
+  const openNewTaskEditor = (date, sectionKey, startOverride = "") => {
+    const [defaultStart, defaultEnd] = SECTION_DEFAULT_TIMES[sectionKey] || SECTION_DEFAULT_TIMES.morning;
+    const startTime = startOverride || defaultStart;
+    const endTime = startOverride ? addMinutes(startOverride, Math.max(45, taskMinutes(defaultEnd) - taskMinutes(defaultStart))) : defaultEnd;
     setSelectedDate(date);
-    setView("day");
     setEditor({
       ...EMPTY_TASK,
       category: sectionKey,
@@ -825,38 +851,49 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
           <div className="dp-excel-label" style={{ "--section-color": section.color }}><span>{section.icon}</span><strong>{section.label}</strong></div>
           {dates.map((date) => {
             const tasks = sortTasks(((plans[date] || seedDay(date, config)).tasks || []).filter((task) => task.category === section.key));
-            return <button
-              type="button"
+            const addAtClick = (event) => {
+              if (event.target.closest("[data-dp-action]")) return;
+              onAddTask(date, section.key, clickedSectionTime(event, section.key));
+            };
+            return <div
+              role="button"
+              tabIndex={0}
               className="dp-excel-cell"
               key={`${section.key}-${date}`}
-              onClick={() => tasks[0] ? onOpenTask(date, tasks[0]) : onAddTask(date, section.key)}
+              onClick={addAtClick}
+              onKeyDown={(event) => {
+                if (!["Enter", " "].includes(event.key)) return;
+                event.preventDefault();
+                onAddTask(date, section.key);
+              }}
             >
               {tasks.length ? tasks.map((task) => {
                 const palette = activityPalette(task, section.color);
                 if (isSplitTask(task)) {
                   if (task.rotationSegments?.length) {
-                    return <span key={task.id} className="dp-surf-split" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}>
+                    return <button type="button" data-dp-action="edit" key={task.id} className="dp-surf-split" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }} onClick={(event) => { event.stopPropagation(); onOpenTask(date, task); }}>
                       <b>{task.startTime}</b>
                       <strong>{task.title}</strong>
                       <small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small>
                       {(task.rotationSegments || []).map((segment) => (
                         <em key={`${task.id}-${segment.label}`}><i>{segment.label}</i><u>{segment.groups}</u></em>
                       ))}
-                    </span>;
+                    </button>;
                   }
                   const otherLabel = otherGroupsLabel(task);
                   const otherActivity = otherGroupsActivity(tasks, task);
-                  return <span key={task.id} className="dp-surf-split" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}>
+                  return <button type="button" data-dp-action="edit" key={task.id} className="dp-surf-split" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }} onClick={(event) => { event.stopPropagation(); onOpenTask(date, task); }}>
                     <b>{task.startTime}</b>
                     <strong>{task.title}</strong>
                     <small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small>
                     <em><i>Surf</i><u>{task.groups || "Groupes à préciser"}</u></em>
                     <em className="is-other"><i>Autres</i><u>{otherLabel} · {otherActivity}</u></em>
-                  </span>;
+                  </button>;
                 }
-                return <span key={task.id} style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}><b>{task.startTime}</b><strong>{task.title}</strong><small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "À affecter"}</small></span>;
+                return <button type="button" data-dp-action="edit" key={task.id} style={{ "--activity-color": palette.color, "--activity-bg": palette.background }} onClick={(event) => { event.stopPropagation(); onOpenTask(date, task); }}><b>{task.startTime}</b><strong>{task.title}</strong><small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "A affecter"}</small></button>;
               }) : <em>—</em>}
-            </button>;
+              <button type="button" data-dp-action="add" className="dp-excel-add-task" aria-label={`Ajouter une tache ${section.label} le ${dateLabel(date, true)}`} onClick={(event) => { event.stopPropagation(); onAddTask(date, section.key, clickedSectionTime(event, section.key)); }}>+</button>
+            </div>;
           })}
         </div>)}
       </div>
@@ -1020,7 +1057,7 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
     setPhotoPreview(file ? URL.createObjectURL(file) : "");
   };
 
-  return <Modal isOpen={Boolean(task)} onClose={onClose} title={draft.id ? "Détail de l’activité" : "Nouvelle activité"} size="md">
+  return <Modal isOpen={Boolean(task)} onClose={onClose} title={draft.id ? "Détail de l’activité" : "Nouvelle activité"} size="md" closeOnBackdrop={false} closeOnEscape={false}>
     {!editing ? <article className="dp-task-detail">
       {(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt={draft.title} />}
       <div className="dp-detail-meta"><span>{section?.icon} {section?.label}</span><strong>{draft.startTime || "—"}{draft.endTime ? ` – ${draft.endTime}` : ""}</strong></div>
