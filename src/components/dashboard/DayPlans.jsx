@@ -576,9 +576,9 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     await saveDay(selectedDate, { tasks }, "");
   };
 
-  const openTaskEditor = (date, task) => {
+  const openTaskEditor = (date, task, nextView = "day") => {
     setSelectedDate(date);
-    setView("day");
+    if (nextView) setView(nextView);
     setEditor({ ...EMPTY_TASK, ...task, _sourceDate: date, targetDate: date });
   };
 
@@ -597,7 +597,6 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   };
 
   const openKitchenMenuEditor = (menu) => {
-    setView("day");
     setEditor({
       ...EMPTY_TASK,
       id: "",
@@ -679,7 +678,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
               memberById={memberById}
               stay={stay}
               selectedDate={selectedDate}
-              onOpen={(date, task) => openTaskEditor(date, task)}
+              onOpen={(date, task) => openTaskEditor(date, task, "food")}
               onUseMenu={openKitchenMenuEditor}
             />
           ) : view === "leaves" ? (
