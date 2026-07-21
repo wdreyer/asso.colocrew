@@ -30,6 +30,122 @@ const SECTION_DEFAULT_TIMES = {
   evening: ["21:00", "22:30"],
 };
 
+const MCSC_S2_KITCHEN_CHILDREN = [
+  "Marie-Olivia ACOUMIEN",
+  "Jabran Aldgig",
+  "Louisa ALLIOUD",
+  "Sara-Clemence ALLIOUD",
+  "Heloise BALA-HAETTIGER",
+  "Mila Ballester",
+  "Anaelle BASSON",
+  "Maysan Benbouzid",
+  "Ludmila benghine van stpidonk",
+  "Lyna Benkuider",
+  "Ninon Buisson",
+  "Kenny Chalon",
+  "Bilal El kassaoui",
+  "Selma El kassaoui",
+  "Aymen FELKAOUI",
+  "Youssef FELKAOUI",
+  "Sophia FELKAOUI",
+  "Noemie Gilardi",
+  "Mohamed Laouail",
+  "Rabah Laouail",
+  "Noemie Lautier",
+  "Johan Lecuyer",
+  "Diane MELIET",
+  "Maylis Naghmouchi",
+  "Iliana Naghmouchi",
+  "Lola PROCACCI",
+  "Louise Raylat",
+  "Martin Raylat",
+  "Sara Seide",
+  "Gabriela Seide",
+  "Vadim Sillas",
+  "Louise Touzaine",
+  "Leena Vanhee",
+];
+
+const MCSC_S2_KITCHEN_MENUS = [
+  {
+    id: "mcsc-s2-menu-kebab",
+    title: "Kebab / shawarma",
+    children: ["Selma El kassaoui", "Bilal El kassaoui", "Noemie Gilardi", "Youssef FELKAOUI", "Rabah Laouail"],
+    menu: [
+      "Shawarma : oignons rouges, salade, tomates, poulet marine, epices harissa.",
+      "Sauces : algerienne, Biggy, blanche.",
+      "Pommes de terre barbecue.",
+      "Dessert : tiramisu cafe, speculoos, Oreo.",
+    ].join("\n"),
+  },
+  {
+    id: "mcsc-s2-menu-burrata-carbonara",
+    title: "Burrata tomate / pates carbonara",
+    children: ["Jabran Aldgig", "Maysan Benbouzid", "Mohamed Laouail", "Lyna Benkuider", "Leena Vanhee", "Louisa ALLIOUD", "Sara-Clemence ALLIOUD"],
+    menu: [
+      "Entree : burrata tomate.",
+      "Plat : pates carbonara.",
+      "Dessert : milkshake vanille.",
+    ].join("\n"),
+  },
+  {
+    id: "mcsc-s2-menu-stars",
+    title: "Tasty crousty",
+    children: ["Louise Raylat", "Mila Ballester", "Noemie Lautier", "Ludmila benghine van stpidonk", "Kenny Chalon", "Johan Lecuyer"],
+    menu: [
+      "Tasty crousty.",
+      "Melon et pasteque.",
+    ].join("\n"),
+  },
+  {
+    id: "mcsc-s2-menu-chinois",
+    title: "Menu chinois",
+    children: ["Heloise BALA-HAETTIGER", "Louise Touzaine", "Anaelle BASSON", "Marie-Olivia ACOUMIEN", "Ninon Buisson", "Martin Raylat", "Vadim Sillas"],
+    menu: [
+      "Nouilles chinoises.",
+      "Carottes, brocolis.",
+      "Graines de sesame, oignons frits.",
+      "Poivrons, poulet, chou.",
+      "Sauce soja salee, sucre.",
+      "Dessert : farine, beurre, sucre, poudre d'amandes.",
+    ].join("\n"),
+  },
+  {
+    id: "mcsc-s2-menu-noel",
+    title: "Chaussons chevre / wok",
+    children: [],
+    assumedMissingGroup: true,
+    menu: [
+      "Entree : chaussons chevre, salade, vinaigre doux.",
+      "Plat : wok, poireaux / poulet / legumes, sauce soja, haricots verts.",
+      "Dessert : fromage blanc, fruits rouges, crumble.",
+      "Groupe enfants a confirmer : les enfants restants semblent correspondre a ce menu.",
+    ].join("\n"),
+  },
+];
+
+function normalizeChildName(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function mcscS2KitchenCoverage() {
+  const all = new Map(MCSC_S2_KITCHEN_CHILDREN.map((name) => [normalizeChildName(name), name]));
+  const used = new Map();
+  MCSC_S2_KITCHEN_MENUS.forEach((menu) => {
+    (menu.children || []).forEach((name) => used.set(normalizeChildName(name), name));
+  });
+  return {
+    covered: [...used.values()],
+    missing: [...all.entries()].filter(([key]) => !used.has(key)).map(([, name]) => name),
+    total: all.size,
+  };
+}
+
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const shortFormatter = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric" });
 
@@ -480,6 +596,25 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     });
   };
 
+  const openKitchenMenuEditor = (menu) => {
+    setView("day");
+    setEditor({
+      ...EMPTY_TASK,
+      id: "",
+      category: "dinner",
+      title: menu.title,
+      startTime: "17:30",
+      endTime: "20:30",
+      groups: menu.children?.length ? menu.children.join(", ") : "Groupe enfants a confirmer",
+      details: menu.menu,
+      menu: menu.menu,
+      kitchen: true,
+      mealLocation: "inside",
+      _sourceDate: selectedDate,
+      targetDate: selectedDate,
+    });
+  };
+
   return (
     <div className="dp-page">
       <header className="dp-topbar">
@@ -538,7 +673,15 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
               onSelect={(date) => { setSelectedDate(date); setView("day"); }}
             />
           ) : view === "food" ? (
-            <FoodOverview plans={plans} dates={dates} memberById={memberById} onOpen={(date, task) => openTaskEditor(date, task)} />
+            <FoodOverview
+              plans={plans}
+              dates={dates}
+              memberById={memberById}
+              stay={stay}
+              selectedDate={selectedDate}
+              onOpen={(date, task) => openTaskEditor(date, task)}
+              onUseMenu={openKitchenMenuEditor}
+            />
           ) : view === "leaves" ? (
             <LeavesOverview plans={plans} members={members} leaveDates={leaveDates} stay={stay} saving={saving} onToggle={toggleLeave} showToast={showToast} />
           ) : (
@@ -719,7 +862,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
   </section>;
 }
 
-function FoodOverview({ plans, dates, memberById, onOpen }) {
+function FoodOverview({ plans, dates, memberById, stay, selectedDate, onOpen, onUseMenu }) {
   const mealSections = [
     { key: "breakfast", label: "Petit déjeuner", icon: "☕", color: "#d97706" },
     { key: "lunch", label: "Repas du midi", icon: "🥗", color: "#16a34a" },
@@ -727,6 +870,7 @@ function FoodOverview({ plans, dates, memberById, onOpen }) {
   ];
   return <section className="dp-food-view">
     <header><span className="dp-eyebrow">Cuisine et repas</span><h2>Planning nourriture</h2><p>Menus, horaires, groupes cuisine et personnes affectées pour tout le séjour.</p></header>
+    {stay?.code === "MCSC" && stay?.week === "S2" && <KitchenMenuLibrary selectedDate={selectedDate} onUseMenu={onUseMenu} />}
     <div className="dp-food-wrap"><table><thead><tr><th>Jour</th>{mealSections.map((section) => <th key={section.key}><span>{section.icon}</span>{section.label}</th>)}</tr></thead><tbody>
       {dates.map((date, index) => {
         const tasks = plans[date]?.tasks || [];
@@ -745,6 +889,40 @@ function FoodOverview({ plans, dates, memberById, onOpen }) {
         })}</tr>;
       })}
     </tbody></table></div>
+  </section>;
+}
+
+function KitchenMenuLibrary({ selectedDate, onUseMenu }) {
+  const coverage = mcscS2KitchenCoverage();
+  const assumedMenu = MCSC_S2_KITCHEN_MENUS.find((menu) => menu.assumedMissingGroup);
+  const menus = MCSC_S2_KITCHEN_MENUS.map((menu) => (
+    menu.assumedMissingGroup ? { ...menu, children: coverage.missing } : menu
+  ));
+  const coveredCount = assumedMenu ? coverage.total : coverage.covered.length;
+  return <section className="dp-menu-bank">
+    <div className="dp-menu-bank-head">
+      <div>
+        <span className="dp-eyebrow">Menus enfants S2</span>
+        <h3>Menus cuisine a placer</h3>
+        <p>Reference enfants MCSC S2 : {coveredCount}/{coverage.total} enfants couverts. Les enfants restants sont places sur le menu de la deuxieme photo, a confirmer si besoin.</p>
+      </div>
+      <strong className={coveredCount === coverage.total ? "is-ok" : "is-warn"}>{coverage.total} enfants</strong>
+    </div>
+    <div className="dp-menu-bank-grid">
+      {menus.map((menu) => <article key={menu.id} className={menu.assumedMissingGroup ? "is-confirm" : ""}>
+        <header>
+          <div><strong>{menu.title}</strong><small>{menu.children.length} enfant{menu.children.length > 1 ? "s" : ""}</small></div>
+          <button type="button" onClick={() => onUseMenu(menu)}>Placer sur {dateLabel(selectedDate, true)}</button>
+        </header>
+        <p>{menu.menu}</p>
+        <div>{menu.children.map((child) => <span key={child}>{child}</span>)}</div>
+      </article>)}
+    </div>
+    <details className="dp-menu-check">
+      <summary>Controle enfants / corrections</summary>
+      <p>Corrections appliquees : Raba = Rabah, Jabrane = Jabran, Maissane = Maysan, Lena = Leena, Sarah Clemence = Sara-Clemence.</p>
+      {coverage.missing.length ? <p>Enfants rattaches au menu a confirmer : {coverage.missing.join(", ")}.</p> : <p>Tous les enfants sont rattaches explicitement.</p>}
+    </details>
   </section>;
 }
 
