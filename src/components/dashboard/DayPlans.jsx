@@ -112,14 +112,17 @@ const MCSC_S2_KITCHEN_MENUS = [
   },
   {
     id: "mcsc-s2-menu-noel",
-    title: "Chaussons chevre / wok",
+    title: "Salade concombre / riz sauce tomate",
     children: [],
     assumedMissingGroup: true,
     menu: [
-      "Entree : chaussons chevre, salade, vinaigre doux.",
-      "Plat : wok, poireaux / poulet / legumes, sauce soja, haricots verts.",
-      "Dessert : fromage blanc, fruits rouges, crumble.",
-      "Groupe enfants a confirmer : les enfants restants semblent correspondre a ce menu.",
+      "Entree : salade de concombre.",
+      "Concombre, tomates cerises, mozzarella, vinaigre, sel, huile.",
+      "Plat : riz sauce tomate.",
+      "Riz, viande hachee, sauce tomate maison.",
+      "Dessert : cheesecake speculoos.",
+      "Courses notees : 2 packs de 12 oeufs, 1 kg sucre, 2 packs speculoos, 3 plaquettes beurre, 2 kg creme fraiche epaisse, vanille en poudre, fromage frais.",
+      "Groupe enfants : Diane, Sophia, Sara, Gabriela, Lola, Maylis, Iliana, Aymen.",
     ].join("\n"),
   },
 ];
