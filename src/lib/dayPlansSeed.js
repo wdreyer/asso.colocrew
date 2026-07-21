@@ -375,7 +375,7 @@ const mcscS2BaseDays = Object.fromEntries(Object.entries(basicStayDays(stayById[
   date,
   tasks.filter((item) => item.title !== "Activites ColoCrew / surf / grand jeu"),
 ]));
-const mcscS2SurfDetails = "Planning prestataire S2. Chaque creneau surf concerne 2 groupes : groupes 1 et 2 ensemble, groupes 3 et 4 ensemble.";
+const mcscS2SurfDetails = "Activite normale. Planning prestataire S2 importe depuis Planning acti ColoCrew S2.xlsx.";
 
 function surfTask(id, title, startTime, endTime, groups) {
   const hour = Number(startTime.split(":")[0]);
@@ -411,30 +411,32 @@ function addEvenings(days, evenings) {
 const mcscS2Days = addEvenings({
   ...mcscS2BaseDays,
   "2026-07-22": withSurf("2026-07-22", [
-    surfTask("s2-2207-surf-1430-g12", "Surf", "14:30", "16:00", "Groupes surf 1 et 2"),
-    surfTask("s2-2207-surf-1600-g34", "Surf", "16:00", "17:30", "Groupes surf 3 et 4"),
+    surfTask("s2-2207-surf-1430-g34", "Surf - groupes 3 et 4", "14:30", "16:00", "Groupes 3 et 4"),
+    surfTask("s2-2207-surf-1600-g12", "Surf - groupes 1 et 2", "16:00", "17:30", "Groupes 1 et 2"),
   ]),
   "2026-07-23": withSurf("2026-07-23", [
-    surfTask("s2-2307-surf-1530-g12", "Surf", "15:30", "17:00", "Groupes surf 1 et 2"),
-    surfTask("s2-2307-surf-1700-g34", "Surf", "17:00", "18:30", "Groupes surf 3 et 4"),
+    surfTask("s2-2307-surf-1530-g34", "Surf - groupes 3 et 4", "15:30", "17:00", "Groupes 3 et 4"),
+    surfTask("s2-2307-surf-1700-g12", "Surf - groupes 1 et 2", "17:00", "18:30", "Groupes 1 et 2"),
   ]),
   "2026-07-24": withSurf("2026-07-24", [
-    surfTask("s2-2407-surf-0800-g34", "Surf", "08:00", "09:30", "Groupes surf 3 et 4"),
-    surfTask("s2-2407-surf-0930-g12", "Surf", "09:30", "11:00", "Groupes surf 1 et 2"),
+    surfTask("s2-2407-surf-0800-g12", "Surf - groupes 1 et 2", "08:00", "09:30", "Groupes 1 et 2"),
+    surfTask("s2-2407-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
   ]),
   "2026-07-25": withSurf("2026-07-25", [
-    surfTask("s2-2507-surf-0930-g34", "Surf", "09:30", "11:00", "Groupes surf 3 et 4"),
-    surfTask("s2-2507-surf-1800-g12", "Surf", "18:00", "19:30", "Groupes surf 1 et 2"),
+    surfTask("s2-2507-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
+    surfTask("s2-2507-surf-1800-g12", "Surf - groupes 1 et 2", "18:00", "19:30", "Groupes 1 et 2"),
   ]),
   "2026-07-26": withSurf("2026-07-26", [
-    surfTask("s2-2607-surf-0800-g12", "Surf", "08:00", "09:30", "Groupes surf 1 et 2"),
-    surfTask("s2-2607-surf-0930-g34", "Surf", "09:30", "11:00", "Groupes surf 3 et 4"),
+    surfTask("s2-2607-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
+    surfTask("s2-2607-surf-1100-g12", "Surf - groupes 1 et 2", "11:00", "12:30", "Groupes 1 et 2"),
   ]),
   "2026-07-28": withSurf("2026-07-28", [
-    surfTask("s2-2807-surf-0800-g34", "Surf", "08:00", "09:30", "Groupes surf 3 et 4"),
+    surfTask("s2-2807-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
+    surfTask("s2-2807-surf-1100-g12", "Surf - groupes 1 et 2", "11:00", "12:30", "Groupes 1 et 2"),
   ]),
   "2026-07-29": withSurf("2026-07-29", [
-    surfTask("s2-2907-surf-0830-g12", "Surf", "08:30", "10:00", "Groupes surf 1 et 2"),
+    surfTask("s2-2907-surf-0830-g34", "Surf - groupes 3 et 4", "08:30", "10:00", "Groupes 3 et 4"),
+    surfTask("s2-2907-surf-1000-g12", "Surf - groupes 1 et 2", "10:00", "11:30", "Groupes 1 et 2"),
   ]),
 }, {
   "2026-07-20": {
