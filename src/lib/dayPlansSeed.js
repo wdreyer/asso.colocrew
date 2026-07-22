@@ -411,24 +411,24 @@ function addEvenings(days, evenings) {
 const mcscS2Days = addEvenings({
   ...mcscS2BaseDays,
   "2026-07-22": withSurf("2026-07-22", [
-    surfTask("s2-2207-surf-1430-g34", "Surf - groupes 3 et 4", "14:30", "16:00", "Groupes 3 et 4"),
-    surfTask("s2-2207-surf-1600-g12", "Surf - groupes 1 et 2", "16:00", "17:30", "Groupes 1 et 2"),
+    surfTask("s2-2207-surf-1430-g12", "Surf - groupes 1 et 2", "14:30", "16:00", "Groupes 1 et 2"),
+    surfTask("s2-2207-surf-1600-g34", "Surf - groupes 3 et 4", "16:00", "17:30", "Groupes 3 et 4"),
   ]),
   "2026-07-23": withSurf("2026-07-23", [
-    surfTask("s2-2307-surf-1530-g34", "Surf - groupes 3 et 4", "15:30", "17:00", "Groupes 3 et 4"),
-    surfTask("s2-2307-surf-1700-g12", "Surf - groupes 1 et 2", "17:00", "18:30", "Groupes 1 et 2"),
+    surfTask("s2-2307-surf-1530-g12", "Surf - groupes 1 et 2", "15:30", "17:00", "Groupes 1 et 2"),
+    surfTask("s2-2307-surf-1700-g34", "Surf - groupes 3 et 4", "17:00", "18:30", "Groupes 3 et 4"),
   ]),
   "2026-07-25": withSurf("2026-07-25", [
-    surfTask("s2-2507-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
-    surfTask("s2-2507-surf-1800-g12", "Surf - groupes 1 et 2", "18:00", "19:30", "Groupes 1 et 2"),
+    surfTask("s2-2507-surf-0930-g12", "Surf - groupes 1 et 2", "09:30", "11:00", "Groupes 1 et 2"),
+    surfTask("s2-2507-surf-1800-g34", "Surf - groupes 3 et 4", "18:00", "19:30", "Groupes 3 et 4"),
   ]),
   "2026-07-26": withSurf("2026-07-26", [
     surfTask("s2-2607-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
     surfTask("s2-2607-surf-1100-g12", "Surf - groupes 1 et 2", "11:00", "12:30", "Groupes 1 et 2"),
   ]),
   "2026-07-28": withSurf("2026-07-28", [
-    surfTask("s2-2807-surf-0930-g34", "Surf - groupes 3 et 4", "09:30", "11:00", "Groupes 3 et 4"),
-    surfTask("s2-2807-surf-1100-g12", "Surf - groupes 1 et 2", "11:00", "12:30", "Groupes 1 et 2"),
+    surfTask("s2-2807-surf-0930-g12", "Surf - groupes 1 et 2", "09:30", "11:00", "Groupes 1 et 2"),
+    surfTask("s2-2807-surf-1100-g34", "Surf - groupes 3 et 4", "11:00", "12:30", "Groupes 3 et 4"),
   ]),
   "2026-07-29": withSurf("2026-07-29", [
     surfTask("s2-2907-surf-0830-g34", "Surf - groupes 3 et 4", "08:30", "10:00", "Groupes 3 et 4"),
