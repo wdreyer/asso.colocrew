@@ -180,6 +180,8 @@ function mapContract(snap) {
     docusignSentAt: d.docusignSentAt || "",
     docusignUpdatedAt: d.docusignUpdatedAt || "",
     docusignCompletedAt: d.docusignCompletedAt || "",
+    docusignWaitingFor: d.docusignWaitingFor || "",
+    docusignRecipientStatuses: d.docusignRecipientStatuses || [],
   };
 }
 
@@ -504,12 +506,34 @@ const DOCUSIGN_STATUS = {
   voided: { label: "Annulé", variant: "error" },
 };
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignRefresh, onDocusignReset, docusignBusyId }) {
+function docusignWaitingLabel(value) {
+  if (value === "staff") return "A eux de signer";
+  if (value === "colocrew") return "A moi de signer";
+  if (value === "completed") return "Tout signe";
+  return "";
+}
+
+function docusignWaitingFromSigners(status, signers = []) {
+  if (status === "completed") return "completed";
+  const ordered = [...(signers || [])].sort((a, b) => Number(a.routingOrder || 0) - Number(b.routingOrder || 0));
+  const staffSigner = ordered.find((signer) => String(signer.routingOrder) === "1") || ordered[0];
+  const organizerSigner = ordered.find((signer) => String(signer.routingOrder) === "2") || ordered[1];
+  if (staffSigner && staffSigner.status !== "completed") return "staff";
+  if (organizerSigner && organizerSigner.status !== "completed") return "colocrew";
+  return "";
+}
+
+function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
+  const [visibleContracts, setVisibleContracts] = useState([]);
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
   const tableContracts = useMemo(() => contracts.map((contract) => ({
     ...contract,
     ceaStatus: contract.ceaDeclarationValidated ? "CEA fait" : "CEA à faire",
   })), [contracts]);
+
+  const visibleRefreshableContracts = visibleContracts.filter((contract) => (
+    contract.docusignEnvelopeId && contract.docusignStatus !== "completed" && contract.docusignStatus !== "voided"
+  ));
 
   const columns = [
     {
@@ -565,7 +589,13 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
       render: (row) => {
         if (!row.docusignEnvelopeId) return <Badge label="Non envoyé" variant="neutral" />;
         const display = DOCUSIGN_STATUS[row.docusignStatus] || { label: row.docusignStatus || "Envoyé", variant: "info" };
-        return <Badge label={display.label} variant={display.variant} />;
+        const waiting = docusignWaitingLabel(row.docusignWaitingFor);
+        return (
+          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+            <Badge label={display.label} variant={display.variant} />
+            {waiting && row.docusignStatus !== "completed" && <small style={{ color: "#6b5a7c", fontWeight: 800 }}>{waiting}</small>}
+          </span>
+        );
       },
       sortValue: (row) => row.docusignStatus || "",
     },
@@ -577,7 +607,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
           <select
             className="hr-contract-actions-select"
             defaultValue=""
-            disabled={docusignBusyId === row.id}
+            disabled={Boolean(docusignBusyId)}
             onChange={(event) => {
               const action = event.target.value;
               event.target.value = "";
@@ -627,6 +657,15 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+        <button
+          type="button"
+          className="dash-btn"
+          onClick={() => onDocusignRefreshMany(visibleRefreshableContracts)}
+          disabled={!visibleRefreshableContracts.length || Boolean(docusignBusyId)}
+          title="Actualise les contrats affiches par les filtres du tableau"
+        >
+          {docusignBusyId === "__bulk__" ? "Actualisation..." : `Actualiser signatures (${visibleRefreshableContracts.length})`}
+        </button>
         <button type="button" className="dash-btn" onClick={exportCsv} disabled={!contracts.length}>
           Exporter CSV
         </button>
@@ -641,6 +680,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
         defaultSortKey="week"
         emptyLabel="Aucun contrat enregistré."
         toolsInline
+        onProcessedDataChange={setVisibleContracts}
       />
     </div>
   );
@@ -1484,6 +1524,8 @@ export default function HumanResources({ initialTab = "sejours" }) {
       docusignStatus: "completed",
       docusignUpdatedAt: statusPayload.statusChangedDateTime || completedAt,
       docusignCompletedAt: completedAt,
+      docusignWaitingFor: "completed",
+      docusignRecipientStatuses: statusPayload.signers || [],
       contractFileUrl: url,
       signedContractStoragePath: storagePath,
     };
@@ -1547,6 +1589,8 @@ export default function HumanResources({ initialTab = "sejours" }) {
         docusignStatus: payload.status || "sent",
         docusignSentAt: payload.sentAt,
         docusignUpdatedAt: payload.sentAt,
+        docusignWaitingFor: "staff",
+        docusignRecipientStatuses: [],
       });
       showToast(`Contrat envoyé à ${payload.recipient}.`, "success");
     } catch (error) {
@@ -1597,6 +1641,8 @@ export default function HumanResources({ initialTab = "sejours" }) {
         await persistDocusignState(contract.id, {
           docusignStatus: payload.status,
           docusignUpdatedAt: updatedAt,
+          docusignWaitingFor: docusignWaitingFromSigners(payload.status, payload.signers),
+          docusignRecipientStatuses: payload.signers || [],
           ...(payload.completedDateTime ? { docusignCompletedAt: payload.completedDateTime } : {}),
         });
       }
@@ -1609,6 +1655,60 @@ export default function HumanResources({ initialTab = "sejours" }) {
       );
     } catch (error) {
       showToast(error?.message || "Statut DocuSign indisponible.", "error");
+    } finally {
+      setDocusignBusyId("");
+    }
+  };
+
+  const refreshVisibleDocusignStatuses = async (visibleContracts = []) => {
+    const refreshable = (visibleContracts || []).filter((contract) => (
+      contract.docusignEnvelopeId && contract.docusignStatus !== "completed" && contract.docusignStatus !== "voided"
+    ));
+    if (!currentUser || docusignBusyId || !refreshable.length) return;
+    setDocusignBusyId("__bulk__");
+    let completed = 0;
+    let updated = 0;
+    const errors = [];
+    try {
+      const token = await currentUser.getIdToken();
+      for (const contract of refreshable) {
+        try {
+          const response = await fetch(`/api/docusign/envelopes/${encodeURIComponent(contract.docusignEnvelopeId)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) throw new Error(payload.error || "Statut DocuSign indisponible.");
+          const updatedAt = payload.statusChangedDateTime || new Date().toISOString();
+          if (payload.status === "completed") {
+            await syncDocusignPersonalInformation(contract, payload.formData);
+          }
+          if (payload.status === "completed" && !contract.contractFileUrl) {
+            await archiveSignedContract(contract, payload, token);
+            completed += 1;
+          } else {
+            await persistDocusignState(contract.id, {
+              docusignStatus: payload.status,
+              docusignUpdatedAt: updatedAt,
+              docusignWaitingFor: docusignWaitingFromSigners(payload.status, payload.signers),
+              docusignRecipientStatuses: payload.signers || [],
+              ...(payload.completedDateTime ? { docusignCompletedAt: payload.completedDateTime } : {}),
+            });
+            if (payload.status === "completed") completed += 1;
+          }
+          updated += 1;
+        } catch (error) {
+          errors.push(`${contract.memberName || "Contrat"} : ${error?.message || "erreur"}`);
+        }
+      }
+      showToast(
+        errors.length
+          ? `${updated}/${refreshable.length} signature(s) actualisee(s), ${errors.length} erreur(s).`
+          : `${updated} signature(s) actualisee(s), ${completed} terminee(s).`,
+        errors.length ? "warning" : "success",
+      );
+      if (errors.length) console.warn("Erreurs actualisation DocuSign", errors);
+    } catch (error) {
+      showToast(error?.message || "Actualisation DocuSign impossible.", "error");
     } finally {
       setDocusignBusyId("");
     }
@@ -1656,6 +1756,8 @@ export default function HumanResources({ initialTab = "sejours" }) {
         docusignSentAt: "",
         docusignUpdatedAt: "",
         docusignCompletedAt: "",
+        docusignWaitingFor: "",
+        docusignRecipientStatuses: [],
         contractFileUrl: "",
         signedContractStoragePath: "",
       };
@@ -1891,6 +1993,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onTogglePayment={toggleContractPayment}
             onDocusignSend={sendContractWithDocusign}
             onDocusignRefresh={refreshDocusignStatus}
+            onDocusignRefreshMany={refreshVisibleDocusignStatuses}
             onDocusignReset={resetDocusignContract}
             docusignBusyId={docusignBusyId}
           />}

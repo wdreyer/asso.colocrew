@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function normalizeValue(value) {
   if (value === null || value === undefined) return "";
@@ -28,6 +28,7 @@ export default function DataTable({
   defaultSortKey,
   defaultSortDirection = "asc",
   onRowClick,
+  onProcessedDataChange,
   selectedRowId,
   emptyLabel = "Aucune donnée.",
   toolsInline = false,
@@ -53,6 +54,7 @@ export default function DataTable({
     direction: defaultSortDirection === "desc" ? "desc" : "asc",
   });
   const [filters, setFilters] = useState({});
+  const processedDataSignatureRef = useRef("");
 
   const computedSearchKeys = useMemo(() => {
     if (Array.isArray(searchableKeys) && searchableKeys.length) return searchableKeys;
@@ -93,6 +95,20 @@ export default function DataTable({
       return sort.direction === "asc" ? result : -result;
     });
   }, [columnsByKey, computedSearchKeys, data, filterableColumns, filters, search, sort]);
+
+  useEffect(() => {
+    const signature = processedData
+      .map((row, index) => [
+        row?.id || index,
+        row?.docusignEnvelopeId || "",
+        row?.docusignStatus || "",
+        row?.docusignWaitingFor || "",
+      ].join(":"))
+      .join("|");
+    if (signature === processedDataSignatureRef.current) return;
+    processedDataSignatureRef.current = signature;
+    onProcessedDataChange?.(processedData);
+  }, [onProcessedDataChange, processedData]);
 
   const toggleSort = (key) => {
     if (!sortableColumns.includes(key)) return;

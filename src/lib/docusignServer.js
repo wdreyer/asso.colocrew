@@ -185,17 +185,28 @@ export async function getDocusignEnvelope(envelopeId) {
   if (!response.ok) {
     throw new Error(`Lecture DocuSign impossible : ${result.message || result.errorCode || response.status}`);
   }
+  let signers = [];
   let formData = {};
-  if (result.status === "completed") {
-    const recipientsResponse = await fetch(
-      `${basePath}/v2.1/accounts/${encodeURIComponent(accountId)}/envelopes/${encodeURIComponent(envelopeId)}/recipients?include_tabs=true`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      },
-    );
-    const recipients = await recipientsResponse.json().catch(() => ({}));
-    if (recipientsResponse.ok) {
+  const recipientsResponse = await fetch(
+    `${basePath}/v2.1/accounts/${encodeURIComponent(accountId)}/envelopes/${encodeURIComponent(envelopeId)}/recipients?include_tabs=true`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    },
+  );
+  const recipients = await recipientsResponse.json().catch(() => ({}));
+  if (recipientsResponse.ok) {
+    signers = (recipients.signers || []).map((signer) => ({
+      name: signer.name || "",
+      email: signer.email || "",
+      recipientId: signer.recipientId || "",
+      routingOrder: signer.routingOrder || "",
+      status: signer.status || "",
+      signedDateTime: signer.signedDateTime || "",
+      deliveredDateTime: signer.deliveredDateTime || "",
+      sentDateTime: signer.sentDateTime || "",
+    }));
+    if (result.status === "completed") {
       const staffSigner = (recipients.signers || []).find((signer) => String(signer.routingOrder) === "1")
         || recipients.signers?.[0];
       formData = Object.fromEntries(
@@ -211,6 +222,7 @@ export async function getDocusignEnvelope(envelopeId) {
     sentDateTime: result.sentDateTime || "",
     completedDateTime: result.completedDateTime || "",
     statusChangedDateTime: result.statusChangedDateTime || "",
+    signers,
     formData,
   };
 }
