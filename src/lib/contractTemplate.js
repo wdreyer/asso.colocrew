@@ -9,7 +9,7 @@ function esc(str) {
 
 function contractInputLine(value, anchor, minWidth = 180) {
   const content = String(value || "").trim() ? `<strong>${esc(value)}</strong>` : "&nbsp;";
-  return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px"><span class="cc-field-anchor">${anchor}</span>${content}</span>`;
+  return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px"><span class="cc-field-anchor">${anchor}</span><span class="cc-field-value">${content}</span></span>`;
 }
 
 function frDate(isoOrSlash) {
@@ -199,13 +199,19 @@ function generateVolunteerContractHTML(member, contract) {
   .cc-contact { text-align: right; font-size: 8pt; color: #555; line-height: 1.6; }
   .cc-title { text-align: center; font-size: 16pt; font-weight: bold; text-decoration: underline; margin: 28px 0 24px; }
   .cc-party-block p, .cc-article p { line-height: 1.6; margin-bottom: 6px; }
+  .cc-identity-table { width: 100%; border-collapse: collapse; margin-top: 2px; table-layout: fixed; }
+  .cc-identity-table th { width: 150px; padding: 2px 6px 2px 0; text-align: left; font-size: 10pt; font-weight: normal; line-height: 18px; white-space: nowrap; }
+  .cc-identity-table td { padding: 2px 0; font-size: 10pt; line-height: 18px; vertical-align: bottom; }
+  .cc-identity-table .cc-contract-input { width: 100%; min-width: 0 !important; }
   .cc-article { margin-bottom: 18px; }
   .cc-article h2 { font-size: 11pt; font-weight: bold; margin-bottom: 8px; text-decoration: underline; }
   .cc-article ul { margin: 6px 0 6px 22px; }
   .cc-article li { margin-bottom: 5px; line-height: 1.5; }
   .cc-fill { border-bottom: 1px solid #555; display: inline-block; min-width: 120px; }
   .cc-contract-input { min-height: 18px; vertical-align: bottom; position: relative; padding: 0 3px 1px; }
-  .cc-field-anchor, .cc-docusign-anchor { color: #fff; font-size: 1px; line-height: 1px; user-select: none; }
+  .cc-field-value { position: relative; z-index: 1; }
+  .cc-field-anchor { position: absolute; left: 3px; top: 2px; color: transparent; font-size: 1px; line-height: 1px; user-select: none; }
+  .cc-docusign-anchor { color: #fff; font-size: 1px; line-height: 1px; user-select: none; }
   .cc-signatures { margin-top: 32px; }
   .cc-sign-place { margin-bottom: 16px; }
   .cc-sign-row { display: flex; justify-content: space-between; margin-top: 30px; gap: 40px; }
@@ -230,14 +236,14 @@ function generateVolunteerContractHTML(member, contract) {
   <div class="cc-article">
     <p><strong>Entre l'association ColoCrew</strong>, 1 rue Magenta - 93500 Pantin, representee par Monsieur Dreyer William,</p>
     <p><strong>Et le/la benevole :</strong> ${fullName}</p>
-    <div class="cc-party-block">
-      <p>Adresse : ${address}</p>
-      <p>Telephone : ${phone}</p>
-      <p>Email : ${email}</p>
-      <p>Date de naissance : ${birthDate}</p>
-      <p>Lieu de naissance : ${birthPlace}</p>
-      <p>Nationalite : ${nationality}</p>
-    </div>
+    <table class="cc-identity-table">
+      <tr><th>Adresse :</th><td>${address}</td></tr>
+      <tr><th>Telephone :</th><td>${phone}</td></tr>
+      <tr><th>Email :</th><td>${email}</td></tr>
+      <tr><th>Date de naissance :</th><td>${birthDate}</td></tr>
+      <tr><th>Lieu de naissance :</th><td>${birthPlace}</td></tr>
+      <tr><th>Nationalite :</th><td>${nationality}</td></tr>
+    </table>
   </div>
 
   <div class="cc-article">
@@ -423,6 +429,10 @@ export function generateContractHTML(member, contract) {
   .cc-party-intro { font-weight: bold; margin-bottom: 8px; }
   .cc-party-block p { margin: 1px 0; font-size: 10pt; }
   .cc-party-block strong { font-weight: bold; }
+  .cc-identity-table { width: 100%; border-collapse: collapse; margin-top: 2px; table-layout: fixed; }
+  .cc-identity-table th { width: 185px; padding: 2px 6px 2px 0; text-align: left; font-size: 10pt; font-weight: normal; line-height: 18px; white-space: nowrap; }
+  .cc-identity-table td { padding: 2px 0; font-size: 10pt; line-height: 18px; vertical-align: bottom; }
+  .cc-identity-table .cc-contract-input { width: 100%; min-width: 0 !important; }
   .cc-designation { font-style: italic; margin-top: 6px; }
   .cc-dune-part { text-align: right; font-weight: bold; margin: 10px 0 16px; }
   .cc-convention { margin-top: 12px; margin-bottom: 20px; }
@@ -475,8 +485,12 @@ export function generateContractHTML(member, contract) {
     position: relative;
     padding: 0 3px 1px;
   }
+  .cc-field-value { position: relative; z-index: 1; }
   .cc-field-anchor {
-    color: #fff;
+    position: absolute;
+    left: 3px;
+    top: 2px;
+    color: transparent;
     font-size: 1px;
     line-height: 1px;
     user-select: none;
@@ -570,13 +584,15 @@ export function generateContractHTML(member, contract) {
 
     <div class="cc-party-block">
       <p>Monsieur/Madame (Nom, Prénom) : <strong>${fullName}</strong></p>
-      <p>Adresse : ${address}</p>
-      <p>Téléphone : ${phone}</p>
-      <p>Email : ${email}</p>
-      <p>Numéro de Sécurité sociale : ${secu}</p>
-      <p>Date de naissance : ${birthDate}</p>
-      <p>Lieu de naissance : ${birthPlace}</p>
-      <p>Nationalité : ${nationality}</p>
+      <table class="cc-identity-table">
+        <tr><th>Adresse :</th><td>${address}</td></tr>
+        <tr><th>Téléphone :</th><td>${phone}</td></tr>
+        <tr><th>Email :</th><td>${email}</td></tr>
+        <tr><th>Numéro de Sécurité sociale :</th><td>${secu}</td></tr>
+        <tr><th>Date de naissance :</th><td>${birthDate}</td></tr>
+        <tr><th>Lieu de naissance :</th><td>${birthPlace}</td></tr>
+        <tr><th>Nationalité :</th><td>${nationality}</td></tr>
+      </table>
       <p>Poste : <strong>${poste}</strong></p>
     </div>
     <p class="cc-designation"><em>Ci-après dénommé·e « ${poste} »</em></p>
