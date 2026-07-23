@@ -47,8 +47,12 @@ function sanitizedContract(input) {
 
 function isVolunteerContract(contract) {
   const key = String(contract?.roleKey || "").trim().toLowerCase();
-  const role = String(contract?.role || "").trim().toLowerCase();
-  return key === "benevole" || role.includes("benevol") || role.includes("bénévol");
+  const role = String(contract?.role || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return key === "benevole" || role.includes("benevol");
 }
 
 const DOCUSIGN_PERSONAL_FIELDS = [
@@ -115,10 +119,7 @@ export async function POST(request) {
       validationMessage: field.validationMessage,
     }));
     const result = await sendDocusignEnvelope({
-      subject: `Contrat d'engagement éducatif ColoCrew — ${fullName}`,
-      emailBlurb: `Bonjour ${member.firstName}, merci de vérifier puis signer votre contrat ColoCrew. Une fois votre signature terminée, ColoCrew le contresignera.`,
       html: generateContractHTML(memberForDocument, contract),
-      documentName: `Contrat CEE - ${fullName}${stayLabel ? ` - ${stayLabel}` : ""}.html`,
       subject: `${documentLabel} ColoCrew - ${fullName}`,
       emailBlurb: `Bonjour ${member.firstName}, merci de verifier puis signer votre ${isVolunteer ? "convention de benevolat" : "contrat"} ColoCrew. Une fois votre signature terminee, ColoCrew le contresignera.`,
       documentName: `${isVolunteer ? "Convention benevolat" : "Contrat CEE"} - ${fullName}${stayLabel ? ` - ${stayLabel}` : ""}.html`,

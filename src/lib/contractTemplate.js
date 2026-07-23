@@ -61,7 +61,18 @@ function contractRoleLabel(contract) {
 }
 
 function isVolunteerContract(contract) {
-  return contractRoleKey(contract) === "benevole";
+  const role = String(contract?.role || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return contractRoleKey(contract) === "benevole" || role.includes("benevol");
+}
+
+function isDeputyDirectorContract(contract) {
+  const key = String(contract?.roleKey || "").trim().toLowerCase();
+  const role = String(contract?.role || "").trim().toLowerCase().replace(/\s+/g, "");
+  return key === "dsa" || role.includes("dsa") || role.includes("adjoint");
 }
 
 function exercisePlace(contract) {
@@ -181,13 +192,27 @@ function generateVolunteerContractHTML(member, contract) {
   const endFr = frDate(c.endDate);
   const lieuExercice = esc(exercisePlace(c));
   const stayLabel = esc([c.stayName || c.stayCode, c.week].filter(Boolean).join(" - "));
+  const isDeputyDirector = isDeputyDirectorContract(c);
+  const volunteerRole = isDeputyDirector ? "directeur·rice adjoint·e bénévole" : "bénévole";
+  const missionTitle = isDeputyDirector ? "Mission bénévole de direction adjointe" : "Mission bénévole";
+  const missionDescription = isDeputyDirector ? `
+    <p>Le/la bénévole intervient comme <strong>directeur·rice adjoint·e bénévole</strong>. Sa contribution consiste à appuyer l'équipe de direction dans l'organisation du séjour, sans rémunération et sans que la présente convention ne constitue un contrat de travail ou un contrat d'engagement éducatif.</p>
+    <ul>
+      <li><strong>Appui à la direction du séjour</strong> : participer à la préparation opérationnelle, au suivi quotidien et à la coordination générale du séjour ;</li>
+      <li><strong>Vie collective et sécurité</strong> : contribuer au respect du cadre de sécurité, des règles d'hygiène, des procédures internes et du projet pédagogique ;</li>
+      <li><strong>Soutien à l'équipe</strong> : aider à l'organisation des temps collectifs, faciliter la circulation des informations et accompagner les animateur·rices dans la bonne réalisation des activités ;</li>
+      <li><strong>Suivi des situations</strong> : contribuer au repérage des difficultés, au suivi des incidents et au lien avec la direction du séjour ;</li>
+      <li><strong>Relais ponctuel</strong> : assurer un relais d'information auprès des familles, prestataires ou partenaires lorsque la direction le demande dans l'intérêt du séjour.</li>
+    </ul>
+    <p>Cette mission reste une contribution bénévole : elle ne crée ni lien salarial, ni droit à rémunération, ni engagement de disponibilité permanente.</p>` : `
+    <p>Le/la bénévole apporte une aide ponctuelle aux activités, à la vie collective et à l'organisation du séjour, dans le respect du projet éducatif, des consignes de sécurité et du fonctionnement de l'association.</p>`;
   const today = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Convention benevole - ${fullName}</title>
+<title>Convention de bénévolat - ${fullName}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; background: #fff; }
@@ -231,55 +256,57 @@ function generateVolunteerContractHTML(member, contract) {
     <div class="cc-contact">info@colocrew.com - 01 84 21 02 30<br>colocrew.com</div>
   </div>
 
-  <div class="cc-title">Convention de benevolat</div>
+  <div class="cc-title">Convention de bénévolat</div>
 
   <div class="cc-article">
-    <p><strong>Entre l'association ColoCrew</strong>, 1 rue Magenta - 93500 Pantin, representee par Monsieur Dreyer William,</p>
-    <p><strong>Et le/la benevole :</strong> ${fullName}</p>
+    <p><strong>Entre l'association ColoCrew</strong>, 1 rue Magenta - 93500 Pantin, représentée par Monsieur Dreyer William,</p>
+    <p><strong>Et le/la ${volunteerRole} :</strong> ${fullName}</p>
     <table class="cc-identity-table">
       <tr><th>Adresse :</th><td>${address}</td></tr>
-      <tr><th>Telephone :</th><td>${phone}</td></tr>
+      <tr><th>Téléphone :</th><td>${phone}</td></tr>
       <tr><th>Email :</th><td>${email}</td></tr>
       <tr><th>Date de naissance :</th><td>${birthDate}</td></tr>
       <tr><th>Lieu de naissance :</th><td>${birthPlace}</td></tr>
-      <tr><th>Nationalite :</th><td>${nationality}</td></tr>
+      <tr><th>Nationalité :</th><td>${nationality}</td></tr>
     </table>
   </div>
 
   <div class="cc-article">
-    <h2>Article 1 - Objet</h2>
-    <p>La presente convention precise les conditions dans lesquelles le/la benevole participe, sans lien de subordination salariee et sans remuneration, aux activites organisees par ColoCrew.</p>
+    <h2>Article 1 - Nature de l'engagement bénévole</h2>
+    <p>La présente convention précise les conditions dans lesquelles le/la bénévole s'engage librement auprès de ColoCrew pour contribuer à une action associative non salariée.</p>
+    <p>Elle ne constitue ni un contrat de travail, ni un contrat d'engagement éducatif, ni une promesse d'embauche. L'engagement est volontaire, non rémunéré, et peut prendre fin librement à l'initiative du/de la bénévole ou de l'association.</p>
   </div>
 
   <div class="cc-article">
-    <h2>Article 2 - Mission et periode</h2>
-    <p>Le/la benevole intervient du <strong>${startFr}</strong> au <strong>${endFr}</strong>, dans le cadre du sejour <strong>${stayLabel || "___________"}</strong>, principalement a <strong>${lieuExercice}</strong>.</p>
-    <p>Ses missions peuvent inclure l'appui logistique, l'accompagnement de la vie collective, l'aide aux activites et tout soutien utile a l'equipe, dans le respect du projet educatif et des consignes de securite.</p>
+    <h2>Article 2 - ${missionTitle}</h2>
+    <p>Le/la bénévole intervient du <strong>${startFr}</strong> au <strong>${endFr}</strong>, dans le cadre du séjour <strong>${stayLabel || "___________"}</strong>, principalement à <strong>${lieuExercice}</strong>.</p>
+    ${missionDescription}
   </div>
 
   <div class="cc-article">
-    <h2>Article 3 - Absence de remuneration</h2>
-    <p>Cette participation est effectuee a titre benevole. Elle ne donne lieu a aucun salaire, prime ou contrepartie financiere. Les frais eventuellement engages ne peuvent etre rembourses que sur accord prealable de ColoCrew et sur presentation de justificatifs.</p>
+    <h2>Article 3 - Absence de rémunération et frais</h2>
+    <p>Cette participation est effectuée à titre bénévole. Elle ne donne lieu à aucun salaire, prime, indemnité forfaitaire ou contrepartie financière.</p>
+    <p>Les frais éventuellement engagés pour les besoins de la mission peuvent uniquement être remboursés sur accord préalable de ColoCrew et sur présentation de justificatifs.</p>
   </div>
 
   <div class="cc-article">
-    <h2>Article 4 - Engagements du/de la benevole</h2>
+    <h2>Article 4 - Engagements du/de la bénévole</h2>
     <ul>
-      <li>Respecter les regles de fonctionnement, de securite, d'hygiene et de confidentialite de ColoCrew ;</li>
-      <li>Adopter une posture bienveillante et adaptee a l'accueil collectif de mineurs ;</li>
-      <li>Signaler sans delai tout incident ou difficulte a la direction du sejour ;</li>
-      <li>Ne pas se substituer aux responsabilites legales de l'equipe de direction.</li>
+      <li>Respecter le projet éducatif, les règles de fonctionnement, de sécurité, d'hygiène et de confidentialité de ColoCrew ;</li>
+      <li>Adopter une posture bienveillante et adaptée à l'accueil collectif de mineurs ;</li>
+      <li>Signaler sans délai tout incident ou difficulté à la direction du séjour ;</li>
+      <li>Agir dans le cadre fixé par l'association, sans se substituer aux responsabilités légales qui ne lui seraient pas confiées.</li>
     </ul>
   </div>
 
   <div class="cc-article">
-    <h2>Article 5 - Assurance et responsabilite</h2>
-    <p>ColoCrew declare disposer d'une assurance responsabilite civile pour ses activites. Le/la benevole s'engage a informer l'association de toute situation personnelle susceptible d'affecter sa participation.</p>
+    <h2>Article 5 - Assurance et responsabilité</h2>
+    <p>ColoCrew déclare disposer d'une assurance responsabilité civile pour ses activités. Le/la bénévole s'engage à informer l'association de toute situation personnelle susceptible d'affecter sa participation.</p>
   </div>
 
   <div class="cc-article">
     <h2>Article 6 - Fin de la convention</h2>
-    <p>La presente convention peut prendre fin a tout moment, a l'initiative du/de la benevole ou de ColoCrew, notamment en cas d'impossibilite de poursuivre la mission ou de non-respect des regles applicables.</p>
+    <p>La présente convention peut prendre fin à tout moment, à l'initiative du/de la bénévole ou de ColoCrew, notamment en cas d'impossibilité de poursuivre la mission ou de non-respect des règles applicables.</p>
   </div>
 
   <div class="cc-signatures">
@@ -287,7 +314,7 @@ function generateVolunteerContractHTML(member, contract) {
     <p><strong>Signatures :</strong></p>
     <div class="cc-sign-row">
       <div class="cc-sign-box"><p>Pour ColoCrew :<br><span class="cc-docusign-anchor">/cc-organizer-signature/</span></p></div>
-      <div class="cc-sign-box"><p>Pour le/la benevole :<br><span class="cc-docusign-anchor">/cc-staff-signature/</span></p></div>
+      <div class="cc-sign-box"><p>Pour le/la bénévole :<br><span class="cc-docusign-anchor">/cc-staff-signature/</span></p></div>
     </div>
   </div>
 
