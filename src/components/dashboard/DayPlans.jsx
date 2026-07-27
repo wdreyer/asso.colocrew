@@ -19,6 +19,7 @@ const EMPTY_TASK = {
   category: "morning", title: "", startTime: "10:00", endTime: "11:00",
   location: "", groups: "", details: "", assigneeIds: [], documents: [],
   kitchen: false, menu: "", mealLocation: "inside", dietaryNotes: "",
+  color: "", backgroundColor: "",
 };
 
 const SECTION_DEFAULT_TIMES = {
@@ -38,6 +39,17 @@ const SECTION_CLICK_RANGES = {
   dinner: ["19:00", "21:00"],
   evening: ["20:30", "23:30"],
 };
+
+const COLOR_PRESETS = [
+  { label: "Bleu", color: "#0284c7", backgroundColor: "#e0f2fe" },
+  { label: "Vert", color: "#15803d", backgroundColor: "#e5f7ea" },
+  { label: "Violet", color: "#7c3aed", backgroundColor: "#f1e8ff" },
+  { label: "Rose", color: "#db2777", backgroundColor: "#fce7f3" },
+  { label: "Orange", color: "#c56a08", backgroundColor: "#fff1d6" },
+  { label: "Indigo", color: "#4f46e5", backgroundColor: "#e9e9ff" },
+  { label: "Cyan", color: "#0891b2", backgroundColor: "#ddf8fc" },
+  { label: "Rouge", color: "#dc2626", backgroundColor: "#fee2e2" },
+];
 
 const MCSC_S2_KITCHEN_CHILDREN = [
   "Marie-Olivia ACOUMIEN",
@@ -241,6 +253,12 @@ function normalizePlanForDisplay(plan, seededPlan, stay) {
 }
 
 function activityPalette(task, fallback = "#8b5cf6") {
+  if (isHexColor(task?.color)) {
+    return {
+      color: task.color,
+      background: isHexColor(task?.backgroundColor) ? task.backgroundColor : `${task.color}18`,
+    };
+  }
   const text = `${task?.title || ""} ${task?.category || ""} ${task?.location || ""} ${task?.groups || ""} ${task?.details || ""}`.toLocaleLowerCase("fr");
   if (text.includes("surf")) return { color: "#0284c7", background: "#e0f2fe" };
   if (/repas|d[îi]ner|petit d[ée]jeuner|brunch|cuisine|pique-nique/.test(text)) return { color: "#c56a08", background: "#fff1d6" };
@@ -250,6 +268,10 @@ function activityPalette(task, fallback = "#8b5cf6") {
   if (/ville|glace|sunset|balade/.test(text)) return { color: "#db2777", background: "#fce7f3" };
   if (/grand jeu|koh|time|d[ée]fi|tournoi|sardine/.test(text)) return { color: "#15803d", background: "#e5f7ea" };
   return { color: fallback, background: `${fallback}18` };
+}
+
+function isHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || ""));
 }
 
 function isSplitTask(task) {
@@ -596,6 +618,24 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     setEditor(null);
   };
 
+  const duplicateTask = async (task) => {
+    const date = task.targetDate || task._sourceDate || selectedDate;
+    const plan = plans[date] || seedDay(date, config);
+    const { id: _id, _sourceDate, targetDate, ...taskFields } = task;
+    const copy = {
+      ...EMPTY_TASK,
+      ...taskFields,
+      id: newId(),
+      title: `${task.title || "Activité"} (copie)`,
+    };
+    await saveDay(date, {
+      tasks: sortTasks([...(plan.tasks || []), copy]),
+      deletedTaskIds: (plan.deletedTaskIds || []).filter((id) => id !== copy.id),
+    }, "Activité dupliquée.");
+    setSelectedDate(date);
+    setEditor({ ...copy, _sourceDate: date, targetDate: date });
+  };
+
   const toggleTaskAssignee = async (task, memberId) => {
     const assigned = new Set(task.assigneeIds || []);
     if (unavailability(memberId, task.startTime) && !assigned.has(memberId)) return;
@@ -744,6 +784,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         onClose={() => setEditor(null)}
         onSave={saveTask}
         onDelete={deleteTask}
+        onDuplicate={duplicateTask}
       />
     </div>
   );
@@ -790,14 +831,16 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onAdd,
         const assigned = (task.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
         const unavailable = assigned.filter((member) => unavailability(member.id, task.startTime));
         const peopleOnLeave = members.filter((member) => unavailability(member.id, task.startTime));
+        const palette = activityPalette(task, section.color);
         return <div className={`dp-table-row ${unavailable.length ? "has-conflict" : ""}`} key={task.id}>
           <div className={`dp-moment ${index > 0 ? "is-repeat" : ""}`} style={{ "--section-color": section.color }}>
             {index === 0 && <><i>{section.icon}</i><strong>{section.label}</strong></>}
           </div>
-          <button type="button" className="dp-activity" onClick={() => onEdit(task)}>
+          <button type="button" className="dp-activity" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }} onClick={() => onEdit(task)}>
             <span className="dp-inline-time">{task.startTime || "—"}{task.endTime ? ` – ${task.endTime}` : ""}</span>
             <strong>{task.title || "Sans titre"}</strong>
             <small>{[task.location, task.groups].filter(Boolean).join(" · ")}</small>
+            {(task.details || task.menu) && <p>{task.details || task.menu}</p>}
             {(task.kitchen || task.photo?.url || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.photo?.url && <i>📷 Photo</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
           </button>
           <QuickAssign task={task} members={members} unavailability={unavailability} onToggle={onToggleAssignee} />
@@ -917,7 +960,8 @@ function FoodOverview({ plans, dates, memberById, stay, selectedDate, onOpen, on
           const meals = sortTasks(tasks.filter((task) => task.category === section.key));
           return <td key={section.key}>{meals.length ? meals.map((task) => {
             const team = (task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean);
-            return <button type="button" key={task.id} style={{ "--meal-color": section.color }} onClick={() => onOpen(date, task)}>
+            const palette = activityPalette(task, section.color);
+            return <button type="button" key={task.id} style={{ "--meal-color": palette.color, "--meal-bg": palette.background }} onClick={() => onOpen(date, task)}>
               <span className="dp-food-time">{task.startTime || "—"}{task.endTime ? ` – ${task.endTime}` : ""}</span>
               <strong>{task.title}</strong>
               {(task.menu && task.menu !== "À renseigner") || task.details ? <p>{task.menu && task.menu !== "À renseigner" ? task.menu : task.details}</p> : <i>Menu à compléter</i>}
@@ -1031,7 +1075,7 @@ function LeaveValidation({ plans, members, leaveDates }) {
   </section>;
 }
 
-function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelete }) {
+function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelete, onDuplicate }) {
   const [draft, setDraft] = useState(null);
   const [editing, setEditing] = useState(false);
   const [photoFile, setPhotoFile] = useState(null);
@@ -1052,6 +1096,7 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
   const set = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
   const section = DAY_PLAN_SECTIONS.find((item) => item.key === draft.category);
   const assigned = (draft.assigneeIds || []).map((id) => memberById[id]).filter(Boolean);
+  const palette = activityPalette(draft, section?.color);
   const choosePhoto = (file) => {
     setPhotoFile(file || null);
     setPhotoPreview(file ? URL.createObjectURL(file) : "");
@@ -1061,12 +1106,14 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
     {!editing ? <article className="dp-task-detail">
       {(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt={draft.title} />}
       <div className="dp-detail-meta"><span>{section?.icon} {section?.label}</span><strong>{draft.startTime || "—"}{draft.endTime ? ` – ${draft.endTime}` : ""}</strong></div>
+      <div className="dp-detail-color" style={{ "--activity-color": palette.color, "--activity-bg": palette.background }}><span />Couleur {draft.color ? "personnalisée" : "automatique"}</div>
       <h2>{draft.title}</h2>
       {(draft.location || draft.groups) && <p className="dp-detail-place">{[draft.location, draft.groups].filter(Boolean).join(" · ")}</p>}
       <div className="dp-detail-text">{draft.details || draft.menu || "Aucun détail ajouté pour le moment."}</div>
       {assigned.length > 0 && <div className="dp-detail-team"><strong>Équipe</strong>{assigned.map((member) => <span key={member.id}><i>{initials(member)}</i>{memberName(member)}</span>)}</div>}
       <div className="dp-detail-actions">
         {draft.id && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Supprimer l’activité « ${draft.title} » ?`)) onDelete(draft); }}>Supprimer</button>}
+        {draft.id && <button type="button" onClick={() => onDuplicate(draft)} disabled={saving}>Dupliquer</button>}
         <button type="button" onClick={onClose}>Fermer</button>
         <button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button>
       </div>
@@ -1075,9 +1122,29 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
       <label><span>Nom de l’activité</span><input value={draft.title} onChange={(event) => set("title", event.target.value)} required /></label>
       <div><label><span>Début</span><input type="time" value={draft.startTime} onChange={(event) => set("startTime", event.target.value)} /></label><label><span>Fin</span><input type="time" value={draft.endTime} onChange={(event) => set("endTime", event.target.value)} /></label></div>
       <label><span>Texte / menu / déroulé</span><textarea value={draft.details} onChange={(event) => set("details", event.target.value)} placeholder="Écrivez ici tout ce que l’équipe doit savoir…" /></label>
+      <fieldset className="dp-color-editor">
+        <legend>Couleur</legend>
+        <div className="dp-color-presets">
+          {COLOR_PRESETS.map((preset) => <button
+            type="button"
+            key={preset.label}
+            className={draft.color === preset.color ? "is-selected" : ""}
+            style={{ "--swatch-color": preset.color, "--swatch-bg": preset.backgroundColor }}
+            onClick={() => setDraft((current) => ({ ...current, color: preset.color, backgroundColor: preset.backgroundColor }))}
+            title={preset.label}
+            aria-label={`Couleur ${preset.label}`}
+          ><span /></button>)}
+          <button type="button" className="dp-color-auto" onClick={() => setDraft((current) => ({ ...current, color: "", backgroundColor: "" }))}>Auto</button>
+        </div>
+        <div className="dp-color-inputs">
+          <label><span>Accent</span><input type="color" value={isHexColor(draft.color) ? draft.color : palette.color} onChange={(event) => set("color", event.target.value)} /></label>
+          <label><span>Fond</span><input type="color" value={isHexColor(draft.backgroundColor) ? draft.backgroundColor : isHexColor(palette.background) ? palette.background : "#ffffff"} onChange={(event) => set("backgroundColor", event.target.value)} /></label>
+        </div>
+      </fieldset>
       <label className="dp-photo-field"><span>Photo facultative</span>{(photoPreview || draft.photo?.url) && <img src={photoPreview || draft.photo.url} alt="Aperçu" />}<input type="file" accept="image/*" onChange={(event) => choosePhoto(event.target.files?.[0])} /><i>{photoFile ? photoFile.name : draft.photo?.name || "Choisir une photo"}</i></label>
       <div className="dp-detail-actions">
         {draft.id && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Supprimer l’activité « ${draft.title} » ?`)) onDelete(draft); }}>Supprimer</button>}
+        {draft.id && <button type="button" onClick={() => onDuplicate(draft)} disabled={saving}>Dupliquer</button>}
         {draft.id && <button type="button" onClick={() => setEditing(false)}>Annuler</button>}
         <button type="submit" className="is-primary" disabled={saving || !draft.title.trim()}>{saving ? "Enregistrement…" : "Enregistrer"}</button>
       </div>
