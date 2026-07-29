@@ -846,16 +846,22 @@ function sortPassengerRowsByDestination(rows = []) {
 
 function isReturnCollectionPortion(transport, portion, index) {
   const mode = `${portion?.mode || ""} ${portion?.trainType || ""} ${portion?.id || ""}`;
-  return transport?.week === "S2"
-    && transport?.direction === "retour"
+  return transport?.direction === "retour"
     && index === 0
     && isRoadMode(mode)
     && normalizePlace(portion?.to) === "bordeaux";
 }
 
 function passengersForJourneyPortion(transport, portion, index, portions = []) {
-  if (isReturnCollectionPortion(transport, portion, index)) return transport?.passengers || [];
   return passengersOnDashboardPortion(transport, portion);
+}
+
+function transportForPortion(allTransports = [], fallbackTransport, portion) {
+  if (!portion?.id) return fallbackTransport;
+  return (allTransports || []).find((candidate) =>
+    (candidate.segments || []).some((segment) => segment.id === portion.id)
+    || (candidate.branches || []).some((branch) => branch.id === portion.id)
+  ) || fallbackTransport;
 }
 
 function meetingTimeOrOneHourBefore(meetingTime, departureTime) {
@@ -1298,15 +1304,16 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   const stageTables = isS3Return ? [] : passengerRecapStageTables(transport, allTransports);
   const segmentTables = isS3Return
     ? orderedTransportPortions(transport).map((portion, index, portions) => {
-      const passengers = passengersForJourneyPortion(transport, portion, index, portions);
-      const childRows = passengerChildRows(transport, passengers, allTransports);
-      const segmentRows = isReturnCollectionPortion(transport, portion, index)
+      const sourceTransport = transportForPortion(allTransports, transport, portion);
+      const passengers = passengersForJourneyPortion(sourceTransport, portion, index, portions);
+      const childRows = passengerChildRows(sourceTransport, passengers, allTransports);
+      const segmentRows = isReturnCollectionPortion(sourceTransport, portion, index)
         ? sortPassengerRowsByStay(childRows)
         : sortPassengerRowsByDestination(childRows);
       return {
         id: portion.id || `segment-${index}`,
         title: `Segment ${index + 1} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
-        staffNames: staffNames(transport, portion.assignedStaffIds || []),
+        staffNames: staffNames(sourceTransport, portion.assignedStaffIds || []),
         departureTime: portion.departureTime || "",
         arrivalTime: portion.arrivalTime || "",
         rows: segmentRows,
@@ -2233,10 +2240,11 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
             {mySegments.map((seg, i, segments) => {
-              const stopPassengers = passengersForJourneyPortion(transport, seg, i, segments);
+              const sourceTransport = transportForPortion(allTransports, transport, seg);
+              const stopPassengers = passengersForJourneyPortion(sourceTransport, seg, i, segments);
               const childCount = countChildren(stopPassengers);
-              const segmentStaffNames = staffNames(transport, seg.assignedStaffIds || []);
-              const sortMode = isReturnCollectionPortion(transport, seg, i) ? "stay" : "destination";
+              const segmentStaffNames = staffNames(sourceTransport, seg.assignedStaffIds || []);
+              const sortMode = isReturnCollectionPortion(sourceTransport, seg, i) ? "stay" : "destination";
               return (
                 <details key={seg.id || i} open style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
@@ -2287,7 +2295,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                           Enfants du segment
                         </div>
                         <PassengerListTable
-                          transport={transport}
+                          transport={sourceTransport}
                           passengers={stopPassengers}
                           allTransports={allTransports}
                           showPickup
