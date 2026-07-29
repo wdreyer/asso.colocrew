@@ -63,7 +63,6 @@ const MCSC_S2_KITCHEN_CHILDREN = [
   "Ludmila benghine van stpidonk",
   "Lyna Benkuider",
   "Ninon Buisson",
-  "Kenny Chalon",
   "Bilal El kassaoui",
   "Selma El kassaoui",
   "Aymen FELKAOUI",
@@ -112,7 +111,7 @@ const MCSC_S2_KITCHEN_MENUS = [
   {
     id: "mcsc-s2-menu-stars",
     title: "Tasty crousty",
-    children: ["Louise Raylat", "Mila Ballester", "Noemie Lautier", "Ludmila benghine van stpidonk", "Kenny Chalon", "Johan Lecuyer"],
+    children: ["Louise Raylat", "Mila Ballester", "Noemie Lautier", "Ludmila benghine van stpidonk", "Johan Lecuyer"],
     menu: [
       "Tasty crousty.",
       "Melon et pasteque.",
