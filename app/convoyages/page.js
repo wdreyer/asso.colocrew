@@ -326,9 +326,13 @@ function scopedTransportForStaff(transport, staff, portions) {
   if (!transport || !staff || staff.id === "__all__") return transport;
   const portionIds = new Set((portions || []).map((portion) => portion.id).filter(Boolean));
   const passengerIds = new Set((portions || []).flatMap((portion) => portion.passengerReservationIds || []).filter(Boolean));
+  const dashboardPassengerIds = new Set((portions || [])
+    .flatMap((portion) => passengersOnDashboardPortion(transport, portion))
+    .map((passenger) => passenger.reservationId)
+    .filter(Boolean));
   const scopedPassengers = (transport.passengers || []).filter((passenger) =>
     (passengerIds.size && passengerIds.has(passenger.reservationId))
-    || (portions || []).some((portion) => passengerMatchesPortion(transport, passenger, portion)),
+    || dashboardPassengerIds.has(passenger.reservationId),
   );
 
   return {
@@ -362,6 +366,129 @@ function passengerBoardingCity(transport, passenger) {
 
 function passengerInitialDepartureCity(passenger, fallback = "") {
   return passenger?.departureCity || passenger?.pickupCity || fallback || "Ville à confirmer";
+}
+
+function segmentStopCity(transport, segment) {
+  return transport.direction === "retour" ? segment?.to : segment?.from;
+}
+
+function branchStopCity(transport, branch) {
+  return transport.direction === "retour" ? branch?.to : branch?.from;
+}
+
+function branchJoinCity(transport, branch) {
+  return branch?.joinsAt || (transport.direction === "retour" ? branch?.from : branch?.to) || "";
+}
+
+function isBranchPortion(portion) {
+  return portion?._type === "branch" || portion?.kind === "branch" || portion?.routeKind === "branch" || Boolean(portion?.joinsAt);
+}
+
+function routeBoardingStops(transport) {
+  const stops = [];
+  (transport.segments || []).forEach((segment, segmentIndex) => {
+    const addMainStop = () => {
+      const city = segmentStopCity(transport, segment);
+      if (!city) return;
+      stops.push({ city, segment, segmentIndex, stopIndex: -1, type: "main", order: stops.length });
+    };
+    const addSubStops = () => {
+      (segment.stops || []).forEach((stop, stopIndex) => {
+        if (!stop.city) return;
+        stops.push({ city: stop.city, segment, segmentIndex, stopIndex, stop, type: "sub", order: stops.length });
+      });
+    };
+    if (transport.direction === "retour") {
+      addSubStops();
+      addMainStop();
+      return;
+    }
+    addMainStop();
+    addSubStops();
+  });
+
+  const mainStops = [...stops];
+  (transport.branches || []).forEach((branch, branchIndex) => {
+    const joinCity = branchJoinCity(transport, branch);
+    const joinIndex = branchJoinIndex(transport, branch);
+    const joinStop = mainStops.find((stop) => normalizePlace(stop.city) === normalizePlace(joinCity));
+    const baseOrder = Number.isFinite(joinStop?.order)
+      ? joinStop.order - 0.35 + branchIndex * 0.01
+      : stops.length + branchIndex;
+    const city = branchStopCity(transport, branch);
+    if (city) {
+      stops.push({
+        city,
+        segment: { ...branch, kind: branch.kind || "branch", _type: "branch" },
+        branch,
+        branchIndex,
+        segmentIndex: joinIndex,
+        stopIndex: -1,
+        type: "branch",
+        order: baseOrder,
+      });
+    }
+    (branch.stops || []).forEach((stop, stopIndex) => {
+      if (!stop.city) return;
+      stops.push({
+        city: stop.city,
+        segment: { ...branch, kind: branch.kind || "branch", _type: "branch" },
+        branch,
+        branchIndex,
+        segmentIndex: joinIndex,
+        stopIndex,
+        stop,
+        type: "branch-sub",
+        order: baseOrder + (stopIndex + 1) * 0.005,
+      });
+    });
+  });
+  return stops.sort((left, right) => left.order - right.order);
+}
+
+function routeStopForPassenger(transport, passenger) {
+  const city = normalizePlace(passengerBoardingCity(transport, passenger));
+  if (!city) return null;
+  return routeBoardingStops(transport).find((stop) => normalizePlace(stop.city) === city) || null;
+}
+
+function passengersOnDashboardBranch(transport, branch) {
+  const cities = new Set([
+    branchStopCity(transport, branch),
+    ...(branch.stops || []).map((stop) => stop.city),
+  ].map(normalizePlace).filter(Boolean));
+  return (transport.passengers || []).filter((passenger) =>
+    cities.has(normalizePlace(passengerBoardingCity(transport, passenger))),
+  );
+}
+
+function passengersOnDashboardSegment(transport, segmentIndex) {
+  const segments = transport.segments || [];
+  if (!segments[segmentIndex]) return [];
+  return (transport.passengers || []).filter((passenger) => {
+    const boarding = routeStopForPassenger(transport, passenger);
+    if (!boarding) return false;
+    if (boarding.type === "branch" || boarding.type === "branch-sub") {
+      const joinIndex = branchJoinIndex(transport, boarding.branch || boarding.segment);
+      return transport.direction === "retour"
+        ? segmentIndex < joinIndex
+        : segmentIndex >= joinIndex;
+    }
+    return transport.direction === "retour"
+      ? segmentIndex <= boarding.segmentIndex
+      : segmentIndex >= boarding.segmentIndex;
+  });
+}
+
+function dashboardSegmentIndex(transport, portion) {
+  if (!portion?.id) return -1;
+  return (transport.segments || []).findIndex((segment) => segment.id === portion.id);
+}
+
+function passengersOnDashboardPortion(transport, portion) {
+  if (isBranchPortion(portion)) return passengersOnDashboardBranch(transport, portion);
+  const index = dashboardSegmentIndex(transport, portion);
+  return passengersOnDashboardSegment(transport, index);
 }
 
 function groupPassengersByCity(transport) {
@@ -717,19 +844,6 @@ function sortPassengerRowsByDestination(rows = []) {
   );
 }
 
-function downstreamCitiesForJourneyPortion(portions = [], index = 0) {
-  const cities = new Set();
-  portions.slice(index).forEach((portion) => {
-    (portion.stops || []).forEach((stop) => {
-      const city = normalizePlace(stop.city);
-      if (city) cities.add(city);
-    });
-    const to = normalizePlace(portion.to);
-    if (to) cities.add(to);
-  });
-  return cities;
-}
-
 function isReturnCollectionPortion(transport, portion, index) {
   const mode = `${portion?.mode || ""} ${portion?.trainType || ""} ${portion?.id || ""}`;
   return transport?.direction === "retour"
@@ -739,17 +853,7 @@ function isReturnCollectionPortion(transport, portion, index) {
 }
 
 function passengersForJourneyPortion(transport, portion, index, portions = []) {
-  const passengers = transport?.passengers || [];
-  if (isReturnCollectionPortion(transport, portion, index)) return passengers;
-
-  const downstreamCities = downstreamCitiesForJourneyPortion(portions, index);
-  if (!downstreamCities.size) return passengersAtStop(transport, portion);
-
-  return passengers.filter((passenger) => {
-    const finalCity = normalizePlace(passengerFinalDestination(transport, passenger));
-    const dropoffCity = normalizePlace(passengerDropoffCity(transport, passenger));
-    return downstreamCities.has(finalCity) || downstreamCities.has(dropoffCity);
-  });
+  return passengersOnDashboardPortion(transport, portion);
 }
 
 function meetingTimeOrOneHourBefore(meetingTime, departureTime) {
@@ -963,11 +1067,12 @@ function staffAssignmentPassengers(transport, portions, groups) {
     ...(groups || []).flatMap((group) => group.passengerReservationIds || []),
     ...(portions || []).flatMap((portion) => portion.passengerReservationIds || portion.coveredReservationIds || []),
   ].filter(Boolean));
-  if (explicitIds.size) {
-    return (transport.passengers || []).filter((passenger) => explicitIds.has(passenger.reservationId));
-  }
+  const dashboardIds = new Set((portions || [])
+    .flatMap((portion) => passengersOnDashboardPortion(transport, portion))
+    .map((passenger) => passenger.reservationId)
+    .filter(Boolean));
   return (transport.passengers || []).filter((passenger) =>
-    (portions || []).some((portion) => passengerMatchesPortion(transport, passenger, portion)),
+    explicitIds.has(passenger.reservationId) || dashboardIds.has(passenger.reservationId),
   );
 }
 
