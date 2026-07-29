@@ -846,7 +846,8 @@ function sortPassengerRowsByDestination(rows = []) {
 
 function isReturnCollectionPortion(transport, portion, index) {
   const mode = `${portion?.mode || ""} ${portion?.trainType || ""} ${portion?.id || ""}`;
-  return transport?.direction === "retour"
+  return transport?.week === "S2"
+    && transport?.direction === "retour"
     && index === 0
     && isRoadMode(mode)
     && normalizePlace(portion?.to) === "bordeaux";
