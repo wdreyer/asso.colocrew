@@ -853,6 +853,7 @@ function isReturnCollectionPortion(transport, portion, index) {
 }
 
 function passengersForJourneyPortion(transport, portion, index, portions = []) {
+  if (isReturnCollectionPortion(transport, portion, index)) return transport?.passengers || [];
   return passengersOnDashboardPortion(transport, portion);
 }
 

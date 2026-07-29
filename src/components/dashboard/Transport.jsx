@@ -796,9 +796,20 @@ function passengersBeforeStop(transport, stopOrder) {
   });
 }
 
+function isReturnCollectionSegment(transport, segment, segmentIndex) {
+  const mode = `${segment?.mode || ""} ${segment?.trainType || ""} ${segment?.id || ""}`;
+  return transport?.direction === "retour"
+    && segmentIndex === 0
+    && isRoadTransportMode(mode)
+    && normalizePlace(segment?.to) === "bordeaux";
+}
+
 function passengersOnSegment(transport, segmentIndex) {
   const segments = transport.segments || [];
   if (!segments[segmentIndex]) return [];
+  if (isReturnCollectionSegment(transport, segments[segmentIndex], segmentIndex)) {
+    return transport.passengers || [];
+  }
 
   return (transport.passengers || []).filter((passenger) => {
     const boarding = passengerBoardingStop(transport, passenger);
@@ -4214,12 +4225,6 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         const rawSegTix = tickets.filter((t) => t.segmentId === seg.id);
         const segTix = rawSegTix.map((ticket) => displayTicketForSegment(ticket, activeT, seg, i, rawSegTix));
         const segPassengers = passengersOnSegment(activeT, i);
-        const mainStop = routeBoardingStops(activeT).find((stop) => stop.type === "main" && stop.segmentIndex === i);
-        const mainStopOrder = mainStop?.order ?? i;
-        const passengersAlreadyHere = isRetour
-          ? passengersAfterStop(activeT, mainStopOrder)
-          : passengersBeforeStop(activeT, mainStopOrder);
-        const passengersBoardingHere = passengersAtStop(activeT, segmentStopCity(activeT, seg));
         const passengerChildren = (passenger) =>
           (passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "", birthDate: "" }])
             .map((child) => ({
@@ -4230,12 +4235,6 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
               dropoffCity: passenger.dropoffCity || "",
             }));
         const segKids = segPassengers.flatMap(p =>
-          passengerChildren(p)
-        );
-        const kidsAlreadyHere = passengersAlreadyHere.flatMap(p =>
-          passengerChildren(p)
-        );
-        const kidsBoardingHere = passengersBoardingHere.flatMap(p =>
           passengerChildren(p)
         );
         const childCount = segKids.length;
@@ -4457,22 +4456,12 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   Enfants
                   <span className="tr-ops-anims-count">{segKids.length}</span>
                 </span>
-                {kidsAlreadyHere.length > 0 && (
-                  <div className="tr-ops-stop-group" style={{ order: isRetour ? 3 : 1 }}>
-                    <span className="tr-ops-stop-title">{isRetour ? "Restent après l'arrêt" : "Déjà présents dans le train"}</span>
+                {segKids.length > 0 && (
+                  <div className="tr-ops-stop-group" style={{ order: 1 }}>
+                    <span className="tr-ops-stop-title">À bord sur ce segment</span>
                     <div className="tr-ops-stop-kids">
-                      {kidsAlreadyHere.map((c, ci) => (
-                        <ChildChip key={`already-${ci}`} child={c} missingTicketIds={missingTicketIds} openReservation={openReservation} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {kidsBoardingHere.length > 0 && (
-                  <div className="tr-ops-stop-group" style={{ order: isRetour ? 2 : 2 }}>
-                    <span className="tr-ops-stop-title">{stopActionText(activeT, segmentStopCity(activeT, seg))}</span>
-                    <div className="tr-ops-stop-kids">
-                      {kidsBoardingHere.map((c, ci) => (
-                        <ChildChip key={`boarding-${ci}`} child={c} missingTicketIds={missingTicketIds} openReservation={openReservation} />
+                      {segKids.map((c, ci) => (
+                        <ChildChip key={`segment-${ci}`} child={c} missingTicketIds={missingTicketIds} openReservation={openReservation} />
                       ))}
                     </div>
                   </div>
