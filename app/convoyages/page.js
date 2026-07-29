@@ -288,7 +288,7 @@ function passengerDropoffCity(transport, passenger) {
 
 function passengerMatchesPortion(transport, passenger, portion) {
   const explicitIds = portionPassengerIdSet(portion);
-  if (explicitIds) return explicitIds.has(passenger?.reservationId);
+  const explicitMatch = explicitIds ? explicitIds.has(passenger?.reservationId) : false;
 
   const isBranch = portion?._type === "branch" || Boolean(portion?.joinsAt);
   if (isBranch) {
@@ -302,7 +302,7 @@ function passengerMatchesPortion(transport, passenger, portion) {
         ? passengerDropoffCity(transport, passenger)
         : passengerBoardingCity(transport, passenger),
     );
-    return passengerCity ? citySet.has(passengerCity) : false;
+    return explicitMatch || (passengerCity ? citySet.has(passengerCity) : false);
   }
 
   const boardingCity = normalizePlace(passengerBoardingCity(transport, passenger));
@@ -311,11 +311,11 @@ function passengerMatchesPortion(transport, passenger, portion) {
   const stopCities = (portion.stops || []).map((stop) => normalizePlace(stop.city)).filter(Boolean);
   if (transport.direction === "retour") {
     const returnDropoffCities = new Set([...stopCities, normalizePlace(portion.to)].filter(Boolean));
-    return dropoffCity ? returnDropoffCities.has(dropoffCity) : false;
+    return explicitMatch || (dropoffCity ? returnDropoffCities.has(dropoffCity) : false);
   }
 
   const allerBoardingCities = new Set([normalizePlace(portion.from), ...stopCities].filter(Boolean));
-  return boardingCity ? allerBoardingCities.has(boardingCity) : false;
+  return explicitMatch || (boardingCity ? allerBoardingCities.has(boardingCity) : false);
 }
 
 function passengerMatchesTransport(transport, passenger) {
@@ -327,14 +327,15 @@ function scopedTransportForStaff(transport, staff, portions) {
   const portionIds = new Set((portions || []).map((portion) => portion.id).filter(Boolean));
   const passengerIds = new Set((portions || []).flatMap((portion) => portion.passengerReservationIds || []).filter(Boolean));
   const scopedPassengers = (transport.passengers || []).filter((passenger) =>
-    passengerIds.size ? passengerIds.has(passenger.reservationId) : (portions || []).some((portion) => passengerMatchesPortion(transport, passenger, portion)),
+    (passengerIds.size && passengerIds.has(passenger.reservationId))
+    || (portions || []).some((portion) => passengerMatchesPortion(transport, passenger, portion)),
   );
 
   return {
     ...transport,
     segments: (transport.segments || []).filter((segment) => portionIds.has(segment.id)),
     branches: (transport.branches || []).filter((branch) => portionIds.has(branch.id)),
-    tickets: (transport.tickets || []).filter((ticket) => ticket.segmentId && portionIds.has(ticket.segmentId)),
+    tickets: (transport.tickets || []).filter((ticket) => ticketMatchesStaffScope(ticket, portionIds, staff.id)),
     passengers: scopedPassengers,
     vehicleGroups: (transport.vehicleGroups || []).filter((group) => {
       const groupPortionIds = new Set([group.segmentId, group.branchId, group.portionId].filter(Boolean));
@@ -469,15 +470,16 @@ function segmentBoardingCity(transport, segment) {
 
 function passengersAtStop(transport, segment) {
   const explicitIds = portionPassengerIdSet(segment);
-  if (explicitIds) return (transport.passengers || []).filter((p) => explicitIds.has(p.reservationId));
 
   const city = normalizePlace(segmentBoardingCity(transport, segment));
   const subCities = (segment.stops || []).map((s) => normalizePlace(s.city));
   const portionCitySet = new Set(portionCities(segment));
   return (transport.passengers || []).filter((p) => {
+    const explicitMatch = explicitIds ? explicitIds.has(p.reservationId) : false;
     const pCity = normalizePlace(passengerBoardingCity(transport, p));
     const dropoffCity = normalizePlace(passengerDropoffCity(transport, p));
-    return pCity === city || subCities.includes(pCity) || portionCitySet.has(dropoffCity);
+    const inferredMatch = pCity === city || subCities.includes(pCity) || portionCitySet.has(dropoffCity);
+    return explicitMatch || inferredMatch;
   });
 }
 
@@ -573,6 +575,14 @@ function citySchedule(transport, city, direction = transport.direction) {
 
 function isInactiveTransport(transport) {
   return ["annule", "annulee", "archive", "archivee", "archivé", "archivée"].includes(normalizePlace(transport?.status || ""));
+}
+
+function isUpcomingTransportDate(date) {
+  if (!date) return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const transportDate = new Date(`${date}T00:00:00`);
+  return Number.isNaN(transportDate.getTime()) || transportDate >= today;
 }
 
 function passengerFinalDestination(transport, passenger) {
@@ -679,6 +689,22 @@ function passengerChildRows(transport, passengers = [], allTransports = []) {
     timeMinutes(left.finalArrivalTime) - timeMinutes(right.finalArrivalTime)
     || (left.finalCity || "").localeCompare(right.finalCity || "", "fr")
     || (left.child || "").localeCompare(right.child || "", "fr"),
+  );
+}
+
+function staySortRank(stayCode) {
+  const code = String(stayCode || "").toUpperCase();
+  if (code === "EVCC") return 0;
+  if (code === "MCSC") return 1;
+  return 2;
+}
+
+function sortPassengerRowsByStay(rows = []) {
+  return [...rows].sort((left, right) =>
+    staySortRank(left.stay) - staySortRank(right.stay)
+    || String(left.stay || "").localeCompare(String(right.stay || ""), "fr")
+    || String(left.finalCity || left.dropoffCity || "").localeCompare(String(right.finalCity || right.dropoffCity || ""), "fr")
+    || String(left.child || "").localeCompare(String(right.child || ""), "fr"),
   );
 }
 
@@ -1119,6 +1145,20 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   const rows = passengerRecapRows(transport, allTransports);
   const isS3Return = transport.week === "S3" && transport.direction === "retour";
   const stageTables = isS3Return ? [] : passengerRecapStageTables(transport, allTransports);
+  const segmentTables = isS3Return
+    ? orderedTransportPortions(transport).map((portion, index) => {
+      const passengers = passengersAtStop(transport, portion);
+      const segmentRows = sortPassengerRowsByStay(passengerChildRows(transport, passengers, allTransports));
+      return {
+        id: portion.id || `segment-${index}`,
+        title: `Segment ${index + 1} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
+        staffNames: staffNames(transport, portion.assignedStaffIds || []),
+        departureTime: portion.departureTime || "",
+        arrivalTime: portion.arrivalTime || "",
+        rows: segmentRows,
+      };
+    }).filter((table) => table.rows.length > 0)
+    : [];
   const coordination = staffCoordinationEvents(transport);
   const destinationGroups = groupPassengersByFinalDestination(transport, transport.passengers || [], allTransports);
   const destinationSummary = destinationGroups.map((group) => `${group.city}${group.arrivalTime ? ` ${group.arrivalTime}` : ""} (${group.childCount})`).join(" · ");
@@ -1147,6 +1187,10 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   );
   const tableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Arrivée train</th><th>Départ train</th><th>Temps d’arrêt</th><th>Ville</th><th>Destination finale</th><th>Arrivée finale</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Régime alimentaire</th><th>Médicament / traitement</th><th>Segment</th><th>Segment final</th></tr></thead>`;
   const destinationTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>Descente</th><th>Arrivée finale</th><th>Anim final</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
+  const segmentTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>Descente</th><th>Arrivée finale</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
+  const renderSegmentRows = (tableRows) => tableRows.map((row, index) =>
+    `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.pickupCity || "—")}</td><td class="city">${escapeHtml(row.dropoffCity || row.finalCity || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
+  ).join("");
   const renderDestinationRows = (tableRows) => tableRows.map((row, index) =>
     `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="city">${escapeHtml(row.finalCity || row.city || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td>${escapeHtml((row.finalStaffNames || []).join(", ") || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
   ).join("");
@@ -1159,10 +1203,9 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
   <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
-  ${destinationSummary ? `<p><strong>Destinations finales :</strong> ${escapeHtml(destinationSummary)}</p>` : ""}
+  ${!isS3Return && destinationSummary ? `<p><strong>Destinations finales :</strong> ${escapeHtml(destinationSummary)}</p>` : ""}
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  ${isS3Return ? `<p><strong>Dispatch à Bordeaux :</strong> chaque tableau ci-dessous indique qui repart avec quel anim et où remettre les enfants.</p>` : ""}
-  ${destinationTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.arrivalTime ? ` · Arrivée finale ${escapeHtml(table.arrivalTime)}` : ""}${table.staffNames?.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""} · ${table.rows.length} enfant(s)</div><table>${destinationTableHead}<tbody>${renderDestinationRows(table.rows)}</tbody></table></section>`).join("")}
+  ${isS3Return ? segmentTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.title)}</span>${table.staffNames.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""}${table.departureTime ? ` · Dép. ${escapeHtml(table.departureTime)}` : ""}${table.arrivalTime ? ` · Arr. ${escapeHtml(table.arrivalTime)}` : ""} · ${table.rows.length} enfant(s)</div><table>${segmentTableHead}<tbody>${renderSegmentRows(table.rows)}</tbody></table></section>`).join("") : destinationTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.arrivalTime ? ` · Arrivée finale ${escapeHtml(table.arrivalTime)}` : ""}${table.staffNames?.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""} · ${table.rows.length} enfant(s)</div><table>${destinationTableHead}<tbody>${renderDestinationRows(table.rows)}</tbody></table></section>`).join("")}
   ${stageTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.meetingTime ? ` · RDV ${escapeHtml(table.meetingTime)}` : ""}${table.meetingPoint ? ` · ${escapeHtml(table.meetingPoint)}` : ""} · ${table.rows.length} enfant(s)</div><table>${tableHead}<tbody>${renderRows(table.rows)}</tbody></table></section>`).join("")}
   </body></html>`;
   const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
@@ -1188,6 +1231,14 @@ function childNamesForPassengers(passengers) {
 function ticketSegmentLabel(ticket, portions) {
   const seg = (portions || []).find((s) => s.id === ticket.segmentId);
   return seg ? `${seg.from || "?"} → ${seg.to || "?"}` : (ticket.segmentLabel || "");
+}
+
+function ticketMatchesStaffScope(ticket, segmentIds, staffId) {
+  if (!ticket?.purchased) return false;
+  if (ticket.segmentId && segmentIds.has(ticket.segmentId)) return true;
+  if (staffId && (ticket.coveredStaffIds || []).includes(staffId)) return true;
+  if (staffId && (ticket.assignedStaffIds || []).includes(staffId)) return true;
+  return !ticket.segmentId;
 }
 
 function firstNameOf(fullName) {
@@ -1281,8 +1332,10 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
   );
 }
 
-function PassengerListTable({ transport, passengers, allTransports = [], onTogglePresence = null, showPickup = true, showFinal = true, showStaff = false }) {
-  const rows = passengerChildRows(transport, passengers, allTransports);
+function PassengerListTable({ transport, passengers, allTransports = [], onTogglePresence = null, showPickup = true, showFinal = true, showStaff = false, sortByStay = false }) {
+  const rows = sortByStay
+    ? sortPassengerRowsByStay(passengerChildRows(transport, passengers, allTransports))
+    : passengerChildRows(transport, passengers, allTransports);
   const showSeparateFinalCity = showFinal && transport?.direction !== "retour";
   if (!rows.length) return null;
   return (
@@ -1731,7 +1784,7 @@ function StepStaff({ transport, weekInfo, onBack, onSelect }) {
 
 function ConvoyageIndex({ transports, onSelect }) {
   const activeTransports = [...transports]
-    .filter((transport) => transport.week === "S2" && !["annule", "annulee", "archive", "archivé", "archivee"].includes(normalizePlace(transport.status || "")))
+    .filter((transport) => !isInactiveTransport(transport) && isUpcomingTransportDate(transport.date))
     .sort((a, b) =>
       (a.date || "").localeCompare(b.date || "")
       || (a.week || "").localeCompare(b.week || "")
@@ -1768,7 +1821,6 @@ function ConvoyageIndex({ transports, onSelect }) {
             parts: [],
             passengerIds: new Set(),
             passengerCount: 0,
-            destinationGroups: new Map(),
             meetingPoint: "",
             meetingTime: "",
             mission: "Trajet complet",
@@ -1784,18 +1836,6 @@ function ConvoyageIndex({ transports, onSelect }) {
           if (passengerKey && !seenPassengerIds.has(passengerKey)) {
             seenPassengerIds.add(passengerKey);
             row.passengerCount += Math.max(passenger.children?.length || 0, 1);
-            const finalInfo = finalArrivalInfo(dateTransports, transport, passenger);
-            const destinationKey = normalizePlace(finalInfo.city);
-            if (!row.destinationGroups.has(destinationKey)) {
-              row.destinationGroups.set(destinationKey, {
-                city: finalInfo.city,
-                arrivalTime: finalInfo.arrivalTime,
-                childCount: 0,
-              });
-            }
-            const group = row.destinationGroups.get(destinationKey);
-            group.childCount += Math.max(passenger.children?.length || 0, 1);
-            if (!group.arrivalTime && finalInfo.arrivalTime) group.arrivalTime = finalInfo.arrivalTime;
           }
         });
         if (!row.meetingTime || timeMinutes(meeting.meetingTime || meeting.departureTime) < timeMinutes(row.meetingTime)) {
@@ -1819,10 +1859,6 @@ function ConvoyageIndex({ transports, onSelect }) {
     return [...rows.values()].map((row) => ({
       ...row,
       route: row.routeCities.length > 1 ? row.routeCities.join(" -> ") : "Trajet a confirmer",
-      destinationSummary: [...row.destinationGroups.values()]
-        .sort((left, right) => timeMinutes(left.arrivalTime) - timeMinutes(right.arrivalTime) || left.city.localeCompare(right.city, "fr"))
-        .map((group) => `${group.city}${group.arrivalTime ? ` ${group.arrivalTime}` : ""} (${group.childCount})`)
-        .join(" · "),
     })).sort((left, right) =>
       timeMinutes(left.meetingTime) - timeMinutes(right.meetingTime)
       || left.anim.localeCompare(right.anim, "fr"),
@@ -1840,7 +1876,7 @@ function ConvoyageIndex({ transports, onSelect }) {
         .convoyage-plain-table tr:hover td { background: #fff7ed; }
         @media (max-width: 760px) {
           .convoyage-table-wrap { overflow-x: auto; margin-left: -10px; margin-right: -10px; padding: 0 10px; }
-          .convoyage-plain-table { min-width: 980px; font-size: 12px; }
+          .convoyage-plain-table { min-width: 860px; font-size: 12px; }
         }
       `}</style>
       <div style={{ marginBottom: 22 }}>
@@ -1872,7 +1908,6 @@ function ConvoyageIndex({ transports, onSelect }) {
                   <th>Trajet</th>
                   <th>Anim</th>
                   <th>Départ / mission</th>
-                  <th>Destinations finales</th>
                   <th>RDV anim</th>
                   <th>Heure</th>
                   <th>Enfants</th>
@@ -1886,7 +1921,6 @@ function ConvoyageIndex({ transports, onSelect }) {
                       <td><strong>{row.route}</strong></td>
                       <td>{row.anim}</td>
                       <td>{row.mission || "—"}</td>
-                      <td>{row.destinationSummary || "—"}</td>
                       <td>{row.meetingPoint || "—"}</td>
                       <td><strong>{row.meetingTime || "—"}</strong></td>
                       <td style={{ textAlign: "right" }}><strong>{row.passengerCount}</strong></td>
@@ -1905,7 +1939,6 @@ function ConvoyageIndex({ transports, onSelect }) {
 
 function BriefingView({ transport, allTransports = [], staff, mySegments, myTickets, weekInfo, onBack, onTogglePresence }) {
   const isAller = transport.direction !== "retour";
-  const isS3Return = transport.week === "S3" && transport.direction === "retour";
   const dirColor = isAller ? "#16a34a" : "#ea580c";
   const totalChildren = countChildren(transport.passengers || []);
   const checkedChildren = countChildren((transport.passengers || []).filter(isPassengerChecked));
@@ -1915,11 +1948,6 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
   const transportStaffNames = (transport.staff || []).map((member) => member.name).filter(Boolean);
   const stageCities = transportStageCities(transport);
   const coordinationEvents = staffCoordinationEvents(transport);
-  const cityRecap = transportCityRecap(transport);
-  const destinationRecap = groupPassengersByFinalDestination(transport, transport.passengers || [], allTransports);
-  const vehicleGroups = vehicleGroupsForTransport(transport);
-  const hideVehicleGroups = isS3Return;
-  const checkedPct = totalChildren ? Math.round((checkedChildren / totalChildren) * 100) : 0;
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", paddingBottom: 60 }}>
@@ -2039,151 +2067,6 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
           </div>
         </div>
 
-        <div style={{ marginBottom: 18, padding: 12, background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: "#1e1040" }}>Pointage enfants</div>
-            <div style={{ fontSize: 13, fontWeight: 900, color: checkedChildren === totalChildren ? "#16a34a" : "#B8336A" }}>{checkedChildren}/{totalChildren}</div>
-          </div>
-          <div style={{ height: 10, borderRadius: 999, background: "#e2e8f0", overflow: "hidden" }}>
-            <div style={{ width: `${checkedPct}%`, height: "100%", background: checkedChildren === totalChildren ? "#16a34a" : "#B8336A", transition: "width 0.2s ease" }} />
-          </div>
-        </div>
-
-        <SectionTitle color="#16a34a">Pointage rapide</SectionTitle>
-        <PointageTable transport={transport} onTogglePresence={onTogglePresence} />
-
-        {!hideVehicleGroups && vehicleGroups.length > 0 && (
-          <>
-            <SectionTitle color="#0f766e">Répartition véhicules</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-              {vehicleGroups.map((group) => (
-                <details key={group.id} open={group.highlight || vehicleGroups.length <= 2} style={{
-                  background: group.type === "minibus" ? "#f0fdfa" : "#fff",
-                  border: `2px solid ${group.type === "minibus" ? "#2dd4bf" : "#e2e8f0"}`,
-                  borderRadius: 14,
-                  overflow: "hidden",
-                }}>
-                  <summary style={{ padding: "12px 14px", cursor: "pointer", listStyle: "none", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 900, color: group.type === "minibus" ? "#0f766e" : "#1e1040" }}>
-                        {group.label || "Véhicule"} · {group.from} → {group.to}
-                      </div>
-                      <div style={{ marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                        {Object.entries(group.stayCounts || {}).map(([code, count]) => (
-                          <span key={code} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                            <StayBadge stayCode={code} />
-                            <span style={{ fontSize: 12, fontWeight: 800, color: "#64748b" }}>{count}</span>
-                          </span>
-                        ))}
-                        {group.staffNames?.length > 0 && <span style={{ fontSize: 12, fontWeight: 800, color: "#0f766e" }}>Anim : {group.staffNames.join(", ")}</span>}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: "#0f766e", whiteSpace: "nowrap" }}>
-                      {group.checkedCount}/{group.childCount}
-                    </div>
-                  </summary>
-                  <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-                    {group.passengers.map((passenger, index) => (
-                      <PassengerCard key={passenger.reservationId || index} passenger={passenger} index={index} compact />
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </>
-        )}
-
-        {cityRecap.length > 0 && (
-          <>
-            <SectionTitle color="#1e1040">Récapitulatif par ville</SectionTitle>
-            <div style={{ overflowX: "auto", marginBottom: 18, border: "1.5px solid #e5e7eb", borderRadius: 12, background: "#fff" }}>
-              <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: "#1e1040", color: "#fff" }}>
-                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Ville / action</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Enfants</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Type</th>
-                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Point de rendez-vous</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Heure RDV</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Arrivée</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Départ</th>
-                    <th style={{ padding: "8px 10px", textAlign: "center" }}>Arrêt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cityRecap.map((row, index) => (
-                    <tr key={`${row.city}-${row.action}`} style={{ background: index % 2 ? "#faf8fc" : "#fff", borderTop: "1px solid #eeeaf3" }}>
-                      <td style={{ padding: "8px 10px" }}>
-                        <div style={{ fontWeight: 900, color: "#1e1040" }}>{row.city}</div>
-                        <div style={{ marginTop: 2, fontSize: 10, fontWeight: 800, color: row.action.includes("Remise") || row.action === "Descente" ? "#ea580c" : "#16a34a", textTransform: "uppercase" }}>{row.action}</div>
-                      </td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#7c3aed" }}>{row.childCount}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, color: row.stopType === "quai" ? "#b45309" : row.stopType === "arrival" ? "#ea580c" : "#15803d", whiteSpace: "nowrap" }}>
-                        {row.stopType === "quai" ? (row.isReturn ? "Récup. quai" : "RDV quai") : row.stopType === "arrival" ? "Arrivée" : "RDV famille"}
-                      </td>
-                      <td style={{ padding: "8px 10px", color: "#374151", lineHeight: 1.4 }}>{row.meetingPoint || "À confirmer"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#B8336A", whiteSpace: "nowrap" }}>{row.meetingTime || "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#ea580c", whiteSpace: "nowrap" }}>{row.arrivalTime || "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 900, color: "#16a34a", whiteSpace: "nowrap" }}>{row.departureTime || "—"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, color: "#64748b", whiteSpace: "nowrap" }}>{row.stopDuration || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {destinationRecap.length > 0 && (
-          <>
-            <SectionTitle color="#B8336A">{isS3Return ? "Dispatch après Bordeaux" : "Destinations finales"}</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-              {destinationRecap.map((group) => (
-                <details key={normalizePlace(group.city)} open style={{ background: "#fff", border: "1.5px solid #f3d0e6", borderRadius: 12, overflow: "hidden" }}>
-                  <summary style={{ listStyle: "none", cursor: "pointer", padding: "10px 14px", background: "#fff0f6", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: "#B8336A" }}>{group.city}</div>
-                      {group.staffNames?.length > 0 && <div style={{ marginTop: 2, fontSize: 12, color: "#0f766e", fontWeight: 900 }}>Anim : {group.staffNames.join(", ")}</div>}
-                      {!isS3Return && group.segment && <div style={{ marginTop: 2, fontSize: 11, color: "#64748b", fontWeight: 700 }}>{group.segment}</div>}
-                    </div>
-                    <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: "#1e1040" }}>{group.arrivalTime || "Arrivée à confirmer"}</div>
-                      <div style={{ fontSize: 11, color: "#7c3aed", fontWeight: 900 }}>{group.childCount} enfant{group.childCount > 1 ? "s" : ""}</div>
-                    </div>
-                  </summary>
-                  <div style={{ padding: "10px 12px 12px" }}>
-                    <PassengerListTable
-                      transport={transport}
-                      passengers={group.passengers}
-                      allTransports={allTransports}
-                      showPickup
-                      showFinal={isS3Return}
-                      showStaff={isS3Return}
-                    />
-                  </div>
-                </details>
-              ))}
-            </div>
-          </>
-        )}
-
-        {coordinationEvents.length > 0 && (
-          <>
-            <SectionTitle color="#B8336A">Coordination des équipes</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
-              {coordinationEvents.map((event) => (
-                <div key={`${event.city}-${event.title}`} style={{ padding: "11px 14px", background: "#fff0f6", border: "1.5px solid #f3d0e6", borderRadius: 11 }}>
-                  <div style={{ fontWeight: 900, fontSize: 13, color: "#B8336A" }}>
-                    {event.time || "Heure à confirmer"} · {event.title} à {event.city}
-                  </div>
-                  {event.names.length > 0 && <div style={{ marginTop: 3, fontSize: 12, color: "#1e1040", fontWeight: 700 }}>{event.names.join(", ")}</div>}
-                  <div style={{ marginTop: 3, fontSize: 12, color: "#64748b" }}>{event.detail}</div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
         {/* ── My segments ── */}
         <SectionTitle color="#7c3aed">
           Mes segments {mySegments.length > 0 ? `(${mySegments.length})` : ""}
@@ -2197,13 +2080,10 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
             {mySegments.map((seg, i) => {
               const stopPassengers = passengersAtStop(transport, seg);
-              const childCount = Number(seg.sharedChildrenCount || 0) || countChildren(stopPassengers);
-              const finalDropoffs = passengersDroppingAt(transport, seg.to);
+              const childCount = countChildren(stopPassengers);
               const segmentStaffNames = staffNames(transport, seg.assignedStaffIds || []);
-              const segmentMode = `${seg.mode || ""} ${seg.trainType || ""} ${seg.id || ""}`;
-              const isS3ReturnRoadSegment = isS3Return && isRoadMode(segmentMode);
               return (
-                <details key={seg.id || i} open={!isS3ReturnRoadSegment} style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
+                <details key={seg.id || i} open style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
                   <summary style={{
                     padding: "11px 16px", background: "#7c3aed",
@@ -2211,7 +2091,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                     listStyle: "none", cursor: "pointer",
                   }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>
-                      {isS3ReturnRoadSegment ? "Trajet commun jusqu'à Bordeaux" : `Segment ${i + 1}${seg._type === "branch" ? " · Embranchement" : ""}`} — {segmentPathLabel(seg) || "?"}
+                      Segment {i + 1}{seg._type === "branch" ? " · Embranchement" : ""} — {segmentPathLabel(seg) || "?"}
                     </div>
                     <div style={{
                       background: "rgba(255,255,255,0.2)", borderRadius: 100,
@@ -2246,78 +2126,23 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                       </div>
                     )}
 
-                    {isS3ReturnRoadSegment && (
-                      <div style={{ marginTop: 10, padding: "10px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13, color: "#475569", fontWeight: 700 }}>
-                        Liste enfants masquée ici : le dispatch important est le bloc “Dispatch après Bordeaux” au-dessus.
-                      </div>
-                    )}
-
-                    {/* Sub-stops */}
-                    {!isS3ReturnRoadSegment && (seg.stops || []).length > 0 && (
-                      <div style={{ marginTop: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#94a3b8", marginBottom: 8 }}>
-                          Villes étapes
-                        </div>
-                        {seg.stops.map((stop, si) => {
-                          const boardings = passengersBoardingAt(transport, stop.city);
-                          const dropoffs = passengersDroppingAt(transport, stop.city);
-                          const boardingNames = childNamesForPassengers(boardings);
-                          const dropoffNames = childNamesForPassengers(dropoffs);
-                          return (
-                          <div key={si} style={{ padding: "8px 12px", background: "#f9f7ff", border: "1px solid #e9e0f8", borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
-                            <div style={{ fontWeight: 700, color: "#1e1040" }}>{stop.city || "Ville inconnue"}</div>
-                            {(stop.arrivalTime || stop.departureTime) && (
-                              <div style={{ color: "#7c3aed", marginTop: 2, fontSize: 12 }}>
-                                {stop.arrivalTime && `Arr. ${stop.arrivalTime}`}
-                                {stop.departureTime && ` · Dép. ${stop.departureTime}`}
-                              </div>
-                            )}
-                            {stop.meetingPoint && <div style={{ color: "#64748b", marginTop: 2, fontSize: 12 }}>RDV : {stop.meetingPoint}</div>}
-                            {boardings.length > 0 && (
-                              <div style={{ marginTop: 7, padding: "7px 9px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 7, color: "#1d4ed8", fontSize: 12 }}>
-                                <strong>{isAller ? "↑ Montent ici" : "Prise en charge au centre"} ({countChildren(boardings)}) :</strong>{" "}
-                                {boardingNames.join(", ") || "Noms à compléter"}
-                              </div>
-                            )}
-                            {dropoffs.length > 0 && (
-                              <div style={{ marginTop: 7, padding: "7px 9px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 7, color: "#b45309", fontSize: 12 }}>
-                                <strong>↓ Descendent ici ({countChildren(dropoffs)}) :</strong>{" "}
-                                {dropoffNames.join(", ") || "Noms à compléter"}
-                              </div>
-                            )}
-                          </div>
-                          );
-                        })}
-                        {finalDropoffs.length > 0 && (
-                          <div style={{ padding: "8px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
-                            <div style={{ fontWeight: 700, color: "#166534" }}>{seg.to}</div>
-                            <div style={{ marginTop: 3, color: "#166534", fontSize: 12 }}>
-                              <strong>↓ Descendent ici ({countChildren(finalDropoffs)}) :</strong>{" "}
-                              {childNamesForPassengers(finalDropoffs).join(", ") || "Noms à compléter"}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Children at this stop */}
-                    {!isS3ReturnRoadSegment && stopPassengers.length > 0 && (
+                    {stopPassengers.length > 0 && (
                       <div style={{ marginTop: 14 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#7c3aed", marginBottom: 8 }}>
-                          {isAller || transport.sharedConnection ? "Enfants à prendre en charge" : "Enfants qui descendent / à remettre aux familles"}
+                          Enfants du segment
                         </div>
                         <PassengerListTable
                           transport={transport}
                           passengers={stopPassengers}
                           allTransports={allTransports}
-                          onTogglePresence={onTogglePresence}
                           showPickup
                           showFinal
+                          sortByStay
                         />
                       </div>
                     )}
 
-                    {!isS3ReturnRoadSegment && stopPassengers.length === 0 && (
+                    {stopPassengers.length === 0 && (
                       <div style={{ marginTop: 10, fontSize: 13, color: "#94a3b8", fontStyle: "italic" }}>
                         Aucun enfant affecté à cet arrêt.
                       </div>
@@ -2329,11 +2154,28 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
           </div>
         )}
 
+        {coordinationEvents.length > 0 && (
+          <>
+            <SectionTitle color="#B8336A">Coordination des équipes</SectionTitle>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+              {coordinationEvents.map((event) => (
+                <div key={`${event.city}-${event.title}`} style={{ padding: "11px 14px", background: "#fff0f6", border: "1.5px solid #f3d0e6", borderRadius: 11 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13, color: "#B8336A" }}>
+                    {event.time || "Heure à confirmer"} · {event.title} à {event.city}
+                  </div>
+                  {event.names.length > 0 && <div style={{ marginTop: 3, fontSize: 12, color: "#1e1040", fontWeight: 700 }}>{event.names.join(", ")}</div>}
+                  <div style={{ marginTop: 3, fontSize: 12, color: "#64748b" }}>{event.detail}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* ── Tickets ── */}
         {myTickets.length > 0 && (
           <>
-            <SectionTitle color="#0891b2">Billets de transport ({myTickets.length})</SectionTitle>
-            <Collapse title={`${myTickets.length} billet${myTickets.length > 1 ? "s" : ""} de transport`} icon="🎫" defaultOpen={false}>
+            <SectionTitle color="#0891b2">Billets et documents ({myTickets.length})</SectionTitle>
+            <Collapse title={`${myTickets.length} document${myTickets.length > 1 ? "s" : ""} utile${myTickets.length > 1 ? "s" : ""}`} icon="🎫" defaultOpen={false}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {myTickets.map((ticket, i) => (
                 <div key={ticket.id || i} style={{
@@ -2358,6 +2200,11 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                   {ticket.bookingReference && (
                     <div style={{ marginTop: 6, fontSize: 12, color: "#64748b", fontFamily: "monospace", background: "#e0f2fe", display: "inline-block", padding: "2px 8px", borderRadius: 4 }}>
                       Réf : {ticket.bookingReference}
+                    </div>
+                  )}
+                  {ticket.notes && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "#0c4a6e", lineHeight: 1.45 }}>
+                      {ticket.notes}
                     </div>
                   )}
                   {ticket.url && (
@@ -2666,7 +2513,7 @@ export default function ConvoyagePage() {
         if (!vehicleGroupsById.has(key)) vehicleGroupsById.set(key, group);
       });
       (transport.tickets || [])
-        .filter((ticket) => ticket.purchased && ticket.segmentId && segmentIds.has(ticket.segmentId))
+        .filter((ticket) => ticketMatchesStaffScope(ticket, segmentIds, selectedStaff.id))
         .forEach((ticket) => tickets.push(ticket));
     });
     const sortedSegments = [...mySegments].sort((left, right) =>
@@ -2714,8 +2561,8 @@ export default function ConvoyagePage() {
   const myTickets = useMemo(() => {
     if (!briefingTransport || !mySegments.length) return [];
     const ids = new Set(mySegments.map((s) => s.id).filter(Boolean));
-    return (briefingTransport.tickets || []).filter((t) => t.purchased && t.segmentId && ids.has(t.segmentId));
-  }, [briefingTransport, mySegments]);
+    return (briefingTransport.tickets || []).filter((ticket) => ticketMatchesStaffScope(ticket, ids, selectedStaff?.id));
+  }, [briefingTransport, mySegments, selectedStaff]);
 
   const handleTogglePresence = useCallback(async (passenger, checked) => {
     if (!selectedTransport || !passenger?.reservationId) return;
