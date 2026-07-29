@@ -708,6 +708,50 @@ function sortPassengerRowsByStay(rows = []) {
   );
 }
 
+function sortPassengerRowsByDestination(rows = []) {
+  return [...rows].sort((left, right) =>
+    timeMinutes(left.finalArrivalTime) - timeMinutes(right.finalArrivalTime)
+    || String(left.finalCity || left.dropoffCity || "").localeCompare(String(right.finalCity || right.dropoffCity || ""), "fr")
+    || staySortRank(left.stay) - staySortRank(right.stay)
+    || String(left.child || "").localeCompare(String(right.child || ""), "fr"),
+  );
+}
+
+function downstreamCitiesForJourneyPortion(portions = [], index = 0) {
+  const cities = new Set();
+  portions.slice(index).forEach((portion) => {
+    (portion.stops || []).forEach((stop) => {
+      const city = normalizePlace(stop.city);
+      if (city) cities.add(city);
+    });
+    const to = normalizePlace(portion.to);
+    if (to) cities.add(to);
+  });
+  return cities;
+}
+
+function isReturnCollectionPortion(transport, portion, index) {
+  const mode = `${portion?.mode || ""} ${portion?.trainType || ""} ${portion?.id || ""}`;
+  return transport?.direction === "retour"
+    && index === 0
+    && isRoadMode(mode)
+    && normalizePlace(portion?.to) === "bordeaux";
+}
+
+function passengersForJourneyPortion(transport, portion, index, portions = []) {
+  const passengers = transport?.passengers || [];
+  if (isReturnCollectionPortion(transport, portion, index)) return passengers;
+
+  const downstreamCities = downstreamCitiesForJourneyPortion(portions, index);
+  if (!downstreamCities.size) return passengersAtStop(transport, portion);
+
+  return passengers.filter((passenger) => {
+    const finalCity = normalizePlace(passengerFinalDestination(transport, passenger));
+    const dropoffCity = normalizePlace(passengerDropoffCity(transport, passenger));
+    return downstreamCities.has(finalCity) || downstreamCities.has(dropoffCity);
+  });
+}
+
 function meetingTimeOrOneHourBefore(meetingTime, departureTime) {
   if (meetingTime) return meetingTime;
   const match = String(departureTime || "").match(/^(\d{1,2}):(\d{2})$/);
@@ -1146,9 +1190,12 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   const isS3Return = transport.week === "S3" && transport.direction === "retour";
   const stageTables = isS3Return ? [] : passengerRecapStageTables(transport, allTransports);
   const segmentTables = isS3Return
-    ? orderedTransportPortions(transport).map((portion, index) => {
-      const passengers = passengersAtStop(transport, portion);
-      const segmentRows = sortPassengerRowsByStay(passengerChildRows(transport, passengers, allTransports));
+    ? orderedTransportPortions(transport).map((portion, index, portions) => {
+      const passengers = passengersForJourneyPortion(transport, portion, index, portions);
+      const childRows = passengerChildRows(transport, passengers, allTransports);
+      const segmentRows = isReturnCollectionPortion(transport, portion, index)
+        ? sortPassengerRowsByStay(childRows)
+        : sortPassengerRowsByDestination(childRows);
       return {
         id: portion.id || `segment-${index}`,
         title: `Segment ${index + 1} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
@@ -1199,13 +1246,13 @@ function openPassengerRecapPdf(transport, allTransports = []) {
     return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="present">☐</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="city">${escapeHtml(row.finalCity || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td class="notes">&nbsp;</td><td class="notes">&nbsp;</td><td>${escapeHtml(row.segment)}</td><td>${escapeHtml(row.finalSegment)}</td></tr>`;
   }).join("");
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Récap convoyage</title><style>
-    @page{size:A4 landscape;margin:6mm}body{font:7.5px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}.stage{margin:8px 0 10px}.stage-title{font-size:10px;font-weight:bold;color:#1e1040;background:#f3eef8;border:1px solid #d8c9ef;padding:5px 7px;margin:0 0 3px}.stage-title span{color:#B8336A}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}tr.quai{background:#fff8e8}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.type{width:58px;font-weight:bold}.type-quai{color:#b45309}.type-rdv{color:#15803d}.type-return{color:#7c3aed}.meeting{min-width:125px;white-space:normal;line-height:1.3}.action{width:68px}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.notes{min-width:82px;height:25px}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
+    @page{size:A4 landscape;margin:6mm}body{font:7.5px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}.stage{margin:8px 0 10px}.stage-title{font-size:10px;font-weight:bold;color:#1e1040;background:#f3eef8;border:1px solid #d8c9ef;padding:5px 7px;margin:0 0 3px}.stage-title span{color:#B8336A}.segment-page{break-after:page;page-break-after:always}.segment-page:last-of-type{break-after:auto;page-break-after:auto}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}tr.quai{background:#fff8e8}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.type{width:58px;font-weight:bold}.type-quai{color:#b45309}.type-rdv{color:#15803d}.type-return{color:#7c3aed}.meeting{min-width:125px;white-space:normal;line-height:1.3}.action{width:68px}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.notes{min-width:82px;height:25px}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
   </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
   <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
   ${!isS3Return && destinationSummary ? `<p><strong>Destinations finales :</strong> ${escapeHtml(destinationSummary)}</p>` : ""}
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  ${isS3Return ? segmentTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.title)}</span>${table.staffNames.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""}${table.departureTime ? ` · Dép. ${escapeHtml(table.departureTime)}` : ""}${table.arrivalTime ? ` · Arr. ${escapeHtml(table.arrivalTime)}` : ""} · ${table.rows.length} enfant(s)</div><table>${segmentTableHead}<tbody>${renderSegmentRows(table.rows)}</tbody></table></section>`).join("") : destinationTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.arrivalTime ? ` · Arrivée finale ${escapeHtml(table.arrivalTime)}` : ""}${table.staffNames?.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""} · ${table.rows.length} enfant(s)</div><table>${destinationTableHead}<tbody>${renderDestinationRows(table.rows)}</tbody></table></section>`).join("")}
+  ${isS3Return ? segmentTables.map((table) => `<section class="stage segment-page"><div class="stage-title"><span>${escapeHtml(table.title)}</span>${table.staffNames.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""}${table.departureTime ? ` · Dép. ${escapeHtml(table.departureTime)}` : ""}${table.arrivalTime ? ` · Arr. ${escapeHtml(table.arrivalTime)}` : ""} · ${table.rows.length} enfant(s)</div><table>${segmentTableHead}<tbody>${renderSegmentRows(table.rows)}</tbody></table></section>`).join("") : destinationTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.arrivalTime ? ` · Arrivée finale ${escapeHtml(table.arrivalTime)}` : ""}${table.staffNames?.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""} · ${table.rows.length} enfant(s)</div><table>${destinationTableHead}<tbody>${renderDestinationRows(table.rows)}</tbody></table></section>`).join("")}
   ${stageTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.meetingTime ? ` · RDV ${escapeHtml(table.meetingTime)}` : ""}${table.meetingPoint ? ` · ${escapeHtml(table.meetingPoint)}` : ""} · ${table.rows.length} enfant(s)</div><table>${tableHead}<tbody>${renderRows(table.rows)}</tbody></table></section>`).join("")}
   </body></html>`;
   const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
@@ -1332,10 +1379,13 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
   );
 }
 
-function PassengerListTable({ transport, passengers, allTransports = [], onTogglePresence = null, showPickup = true, showFinal = true, showStaff = false, sortByStay = false }) {
-  const rows = sortByStay
-    ? sortPassengerRowsByStay(passengerChildRows(transport, passengers, allTransports))
-    : passengerChildRows(transport, passengers, allTransports);
+function PassengerListTable({ transport, passengers, allTransports = [], onTogglePresence = null, showPickup = true, showFinal = true, showStaff = false, sortMode = "default" }) {
+  const baseRows = passengerChildRows(transport, passengers, allTransports);
+  const rows = sortMode === "stay"
+    ? sortPassengerRowsByStay(baseRows)
+    : sortMode === "destination"
+      ? sortPassengerRowsByDestination(baseRows)
+      : baseRows;
   const showSeparateFinalCity = showFinal && transport?.direction !== "retour";
   if (!rows.length) return null;
   return (
@@ -1941,8 +1991,6 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
   const isAller = transport.direction !== "retour";
   const dirColor = isAller ? "#16a34a" : "#ea580c";
   const totalChildren = countChildren(transport.passengers || []);
-  const checkedChildren = countChildren((transport.passengers || []).filter(isPassengerChecked));
-  const passengerGroups = groupPassengersByCity(transport);
   const firstName = firstNameOf(staff?.name);
   const leadMember = leadStaffMember(transport);
   const transportStaffNames = (transport.staff || []).map((member) => member.name).filter(Boolean);
@@ -2046,7 +2094,6 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
               ["Départ train", transport.departureTime || null],
               ["Arrivée", transport.arrivalTime || null],
               ["Passagers", `${totalChildren} enfant${totalChildren > 1 ? "s" : ""}`],
-              ["Pointage", `${checkedChildren}/${totalChildren} pointé${checkedChildren > 1 ? "s" : ""}`],
               ["Équipe", transportStaffNames.length ? transportStaffNames.join(", ") : null],
               ["Chef de convoi", leadMember?.name || "À désigner"],
             ]
@@ -2078,10 +2125,11 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-            {mySegments.map((seg, i) => {
-              const stopPassengers = passengersAtStop(transport, seg);
+            {mySegments.map((seg, i, segments) => {
+              const stopPassengers = passengersForJourneyPortion(transport, seg, i, segments);
               const childCount = countChildren(stopPassengers);
               const segmentStaffNames = staffNames(transport, seg.assignedStaffIds || []);
+              const sortMode = isReturnCollectionPortion(transport, seg, i) ? "stay" : "destination";
               return (
                 <details key={seg.id || i} open style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
@@ -2137,7 +2185,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                           allTransports={allTransports}
                           showPickup
                           showFinal
-                          sortByStay
+                          sortMode={sortMode}
                         />
                       </div>
                     )}
@@ -2245,68 +2293,6 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
               <li key={i} style={{ fontSize: 13, color: "#374151", lineHeight: 1.65 }}>{item}</li>
             ))}
           </ul>
-        </Collapse>
-
-        {/* ── All passengers (collapsible) ── */}
-        <SectionTitle color="#374151">
-          Tous les passagers ({totalChildren} enfant{totalChildren > 1 ? "s" : ""})
-        </SectionTitle>
-        <Collapse title={`Liste complète — ${totalChildren} enfant${totalChildren > 1 ? "s" : ""}`} icon="👥" defaultOpen={false}>
-          {passengerGroups.length === 0 ? (
-            <p style={{ color: "#94a3b8", fontSize: 13 }}>Aucun passager configuré.</p>
-          ) : (
-            passengerGroups.map((group, gi) => {
-              const groupCount = countChildren(group.passengers);
-              return (
-                <div key={gi} style={{ marginBottom: 16 }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em",
-                    color: "#B8336A", marginBottom: 8, paddingBottom: 5,
-                    borderBottom: "2px solid #f3eef8",
-                    display: "flex", justifyContent: "space-between",
-                  }}>
-                    <span>{group.city}</span>
-                    <span>{groupCount} enfant{groupCount > 1 ? "s" : ""}</span>
-                  </div>
-                  {group.passengers.map((p, pi) => {
-                    const children = p.children?.length
-                      ? p.children
-                      : [{ firstName: p.childName, lastName: "" }];
-                    return (
-                      <div key={pi} style={{
-                        padding: "9px 0", borderBottom: pi < group.passengers.length - 1 ? "1px solid #f5f3ff" : "none",
-                        display: "flex", gap: 10, alignItems: "flex-start",
-                      }}>
-                        <div style={{
-                          width: 22, height: 22, borderRadius: "50%",
-                          background: "#f3eef8", color: "#7c3aed",
-                          fontSize: 11, fontWeight: 800,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          flexShrink: 0, marginTop: 2,
-                        }}>
-                          {pi + 1}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#1e1040" }}>
-                            {children.map((c) => childFullName(c)).filter(Boolean).join(", ") || p.childName || "—"}
-                          </div>
-                          <div style={{ marginTop: 2, fontSize: 11, fontWeight: 800, color: "#B8336A" }}>
-                            Séjour : {p.stayCode || shortStayCode(p.sejourName)}{(p.returnCity || p.dropoffCity) ? ` · Descente ${p.returnCity || p.dropoffCity}` : ""}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#64748b", marginTop: 1 }}>
-                            {p.nom} ·{" "}
-                            <a href={`tel:${(p.phones?.[0] || p.phone || "").replace(/\s/g, "")}`} style={{ color: "#7c3aed", textDecoration: "none", fontWeight: 600 }}>
-                              {p.phone || "—"}
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })
-          )}
         </Collapse>
 
         {/* ── Emergency contacts ── */}
