@@ -1299,76 +1299,88 @@ function passengerRecapStageTables(transport, allTransports = []) {
   return tables;
 }
 
+function segmentCityForRow(transport, row) {
+  return transport?.direction === "retour"
+    ? row.dropoffCity || row.finalCity || "Ville à confirmer"
+    : row.pickupCity || row.displayCity || row.city || "Ville à confirmer";
+}
+
+function segmentCityOrder(portion, city) {
+  const key = normalizePlace(city);
+  const cities = [portion?.from, ...(portion?.stops || []).map((stop) => stop.city), portion?.to]
+    .filter(Boolean)
+    .map((value) => ({ key: normalizePlace(value), value }));
+  const index = cities.findIndex((item) => item.key === key);
+  return index >= 0 ? index : 999;
+}
+
+function groupSegmentRowsByCity(transport, portion, rows = []) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const city = segmentCityForRow(transport, row);
+    const key = normalizePlace(city) || "unknown";
+    if (!groups.has(key)) groups.set(key, { city, rows: [] });
+    groups.get(key).rows.push(row);
+  });
+  return [...groups.values()].sort((left, right) =>
+    segmentCityOrder(portion, left.city) - segmentCityOrder(portion, right.city)
+    || left.city.localeCompare(right.city, "fr", { sensitivity: "base" }),
+  ).map((group) => ({
+    ...group,
+    rows: [...group.rows].sort((left, right) =>
+      staySortRank(left.stay) - staySortRank(right.stay)
+      || String(left.child || "").localeCompare(String(right.child || ""), "fr", { sensitivity: "base" }),
+    ),
+  }));
+}
+
+function convoyagePdfSegmentTables(transport, allTransports = []) {
+  return orderedTransportPortions(transport).map((portion, index, portions) => {
+    const sourceTransport = transportForPortion(allTransports, transport, portion);
+    const sourcePortions = orderedTransportPortions(sourceTransport);
+    const sourceIndex = sourcePortions.findIndex((candidate) => candidate.id === portion.id);
+    const portionIndex = sourceIndex >= 0 ? sourceIndex : index;
+    const passengers = passengersForJourneyPortion(sourceTransport, portion, portionIndex, sourcePortions.length ? sourcePortions : portions);
+    const childRows = passengerChildRows(sourceTransport, passengers, allTransports);
+    const sortMode = isReturnCollectionPortion(sourceTransport, portion, portionIndex) ? "stay" : "destination";
+    const sortedRows = sortMode === "stay" ? sortPassengerRowsByStay(childRows) : sortPassengerRowsByDestination(childRows);
+    return {
+      id: portion.id || `segment-${index}`,
+      index,
+      portion,
+      sourceTransport,
+      title: `Segment ${index + 1}${portion._type === "branch" ? " · Embranchement" : ""} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
+      staffNames: staffNames(sourceTransport, portion.assignedStaffIds || []),
+      departureTime: portion.departureTime || "",
+      arrivalTime: portion.arrivalTime || "",
+      meetingTime: portion.meetingTime || "",
+      meetingPoint: portion.meetingPoint || "",
+      train: `${portion.mode || ""} ${portion.number || ""}`.trim(),
+      rows: sortedRows,
+      cityGroups: groupSegmentRowsByCity(sourceTransport, portion, sortedRows),
+    };
+  }).filter((table) => table.rows.length > 0);
+}
+
 function openPassengerRecapPdf(transport, allTransports = []) {
-  const rows = passengerRecapRows(transport, allTransports);
-  const isS3Return = transport.week === "S3" && transport.direction === "retour";
-  const stageTables = isS3Return ? [] : passengerRecapStageTables(transport, allTransports);
-  const segmentTables = isS3Return
-    ? orderedTransportPortions(transport).map((portion, index, portions) => {
-      const sourceTransport = transportForPortion(allTransports, transport, portion);
-      const passengers = passengersForJourneyPortion(sourceTransport, portion, index, portions);
-      const childRows = passengerChildRows(sourceTransport, passengers, allTransports);
-      const segmentRows = isReturnCollectionPortion(sourceTransport, portion, index)
-        ? sortPassengerRowsByStay(childRows)
-        : sortPassengerRowsByDestination(childRows);
-      return {
-        id: portion.id || `segment-${index}`,
-        title: `Segment ${index + 1} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
-        staffNames: staffNames(sourceTransport, portion.assignedStaffIds || []),
-        departureTime: portion.departureTime || "",
-        arrivalTime: portion.arrivalTime || "",
-        rows: segmentRows,
-      };
-    }).filter((table) => table.rows.length > 0)
-    : [];
+  const segmentTables = convoyagePdfSegmentTables(transport, allTransports);
+  const totalRows = segmentTables.reduce((sum, table) => sum + table.rows.length, 0);
   const coordination = staffCoordinationEvents(transport);
-  const destinationGroups = groupPassengersByFinalDestination(transport, transport.passengers || [], allTransports);
-  const destinationSummary = destinationGroups.map((group) => `${group.city}${group.arrivalTime ? ` ${group.arrivalTime}` : ""} (${group.childCount})`).join(" · ");
-  const destinationTables = [...rows.reduce((groups, row) => {
-    const key = normalizePlace(row.finalCity || row.city);
-    if (!groups.has(key)) {
-      groups.set(key, {
-        city: row.finalCity || row.city || "Destination à confirmer",
-        arrivalTime: row.finalArrivalTime || "",
-        segment: row.finalSegment || "",
-        staffNames: [],
-        rows: [],
-      });
-    }
-    const group = groups.get(key);
-    if (!group.arrivalTime && row.finalArrivalTime) group.arrivalTime = row.finalArrivalTime;
-    if (!group.segment && row.finalSegment) group.segment = row.finalSegment;
-    (row.finalStaffNames || []).forEach((name) => {
-      if (!group.staffNames.some((existing) => normalizePlace(existing) === normalizePlace(name))) group.staffNames.push(name);
-    });
-    group.rows.push(row);
-    return groups;
-  }, new Map()).values()].sort((left, right) =>
-    timeMinutes(left.arrivalTime) - timeMinutes(right.arrivalTime)
-    || left.city.localeCompare(right.city, "fr"),
-  );
-  const tableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Type d’arrêt</th><th>Heure de RDV</th><th>Arrivée train</th><th>Départ train</th><th>Temps d’arrêt</th><th>Ville</th><th>Destination finale</th><th>Arrivée finale</th><th>Lieu de RDV complet</th><th>Action</th><th>Enfant</th><th>Séjour</th><th>Responsable</th><th>Téléphone</th><th>Régime alimentaire</th><th>Médicament / traitement</th><th>Segment</th><th>Segment final</th></tr></thead>`;
-  const destinationTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>Descente</th><th>Arrivée finale</th><th>Anim final</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
-  const segmentTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>Descente</th><th>Arrivée finale</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
+  const segmentTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>Descente</th><th>Destination finale</th><th>Arrivée finale</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
   const renderSegmentRows = (tableRows) => tableRows.map((row, index) =>
-    `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.pickupCity || "—")}</td><td class="city">${escapeHtml(row.dropoffCity || row.finalCity || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
+    `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td class="child">${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.pickupCity || "—")}</td><td class="city">${escapeHtml(row.dropoffCity || row.finalCity || "—")}</td><td class="city">${escapeHtml(row.finalCity || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
   ).join("");
-  const renderDestinationRows = (tableRows) => tableRows.map((row, index) =>
-    `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="city">${escapeHtml(row.finalCity || row.city || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td>${escapeHtml((row.finalStaffNames || []).join(", ") || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
-  ).join("");
-  const renderRows = (tableRows) => tableRows.map((row, index) => {
-    const typeLabel = row.stopType === "quai" ? (row.isReturn ? "Récupération quai" : "RDV quai") : row.stopType === "return" ? "Récupération" : "RDV famille";
-    return `<tr class="${row.stopType === "quai" ? "quai" : ""}"><td class="num">${index + 1}</td><td class="present">☐</td><td class="type type-${escapeHtml(row.stopType || "rdv")}">${typeLabel}</td><td class="time">${escapeHtml(row.meetingTime || "—")}</td><td class="time">${escapeHtml(row.arrivalTime || "—")}</td><td class="time">${escapeHtml(row.departureTime || "—")}</td><td class="time">${escapeHtml(row.stopDuration || "—")}</td><td class="city">${escapeHtml(row.displayCity || row.city)}</td><td class="city">${escapeHtml(row.finalCity || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td class="meeting">${escapeHtml(row.meetingPoint || "À confirmer")}</td><td class="action">${escapeHtml(row.action)}</td><td>${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td><td class="notes">&nbsp;</td><td class="notes">&nbsp;</td><td>${escapeHtml(row.segment)}</td><td>${escapeHtml(row.finalSegment)}</td></tr>`;
-  }).join("");
+  const renderCityGroups = (table) => table.cityGroups.map((group) => `
+    <div class="city-title">${escapeHtml(group.city)} · ${group.rows.length} enfant${group.rows.length > 1 ? "s" : ""}</div>
+    <table>${segmentTableHead}<tbody>${renderSegmentRows(group.rows)}</tbody></table>
+  `).join("");
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Récap convoyage</title><style>
-    @page{size:A4 landscape;margin:6mm}body{font:7.5px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}.stage{margin:8px 0 10px}.stage-title{font-size:10px;font-weight:bold;color:#1e1040;background:#f3eef8;border:1px solid #d8c9ef;padding:5px 7px;margin:0 0 3px}.stage-title span{color:#B8336A}.segment-page{break-after:page;page-break-after:always}.segment-page:last-of-type{break-after:auto;page-break-after:auto}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}tr.quai{background:#fff8e8}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.type{width:58px;font-weight:bold}.type-quai{color:#b45309}.type-rdv{color:#15803d}.type-return{color:#7c3aed}.meeting{min-width:125px;white-space:normal;line-height:1.3}.action{width:68px}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.notes{min-width:82px;height:25px}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
+    @page{size:A4 landscape;margin:7mm}body{font:8px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}.segment{break-after:page;page-break-after:always;margin:0 0 10px}.segment:last-of-type{break-after:auto;page-break-after:auto}.segment-title{font-size:11px;font-weight:bold;color:#1e1040;background:#f3eef8;border:1px solid #d8c9ef;padding:6px 8px;margin:8px 0 5px}.segment-title span{color:#B8336A}.segment-meta{font-size:8px;color:#5b4b73;margin-top:3px}.city-title{font-size:9px;font-weight:bold;color:#B8336A;background:#fff0f6;border:1px solid #f3d0e6;border-bottom:0;padding:4px 6px;margin-top:6px}table{width:100%;border-collapse:collapse;table-layout:auto;margin-bottom:5px}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.child{font-weight:bold}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
   </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
   <h1>ColoCrew · ${escapeHtml(transport.week)} · ${transport.direction === "retour" ? "Retour" : "Aller"}</h1>
-  <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${rows.length} enfant(s)</p>
-  ${!isS3Return && destinationSummary ? `<p><strong>Destinations finales :</strong> ${escapeHtml(destinationSummary)}</p>` : ""}
+  <p><strong>${escapeHtml(transport.departureCity)} → ${escapeHtml(transport.arrivalCity)}</strong> · ${escapeHtml(fmtDate(transport.date))} · ${totalRows} ligne(s) enfant · ${segmentTables.length} segment(s)</p>
   ${coordination.length ? `<div class="events"><strong>Coordination des équipes</strong>${coordination.map((event) => `<div>${escapeHtml(event.time || "—")} · ${escapeHtml(event.title)} à ${escapeHtml(event.city)}${event.names.length ? ` · ${escapeHtml(event.names.join(", "))}` : ""}</div>`).join("")}</div>` : ""}
-  ${isS3Return ? segmentTables.map((table) => `<section class="stage segment-page"><div class="stage-title"><span>${escapeHtml(table.title)}</span>${table.staffNames.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""}${table.departureTime ? ` · Dép. ${escapeHtml(table.departureTime)}` : ""}${table.arrivalTime ? ` · Arr. ${escapeHtml(table.arrivalTime)}` : ""} · ${table.rows.length} enfant(s)</div><table>${segmentTableHead}<tbody>${renderSegmentRows(table.rows)}</tbody></table></section>`).join("") : destinationTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.arrivalTime ? ` · Arrivée finale ${escapeHtml(table.arrivalTime)}` : ""}${table.staffNames?.length ? ` · Anim : ${escapeHtml(table.staffNames.join(", "))}` : ""} · ${table.rows.length} enfant(s)</div><table>${destinationTableHead}<tbody>${renderDestinationRows(table.rows)}</tbody></table></section>`).join("")}
-  ${stageTables.map((table) => `<section class="stage"><div class="stage-title"><span>${escapeHtml(table.city)}</span>${table.meetingTime ? ` · RDV ${escapeHtml(table.meetingTime)}` : ""}${table.meetingPoint ? ` · ${escapeHtml(table.meetingPoint)}` : ""} · ${table.rows.length} enfant(s)</div><table>${tableHead}<tbody>${renderRows(table.rows)}</tbody></table></section>`).join("")}
+  ${segmentTables.map((table) => `<section class="segment"><div class="segment-title"><span>${escapeHtml(table.title)}</span> · ${table.rows.length} enfant(s)<div class="segment-meta">${table.staffNames.length ? `Anim : ${escapeHtml(table.staffNames.join(", "))} · ` : ""}${table.train ? `${escapeHtml(table.train)} · ` : ""}${table.meetingTime ? `RDV ${escapeHtml(table.meetingTime)} · ` : ""}${table.departureTime ? `Dép. ${escapeHtml(table.departureTime)} · ` : ""}${table.arrivalTime ? `Arr. ${escapeHtml(table.arrivalTime)} · ` : ""}${table.meetingPoint ? escapeHtml(table.meetingPoint) : ""}</div></div>${renderCityGroups(table)}</section>`).join("")}
   </body></html>`;
   const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
   const win = window.open(blobUrl, "_blank", "width=1200,height=800");
