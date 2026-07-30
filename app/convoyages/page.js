@@ -152,6 +152,13 @@ function stayCodeOf(passenger) {
   return passenger?.stayCode || shortStayCode(passenger?.sejourName);
 }
 
+function stayDestinationCity(passenger) {
+  const code = String(stayCodeOf(passenger) || "").toUpperCase();
+  if (code === "MCSC") return "Messanges";
+  if (code === "EVCC") return "Bidarray";
+  return "";
+}
+
 function stayBadgeStyle(stayCode) {
   const code = String(stayCode || "").toUpperCase();
   if (code === "EVCC") {
@@ -716,7 +723,7 @@ function passengerFinalDestination(transport, passenger) {
   if (transport?.direction === "retour") {
     return passenger?.returnCity || passenger?.dropoffCity || passenger?.pickupCity || "Destination à confirmer";
   }
-  return passenger?.dropoffCity || passenger?.returnCity || "Destination à confirmer";
+  return stayDestinationCity(passenger) || passenger?.dropoffCity || "Destination à confirmer";
 }
 
 function finalArrivalInfo(allTransports = [], contextTransport, passenger) {
@@ -726,7 +733,7 @@ function finalArrivalInfo(allTransports = [], contextTransport, passenger) {
     .filter(Boolean)
     .filter((transport, index, items) => items.findIndex((item) => item?.id === transport?.id) === index)
     .filter((transport) =>
-      transport.direction === "retour"
+      transport.direction === contextTransport?.direction
       && !isInactiveTransport(transport)
       && (!contextTransport?.week || !transport.week || transport.week === contextTransport.week),
     );
@@ -792,6 +799,14 @@ function groupPassengersByFinalDestination(transport, passengers = [], allTransp
 function passengerChildRows(transport, passengers = [], allTransports = []) {
   return (passengers || []).flatMap((passenger) => {
     const finalInfo = finalArrivalInfo(allTransports, transport, passenger);
+    const pickupCity = passenger.pickupCity || passenger.departureCity || "—";
+    const segmentDropoffCity = transport?.direction === "retour"
+      ? finalInfo.city || passengerFinalDestination(transport, passenger)
+      : passenger.dropoffCity || stayDestinationCity(passenger) || "—";
+    const timingCity = transport?.direction === "retour" ? segmentDropoffCity : pickupCity;
+    const timing = transport?.direction === "retour"
+      ? recapDropoffInfo(transport, timingCity)
+      : recapMeetingInfo(transport, timingCity, false);
     const children = passenger.children?.length
       ? passenger.children
       : [{ firstName: passenger.childName, lastName: "" }];
@@ -801,12 +816,13 @@ function passengerChildRows(transport, passengers = [], allTransports = []) {
       stay: passenger.stayCode || shortStayCode(passenger.sejourName),
       parent: passenger.nom || "—",
       phone: passenger.phone || "—",
-      pickupCity: passenger.pickupCity || passenger.departureCity || "—",
-      dropoffCity: transport?.direction === "retour"
-        ? finalInfo.city || passengerFinalDestination(transport, passenger)
-        : passenger.dropoffCity || passenger.returnCity || "—",
+      pickupCity,
+      dropoffCity: segmentDropoffCity,
       finalCity: finalInfo.city || passengerFinalDestination(transport, passenger),
       finalArrivalTime: finalInfo.arrivalTime || "",
+      familyTime: timing.meetingTime || "",
+      trainTime: transport?.direction === "retour" ? timing.arrivalTime || timing.meetingTime || "" : timing.departureTime || "",
+      timeSort: transport?.direction === "retour" ? timing.meetingTime || timing.arrivalTime || "" : timing.meetingTime || timing.departureTime || "",
       finalSegment: finalInfo.segment || "",
       finalStaffNames: finalInfo.staffNames || [],
       checked: isPassengerChecked(passenger),
@@ -837,10 +853,21 @@ function sortPassengerRowsByStay(rows = []) {
 
 function sortPassengerRowsByDestination(rows = []) {
   return [...rows].sort((left, right) =>
-    timeMinutes(left.finalArrivalTime) - timeMinutes(right.finalArrivalTime)
+    timeMinutes(left.timeSort || left.finalArrivalTime) - timeMinutes(right.timeSort || right.finalArrivalTime)
     || String(left.finalCity || left.dropoffCity || "").localeCompare(String(right.finalCity || right.dropoffCity || ""), "fr")
     || staySortRank(left.stay) - staySortRank(right.stay)
     || String(left.child || "").localeCompare(String(right.child || ""), "fr"),
+  );
+}
+
+function sortPassengerRowsByPickupOrder(rows = [], portion = null) {
+  return [...rows].sort((left, right) =>
+    segmentCityOrder(portion, left.pickupCity) - segmentCityOrder(portion, right.pickupCity)
+    || timeMinutes(left.timeSort) - timeMinutes(right.timeSort)
+    || String(left.pickupCity || "").localeCompare(String(right.pickupCity || ""), "fr", { sensitivity: "base" })
+    || String(left.finalCity || left.dropoffCity || "").localeCompare(String(right.finalCity || right.dropoffCity || ""), "fr", { sensitivity: "base" })
+    || staySortRank(left.stay) - staySortRank(right.stay)
+    || String(left.child || "").localeCompare(String(right.child || ""), "fr", { sensitivity: "base" }),
   );
 }
 
@@ -1366,9 +1393,12 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   const segmentTables = convoyagePdfSegmentTables(transport, allTransports);
   const totalRows = segmentTables.reduce((sum, table) => sum + table.rows.length, 0);
   const coordination = staffCoordinationEvents(transport);
-  const segmentTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>Descente</th><th>Destination finale</th><th>Arrivée finale</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
+  const isReturn = transport.direction === "retour";
+  const familyTimeLabel = isReturn ? "Dépose famille" : "RDV famille";
+  const trainTimeLabel = isReturn ? "Arrivée train" : "Départ train";
+  const segmentTableHead = `<thead><tr><th class="num">#</th><th>Présent</th><th>Enfant</th><th>Séjour</th><th>Pris à</th><th>${familyTimeLabel}</th><th>${trainTimeLabel}</th><th>Descente</th><th>Destination finale</th><th>Responsable</th><th>Téléphone</th></tr></thead>`;
   const renderSegmentRows = (tableRows) => tableRows.map((row, index) =>
-    `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td class="child">${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.pickupCity || "—")}</td><td class="city">${escapeHtml(row.dropoffCity || row.finalCity || "—")}</td><td class="city">${escapeHtml(row.finalCity || "—")}</td><td class="time">${escapeHtml(row.finalArrivalTime || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
+    `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td class="child">${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.pickupCity || "—")}</td><td class="time">${escapeHtml(row.familyTime || "—")}</td><td class="time">${escapeHtml(row.trainTime || "—")}</td><td class="city">${escapeHtml(row.dropoffCity || row.finalCity || "—")}</td><td class="city">${escapeHtml(row.finalCity || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
   ).join("");
   const renderCityGroups = (table) => table.cityGroups.map((group) => `
     <div class="city-title">${escapeHtml(group.city)} · ${group.rows.length} enfant${group.rows.length > 1 ? "s" : ""}</div>
@@ -1506,14 +1536,19 @@ function PassengerCard({ passenger, index, onTogglePresence, compact = false }) 
   );
 }
 
-function PassengerListTable({ transport, passengers, allTransports = [], onTogglePresence = null, showPickup = true, showFinal = true, showStaff = false, sortMode = "default" }) {
+function PassengerListTable({ transport, passengers, allTransports = [], onTogglePresence = null, showPickup = true, showFinal = true, showStaff = false, sortMode = "default", portion = null }) {
   const baseRows = passengerChildRows(transport, passengers, allTransports);
   const rows = sortMode === "stay"
     ? sortPassengerRowsByStay(baseRows)
     : sortMode === "destination"
       ? sortPassengerRowsByDestination(baseRows)
+      : sortMode === "pickup"
+        ? sortPassengerRowsByPickupOrder(baseRows, portion)
       : baseRows;
   const showSeparateFinalCity = showFinal && transport?.direction !== "retour";
+  const familyTimeLabel = transport?.direction === "retour" ? "Dépose famille" : "RDV famille";
+  const trainTimeLabel = transport?.direction === "retour" ? "Arrivée train" : "Départ train";
+  const pickupLabel = transport?.direction === "retour" ? "Dépose à" : "Pris à";
   if (!rows.length) return null;
   return (
     <div style={{ overflowX: "auto", border: "1px solid #d8d8df", borderRadius: 10, background: "#fff" }}>
@@ -1523,10 +1558,11 @@ function PassengerListTable({ transport, passengers, allTransports = [], onToggl
             {onTogglePresence && <th style={{ padding: "7px 8px", textAlign: "center", width: 42 }}>OK</th>}
             <th style={{ padding: "7px 8px", textAlign: "left" }}>Enfant</th>
             <th style={{ padding: "7px 8px", textAlign: "left" }}>Séjour</th>
-            {showPickup && <th style={{ padding: "7px 8px", textAlign: "left" }}>Pris à</th>}
+            {showPickup && <th style={{ padding: "7px 8px", textAlign: "left" }}>{pickupLabel}</th>}
+            <th style={{ padding: "7px 8px", textAlign: "center" }}>{familyTimeLabel}</th>
+            <th style={{ padding: "7px 8px", textAlign: "center" }}>{trainTimeLabel}</th>
             <th style={{ padding: "7px 8px", textAlign: "left" }}>Descente</th>
             {showSeparateFinalCity && <th style={{ padding: "7px 8px", textAlign: "left" }}>Destination finale</th>}
-            {showFinal && <th style={{ padding: "7px 8px", textAlign: "center" }}>Arrivée finale</th>}
             {showStaff && <th style={{ padding: "7px 8px", textAlign: "left" }}>Anim</th>}
             <th style={{ padding: "7px 8px", textAlign: "left" }}>Responsable</th>
             <th style={{ padding: "7px 8px", textAlign: "left" }}>Téléphone</th>
@@ -1547,10 +1583,19 @@ function PassengerListTable({ transport, passengers, allTransports = [], onToggl
               )}
               <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", fontWeight: 900, color: "#1e1040" }}>{row.child}</td>
               <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3" }}><StayBadge stayCode={row.stay} /></td>
-              {showPickup && <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#334155", fontWeight: 700 }}>{row.pickupCity}</td>}
+              {showPickup && (
+                <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#334155", fontWeight: 800 }}>
+                  <div>{transport?.direction === "retour" ? row.dropoffCity : row.pickupCity}</div>
+                  <div style={{ marginTop: 3, display: "flex", gap: 5, flexWrap: "wrap", fontSize: 10, color: "#64748b", fontWeight: 900 }}>
+                    <span>{transport?.direction === "retour" ? "Dépose" : "RDV"} {row.familyTime || "—"}</span>
+                    <span>{transport?.direction === "retour" ? "Arrivée" : "Train"} {row.trainTime || "—"}</span>
+                  </div>
+                </td>
+              )}
+              <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", textAlign: "center", color: "#1e1040", fontWeight: 900, whiteSpace: "nowrap" }}>{row.familyTime || "—"}</td>
+              <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", textAlign: "center", color: "#1e1040", fontWeight: 900, whiteSpace: "nowrap" }}>{row.trainTime || "—"}</td>
               <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#B8336A", fontWeight: 900 }}>{row.dropoffCity}</td>
               {showSeparateFinalCity && <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#B8336A", fontWeight: 900 }}>{row.finalCity}</td>}
-              {showFinal && <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", textAlign: "center", color: "#1e1040", fontWeight: 900, whiteSpace: "nowrap" }}>{row.finalArrivalTime || "—"}</td>}
               {showStaff && <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#0f766e", fontWeight: 900 }}>{row.finalStaffNames.join(", ") || "—"}</td>}
               <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#374151" }}>{row.parent}</td>
               <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", whiteSpace: "nowrap" }}>
@@ -2257,7 +2302,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
               const stopPassengers = passengersForJourneyPortion(sourceTransport, seg, i, segments);
               const childCount = countChildren(stopPassengers);
               const segmentStaffNames = staffNames(sourceTransport, seg.assignedStaffIds || []);
-              const sortMode = isReturnCollectionPortion(sourceTransport, seg, i) ? "stay" : "destination";
+              const sortMode = isReturnCollectionPortion(sourceTransport, seg, i) ? "stay" : sourceTransport.direction === "aller" ? "pickup" : "destination";
               return (
                 <details key={seg.id || i} open style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
@@ -2314,6 +2359,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                           showPickup
                           showFinal
                           sortMode={sortMode}
+                          portion={seg}
                         />
                       </div>
                     )}
