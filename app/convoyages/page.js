@@ -1361,6 +1361,15 @@ function groupSegmentRowsByCity(transport, portion, rows = []) {
   }));
 }
 
+function sortReturnCollectionRows(rows = [], portion = null) {
+  return [...rows].sort((left, right) =>
+    segmentCityOrder(portion, left.pickupCity) - segmentCityOrder(portion, right.pickupCity)
+    || String(left.pickupCity || "").localeCompare(String(right.pickupCity || ""), "fr", { sensitivity: "base" })
+    || staySortRank(left.stay) - staySortRank(right.stay)
+    || String(left.child || "").localeCompare(String(right.child || ""), "fr", { sensitivity: "base" }),
+  );
+}
+
 function convoyagePdfSegmentTables(transport, allTransports = []) {
   return orderedTransportPortions(transport).map((portion, index, portions) => {
     const sourceTransport = transportForPortion(allTransports, transport, portion);
@@ -1369,13 +1378,16 @@ function convoyagePdfSegmentTables(transport, allTransports = []) {
     const portionIndex = sourceIndex >= 0 ? sourceIndex : index;
     const passengers = passengersForJourneyPortion(sourceTransport, portion, portionIndex, sourcePortions.length ? sourcePortions : portions);
     const childRows = passengerChildRows(sourceTransport, passengers, allTransports);
-    const sortMode = isReturnCollectionPortion(sourceTransport, portion, portionIndex) ? "stay" : "destination";
-    const sortedRows = sortMode === "stay" ? sortPassengerRowsByStay(childRows) : sortPassengerRowsByDestination(childRows);
+    const isReturnCollection = isReturnCollectionPortion(sourceTransport, portion, portionIndex);
+    const sortedRows = isReturnCollection
+      ? sortReturnCollectionRows(childRows, portion)
+      : sortPassengerRowsByDestination(childRows);
     return {
       id: portion.id || `segment-${index}`,
       index,
       portion,
       sourceTransport,
+      isReturnCollection,
       title: `Segment ${index + 1}${portion._type === "branch" ? " · Embranchement" : ""} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
       staffNames: staffNames(sourceTransport, portion.assignedStaffIds || []),
       departureTime: portion.departureTime || "",
@@ -1384,7 +1396,9 @@ function convoyagePdfSegmentTables(transport, allTransports = []) {
       meetingPoint: portion.meetingPoint || "",
       train: `${portion.mode || ""} ${portion.number || ""}`.trim(),
       rows: sortedRows,
-      cityGroups: groupSegmentRowsByCity(sourceTransport, portion, sortedRows),
+      cityGroups: isReturnCollection
+        ? [{ city: "Tous les enfants du segment", rows: sortedRows }]
+        : groupSegmentRowsByCity(sourceTransport, portion, sortedRows),
     };
   }).filter((table) => table.rows.length > 0);
 }
@@ -1400,10 +1414,12 @@ function openPassengerRecapPdf(transport, allTransports = []) {
   const renderSegmentRows = (tableRows) => tableRows.map((row, index) =>
     `<tr><td class="num">${index + 1}</td><td class="present">☐</td><td class="child">${escapeHtml(row.child)}</td><td>${escapeHtml(row.stay)}</td><td class="city">${escapeHtml(row.pickupCity || "—")}</td><td class="time">${escapeHtml(row.familyTime || "—")}</td><td class="time">${escapeHtml(row.trainTime || "—")}</td><td class="city">${escapeHtml(row.dropoffCity || row.finalCity || "—")}</td><td class="city">${escapeHtml(row.finalCity || "—")}</td><td>${escapeHtml(row.parent)}</td><td class="phone">${escapeHtml(row.phone)}</td></tr>`,
   ).join("");
-  const renderCityGroups = (table) => table.cityGroups.map((group) => `
-    <div class="city-title">${escapeHtml(group.city)} · ${group.rows.length} enfant${group.rows.length > 1 ? "s" : ""}</div>
-    <table>${segmentTableHead}<tbody>${renderSegmentRows(group.rows)}</tbody></table>
-  `).join("");
+  const renderCityGroups = (table) => table.isReturnCollection
+    ? `<table>${segmentTableHead}<tbody>${renderSegmentRows(table.rows)}</tbody></table>`
+    : table.cityGroups.map((group) => `
+      <div class="city-title">${escapeHtml(group.city)} · ${group.rows.length} enfant${group.rows.length > 1 ? "s" : ""}</div>
+      <table>${segmentTableHead}<tbody>${renderSegmentRows(group.rows)}</tbody></table>
+    `).join("");
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Récap convoyage</title><style>
     @page{size:A4 landscape;margin:7mm}body{font:8px Arial,sans-serif;color:#1e1040;margin:0}h1{font-size:16px;margin:0 0 4px;color:#B8336A}p{margin:0 0 7px}.events{margin:6px 0 8px;padding:5px 7px;background:#f5f0ff;border:1px solid #d8c9ef}.events div{margin:2px 0}.segment{break-after:page;page-break-after:always;margin:0 0 10px}.segment:last-of-type{break-after:auto;page-break-after:auto}.segment-title{font-size:11px;font-weight:bold;color:#1e1040;background:#f3eef8;border:1px solid #d8c9ef;padding:6px 8px;margin:8px 0 5px}.segment-title span{color:#B8336A}.segment-meta{font-size:8px;color:#5b4b73;margin-top:3px}.city-title{font-size:9px;font-weight:bold;color:#B8336A;background:#fff0f6;border:1px solid #f3d0e6;border-bottom:0;padding:4px 6px;margin-top:6px}table{width:100%;border-collapse:collapse;table-layout:auto;margin-bottom:5px}th,td{border:1px solid #d8d8df;padding:3px 4px;vertical-align:top}th{background:#1e1040;color:#fff;text-align:left;font-size:7px}tr:nth-child(even){background:#faf8fc}.num{width:18px;text-align:center}.time{width:34px;font-weight:bold;text-align:center;white-space:nowrap}.city{font-weight:bold}.child{font-weight:bold}.phone{white-space:nowrap}.present{width:34px;text-align:center;font-size:15px;line-height:1}.no-print{margin-bottom:8px}@media print{.no-print{display:none}}
   </style></head><body><button class="no-print" onclick="window.print()">Imprimer / enregistrer en PDF</button>
