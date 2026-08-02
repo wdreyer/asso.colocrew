@@ -6776,28 +6776,32 @@ function getEmailRdvInfo(transport, passenger) {
 
 function getRetourInfo(transport, passenger, allTransports) {
   if (!allTransports) return null;
-  const retourCity = normalizePlace(passenger.returnCity || passenger.pickupCity || "");
-  const retourTransports = allTransports.filter(
-    (t) => t.direction === "retour" && t.week === transport.week &&
-      (!transport.sejourName || transport.sejourName === "-" || t.sejourName === transport.sejourName),
-  ).sort((left, right) => {
-    const leftAssigned = (left.passengers || []).some((item) => item.reservationId === passenger.reservationId);
-    const rightAssigned = (right.passengers || []).some((item) => item.reservationId === passenger.reservationId);
-    return Number(rightAssigned) - Number(leftAssigned);
-  });
-  for (const rt of retourTransports) {
-    const routeStop = retourCity ? routeStopForCity(rt, retourCity) : null;
-    if (!retourCity || routeStop) {
-      const seg = routeStop?.segment || null;
-      const arrivalTime = routeStopTime(routeStop, rt, "arrival") || seg?.arrivalTime || rt.arrivalTime || "";
-      const departureTime = routeDepartureTimeFromStop(rt, routeStop) || rt.departureTime || "";
-      const arrivalCity = routeStop?.city || seg?.to || rt.arrivalCity || passenger.returnCity || "";
-      const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || rt.meetingPoint || "";
-      const stopType = routeStop?.type === "sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || rt.stopType || "rdv";
-      const platform = routeStop?.stop?.platform || seg?.platform || rt.platform || "";
-      const trainLabel = routeTrainSummary(rt, routeStop);
-      return { date: rt.date, departureTime, arrivalTime, meetingTime: arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel };
-    }
+  const assignedReturnPassenger = (rt) =>
+    (rt.passengers || []).find((item) => item.reservationId && item.reservationId === passenger.reservationId) || null;
+  const retourTransports = allTransports
+    .filter((t) => t.direction === "retour" && t.week === transport.week)
+    .map((rt) => ({ rt, assignedPassenger: assignedReturnPassenger(rt) }))
+    .sort((left, right) => Number(Boolean(right.assignedPassenger)) - Number(Boolean(left.assignedPassenger)));
+
+  for (const { rt, assignedPassenger } of retourTransports) {
+    const retourCityLabel = passenger.returnCity
+      || assignedPassenger?.returnCity
+      || assignedPassenger?.dropoffCity
+      || assignedPassenger?.pickupCity
+      || "";
+    const routeStop = retourCityLabel ? routeStopForCity(rt, retourCityLabel) : null;
+    if (retourCityLabel && !routeStop) continue;
+    if (!retourCityLabel && !assignedPassenger) continue;
+    const seg = routeStop?.segment || null;
+    const isIntermediateStop = routeStop?.type === "sub" || routeStop?.type === "branch-sub";
+    const arrivalTime = routeStopTime(routeStop, rt, "arrival") || (!isIntermediateStop ? seg?.arrivalTime || rt.arrivalTime || "" : "");
+    const departureTime = routeDepartureTimeFromStop(rt, routeStop) || rt.departureTime || "";
+    const arrivalCity = routeStop?.city || seg?.to || rt.arrivalCity || retourCityLabel || "";
+    const meetingPoint = routeStop ? routeStopMeetingPoint(routeStop) : seg?.meetingPoint || rt.meetingPoint || "";
+    const stopType = routeStop?.type === "sub" || routeStop?.type === "branch-sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || rt.stopType || "rdv";
+    const platform = routeStop?.stop?.platform || seg?.platform || rt.platform || "";
+    const trainLabel = routeTrainSummary(rt, routeStop);
+    return { date: rt.date, departureTime, arrivalTime, meetingTime: arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel };
   }
   return null;
 }
