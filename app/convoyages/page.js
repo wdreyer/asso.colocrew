@@ -375,6 +375,43 @@ function passengerInitialDepartureCity(passenger, fallback = "") {
   return passenger?.departureCity || passenger?.pickupCity || fallback || "Ville à confirmer";
 }
 
+function samePassengerReservation(left, right) {
+  if (!left || !right) return false;
+  if (left.reservationId && right.reservationId) return left.reservationId === right.reservationId;
+  const leftChild = normalizePlace(left.childName || childFullName(left.children?.[0]) || "");
+  const rightChild = normalizePlace(right.childName || childFullName(right.children?.[0]) || "");
+  return !!leftChild && leftChild === rightChild;
+}
+
+function transportUsesRoadMode(transport) {
+  return isRoadMode(`${transport?.mode || ""} ${transport?.trainType || ""} ${(transport?.segments || []).map((segment) => `${segment.mode || ""} ${segment.trainType || ""}`).join(" ")}`);
+}
+
+function isAllerRoadCollectionPortion(transport, portion) {
+  if (transport?.direction !== "aller") return false;
+  const mode = `${portion?.mode || ""} ${portion?.trainType || ""} ${portion?.id || ""} ${transport?.mode || ""} ${transport?.trainType || ""}`;
+  return isRoadMode(mode);
+}
+
+function passengerOriginCity(transport, passenger, allTransports = []) {
+  const directOrigin = passenger?.originCity || passenger?.departureCity || "";
+  if (directOrigin) return directOrigin;
+
+  const candidates = [transport, ...(allTransports || [])]
+    .filter(Boolean)
+    .filter((candidate) => candidate.direction === "aller")
+    .filter((candidate) => !transport?.week || !candidate.week || candidate.week === transport.week)
+    .sort((left, right) => Number(transportUsesRoadMode(left)) - Number(transportUsesRoadMode(right)));
+
+  for (const candidate of candidates) {
+    const match = (candidate.passengers || []).find((candidatePassenger) => samePassengerReservation(candidatePassenger, passenger));
+    const city = match?.originCity || match?.departureCity || match?.pickupCity || "";
+    if (city) return city;
+  }
+
+  return passenger?.pickupCity || "Ville à confirmer";
+}
+
 function segmentStopCity(transport, segment) {
   return transport.direction === "retour" ? segment?.to : segment?.from;
 }
@@ -800,6 +837,7 @@ function passengerChildRows(transport, passengers = [], allTransports = []) {
   return (passengers || []).flatMap((passenger) => {
     const finalInfo = finalArrivalInfo(allTransports, transport, passenger);
     const pickupCity = passenger.pickupCity || passenger.departureCity || "—";
+    const originCity = passengerOriginCity(transport, passenger, allTransports);
     const segmentDropoffCity = transport?.direction === "retour"
       ? finalInfo.city || passengerFinalDestination(transport, passenger)
       : passenger.dropoffCity || stayDestinationCity(passenger) || "—";
@@ -817,6 +855,8 @@ function passengerChildRows(transport, passengers = [], allTransports = []) {
       parent: passenger.nom || "—",
       phone: passenger.phone || "—",
       pickupCity,
+      originCity,
+      hasDifferentOrigin: normalizePlace(originCity) !== normalizePlace(pickupCity),
       dropoffCity: segmentDropoffCity,
       finalCity: finalInfo.city || passengerFinalDestination(transport, passenger),
       finalArrivalTime: finalInfo.arrivalTime || "",
@@ -867,6 +907,15 @@ function sortPassengerRowsByPickupOrder(rows = [], portion = null) {
     || String(left.pickupCity || "").localeCompare(String(right.pickupCity || ""), "fr", { sensitivity: "base" })
     || String(left.finalCity || left.dropoffCity || "").localeCompare(String(right.finalCity || right.dropoffCity || ""), "fr", { sensitivity: "base" })
     || staySortRank(left.stay) - staySortRank(right.stay)
+    || String(left.child || "").localeCompare(String(right.child || ""), "fr", { sensitivity: "base" }),
+  );
+}
+
+function sortPassengerRowsByOrigin(rows = []) {
+  return [...rows].sort((left, right) =>
+    String(left.originCity || left.pickupCity || "").localeCompare(String(right.originCity || right.pickupCity || ""), "fr", { sensitivity: "base" })
+    || staySortRank(left.stay) - staySortRank(right.stay)
+    || String(left.dropoffCity || left.finalCity || "").localeCompare(String(right.dropoffCity || right.finalCity || ""), "fr", { sensitivity: "base" })
     || String(left.child || "").localeCompare(String(right.child || ""), "fr", { sensitivity: "base" }),
   );
 }
@@ -1361,6 +1410,26 @@ function groupSegmentRowsByCity(transport, portion, rows = []) {
   }));
 }
 
+function groupSegmentRowsByOrigin(rows = []) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const city = row.originCity || row.pickupCity || "Ville à confirmer";
+    const key = normalizePlace(city) || "unknown";
+    if (!groups.has(key)) groups.set(key, { city, rows: [] });
+    groups.get(key).rows.push(row);
+  });
+  return [...groups.values()].sort((left, right) =>
+    left.city.localeCompare(right.city, "fr", { sensitivity: "base" }),
+  ).map((group) => ({
+    ...group,
+    rows: [...group.rows].sort((left, right) =>
+      staySortRank(left.stay) - staySortRank(right.stay)
+      || String(left.dropoffCity || left.finalCity || "").localeCompare(String(right.dropoffCity || right.finalCity || ""), "fr", { sensitivity: "base" })
+      || String(left.child || "").localeCompare(String(right.child || ""), "fr", { sensitivity: "base" }),
+    ),
+  }));
+}
+
 function sortReturnCollectionRows(rows = [], portion = null) {
   return [...rows].sort((left, right) =>
     segmentCityOrder(portion, left.pickupCity) - segmentCityOrder(portion, right.pickupCity)
@@ -1379,15 +1448,19 @@ function convoyagePdfSegmentTables(transport, allTransports = []) {
     const passengers = passengersForJourneyPortion(sourceTransport, portion, portionIndex, sourcePortions.length ? sourcePortions : portions);
     const childRows = passengerChildRows(sourceTransport, passengers, allTransports);
     const isReturnCollection = isReturnCollectionPortion(sourceTransport, portion, portionIndex);
+    const isAllerCollection = isAllerRoadCollectionPortion(sourceTransport, portion);
     const sortedRows = isReturnCollection
       ? sortReturnCollectionRows(childRows, portion)
-      : sortPassengerRowsByDestination(childRows);
+      : isAllerCollection
+        ? sortPassengerRowsByOrigin(childRows)
+        : sortPassengerRowsByDestination(childRows);
     return {
       id: portion.id || `segment-${index}`,
       index,
       portion,
       sourceTransport,
       isReturnCollection,
+      isAllerCollection,
       title: `Segment ${index + 1}${portion._type === "branch" ? " · Embranchement" : ""} · ${segmentPathLabel(portion) || "Trajet à confirmer"}`,
       staffNames: staffNames(sourceTransport, portion.assignedStaffIds || []),
       departureTime: portion.departureTime || "",
@@ -1398,6 +1471,8 @@ function convoyagePdfSegmentTables(transport, allTransports = []) {
       rows: sortedRows,
       cityGroups: isReturnCollection
         ? [{ city: "Tous les enfants du segment", rows: sortedRows }]
+        : isAllerCollection
+          ? groupSegmentRowsByOrigin(sortedRows)
         : groupSegmentRowsByCity(sourceTransport, portion, sortedRows),
     };
   }).filter((table) => table.rows.length > 0);
@@ -1558,9 +1633,12 @@ function PassengerListTable({ transport, passengers, allTransports = [], onToggl
     ? sortPassengerRowsByStay(baseRows)
     : sortMode === "destination"
       ? sortPassengerRowsByDestination(baseRows)
+      : sortMode === "origin"
+        ? sortPassengerRowsByOrigin(baseRows)
       : sortMode === "pickup"
         ? sortPassengerRowsByPickupOrder(baseRows, portion)
       : baseRows;
+  const showOrigin = isAllerRoadCollectionPortion(transport, portion);
   const showSeparateFinalCity = showFinal && transport?.direction !== "retour";
   const familyTimeLabel = transport?.direction === "retour" ? "Dépose famille" : "RDV famille";
   const trainTimeLabel = transport?.direction === "retour" ? "Arrivée train" : "Départ train";
@@ -1603,6 +1681,7 @@ function PassengerListTable({ transport, passengers, allTransports = [], onToggl
                 <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#334155", fontWeight: 800 }}>
                   <div>{transport?.direction === "retour" ? row.dropoffCity : row.pickupCity}</div>
                   <div style={{ marginTop: 3, display: "flex", gap: 5, flexWrap: "wrap", fontSize: 10, color: "#64748b", fontWeight: 900 }}>
+                    {showOrigin && <span>Origine {row.originCity || "—"}</span>}
                     <span>{transport?.direction === "retour" ? "Dépose" : "RDV"} {row.familyTime || "—"}</span>
                     <span>{transport?.direction === "retour" ? "Arrivée" : "Train"} {row.trainTime || "—"}</span>
                   </div>
@@ -2318,7 +2397,13 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
               const stopPassengers = passengersForJourneyPortion(sourceTransport, seg, i, segments);
               const childCount = countChildren(stopPassengers);
               const segmentStaffNames = staffNames(sourceTransport, seg.assignedStaffIds || []);
-              const sortMode = isReturnCollectionPortion(sourceTransport, seg, i) ? "stay" : sourceTransport.direction === "aller" ? "pickup" : "destination";
+              const sortMode = isReturnCollectionPortion(sourceTransport, seg, i)
+                ? "stay"
+                : isAllerRoadCollectionPortion(sourceTransport, seg)
+                  ? "origin"
+                  : sourceTransport.direction === "aller"
+                    ? "pickup"
+                    : "destination";
               return (
                 <details key={seg.id || i} open style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
