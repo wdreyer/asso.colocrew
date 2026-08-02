@@ -102,6 +102,23 @@ function fmtDateLong(iso) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
+function parseLocalDate(iso) {
+  if (!iso) return null;
+  const match = String(iso).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function reminderDayLabel(targetDate, now = new Date()) {
+  const target = parseLocalDate(targetDate);
+  if (!target) return "J-X";
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((target.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Jour J";
+  if (diff > 0) return `J-${diff}`;
+  return `J+${Math.abs(diff)}`;
+}
+
 function fmtBirthDate(iso) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -7008,16 +7025,17 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
 </div></body></html>`;
 }
 
-function buildJ3ReminderHtml(html) {
+function buildReminderHtml(html, targetDate) {
+  const dayLabel = reminderDayLabel(targetDate);
   const banner = `<div style="padding:15px 28px;background:#fff7ed;border-bottom:2px solid #fdba74;text-align:center;">
-    <div style="font-size:18px;font-weight:900;color:#ea580c;letter-spacing:0.04em;">⏰ RAPPEL J-3</div>
+    <div style="font-size:18px;font-weight:900;color:#ea580c;letter-spacing:0.04em;">RAPPEL ${dayLabel}</div>
     <div style="margin-top:5px;font-size:13px;color:#9a3412;line-height:1.55;">Le départ approche. Merci de relire les horaires et les lieux de rendez-vous ci-dessous et de nous signaler rapidement toute difficulté.</div>
   </div>`;
   const header = '<table style="width:100%;border-collapse:collapse;border-bottom:3px solid #B8336A;">';
   const withBanner = html.includes(header) ? html.replace(header, `${banner}${header}`) : `${banner}${html}`;
   return withBanner.replace(
     /<title>(.*?)<\/title>/,
-    "<title>Rappel J-3 — $1</title>",
+    `<title>Rappel ${dayLabel} — $1</title>`,
   );
 }
 
@@ -7578,6 +7596,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t) && t.direction === "aller"),
     [transports, selectedWeek],
   );
+  const selectedReminderLabel = reminderDayLabel(WEEK_INFO[selectedWeek]?.aller);
 
   const weekAllTrips = useMemo(
     () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t)),
@@ -7818,10 +7837,11 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const rdvInfo  = getEmailRdvInfo(trip, primary);
     const animInfo = getAnimForTrip(trip, primary);
     const convocationHtml = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo, convocSettings);
-    const html     = reminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
+    const reminderLabel = reminderDayLabel(trip.date);
+    const html     = reminder ? buildReminderHtml(convocationHtml, trip.date) : convocationHtml;
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
     const wi = WEEK_INFO[trip.week];
-    const subject  = `${reminder ? "Rappel J-3 — " : ""}Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
+    const subject  = `${reminder ? `Rappel ${reminderLabel} — ` : ""}Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -7845,10 +7865,12 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       arrivalPoint: cfg.lieu || "Lieu du séjour",
       returnPoint:  cfg.lieu || "Lieu du séjour",
     }, customIntro, animInfo);
-    const html = reminder ? buildJ3ReminderHtml(convocationHtml) : convocationHtml;
+    const reminderDate = WEEK_INFO[selectedWeek]?.aller;
+    const reminderLabel = reminderDayLabel(reminderDate);
+    const html = reminder ? buildReminderHtml(convocationHtml, reminderDate) : convocationHtml;
     const wi = WEEK_INFO[selectedWeek];
     const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
-    const subject = `${reminder ? "Rappel J-3 — " : ""}Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
+    const subject = `${reminder ? `Rappel ${reminderLabel} — ` : ""}Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
     const resp = await fetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -8004,8 +8026,8 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
 
   const handleSendAllReminders = useCallback(async () => {
     const total = pendingReminderFamilies.length;
-    if (!total) { showToast("Aucun rappel J-3 à envoyer", "info"); return; }
-    if (!window.confirm(`Envoyer ${total} rappel(s) J-3 maintenant ?`)) return;
+    if (!total) { showToast(`Aucun rappel ${selectedReminderLabel} à envoyer`, "info"); return; }
+    if (!window.confirm(`Envoyer ${total} rappel(s) ${selectedReminderLabel} maintenant ?`)) return;
     setSendingAll(true);
     setSendProgress({ done: 0, total, errors: [] });
     const errors = [];
@@ -8021,9 +8043,9 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       if (index < total - 1) await new Promise((resolve) => setTimeout(resolve, 350));
     }
     setSendingAll(false);
-    if (!errors.length) showToast(`${total} rappel(s) J-3 envoyé(s)`, "success");
+    if (!errors.length) showToast(`${total} rappel(s) ${selectedReminderLabel} envoyé(s)`, "success");
     else showToast(`${total - errors.length} succès · ${errors.length} erreur(s)`, "error");
-  }, [pendingReminderFamilies, doSendFamily, doSendOnSite, emailFor, showToast]);
+  }, [pendingReminderFamilies, selectedReminderLabel, doSendFamily, doSendOnSite, emailFor, showToast]);
 
   const handleSendSelectedLastMinute = useCallback(async () => {
     if (!lastMinuteTrip) return;
@@ -8107,7 +8129,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
           <>
             <button type="button" className="dash-btn" onClick={handleSendAllReminders} disabled={pendingReminderFamilies.length === 0}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, color: pendingReminderFamilies.length ? "#ea580c" : undefined, borderColor: pendingReminderFamilies.length ? "#fdba74" : undefined }}>
-              Rappels J-3 ({pendingReminderFamilies.length})
+              Rappels {selectedReminderLabel} ({pendingReminderFamilies.length})
             </button>
             <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingMailCount === 0}
               style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -8388,7 +8410,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               <th style={cTh}>Point de RDV</th>
               <th style={cTh}>Email</th>
               <th style={{ ...cTh, textAlign: "center" }}>Convoqué</th>
-              <th style={{ ...cTh, textAlign: "center" }}>Rappel J-3</th>
+              <th style={{ ...cTh, textAlign: "center" }}>Rappel {selectedReminderLabel}</th>
               <th style={{ ...cTh, textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
@@ -8481,7 +8503,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           <input
                             type="checkbox"
                             checked={reminderDone}
-                            title={hasEmail ? "Rappel J-3 effectué" : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
+                            title={hasEmail ? `Rappel ${selectedReminderLabel} effectué` : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
                             onChange={async (event) => {
                               const checked = event.target.checked;
                               try { await toggleReminderDone(reservationIds, checked); }
@@ -8503,9 +8525,9 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                             {hasEmail && (
                               <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
                                 disabled={!hasEmail || isSending || sendingAll}
-                                title={isSent ? "Prévisualiser le rappel J-3" : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
+                                title={isSent ? `Prévisualiser le rappel ${selectedReminderLabel}` : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
                                 onClick={() => setPreview({ type: "onsite", familyKey, reservation: { ...r, email: currentEmail }, cfg, _isReminder: true, _canSendReminder: isSent })}>
-                                Rappel J-3
+                                Rappel {selectedReminderLabel}
                               </button>
                             )}
                             <button type="button" className={`dash-btn${isSent ? "" : " dash-btn-primary"}`} style={{ fontSize: 11, padding: "3px 9px" }}
@@ -8624,7 +8646,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           <input
                             type="checkbox"
                             checked={reminderDone}
-                            title={hasEmail ? "Rappel J-3 effectué" : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
+                            title={hasEmail ? `Rappel ${selectedReminderLabel} effectué` : "Cocher si le rappel a été effectué autrement (téléphone, SMS…)"}
                             onChange={async (event) => {
                               const checked = event.target.checked;
                               try { await toggleReminderDone(allIds, checked); }
@@ -8646,9 +8668,9 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                             {hasEmail && (
                               <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px", color: "#ea580c", borderColor: "#fdba74", background: "#fff7ed" }}
                                 disabled={!hasEmail || isSending || sendingAll}
-                                title={isSent ? "Prévisualiser le rappel J-3" : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
+                                title={isSent ? `Prévisualiser le rappel ${selectedReminderLabel}` : "Prévisualisation disponible avant l’envoi de la convocation initiale"}
                                 onClick={() => setPreview({ ...merged, email: currentEmail, familyKey, _rdvInfo: rdvInfo, _trip: trip, _primary: primary, _passengers: passengers, _isReminder: true, _canSendReminder: isSent })}>
-                                Rappel J-3
+                                Rappel {selectedReminderLabel}
                               </button>
                             )}
                             <button type="button" className={`dash-btn${isSent ? "" : " dash-btn-primary"}`} style={{ fontSize: 11, padding: "3px 9px" }}
@@ -8688,7 +8710,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.type === "onsite" ? preview.reservation.nom : preview.nom}</div>
                 <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.type === "onsite" ? preview.reservation.email : preview.email}</div>
-                {preview._isReminder && <div style={{ marginTop: 3, fontSize: 11, fontWeight: 800, color: "#ea580c" }}>APERÇU DU RAPPEL J-3</div>}
+                {preview._isReminder && <div style={{ marginTop: 3, fontSize: 11, fontWeight: 800, color: "#ea580c" }}>APERÇU DU RAPPEL {selectedReminderLabel}</div>}
               </div>
               <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>&#x2715;</button>
             </div>
@@ -8702,7 +8724,8 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     returnPoint:  preview.cfg.lieu || "Lieu du séjour",
                   }, customIntro, getAnimForOnSite(preview.reservation?.sejourName || "Séjour"))
                   : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip, preview._primary || preview), convocSettings);
-                return preview._isReminder ? buildJ3ReminderHtml(html) : html;
+                const reminderDate = preview.type === "onsite" ? WEEK_INFO[selectedWeek]?.aller : preview._trip?.date;
+                return preview._isReminder ? buildReminderHtml(html, reminderDate) : html;
               })() }} />
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
@@ -8713,10 +8736,10 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                   try {
                     if (preview.type === "onsite") {
                       await doSendOnSite(preview.reservation, { reminder: Boolean(preview._isReminder) });
-                      showToast(`${preview._isReminder ? "Rappel J-3" : "Convocation"} envoyé à ${preview.reservation.email}`, "success");
+                      showToast(`${preview._isReminder ? `Rappel ${selectedReminderLabel}` : "Convocation"} envoyé à ${preview.reservation.email}`, "success");
                     } else {
                       await doSendFamily(preview._trip, preview._passengers, { reminder: Boolean(preview._isReminder) });
-                      showToast(`${preview._isReminder ? "Rappel J-3" : "Convocation"} envoyé à ${preview.email}`, "success");
+                      showToast(`${preview._isReminder ? `Rappel ${selectedReminderLabel}` : "Convocation"} envoyé à ${preview.email}`, "success");
                     }
                     setPreview(null);
                   } catch (e) {
@@ -8730,7 +8753,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                   ? "Envoi en cours…"
                   : preview._isReminder && !preview._canSendReminder
                     ? "Envoyer d’abord la convocation"
-                    : preview._isReminder ? "Envoyer le rappel J-3" : "Envoyer cette convocation"}
+                    : preview._isReminder ? `Envoyer le rappel ${selectedReminderLabel}` : "Envoyer cette convocation"}
               </button>
             </div>
           </div>
