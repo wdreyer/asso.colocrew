@@ -7,9 +7,9 @@ function esc(str) {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function contractInputLine(value, anchor, minWidth = 180) {
+function contractInputLine(value, anchor, minWidth = 180, label = "") {
   const hasValue = String(value || "").trim();
-  const content = hasValue ? `<strong>${esc(value)}</strong>` : `<span class="cc-missing-field">A completer dans DocuSign</span>`;
+  const content = hasValue ? `<strong>${esc(value)}</strong>` : `<span class="cc-missing-field">${esc(label || "À compléter")}</span>`;
   const fieldAnchor = !hasValue && anchor ? `<span class="cc-field-anchor">${anchor}</span>` : "";
   return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px">${fieldAnchor}<span class="cc-field-value">${content}</span></span>`;
 }
@@ -184,12 +184,12 @@ function generateVolunteerContractHTML(member, contract) {
   const m = member || {};
   const c = contract || {};
   const fullName = esc(`${m.firstName || ""} ${m.lastName || ""}`.trim()) || "___________";
-  const address = contractInputLine(m.address, "/cc-field-address/", 300);
-  const phone = contractInputLine(m.phone, "/cc-field-phone/", 180);
-  const email = contractInputLine(m.email, "/cc-field-email/", 240);
-  const birthDate = contractInputLine(m.dateOfBirth, "/cc-field-birth-date/", 120);
-  const birthPlace = contractInputLine(m.birthPlace, "/cc-field-birth-place/", 200);
-  const nationality = contractInputLine(m.nationality, "/cc-field-nationality/", 150);
+  const address = contractInputLine(m.address, "/cc-field-address/", 300, "Adresse");
+  const phone = contractInputLine(m.phone, "/cc-field-phone/", 180, "Téléphone");
+  const email = contractInputLine(m.email, "/cc-field-email/", 240, "Email");
+  const birthDate = contractInputLine(m.dateOfBirth, "/cc-field-birth-date/", 120, "Date de naissance");
+  const birthPlace = contractInputLine(m.birthPlace, "/cc-field-birth-place/", 200, "Lieu de naissance");
+  const nationality = contractInputLine(m.nationality, "/cc-field-nationality/", 150, "Nationalité");
   const startFr = frDate(c.startDate);
   const endFr = frDate(c.endDate);
   const lieuExercice = esc(exercisePlace(c));
@@ -334,13 +334,13 @@ export function generateContractHTML(member, contract) {
   const c = contract || {};
 
   const fullName    = esc(`${m.firstName || ""} ${m.lastName || ""}`.trim()) || "___________";
-  const address     = contractInputLine(m.address, "/cc-field-address/", 300);
-  const phone       = contractInputLine(m.phone, "/cc-field-phone/", 180);
-  const email       = contractInputLine(m.email, "/cc-field-email/", 240);
-  const secu        = contractInputLine(m.socialSecurityNumber, "/cc-field-social-security/", 230);
-  const birthDate   = contractInputLine(m.dateOfBirth, "/cc-field-birth-date/", 120);
-  const birthPlace  = contractInputLine(m.birthPlace, "/cc-field-birth-place/", 200);
-  const nationality = contractInputLine(m.nationality, "/cc-field-nationality/", 150);
+  const address     = contractInputLine(m.address, "/cc-field-address/", 300, "Adresse");
+  const phone       = contractInputLine(m.phone, "/cc-field-phone/", 180, "Téléphone");
+  const email       = contractInputLine(m.email, "/cc-field-email/", 240, "Email");
+  const secu        = contractInputLine(m.socialSecurityNumber, "/cc-field-social-security/", 230, "N° de Sécurité sociale");
+  const birthDate   = contractInputLine(m.dateOfBirth, "/cc-field-birth-date/", 120, "Date de naissance");
+  const birthPlace  = contractInputLine(m.birthPlace, "/cc-field-birth-place/", 200, "Lieu de naissance");
+  const nationality = contractInputLine(m.nationality, "/cc-field-nationality/", 150, "Nationalité");
   const roleKey     = contractRoleKey(c);
   const poste       = esc(contractRoleLabel(c));
   const lieuExercice = esc(exercisePlace(c));

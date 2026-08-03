@@ -57,31 +57,31 @@ function isVolunteerContract(contract) {
 
 const DOCUSIGN_PERSONAL_FIELDS = [
   {
-    key: "phone", tabLabel: "cc_phone", anchor: "/cc-field-phone/", width: 260, xPosition: 240, yPosition: 438,
+    key: "phone", tabLabel: "cc_phone", anchor: "/cc-field-phone/", width: 180,
     valid: (value) => String(value || "").replace(/\D/g, "").length >= 8,
     validationPattern: "^[0-9 +().-]{8,25}$",
     validationMessage: "Saisissez un numéro de téléphone valide.",
   },
   {
-    key: "address", tabLabel: "cc_address", anchor: "/cc-field-address/", width: 330, xPosition: 240, yPosition: 419,
+    key: "address", tabLabel: "cc_address", anchor: "/cc-field-address/", width: 300,
     valid: (value) => String(value || "").trim().length >= 8,
   },
   {
-    key: "dateOfBirth", tabLabel: "cc_birth_date", anchor: "/cc-field-birth-date/", width: 120, xPosition: 240, yPosition: 496,
+    key: "dateOfBirth", tabLabel: "cc_birth_date", anchor: "/cc-field-birth-date/", width: 120,
     valid: (value) => String(value || "").trim().length >= 8,
   },
   {
-    key: "birthPlace", tabLabel: "cc_birth_place", anchor: "/cc-field-birth-place/", width: 260, xPosition: 240, yPosition: 515,
+    key: "birthPlace", tabLabel: "cc_birth_place", anchor: "/cc-field-birth-place/", width: 200,
     valid: (value) => String(value || "").trim().length >= 2,
   },
   {
-    key: "socialSecurityNumber", tabLabel: "cc_social_security", anchor: "/cc-field-social-security/", width: 260, xPosition: 240, yPosition: 476,
+    key: "socialSecurityNumber", tabLabel: "cc_social_security", anchor: "/cc-field-social-security/", width: 230,
     valid: (value) => String(value || "").replace(/\D/g, "").length === 15,
     validationPattern: "^(?:[0-9][ .-]?){14}[0-9]$",
     validationMessage: "Saisissez votre numéro de Sécurité sociale complet (15 chiffres).",
   },
   {
-    key: "nationality", tabLabel: "cc_nationality", anchor: "/cc-field-nationality/", width: 180, xPosition: 240, yPosition: 536,
+    key: "nationality", tabLabel: "cc_nationality", anchor: "/cc-field-nationality/", width: 150,
     valid: (value) => String(value || "").trim().length >= 2,
   },
 ];
@@ -112,9 +112,6 @@ export async function POST(request) {
     missingPersonalFields.forEach((field) => { memberForDocument[field.key] = ""; });
     const staffTextTabs = missingPersonalFields.map((field) => ({
       anchor: field.anchor,
-      pageNumber: 1,
-      xPosition: field.xPosition,
-      yPosition: field.yPosition,
       tabLabel: field.tabLabel,
       width: field.width,
       value: "",
