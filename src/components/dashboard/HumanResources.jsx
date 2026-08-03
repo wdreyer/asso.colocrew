@@ -116,6 +116,14 @@ function missingPersonalInformation(member) {
   return PERSONAL_INFORMATION_RULES.filter((rule) => !rule.valid(member?.[rule.key]));
 }
 
+function memberIdentityUpdateData(form) {
+  const updateData = {};
+  for (const { key } of EDIT_FIELDS) updateData[key] = String(form?.[key] || "").trim();
+  updateData.staffType = form?.staffType || "";
+  updateData.name = `${updateData.firstName || ""} ${updateData.lastName || ""}`.trim();
+  return updateData;
+}
+
 // ─── Mapping Firestore ────────────────────────────────────────────────────────
 
 function mapMember(snap) {
@@ -718,10 +726,7 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
   const saveInfo = async () => {
     setSaving(true);
     try {
-      const updateData = {};
-      for (const { key } of EDIT_FIELDS) updateData[key] = form[key] || "";
-      updateData.staffType = form.staffType || "";
-      updateData.name = `${form.firstName || ""} ${form.lastName || ""}`.trim();
+      const updateData = memberIdentityUpdateData(form);
       await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), updateData);
       const updated = { ...member, ...updateData };
       setMember(updated);
@@ -1079,6 +1084,97 @@ function InfoField({ label, value, href, sensitive }) {
 
 // ─── Modale : créer / modifier un contrat ─────────────────────────────────────
 
+function DocusignPreparationModal({ isOpen, member, contract, busy, onClose, onPreview, onSaveAndSend }) {
+  const [form, setForm] = useState(member || {});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm(member || {});
+    setSaving(false);
+  }, [isOpen, member]);
+
+  if (!member || !contract) return null;
+
+  const previewMember = { ...member, ...memberIdentityUpdateData(form) };
+  const missing = missingPersonalInformation(previewMember);
+  const canSend = !missing.some((item) => ["firstName", "lastName", "email"].includes(item.key));
+
+  const handleSaveAndSend = async () => {
+    if (!canSend || saving || busy) return;
+    const confirmed = window.confirm(
+      `Enregistrer les informations puis envoyer le contrat de ${previewMember.firstName} ${previewMember.lastName} à ${previewMember.email} ?\n\n` +
+      "L'animateur·ice signera en premier, puis ColoCrew recevra la demande de contresignature.",
+    );
+    if (!confirmed) return;
+    setSaving(true);
+    try {
+      await onSaveAndSend(previewMember);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Vérifier avant DocuSign" size="lg" closeOnBackdrop={!saving && !busy} closeOnEscape={!saving && !busy}>
+      <div style={{ display: "grid", gap: 14 }}>
+        <div style={{ padding: "11px 13px", borderRadius: 10, background: missing.length ? "#fff7ed" : "#f0fdf4", color: missing.length ? "#9a3412" : "#166534", fontSize: 13, lineHeight: 1.5 }}>
+          {missing.length ? (
+            <>
+              <strong>Infos encore à compléter :</strong>{" "}
+              {missing.map((item) => item.label).join(", ")}.
+              <br />
+              Les champs non bloquants pourront aussi être complétés par l'animateur·ice dans DocuSign.
+            </>
+          ) : (
+            <strong>Les informations nécessaires au contrat sont complètes.</strong>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, alignItems: "start" }}>
+          {EDIT_FIELDS.map(({ key, label, type, placeholder, inputMode }) => {
+            const rule = PERSONAL_INFORMATION_RULES.find((item) => item.key === key);
+            const invalid = rule && !rule.valid(form?.[key]);
+            return (
+              <label key={key} className="hr-edit-label" style={{ margin: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  {label}
+                  {invalid && <em style={{ color: "#b45309", fontSize: 11, fontStyle: "normal", fontWeight: 900 }}>manquant</em>}
+                </span>
+                <input
+                  type={type || "text"}
+                  placeholder={placeholder || ""}
+                  inputMode={inputMode}
+                  value={form?.[key] || ""}
+                  onChange={(event) => setForm((previous) => ({ ...previous, [key]: event.target.value }))}
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        {!canSend && (
+          <div style={{ padding: "10px 12px", borderRadius: 10, background: "#fef2f2", color: "#991b1b", fontSize: 13, fontWeight: 800 }}>
+            Prénom, nom et e-mail doivent être renseignés avant tout envoi DocuSign.
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" className="dash-btn" onClick={() => onPreview(previewMember, contract)} disabled={saving || busy}>
+            Prévisualiser sans envoyer
+          </button>
+          <button type="button" className="dash-btn" onClick={onClose} disabled={saving || busy}>
+            Annuler
+          </button>
+          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSaveAndSend} disabled={!canSend || saving || busy}>
+            {saving || busy ? "Envoi..." : "Enregistrer et envoyer"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function emptyContractForm(member, contract) {
   const week = contract?.week && WEEK_ORDER.includes(contract.week) ? contract.week : "S1";
   const defaults = WEEK_DATES[week] || {};
@@ -1433,6 +1529,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
   const [fiche,     setFiche]     = useState(null);
   const [ficheStartsInEdit, setFicheStartsInEdit] = useState(false);
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
+  const [contractSendReview, setContractSendReview] = useState({ isOpen: false, member: null, contract: null });
   const [gridModalOpen, setGridModalOpen]  = useState(false);
   const [docusignBusyId, setDocusignBusyId] = useState("");
 
@@ -1547,7 +1644,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
     return url;
   };
 
-  const sendContractWithDocusign = async (member, contract) => {
+  const sendContractWithDocusign = async (member, contract, options = {}) => {
     if (!currentUser || !member || !contract || docusignBusyId) return;
     if (!member.email) {
       showToast("Ajoutez d'abord l'adresse e-mail de l'animateur·ice.", "error");
@@ -1562,11 +1659,13 @@ export default function HumanResources({ initialTab = "sejours" }) {
     const completionNote = missingInformation.length
       ? `\n\nL'animateur·ice devra compléter dans DocuSign : ${missingInformation.map((item) => item.label).join(", ")}.`
       : "";
-    const confirmed = window.confirm(
-      `Envoyer maintenant le contrat de ${member.firstName} ${member.lastName} à ${member.email} ?\n\n` +
-      "L'animateur·ice signera en premier, puis ColoCrew recevra la demande de contresignature." + completionNote,
-    );
-    if (!confirmed) return;
+    if (!options.skipConfirm) {
+      const confirmed = window.confirm(
+        `Envoyer maintenant le contrat de ${member.firstName} ${member.lastName} à ${member.email} ?\n\n` +
+        "L'animateur·ice signera en premier, puis ColoCrew recevra la demande de contresignature." + completionNote,
+      );
+      if (!confirmed) return;
+    }
 
     setDocusignBusyId(contract.id);
     try {
@@ -1598,6 +1697,25 @@ export default function HumanResources({ initialTab = "sejours" }) {
     } finally {
       setDocusignBusyId("");
     }
+  };
+
+  const requestDocusignSend = (member, contract) => {
+    if (!member || !contract) return;
+    if (missingPersonalInformation(member).length > 0) {
+      setContractSendReview({ isOpen: true, member, contract });
+      return;
+    }
+    sendContractWithDocusign(member, contract);
+  };
+
+  const saveMemberThenSendContract = async (updatedMember) => {
+    if (!updatedMember?.id || !contractSendReview.contract) return;
+    const updateData = memberIdentityUpdateData(updatedMember);
+    await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, updatedMember.id), updateData);
+    const savedMember = { ...updatedMember, ...updateData };
+    updateMember(savedMember);
+    await sendContractWithDocusign(savedMember, contractSendReview.contract, { skipConfirm: true });
+    setContractSendReview({ isOpen: false, member: null, contract: null });
   };
 
   const syncDocusignPersonalInformation = async (contract, formData) => {
@@ -1991,7 +2109,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onCompleteMember={(member, startEditing = true) => openMemberFile(member, startEditing)}
             onToggleCea={toggleCeaDeclaration}
             onTogglePayment={toggleContractPayment}
-            onDocusignSend={sendContractWithDocusign}
+            onDocusignSend={requestDocusignSend}
             onDocusignRefresh={refreshDocusignStatus}
             onDocusignRefreshMany={refreshVisibleDocusignStatuses}
             onDocusignReset={resetDocusignContract}
@@ -2030,6 +2148,16 @@ export default function HumanResources({ initialTab = "sejours" }) {
         gridRows={gridRows}
         onClose={closeContractModal}
         onSaved={handleContractSaved}
+      />
+
+      <DocusignPreparationModal
+        isOpen={contractSendReview.isOpen}
+        member={contractSendReview.member}
+        contract={contractSendReview.contract}
+        busy={Boolean(docusignBusyId)}
+        onClose={() => setContractSendReview({ isOpen: false, member: null, contract: null })}
+        onPreview={(member, contract) => openContractPrint(member, contract)}
+        onSaveAndSend={saveMemberThenSendContract}
       />
 
       {/* ── Grille salariale ── */}
