@@ -108,13 +108,14 @@ export async function POST(request) {
       : DOCUSIGN_PERSONAL_FIELDS;
     const documentLabel = isVolunteer ? "Convention de bénévolat" : "Contrat d'engagement éducatif";
     const memberForDocument = { ...member };
-    personalFields.forEach((field) => { memberForDocument[field.key] = ""; });
-    const staffTextTabs = personalFields.map((field) => ({
+    const missingPersonalFields = personalFields.filter((field) => !field.valid(member[field.key]));
+    missingPersonalFields.forEach((field) => { memberForDocument[field.key] = ""; });
+    const staffTextTabs = missingPersonalFields.map((field) => ({
       anchor: field.anchor,
       tabLabel: field.tabLabel,
       width: field.width,
-      value: member[field.key],
-      required: !field.valid(member[field.key]),
+      value: "",
+      required: true,
       validationPattern: field.validationPattern,
       validationMessage: field.validationMessage,
     }));

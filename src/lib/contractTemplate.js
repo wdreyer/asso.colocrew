@@ -8,8 +8,10 @@ function esc(str) {
 }
 
 function contractInputLine(value, anchor, minWidth = 180) {
-  const content = String(value || "").trim() ? `<strong>${esc(value)}</strong>` : "&nbsp;";
-  return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px"><span class="cc-field-anchor">${anchor}</span><span class="cc-field-value">${content}</span></span>`;
+  const hasValue = String(value || "").trim();
+  const content = hasValue ? `<strong>${esc(value)}</strong>` : "&nbsp;";
+  const fieldAnchor = !hasValue && anchor ? `<span class="cc-field-anchor">${anchor}</span>` : "";
+  return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px">${fieldAnchor}<span class="cc-field-value">${content}</span></span>`;
 }
 
 function frDate(isoOrSlash) {
