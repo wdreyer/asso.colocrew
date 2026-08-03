@@ -9,7 +9,11 @@ function esc(str) {
 
 function contractInputLine(value, anchor, minWidth = 180, label = "") {
   const hasValue = String(value || "").trim();
-  const content = hasValue ? `<strong>${esc(value)}</strong>` : `<span class="cc-missing-field">${esc(label || "À compléter")}</span>`;
+  // Quand la valeur manque, DocuSign superpose un champ éditable sur l'ancre :
+  // ne pas afficher de texte visible dessous pour éviter tout chevauchement.
+  const content = hasValue
+    ? `<strong>${esc(value)}</strong>`
+    : anchor ? "" : `<span class="cc-missing-field">${esc(label || "À compléter")}</span>`;
   const fieldAnchor = !hasValue && anchor ? `<span class="cc-field-anchor">${anchor}</span>` : "";
   return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px">${fieldAnchor}<span class="cc-field-value">${content}</span></span>`;
 }
@@ -227,8 +231,8 @@ function generateVolunteerContractHTML(member, contract) {
   .cc-title { text-align: center; font-size: 16pt; font-weight: bold; text-decoration: underline; margin: 28px 0 24px; }
   .cc-party-block p, .cc-article p { line-height: 1.6; margin-bottom: 6px; }
   .cc-identity-table { width: 100%; border-collapse: collapse; margin-top: 2px; table-layout: fixed; }
-  .cc-identity-table th { width: 150px; padding: 2px 6px 2px 0; text-align: left; font-size: 10pt; font-weight: normal; line-height: 18px; white-space: nowrap; }
-  .cc-identity-table td { padding: 2px 0; font-size: 10pt; line-height: 18px; vertical-align: bottom; }
+  .cc-identity-table th { width: 150px; padding: 4px 6px 4px 0; text-align: left; font-size: 10pt; font-weight: normal; line-height: 18px; white-space: nowrap; }
+  .cc-identity-table td { padding: 4px 0; font-size: 10pt; line-height: 18px; vertical-align: bottom; }
   .cc-identity-table .cc-contract-input { width: 100%; min-width: 0 !important; }
   .cc-article { margin-bottom: 18px; }
   .cc-article h2 { font-size: 11pt; font-weight: bold; margin-bottom: 8px; text-decoration: underline; }
@@ -460,8 +464,8 @@ export function generateContractHTML(member, contract) {
   .cc-party-block p { margin: 1px 0; font-size: 10pt; }
   .cc-party-block strong { font-weight: bold; }
   .cc-identity-table { width: 100%; border-collapse: collapse; margin-top: 2px; table-layout: fixed; }
-  .cc-identity-table th { width: 185px; padding: 2px 6px 2px 0; text-align: left; font-size: 10pt; font-weight: normal; line-height: 18px; white-space: nowrap; }
-  .cc-identity-table td { padding: 2px 0; font-size: 10pt; line-height: 18px; vertical-align: bottom; }
+  .cc-identity-table th { width: 185px; padding: 4px 6px 4px 0; text-align: left; font-size: 10pt; font-weight: normal; line-height: 18px; white-space: nowrap; }
+  .cc-identity-table td { padding: 4px 0; font-size: 10pt; line-height: 18px; vertical-align: bottom; }
   .cc-identity-table .cc-contract-input { width: 100%; min-width: 0 !important; }
   .cc-designation { font-style: italic; margin-top: 6px; }
   .cc-dune-part { text-align: right; font-weight: bold; margin: 10px 0 16px; }

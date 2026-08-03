@@ -114,6 +114,7 @@ export async function POST(request) {
       anchor: field.anchor,
       tabLabel: field.tabLabel,
       width: field.width,
+      height: 14,
       value: "",
       required: true,
       validationPattern: field.validationPattern,
