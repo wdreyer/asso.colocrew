@@ -9,7 +9,7 @@ function esc(str) {
 
 function contractInputLine(value, anchor, minWidth = 180) {
   const hasValue = String(value || "").trim();
-  const content = hasValue ? `<strong>${esc(value)}</strong>` : "&nbsp;";
+  const content = hasValue ? `<strong>${esc(value)}</strong>` : `<span class="cc-missing-field">A completer dans DocuSign</span>`;
   const fieldAnchor = !hasValue && anchor ? `<span class="cc-field-anchor">${anchor}</span>` : "";
   return `<span class="cc-fill cc-contract-input" style="min-width:${minWidth}px">${fieldAnchor}<span class="cc-field-value">${content}</span></span>`;
 }
@@ -237,6 +237,7 @@ function generateVolunteerContractHTML(member, contract) {
   .cc-fill { border-bottom: 1px solid #555; display: inline-block; min-width: 120px; }
   .cc-contract-input { min-height: 18px; vertical-align: bottom; position: relative; padding: 0 3px 1px; }
   .cc-field-value { position: relative; z-index: 1; }
+  .cc-missing-field { color: #777; font-size: 8.5pt; font-style: italic; font-weight: normal; }
   .cc-field-anchor { position: absolute; left: 3px; top: 2px; color: transparent; font-size: 1px; line-height: 1px; user-select: none; }
   .cc-docusign-anchor { color: #fff; font-size: 1px; line-height: 1px; user-select: none; }
   .cc-signatures { margin-top: 32px; }
@@ -515,6 +516,7 @@ export function generateContractHTML(member, contract) {
     padding: 0 3px 1px;
   }
   .cc-field-value { position: relative; z-index: 1; }
+  .cc-missing-field { color: #777; font-size: 8.5pt; font-style: italic; font-weight: normal; }
   .cc-field-anchor {
     position: absolute;
     left: 3px;
