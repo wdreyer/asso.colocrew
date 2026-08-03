@@ -199,10 +199,10 @@ function generateVolunteerContractHTML(member, contract) {
   const lieuExercice = esc(exercisePlace(c));
   const stayLabel = esc([c.stayName || c.stayCode, c.week].filter(Boolean).join(" - "));
   const isDeputyDirector = isDeputyDirectorContract(c);
-  const volunteerRole = isDeputyDirector ? "directeur·rice adjoint·e bénévole" : "bénévole";
-  const missionTitle = isDeputyDirector ? "Mission bénévole de direction adjointe" : "Mission bénévole";
+  const volunteerRole = isDeputyDirector ? "directeur·rice adjoint·e bénévole" : "animateur·ice bénévole";
+  const missionTitle = isDeputyDirector ? "Mission bénévole de direction adjointe" : "Mission bénévole d'animateur·ice";
   const missionDescription = isDeputyDirector ? `
-    <p>Le/la bénévole intervient comme <strong>directeur·rice adjoint·e bénévole</strong>. Sa contribution consiste à appuyer l'équipe de direction dans l'organisation du séjour, sans rémunération et sans que la présente convention ne constitue un contrat de travail ou un contrat d'engagement éducatif.</p>
+    <p>Le/la bénévole intervient comme <strong>directeur·rice adjoint·e bénévole</strong>. Sa contribution consiste à appuyer l'équipe de direction dans l'organisation du séjour, dans un cadre libre, volontaire et désintéressé.</p>
     <ul>
       <li><strong>Appui à la direction du séjour</strong> : participer à la préparation opérationnelle, au suivi quotidien et à la coordination générale du séjour ;</li>
       <li><strong>Vie collective et sécurité</strong> : contribuer au respect du cadre de sécurité, des règles d'hygiène, des procédures internes et du projet pédagogique ;</li>
@@ -210,15 +210,24 @@ function generateVolunteerContractHTML(member, contract) {
       <li><strong>Suivi des situations</strong> : contribuer au repérage des difficultés, au suivi des incidents et au lien avec la direction du séjour ;</li>
       <li><strong>Relais ponctuel</strong> : assurer un relais d'information auprès des familles, prestataires ou partenaires lorsque la direction le demande dans l'intérêt du séjour.</li>
     </ul>
-    <p>Cette mission reste une contribution bénévole : elle ne crée ni lien salarial, ni droit à rémunération, ni engagement de disponibilité permanente.</p>` : `
-    <p>Le/la bénévole apporte une aide ponctuelle aux activités, à la vie collective et à l'organisation du séjour, dans le respect du projet éducatif, des consignes de sécurité et du fonctionnement de l'association.</p>`;
+    <p>Cette mission reste une contribution bénévole : elle ne crée ni lien salarial, ni obligation de disponibilité permanente, ni pouvoir disciplinaire comparable à celui d'un employeur.</p>` : `
+    <p>Le/la bénévole participe au bon déroulement du séjour en apportant son aide à l'équipe d'animation. Selon les besoins du séjour, ses envies et ses disponibilités, il/elle peut notamment :</p>
+    <ul>
+      <li><strong>Sécurité et bien-être</strong> : contribuer à la sécurité physique, morale et affective des mineurs, dans le respect des consignes données par la direction ;</li>
+      <li><strong>Vie quotidienne</strong> : accompagner les enfants dans les temps de repas, de rangement, de vie collective, de repos et de déplacements ;</li>
+      <li><strong>Animation</strong> : participer à la préparation, l'encadrement et le rangement des activités, jeux, veillées et sorties ;</li>
+      <li><strong>Projet pédagogique</strong> : favoriser un climat bienveillant, inclusif et sécurisant, cohérent avec les valeurs de ColoCrew ;</li>
+      <li><strong>Équipe</strong> : soutenir l'organisation générale du séjour, partager les informations utiles et signaler sans délai tout incident ou situation préoccupante ;</li>
+      <li><strong>Convoyages</strong> : accompagner les enfants sur les trajets lorsque cela est prévu par l'organisation du séjour et validé par la direction.</li>
+    </ul>
+    <p>Les missions peuvent évoluer au cours du séjour. Le/la bénévole reste libre d'accepter ou de refuser une mission proposée, sous réserve d'informer la direction afin de garantir la sécurité et la continuité de l'accueil des mineurs.</p>`;
   const today = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Convention de bénévolat - ${fullName}</title>
+<title>Charte et convention de bénévolat - ${fullName}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; background: #fff; }
@@ -263,7 +272,7 @@ function generateVolunteerContractHTML(member, contract) {
     <div class="cc-contact">info@colocrew.com - 01 84 21 02 30<br>colocrew.com</div>
   </div>
 
-  <div class="cc-title">Convention de bénévolat</div>
+  <div class="cc-title">Charte et convention de bénévolat</div>
 
   <div class="cc-article">
     <p><strong>Entre l'association ColoCrew</strong>, 1 rue Magenta - 93500 Pantin, représentée par Monsieur Dreyer William,</p>
@@ -280,8 +289,9 @@ function generateVolunteerContractHTML(member, contract) {
 
   <div class="cc-article">
     <h2>Article 1 - Nature de l'engagement bénévole</h2>
-    <p>La présente convention précise les conditions dans lesquelles le/la bénévole s'engage librement auprès de ColoCrew pour contribuer à une action associative non salariée.</p>
-    <p>Elle ne constitue ni un contrat de travail, ni un contrat d'engagement éducatif, ni une promesse d'embauche. L'engagement est volontaire, non rémunéré, et peut prendre fin librement à l'initiative du/de la bénévole ou de l'association.</p>
+    <p>La présente charte et convention précise le cadre dans lequel le/la bénévole s'engage librement auprès de ColoCrew pour contribuer à une action associative non salariée.</p>
+    <p>Le bénévolat repose sur un engagement libre, volontaire et désintéressé. Il ne crée aucun lien de subordination salariale, aucune relation de travail et aucun contrat d'engagement éducatif.</p>
+    <p>Les échanges avec la direction ont uniquement pour objet de permettre la bonne organisation du séjour, la sécurité des mineurs et la coordination de l'équipe.</p>
   </div>
 
   <div class="cc-article">
@@ -291,29 +301,41 @@ function generateVolunteerContractHTML(member, contract) {
   </div>
 
   <div class="cc-article">
-    <h2>Article 3 - Absence de rémunération et frais</h2>
-    <p>Cette participation est effectuée à titre bénévole. Elle ne donne lieu à aucun salaire, prime, indemnité forfaitaire ou contrepartie financière.</p>
-    <p>Les frais éventuellement engagés pour les besoins de la mission peuvent uniquement être remboursés sur accord préalable de ColoCrew et sur présentation de justificatifs.</p>
+    <h2>Article 3 - Droits du/de la bénévole</h2>
+    <p>ColoCrew reconnaît au/à la bénévole le droit de participer librement à l'action de l'association, d'accepter ou refuser une mission proposée, de choisir son niveau d'implication et de proposer des idées pour les animations auxquelles il/elle participe.</p>
+    <p>Le/la bénévole est accueilli·e, accompagné·e et informé·e sur le fonctionnement du séjour. Il/elle bénéficie d'un environnement respectueux et bienveillant et peut mettre fin à son engagement à tout moment, sous réserve d'en informer la direction afin de garantir la sécurité des mineurs.</p>
   </div>
 
   <div class="cc-article">
-    <h2>Article 4 - Engagements du/de la bénévole</h2>
+    <h2>Article 4 - Engagements de ColoCrew</h2>
+    <p>Afin de préserver le caractère bénévole de la mission, ColoCrew s'engage à ne pas imposer une présence permanente, des horaires fixes de travail, un niveau d'implication déterminé ou l'exécution d'une mission contre la volonté du/de la bénévole.</p>
+    <p>ColoCrew ne verse aucune rémunération, salaire, prime, indemnité forfaitaire ou contrepartie financière en échange de l'engagement bénévole. Les frais éventuellement engagés peuvent uniquement être remboursés sur accord préalable de l'association et sur présentation de justificatifs.</p>
+  </div>
+
+  <div class="cc-article">
+    <h2>Article 5 - Engagements du/de la bénévole</h2>
     <ul>
       <li>Respecter le projet éducatif, les règles de fonctionnement, de sécurité, d'hygiène et de confidentialité de ColoCrew ;</li>
-      <li>Adopter une posture bienveillante et adaptée à l'accueil collectif de mineurs ;</li>
-      <li>Signaler sans délai tout incident ou difficulté à la direction du séjour ;</li>
+      <li>Adopter une attitude respectueuse, bienveillante et exemplaire envers les enfants, les familles et les membres de l'équipe ;</li>
+      <li>Respecter les règles de sécurité applicables aux accueils collectifs de mineurs et les consignes nécessaires à la sécurité des enfants ;</li>
+      <li>Signaler immédiatement tout incident, accident, difficulté ou situation préoccupante à la direction du séjour ;</li>
+      <li>Respecter la confidentialité des informations concernant les enfants et leurs familles ;</li>
+      <li>Ne pas publier de photographies ou d'informations concernant les mineurs sans autorisation ;</li>
+      <li>Ne pas consommer d'alcool ou de substances illicites pendant sa participation aux activités ;</li>
       <li>Agir dans le cadre fixé par l'association, sans se substituer aux responsabilités légales qui ne lui seraient pas confiées.</li>
     </ul>
   </div>
 
   <div class="cc-article">
-    <h2>Article 5 - Assurance et responsabilité</h2>
-    <p>ColoCrew déclare disposer d'une assurance responsabilité civile pour ses activités. Le/la bénévole s'engage à informer l'association de toute situation personnelle susceptible d'affecter sa participation.</p>
+    <h2>Article 6 - Limites de la mission</h2>
+    <p>Le/la bénévole ne peut pas exercer seul·e une responsabilité relevant légalement de la direction du séjour, prendre une décision médicale importante hors situation d'urgence, quitter un groupe d'enfants sans en informer la direction ou transporter des mineurs dans son véhicule personnel sans autorisation préalable.</p>
   </div>
 
   <div class="cc-article">
-    <h2>Article 6 - Fin de la convention</h2>
+    <h2>Article 7 - Assurance, responsabilité et fin de l'engagement</h2>
+    <p>ColoCrew déclare disposer d'une assurance responsabilité civile pour ses activités. Le/la bénévole est couvert·e dans le cadre des activités autorisées et s'engage à informer l'association de toute situation personnelle susceptible d'affecter sa participation.</p>
     <p>La présente convention peut prendre fin à tout moment, à l'initiative du/de la bénévole ou de ColoCrew, notamment en cas d'impossibilité de poursuivre la mission ou de non-respect des règles applicables.</p>
+    <p>Le/la bénévole reconnaît avoir pris connaissance de la présente charte et convention et s'engage à en respecter les dispositions pendant toute la durée de sa participation bénévole.</p>
   </div>
 
   <div class="cc-signatures">
