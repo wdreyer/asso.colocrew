@@ -117,11 +117,18 @@ async function createDocusignEnvelope(context, { subject, html, signers, documen
       }],
       ...((signer.textTabs || []).length ? {
         textTabs: signer.textTabs.map((tab) => ({
-          anchorString: tab.anchor,
-          anchorUnits: "pixels",
-          anchorXOffset: String(tab.anchorXOffset ?? 3),
-          anchorYOffset: String(tab.anchorYOffset ?? 0),
-          anchorIgnoreIfNotPresent: "false",
+          ...(tab.pageNumber ? {
+            documentId: String(tab.documentId || "1"),
+            pageNumber: String(tab.pageNumber),
+            xPosition: String(tab.xPosition || 0),
+            yPosition: String(tab.yPosition || 0),
+          } : {
+            anchorString: tab.anchor,
+            anchorUnits: "pixels",
+            anchorXOffset: String(tab.anchorXOffset ?? 3),
+            anchorYOffset: String(tab.anchorYOffset ?? 0),
+            anchorIgnoreIfNotPresent: "false",
+          }),
           width: String(tab.width || 180),
           height: String(tab.height || 18),
           font: "Arial",
