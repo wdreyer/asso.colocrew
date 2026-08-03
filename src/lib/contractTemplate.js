@@ -238,7 +238,7 @@ function generateVolunteerContractHTML(member, contract) {
   .cc-contract-input { min-height: 18px; vertical-align: bottom; position: relative; padding: 0 3px 1px; }
   .cc-field-value { position: relative; z-index: 1; }
   .cc-missing-field { color: #777; font-size: 8.5pt; font-style: italic; font-weight: normal; }
-  .cc-field-anchor { display: inline-block; width: 1px; height: 1px; overflow: hidden; color: #fff; font-size: 1px; line-height: 1px; user-select: none; vertical-align: top; }
+  .cc-field-anchor { color: #fff; font-size: 1px; line-height: 1px; user-select: none; }
   .cc-docusign-anchor { color: #fff; font-size: 1px; line-height: 1px; user-select: none; }
   .cc-signatures { margin-top: 32px; }
   .cc-sign-place { margin-bottom: 16px; }
@@ -518,15 +518,10 @@ export function generateContractHTML(member, contract) {
   .cc-field-value { position: relative; z-index: 1; }
   .cc-missing-field { color: #777; font-size: 8.5pt; font-style: italic; font-weight: normal; }
   .cc-field-anchor {
-    display: inline-block;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
     color: #fff;
     font-size: 1px;
     line-height: 1px;
     user-select: none;
-    vertical-align: top;
   }
 
   /* ── Signatures ── */
