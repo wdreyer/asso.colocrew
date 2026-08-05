@@ -632,11 +632,11 @@ export default function Communication() {
       showToast("Ce modèle est prévu pour les réservations en cours non validées", "error");
       return;
     }
-    if (templateKey !== LATEST_PLACES_TEMPLATE_KEY && selectedList.some((res) => !isValidatedReservation(res))) {
-      showToast("L'envoi famille est limité aux réservations validées", "error");
+    if (selectedList.length === 0) { showToast("Aucun destinataire sélectionné", "error"); return; }
+    if (selectedList.some((res) => !String(res?.legal?.email || "").trim())) {
+      showToast("Certains destinataires n'ont pas d'adresse email", "error");
       return;
     }
-    if (selectedList.length === 0) { showToast("Aucun destinataire sélectionné", "error"); return; }
     if (!subject.trim()) { showToast("L'objet du mail est obligatoire", "error"); return; }
 
     setSendState("sending");
@@ -762,7 +762,7 @@ export default function Communication() {
                 ? "Réservations en cours non validées"
                 : filterStatus === "all"
                   ? "Tous les statuts avec email"
-                  : "Uniquement les réservations validées"}
+                  : "Réservations validées avec email"}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={selectAll} style={btnSmallStyle}>
