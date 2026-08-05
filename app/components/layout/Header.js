@@ -23,18 +23,10 @@ const sejoursItems = [
   {
     href: "/sejours/my-creative-surf-camp",
     label: "My Creative Surf Camp",
-    sub: "Pays Basque · 11-17 ans · Juil.–Août 2026",
+    sub: "Pays Basque · 11-17 ans · 17–28 août 2026",
     image: "/mcsc2026.jpg",
-    badge: "Séjour phare",
+    badge: "Dernières places",
     badgeColor: "#B8336A",
-  },
-  {
-    href: "/sejours/eaux-vives-creative-camp",
-    label: "Eaux Vives Creative Camp",
-    sub: "Montagne · 11-17 ans · Juil.–Août 2026",
-    image: "/ovive.png",
-    badge: "Nouveauté 2026",
-    badgeColor: "#7c3aed",
   },
 ];
 

@@ -20,7 +20,7 @@ import {
   resolveSejourPriceRange,
   siblingDiscountFactor,
 } from "@/src/lib/pricing";
-import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { PUBLIC_BOOKABLE_SESSION, isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
 
@@ -33,14 +33,6 @@ const SEJOURS_META = [
     image: "/mcsc2026.jpg",
     badge: "Août : dernières places",
     badgeColor: "#d88700",
-  },
-  {
-    slug: "eaux-vives-creative-camp",
-    name: "Eaux Vives Creative Camp",
-    sub: "Pays Basque · Eaux vives & Projet Artistique",
-    image: "/ovive.png",
-    badge: "Offre juillet",
-    badgeColor: "#B8336A",
   },
 ];
 
@@ -193,8 +185,18 @@ function LandingSelector() {
     getDoc(doc(db, "sejours", selectedSlug)).then((snap) => {
       if (snap.exists()) {
         const data = snap.data();
+        const bookableDates = publicBookableSessions(selectedSlug, data.dates || []);
+        if (!bookableDates.length) {
+          setSejour(null);
+          setLoadingSejour(false);
+          return;
+        }
+        data.dates = bookableDates;
         setSejour(data);
-        if (data?.promotion?.active && data.promotion.startDate) {
+        const targetEntry = bookableDates.find((entry) => isPublicBookableSession(selectedSlug, entry));
+        if (targetEntry) {
+          setSelectedDateKey(`${targetEntry.startDate}|${targetEntry.endDate}`);
+        } else if (data?.promotion?.active && data.promotion.startDate) {
           const promoStart = String(data.promotion.startDate).slice(0, 10);
           const promoEntry = (data.dates || []).find(
             (d) => String(d.startDate || "").slice(0, 10) === promoStart
@@ -221,11 +223,12 @@ function LandingSelector() {
   const selectedDateEntry = (sejour?.dates || []).find(
     (dateEntry) => `${dateEntry.startDate}|${dateEntry.endDate}` === selectedDateKey,
   );
-  const canContinue = selectedSlug && selectedDateKey && selectedAge && !isSessionFull(selectedDateEntry);
+  const canContinue = selectedSlug && selectedDateKey && selectedAge && isPublicBookableSession(selectedSlug, selectedDateEntry);
 
   const handleContinue = () => {
     if (!canContinue) return;
     const [startDate, endDate] = selectedDateKey.split("|");
+    if (selectedSlug !== PUBLIC_BOOKABLE_SESSION.sejourSlug || startDate !== PUBLIC_BOOKABLE_SESSION.startDate || endDate !== PUBLIC_BOOKABLE_SESSION.endDate) return;
     const params = new URLSearchParams({ sejour: selectedSlug, startDate, endDate, ageGroup: selectedAge });
     if (departureCity)         params.set("departureCity", departureCity);
     if (effectiveReturnCity)   params.set("returnCity", effectiveReturnCity);
@@ -694,9 +697,21 @@ function ReservationForm({
       const slug = urlSejour.toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/\s+/g, "-");
+      if (slug !== PUBLIC_BOOKABLE_SESSION.sejourSlug) {
+        setSejour(null);
+        setLoading(false);
+        return;
+      }
       const snap = await getDoc(doc(db, "sejours", slug));
-      if (snap.exists()) setSejour(snap.data());
-      else alert("Séjour non trouvé.");
+      if (snap.exists()) {
+        const data = snap.data();
+        const bookableDates = publicBookableSessions(slug, data.dates || []);
+        const requestedSession = bookableDates.find((dateEntry) => (
+          String(dateEntry.startDate || "").slice(0, 10) === String(urlStartDate || "").slice(0, 10)
+          && String(dateEntry.endDate || "").slice(0, 10) === String(urlEndDate || "").slice(0, 10)
+        ));
+        setSejour(requestedSession ? { ...data, dates: bookableDates } : null);
+      } else alert("Séjour non trouvé.");
       setLoading(false);
     }
     fetchSejour();
@@ -791,17 +806,17 @@ function ReservationForm({
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-100"><Spinner /></div>;
   if (!sejour)  return <div className="p-4">Aucun séjour à afficher.</div>;
-  if (isSessionFull(selectedSession)) {
+  if (!isPublicBookableSession(urlSejour, selectedSession)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fdf8fb] px-4">
         <div className="w-full max-w-lg bg-white border border-[#e4dce8] rounded-lg p-8 text-center shadow-sm">
           <span className="inline-flex rounded-full bg-[#514a59] px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white">
             Complet
           </span>
-          <h1 className="mt-5 text-2xl font-extrabold text-[#1f1640]">Cette session de juillet est complète</h1>
-          <p className="mt-3 text-[#6b5f82]">Les inscriptions restent ouvertes en août, avec seulement quelques places disponibles.</p>
+          <h1 className="mt-5 text-2xl font-extrabold text-[#1f1640]">Cette session est complète</h1>
+          <p className="mt-3 text-[#6b5f82]">Les inscriptions restent ouvertes uniquement pour le séjour surf du 17 au 28 août.</p>
           <Link href="/reserver" className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#B8336A] px-5 py-3 font-bold text-white">
-            Voir les sessions d'août <FaArrowRight size={13} />
+            Voir la session disponible <FaArrowRight size={13} />
           </Link>
         </div>
       </div>

@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { resolveSejourPriceRange } from "@/src/lib/pricing";
-import { firstBookableSession, isSessionFull } from "@/src/lib/availability";
+import { firstBookableSession, isPublicBookableSession, isSessionFull, publicBookableSessions } from "@/src/lib/availability";
 
 import GenericSejour from "@/app/components/sejour/GenericSejour";
 import SejourTabs from "@/app/components/sejour/SejourTabs";
@@ -224,7 +224,9 @@ export default function SejourDetail() {
           return;
         }
 
-        const data = { id: docSnap.id, ...docSnap.data() };
+        const rawData = docSnap.data();
+        const bookableDates = publicBookableSessions(docSnap.id, rawData.dates || []);
+        const data = { id: docSnap.id, ...rawData, dates: bookableDates };
         setSejour(data);
 
         if (Array.isArray(data.dates) && data.dates.length > 0) {
@@ -247,6 +249,8 @@ export default function SejourDetail() {
             setBasePriceRange(resolveSejourPriceRange(data, defaultDateOption));
           }
         } else {
+          setSelectedStartDate("");
+          setSelectedEndDate("");
           setBasePriceRange(resolveSejourPriceRange(data));
         }
 
@@ -366,7 +370,7 @@ export default function SejourDetail() {
     const selectedSession = (sejour.dates || []).find((entry) =>
       typeof entry === "object" ? entry.startDate === selectedStartDate : entry === selectedStartDate,
     );
-    if (!selectedStartDate || isSessionFull(selectedSession)) return;
+    if (!selectedStartDate || !isPublicBookableSession(sejour.id, selectedSession)) return;
 
     const queryString =
       `/reserver?sejour=${encodeURIComponent(sejour.id || sejour.name)}` +

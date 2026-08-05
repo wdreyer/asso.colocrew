@@ -6,6 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { FaArrowRight, FaCalendarAlt, FaClock, FaFilePdf, FaUserFriends } from "react-icons/fa";
 import { db } from "@/app/firebase";
 import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { isPublicBookableSejour, publicBookableSessions } from "@/src/lib/availability";
 import Spinner from "../components/layout/Spinner";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
@@ -116,7 +117,26 @@ export default function SejoursList() {
       try {
         const querySnapshot = await getDocs(collection(db, "sejours"));
         const docs = querySnapshot.docs.map(normalizeSejour);
-        const onlineDocs = docs.filter((item) => item.isOnline);
+        const onlineDocs = docs
+          .filter((item) => item.isOnline && isPublicBookableSejour(item.id, item))
+          .map((item) => {
+            const dates = publicBookableSessions(item.id, item.dates);
+            const displayMonths = dates
+              .map((dateObj) => {
+                const start = new Date(dateObj.startDate);
+                if (Number.isNaN(start.getTime())) return "";
+                const monthName = start.toLocaleDateString("fr-FR", { month: "long" });
+                return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+              })
+              .filter(Boolean);
+            return {
+              ...item,
+              dates,
+              displayMonths,
+              period: [...new Set(displayMonths)].join(", "),
+              priceRange: resolveSejourPriceRange(item, dates[0]?.startDate),
+            };
+          });
         const monthsSet = new Set();
         onlineDocs.forEach((item) => {
           (item.displayMonths || []).forEach((month) => monthsSet.add(month));

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
-import { bookableSessions, isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { PUBLIC_BOOKABLE_SESSION, isPublicBookableSejour, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
 
 /* ─────────────────────────────────────────
    DONNÉES
@@ -67,29 +67,19 @@ const trips = [
     badge: "Quelques places",
     title: "My Creative Surf Camp",
     age: "11-13 / 14-17 ans",
-    dates: "3 - 28 août 2026",
+    dates: "17 - 28 août 2026",
     promo: "",
-    cta: "Découvrir le séjour",
-  },
-  {
-    href: "/sejours/eaux-vives-creative-camp",
-    image: "/ovive.png",
-    badge: "Offre juillet",
-    title: "Eaux Vives Creative Camp",
-    age: "11-13 / 14-17 ans",
-    dates: "20 - 31 juillet 2026",
-    promo: "350 - 950 €",
     cta: "Découvrir le séjour",
   },
 ];
 
 const julyOffer = {
   label: "Surf : dernières places en août",
-  title: "Juillet complet, quelques places en août",
+  title: "Dernières places surf du 17 au 28 août",
   body:
-    "Les sessions surf de juillet sont complètes. Quelques places restent disponibles sur les deux départs du mois d'août.",
+    "Tous les autres séjours sont complets. Les inscriptions restent ouvertes uniquement sur la session surf du 17 au 28 août.",
   price: "places limitées",
-  cta: "Voir les sessions d'août",
+  cta: "Voir la session disponible",
   href: "/sejours/my-creative-surf-camp",
 };
 
@@ -672,7 +662,7 @@ function extractSejourIdFromTrip(trip) {
 }
 
 function formatSejourDatesForTrip(sejour) {
-  const entries = bookableSessions(sejour?.dates);
+  const entries = publicBookableSessions(sejour?.id, sejour?.dates);
   if (!entries.length) return "";
   const months = entries
     .flatMap((item) => {
@@ -714,17 +704,22 @@ function formatPromoDateForTrip(sejour, fallback = "") {
 }
 
 function mergeTripsWithSejours(sourceTrips, sejoursById) {
-  const baseTrips = Array.isArray(sourceTrips) ? sourceTrips : [];
+  const baseTrips = (Array.isArray(sourceTrips) ? sourceTrips : []).filter((trip) => (
+    extractSejourIdFromTrip(trip) === PUBLIC_BOOKABLE_SESSION.sejourSlug
+  ));
   return baseTrips.map((trip) => {
     const sejourId = extractSejourIdFromTrip(trip);
     const liveSejour = sejourId ? sejoursById.get(sejourId) : null;
     if (!liveSejour) return trip;
-    const hasLimitedSessions = (liveSejour.dates || []).some(isSessionLimited);
+    const publicSessions = publicBookableSessions(sejourId, liveSejour.dates || []);
+    if (!isPublicBookableSejour(sejourId, liveSejour)) return null;
+    const publicSejour = { ...liveSejour, dates: publicSessions };
+    const hasLimitedSessions = publicSessions.some(isSessionLimited);
     const hasActivePromoSession = Boolean(
-      liveSejour?.promotion?.active
-      && (liveSejour.dates || []).some((session) =>
+      publicSejour?.promotion?.active
+      && publicSessions.some((session) =>
         !isSessionFull(session)
-        && String(session?.startDate || "").slice(0, 10) === String(liveSejour.promotion.startDate || "").slice(0, 10),
+        && String(session?.startDate || "").slice(0, 10) === String(publicSejour.promotion.startDate || "").slice(0, 10),
       ),
     );
 
@@ -732,14 +727,14 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
       ...trip,
       sejourId,
       href: `/sejours/${sejourId}`,
-      title: liveSejour.name || trip.title,
-      image: liveSejour.heroImage || trip.image,
-      age: formatSejourAgesForTrip(liveSejour) || trip.age,
-      dates: formatPromoDateForTrip(liveSejour) || formatSejourDatesForTrip(liveSejour) || trip.dates,
-      promo: hasActivePromoSession ? (liveSejour.promotion.priceLabel || trip.promo) : "",
+      title: publicSejour.name || trip.title,
+      image: publicSejour.heroImage || trip.image,
+      age: formatSejourAgesForTrip(publicSejour) || trip.age,
+      dates: formatPromoDateForTrip(publicSejour) || formatSejourDatesForTrip(publicSejour) || trip.dates,
+      promo: hasActivePromoSession ? (publicSejour.promotion.priceLabel || trip.promo) : "",
       badge: hasLimitedSessions ? "Quelques places" : hasActivePromoSession ? "Offre juillet" : trip.badge,
     };
-  });
+  }).filter(Boolean);
 }
 
 function escapeHtml(value) {

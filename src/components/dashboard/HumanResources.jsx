@@ -2042,6 +2042,9 @@ export default function HumanResources({ initialTab = "sejours" }) {
     setStaffDocuments((previous) => previous.filter((document) => document.id !== documentId));
   };
 
+  const allRefreshableDocusignContracts = contracts.filter((contract) => (
+    contract.docusignEnvelopeId && contract.docusignStatus !== "completed" && contract.docusignStatus !== "voided"
+  ));
   const animCount = members.filter((m) => m.staffType !== "directeur").length;
   const dirCount  = members.filter((m) => m.staffType === "directeur").length;
 
@@ -2062,6 +2065,17 @@ export default function HumanResources({ initialTab = "sejours" }) {
           <p>{animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="dash-row-actions">
+          <button
+            type="button"
+            className="dash-btn"
+            onClick={() => refreshVisibleDocusignStatuses(allRefreshableDocusignContracts)}
+            disabled={!allRefreshableDocusignContracts.length || Boolean(docusignBusyId)}
+            title="Actualise tous les contrats DocuSign actifs et archive les PDF termines"
+          >
+            {docusignBusyId === "__bulk__"
+              ? "Actualisation signatures..."
+              : `Actualiser signatures (${allRefreshableDocusignContracts.length})`}
+          </button>
           <a className="dash-btn" href="/api/docusign/consent" target="_blank" rel="noreferrer">
             Connecter DocuSign
           </a>
