@@ -58,9 +58,9 @@ function sameCampaign(run, currentRun) {
   return Boolean(currentRun.listName && run.listName === currentRun.listName);
 }
 
-async function getCampaignSentEmails(currentRun) {
+async function getCampaignSentEmails(currentRun, excludeRunId = "") {
   const runsSnap = await getDocs(collection(db, RUNS));
-  const matchingRuns = runsSnap.docs.filter((runDoc) => sameCampaign(runDoc.data(), currentRun));
+  const matchingRuns = runsSnap.docs.filter((runDoc) => runDoc.id !== excludeRunId && sameCampaign(runDoc.data(), currentRun));
   const sentEmails = new Set();
   for (const runDoc of matchingRuns) {
     const eventsSnap = await getDocs(collection(runDoc.ref, "events"));
@@ -134,29 +134,21 @@ export async function POST(request, context) {
     return Response.json({ error: "Aucun expediteur sauvegarde pour cette campagne" }, { status: 400 });
   }
 
-  const [contactsSnap, unsubSnap, eventsSnap, campaignSent] = await Promise.all([
+  const [contactsSnap, unsubSnap, campaignSent] = await Promise.all([
     getDocs(query(collection(db, CONTACTS), where("listId", "==", run.listId))),
     getDocs(collection(db, UNSUB)),
-    getDocs(collection(runRef, "events")),
-    getCampaignSentEmails(run),
+    getCampaignSentEmails(run, id),
   ]);
 
   const unsubscribed = new Set(unsubSnap.docs.map(d => normalizeEmail(d.data().email || d.id)));
-  const alreadySent = new Set(
-    eventsSnap.docs
-      .map(d => d.data())
-      .filter(ev => ev.type === "sent")
-      .map(ev => normalizeEmail(ev.email))
-      .filter(Boolean)
-  );
-  for (const email of campaignSent) alreadySent.add(email);
-
+  const startIndex = Math.max(0, Number(run.nextIndex ?? (Number(run.sent || 0) + Number(run.errors || 0))) || 0);
   const remaining = contactsSnap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(c => c.email)
     .filter(c => !unsubscribed.has(normalizeEmail(c.email)))
-    .filter(c => !alreadySent.has(normalizeEmail(c.email)))
-    .sort((a, b) => (Number(b.scorePertinence) || 0) - (Number(a.scorePertinence) || 0));
+    .filter(c => !campaignSent.has(normalizeEmail(c.email)))
+    .sort((a, b) => (Number(b.scorePertinence) || 0) - (Number(a.scorePertinence) || 0))
+    .slice(startIndex);
 
   if (!remaining.length) {
     await updateDoc(runRef, {
@@ -186,7 +178,7 @@ export async function POST(request, context) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = line => controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
-      let sent = Number(run.sent || alreadySent.size || 0);
+      let sent = Number(run.sent || 0);
       let errors = Number(run.errors || 0);
       let sentThisBatch = 0;
 
@@ -220,6 +212,7 @@ export async function POST(request, context) {
           await updateDoc(runRef, {
             sent,
             errors,
+            nextIndex: startIndex + i + 1,
             currentEmail: contact.email,
             currentSender: sender.email,
             updatedAt: serverTimestamp(),
@@ -232,6 +225,7 @@ export async function POST(request, context) {
           await updateDoc(runRef, {
             sent,
             errors,
+            nextIndex: startIndex + i + 1,
             currentEmail: contact.email,
             currentSender: sender.email,
             lastError: err.message,
@@ -245,6 +239,7 @@ export async function POST(request, context) {
         if (sentThisBatch >= maxPerRequest && i < remaining.length - 1) {
           await updateDoc(runRef, {
             status: "paused",
+            nextIndex: startIndex + i + 1,
             currentEmail: "",
             currentSender: "",
             updatedAt: serverTimestamp(),
@@ -265,6 +260,7 @@ export async function POST(request, context) {
       await updateDoc(runRef, {
         sent,
         errors,
+        nextIndex: startIndex + remaining.length,
         status: "done",
         currentEmail: "",
         currentSender: "",

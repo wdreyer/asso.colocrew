@@ -128,6 +128,7 @@ export async function POST(request) {
     total,
     sent: 0,
     errors: 0,
+    nextIndex: 0,
     status: "running",
     currentEmail: "",
     currentSender: "",
@@ -208,6 +209,7 @@ export async function POST(request) {
           await updateDoc(runRef, {
             sent,
             errors,
+            nextIndex: i + 1,
             currentEmail: contact.email,
             currentSender: sender.email,
             updatedAt: serverTimestamp(),
@@ -220,6 +222,7 @@ export async function POST(request) {
           await updateDoc(runRef, {
             sent,
             errors,
+            nextIndex: i + 1,
             currentEmail: contact.email,
             currentSender: sender.email,
             lastError: err.message,
@@ -234,6 +237,7 @@ export async function POST(request) {
         if (sentThisBatch >= batchLimit && i < filteredContacts.length - 1) {
           await updateDoc(runRef, {
             status: "paused",
+            nextIndex: i + 1,
             currentEmail: "",
             currentSender: "",
             updatedAt: serverTimestamp(),
@@ -254,6 +258,7 @@ export async function POST(request) {
       await updateDoc(runRef, {
         sent,
         errors,
+        nextIndex: filteredContacts.length,
         status: "done",
         currentEmail: "",
         currentSender: "",

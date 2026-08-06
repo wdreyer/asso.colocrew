@@ -57,7 +57,7 @@ p{font-size:15px;line-height:1.65;margin:0 0 14px}
   <div class="body">
     <p><strong>Association ColoCrew</strong></p>
 
-    <p>Bonjour {{params.PRENOM}},</p>
+    <p>Bonjour,</p>
 
     <div class="alert">
       <p><strong>Derni&egrave;re offre :</strong> il nous reste quelques places pour le s&eacute;jour <strong>My Creative Surf Camp</strong>, du <strong>17 au 28 ao&ucirc;t 2026</strong>.</p>
