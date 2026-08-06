@@ -11,6 +11,9 @@ import {
 
 const RUNS = "campagne_runs";
 const UNSUB = "campagne_unsubscribes";
+const SEND_MAIL_TIMEOUT_MS = 8000;
+
+export const maxDuration = 60;
 
 function createTransport() {
   return nodemailer.createTransport({
@@ -21,6 +24,9 @@ function createTransport() {
       user: process.env.NEXT_USER_MAIL,
       pass: process.env.NEXT_USER_PASSWORD,
     },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: SEND_MAIL_TIMEOUT_MS,
   });
 }
 
@@ -39,6 +45,15 @@ function personalize(html, contact) {
     .replace(/\{+unsubscribe\}+/gi,      "#");
 }
 
+function sendMailWithTimeout(transporter, message) {
+  return Promise.race([
+    transporter.sendMail(message),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Timeout SMTP apres ${SEND_MAIL_TIMEOUT_MS / 1000}s`)), SEND_MAIL_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 /**
  * POST /api/brevo/dispatch
  * Corps : { contacts, senders, subject, htmlContent, replyTo, delayMs }
@@ -55,7 +70,7 @@ export async function POST(request) {
     sourceMode = "list",
     listId = "",
     listName = "",
-    maxPerRequest = 8,
+    maxPerRequest = 2,
   } = await request.json();
 
   if (!contacts?.length || !senders?.length || !subject || !htmlContent || !replyTo) {
@@ -73,7 +88,7 @@ export async function POST(request) {
   const transporter = createTransport();
   const encoder = new TextEncoder();
   const total = filteredContacts.length;
-  const batchLimit = Math.max(1, Math.min(Number(maxPerRequest) || 8, 25));
+  const batchLimit = Math.max(1, Math.min(Number(maxPerRequest) || 2, 5));
   const runRef = await addDoc(collection(db, RUNS), {
     subject,
     replyTo,
@@ -148,7 +163,7 @@ export async function POST(request) {
             currentSender: sender.email,
             updatedAt: serverTimestamp(),
           });
-          await transporter.sendMail({
+          await sendMailWithTimeout(transporter, {
             from:    `"${sender.name}" <${sender.email}>`,
             to:      contact.email,
             replyTo,

@@ -15,6 +15,9 @@ import {
 const CONTACTS = "campagne_contacts";
 const RUNS = "campagne_runs";
 const UNSUB = "campagne_unsubscribes";
+const SEND_MAIL_TIMEOUT_MS = 8000;
+
+export const maxDuration = 60;
 
 function createTransport() {
   return nodemailer.createTransport({
@@ -25,6 +28,9 @@ function createTransport() {
       user: process.env.NEXT_USER_MAIL,
       pass: process.env.NEXT_USER_PASSWORD,
     },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: SEND_MAIL_TIMEOUT_MS,
   });
 }
 
@@ -40,6 +46,15 @@ function personalize(html, contact) {
     .replace(/\{\{params\.PRENOM\}\}/gi, contact.prenom || "")
     .replace(/\{\{params\.NOM\}\}/gi, contact.nom || "")
     .replace(/\{+unsubscribe\}+/gi, "#");
+}
+
+function sendMailWithTimeout(transporter, message) {
+  return Promise.race([
+    transporter.sendMail(message),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`Timeout SMTP apres ${SEND_MAIL_TIMEOUT_MS / 1000}s`)), SEND_MAIL_TIMEOUT_MS);
+    }),
+  ]);
 }
 
 async function recordEvent(runRef, event) {
@@ -70,7 +85,7 @@ async function shouldHalt(runRef, sent, errors, total) {
 
 export async function POST(request, context) {
   const body = await request.json().catch(() => ({}));
-  const maxPerRequest = Math.max(1, Math.min(Number(body.maxPerRequest || 8) || 8, 25));
+  const maxPerRequest = Math.max(1, Math.min(Number(body.maxPerRequest || 2) || 2, 5));
   const { id } = await context.params;
   const runRef = doc(db, RUNS, id);
   const runSnap = await getDoc(runRef);
@@ -165,7 +180,7 @@ export async function POST(request, context) {
             currentSender: sender.email,
             updatedAt: serverTimestamp(),
           });
-          await transporter.sendMail({
+          await sendMailWithTimeout(transporter, {
             from: `"${sender.name}" <${sender.email}>`,
             to: contact.email,
             replyTo: run.replyTo,

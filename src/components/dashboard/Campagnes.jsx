@@ -722,7 +722,7 @@ function TabCampagne({ lists }) {
     try {
       const res = await fetch("/api/brevo/dispatch", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName, maxPerRequest: 8 }),
+        body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName, maxPerRequest: 2 }),
       });
 
       const reader = res.body.getReader();
@@ -768,7 +768,7 @@ function TabCampagne({ lists }) {
         await new Promise(resolve => setTimeout(resolve, 800));
         const resumeRes = await fetch(`/api/brevo/runs/${runIdToResume}/resume`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ maxPerRequest: 8 }),
+          body: JSON.stringify({ maxPerRequest: 2 }),
         });
         if (!resumeRes.ok || !resumeRes.body) {
           const data = await resumeRes.json().catch(() => ({}));
