@@ -45,6 +45,33 @@ function personalize(html, contact) {
     .replace(/\{+unsubscribe\}+/gi,      "#");
 }
 
+function normalizeEmail(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function sameCampaign(run, { subject, listId, listName }) {
+  if (run.subject !== subject) return false;
+  if (listId && run.listId === listId) return true;
+  return Boolean(listName && run.listName === listName);
+}
+
+async function getPreviouslySentEmails({ subject, listId, listName }) {
+  const runsSnap = await getDocs(collection(db, RUNS));
+  const matchingRuns = runsSnap.docs.filter((runDoc) => sameCampaign(runDoc.data(), { subject, listId, listName }));
+  const sentEmails = new Set();
+  for (const runDoc of matchingRuns) {
+    const eventsSnap = await getDocs(collection(runDoc.ref, "events"));
+    eventsSnap.docs
+      .map((eventDoc) => eventDoc.data())
+      .filter((event) => event.type === "sent")
+      .forEach((event) => {
+        const email = normalizeEmail(event.email);
+        if (email) sentEmails.add(email);
+      });
+  }
+  return sentEmails;
+}
+
 function sendMailWithTimeout(transporter, message) {
   return Promise.race([
     transporter.sendMail(message),
@@ -77,9 +104,15 @@ export async function POST(request) {
     return Response.json({ error: "Paramètres manquants — contacts, senders, subject, htmlContent et replyTo sont requis" }, { status: 400 });
   }
 
-  const unsubSnap = await getDocs(collection(db, UNSUB));
-  const unsubscribed = new Set(unsubSnap.docs.map(d => String(d.data().email || d.id).toLowerCase().trim()));
-  const filteredContacts = contacts.filter(c => !unsubscribed.has(String(c.email || "").toLowerCase().trim()));
+  const [unsubSnap, previouslySent] = await Promise.all([
+    getDocs(collection(db, UNSUB)),
+    getPreviouslySentEmails({ subject, listId, listName }),
+  ]);
+  const unsubscribed = new Set(unsubSnap.docs.map(d => normalizeEmail(d.data().email || d.id)));
+  const filteredContacts = contacts.filter(c => {
+    const email = normalizeEmail(c.email);
+    return email && !unsubscribed.has(email) && !previouslySent.has(email);
+  });
 
   if (!filteredContacts.length) {
     return Response.json({ error: "Tous les contacts sont desinscrits ou invalides" }, { status: 400 });
@@ -107,6 +140,7 @@ export async function POST(request) {
     canResume: sourceMode === "list" && !!listId,
     delayMs,
     maxPerRequest: batchLimit,
+    skippedAlreadySent: previouslySent.size,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

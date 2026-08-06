@@ -48,6 +48,33 @@ function personalize(html, contact) {
     .replace(/\{+unsubscribe\}+/gi, "#");
 }
 
+function normalizeEmail(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function sameCampaign(run, currentRun) {
+  if (run.subject !== currentRun.subject) return false;
+  if (currentRun.listId && run.listId === currentRun.listId) return true;
+  return Boolean(currentRun.listName && run.listName === currentRun.listName);
+}
+
+async function getCampaignSentEmails(currentRun) {
+  const runsSnap = await getDocs(collection(db, RUNS));
+  const matchingRuns = runsSnap.docs.filter((runDoc) => sameCampaign(runDoc.data(), currentRun));
+  const sentEmails = new Set();
+  for (const runDoc of matchingRuns) {
+    const eventsSnap = await getDocs(collection(runDoc.ref, "events"));
+    eventsSnap.docs
+      .map((eventDoc) => eventDoc.data())
+      .filter((event) => event.type === "sent")
+      .forEach((event) => {
+        const email = normalizeEmail(event.email);
+        if (email) sentEmails.add(email);
+      });
+  }
+  return sentEmails;
+}
+
 function sendMailWithTimeout(transporter, message) {
   return Promise.race([
     transporter.sendMail(message),
@@ -107,26 +134,28 @@ export async function POST(request, context) {
     return Response.json({ error: "Aucun expediteur sauvegarde pour cette campagne" }, { status: 400 });
   }
 
-  const [contactsSnap, unsubSnap, eventsSnap] = await Promise.all([
+  const [contactsSnap, unsubSnap, eventsSnap, campaignSent] = await Promise.all([
     getDocs(query(collection(db, CONTACTS), where("listId", "==", run.listId))),
     getDocs(collection(db, UNSUB)),
     getDocs(collection(runRef, "events")),
+    getCampaignSentEmails(run),
   ]);
 
-  const unsubscribed = new Set(unsubSnap.docs.map(d => String(d.data().email || d.id).toLowerCase().trim()));
+  const unsubscribed = new Set(unsubSnap.docs.map(d => normalizeEmail(d.data().email || d.id)));
   const alreadySent = new Set(
     eventsSnap.docs
       .map(d => d.data())
       .filter(ev => ev.type === "sent")
-      .map(ev => String(ev.email || "").toLowerCase().trim())
+      .map(ev => normalizeEmail(ev.email))
       .filter(Boolean)
   );
+  for (const email of campaignSent) alreadySent.add(email);
 
   const remaining = contactsSnap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(c => c.email)
-    .filter(c => !unsubscribed.has(String(c.email).toLowerCase().trim()))
-    .filter(c => !alreadySent.has(String(c.email).toLowerCase().trim()))
+    .filter(c => !unsubscribed.has(normalizeEmail(c.email)))
+    .filter(c => !alreadySent.has(normalizeEmail(c.email)))
     .sort((a, b) => (Number(b.scorePertinence) || 0) - (Number(a.scorePertinence) || 0));
 
   if (!remaining.length) {
