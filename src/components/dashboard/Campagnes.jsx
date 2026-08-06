@@ -722,11 +722,13 @@ function TabCampagne({ lists }) {
     try {
       const res = await fetch("/api/brevo/dispatch", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName }),
+        body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName, maxPerRequest: 8 }),
       });
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let runIdToResume = "";
+      let shouldResume = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -736,6 +738,7 @@ function TabCampagne({ lists }) {
           try {
             const msg = JSON.parse(line);
             if (msg.type === "start") {
+              runIdToResume = msg.runId;
               setActiveRunId(msg.runId);
               setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
               loadRun(msg.runId);
@@ -744,12 +747,68 @@ function TabCampagne({ lists }) {
               setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: msg.email });
               if (msg.runId) loadRun(msg.runId);
             }
+            if (msg.type === "batchDone") {
+              runIdToResume = msg.runId;
+              shouldResume = true;
+              setActiveRunId(msg.runId);
+              setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
+              if (msg.runId) loadRun(msg.runId);
+            }
             if (msg.type === "done") {
               setDispatchDone(msg);
               if (msg.runId) loadRun(msg.runId);
               showToast(`Terminé ! ${msg.sent}/${msg.total} emails envoyés`, "success");
             }
           } catch {/* ligne incomplète */}
+        }
+      }
+
+      while (shouldResume && runIdToResume) {
+        shouldResume = false;
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const resumeRes = await fetch(`/api/brevo/runs/${runIdToResume}/resume`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ maxPerRequest: 8 }),
+        });
+        if (!resumeRes.ok || !resumeRes.body) {
+          const data = await resumeRes.json().catch(() => ({}));
+          throw new Error(data.error || "Erreur pendant la reprise de l'envoi");
+        }
+
+        const resumeReader = resumeRes.body.getReader();
+        const resumeDecoder = new TextDecoder();
+        while (true) {
+          const { value, done } = await resumeReader.read();
+          if (done) break;
+          const lines = resumeDecoder.decode(value).split("\n").filter(Boolean);
+          for (const line of lines) {
+            try {
+              const msg = JSON.parse(line);
+              if (msg.type === "start") {
+                runIdToResume = msg.runId;
+                setActiveRunId(msg.runId);
+                setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
+                loadRun(msg.runId);
+              }
+              if (msg.type === "ok" || msg.type === "err") {
+                setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: msg.email });
+                if (msg.runId) loadRun(msg.runId);
+              }
+              if (msg.type === "batchDone") {
+                runIdToResume = msg.runId;
+                shouldResume = true;
+                setActiveRunId(msg.runId);
+                setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
+                if (msg.runId) loadRun(msg.runId);
+              }
+              if (msg.type === "done") {
+                setDispatchDone(msg);
+                if (msg.runId) loadRun(msg.runId);
+                showToast(`TerminÃ© ! ${msg.sent}/${msg.total} emails envoyÃ©s`, "success");
+                shouldResume = false;
+              }
+            } catch {/* ligne incomplÃ¨te */}
+          }
         }
       }
     } catch (err) {

@@ -68,7 +68,9 @@ async function shouldHalt(runRef, sent, errors, total) {
   return { status };
 }
 
-export async function POST(_request, context) {
+export async function POST(request, context) {
+  const body = await request.json().catch(() => ({}));
+  const maxPerRequest = Math.max(1, Math.min(Number(body.maxPerRequest || 8) || 8, 25));
   const { id } = await context.params;
   const runRef = doc(db, RUNS, id);
   const runSnap = await getDoc(runRef);
@@ -142,6 +144,7 @@ export async function POST(_request, context) {
       const send = line => controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"));
       let sent = Number(run.sent || alreadySent.size || 0);
       let errors = Number(run.errors || 0);
+      let sentThisBatch = 0;
 
       send({ type: "start", runId: id, sent, errors, total, remaining: remaining.length });
 
@@ -179,6 +182,7 @@ export async function POST(_request, context) {
           });
           await recordEvent(runRef, { type: "sent", email: contact.email, sender: sender.email, sent, errors });
           send({ type: "ok", runId: id, sent, errors, total, email: contact.email, sender: sender.email });
+          sentThisBatch++;
         } catch (err) {
           errors++;
           await updateDoc(runRef, {
@@ -191,6 +195,20 @@ export async function POST(_request, context) {
           });
           await recordEvent(runRef, { type: "error", email: contact.email, sender: sender.email, message: err.message, sent, errors });
           send({ type: "err", runId: id, sent, errors, total, email: contact.email, message: err.message });
+          sentThisBatch++;
+        }
+
+        if (sentThisBatch >= maxPerRequest && i < remaining.length - 1) {
+          await updateDoc(runRef, {
+            status: "paused",
+            currentEmail: "",
+            currentSender: "",
+            updatedAt: serverTimestamp(),
+          });
+          await recordEvent(runRef, { type: "batch_done", sent, errors, total, remaining: total - sent });
+          send({ type: "batchDone", runId: id, sent, errors, total, remaining: total - sent });
+          controller.close();
+          return;
         }
 
         if (i < remaining.length - 1) {

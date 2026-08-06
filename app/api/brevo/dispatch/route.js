@@ -55,6 +55,7 @@ export async function POST(request) {
     sourceMode = "list",
     listId = "",
     listName = "",
+    maxPerRequest = 8,
   } = await request.json();
 
   if (!contacts?.length || !senders?.length || !subject || !htmlContent || !replyTo) {
@@ -72,6 +73,7 @@ export async function POST(request) {
   const transporter = createTransport();
   const encoder = new TextEncoder();
   const total = filteredContacts.length;
+  const batchLimit = Math.max(1, Math.min(Number(maxPerRequest) || 8, 25));
   const runRef = await addDoc(collection(db, RUNS), {
     subject,
     replyTo,
@@ -89,6 +91,7 @@ export async function POST(request) {
     listName,
     canResume: sourceMode === "list" && !!listId,
     delayMs,
+    maxPerRequest: batchLimit,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -125,6 +128,7 @@ export async function POST(request) {
 
       let sent = 0;
       let errors = 0;
+      let sentThisBatch = 0;
       send({ type: "start", runId: runRef.id, sent, errors, total });
 
       for (let i = 0; i < filteredContacts.length; i++) {
@@ -161,6 +165,7 @@ export async function POST(request) {
           });
           await recordEvent({ type: "sent", email: contact.email, sender: sender.email, sent, errors });
           send({ type: "ok", runId: runRef.id, sent, errors, total, email: contact.email, sender: sender.email });
+          sentThisBatch++;
         } catch (err) {
           errors++;
           await updateDoc(runRef, {
@@ -173,9 +178,23 @@ export async function POST(request) {
           });
           await recordEvent({ type: "error", email: contact.email, sender: sender.email, message: err.message, sent, errors });
           send({ type: "err", runId: runRef.id, sent, errors, total, email: contact.email, message: err.message });
+          sentThisBatch++;
         }
 
         // Délai aléatoire entre les envois (sauf après le dernier)
+        if (sentThisBatch >= batchLimit && i < filteredContacts.length - 1) {
+          await updateDoc(runRef, {
+            status: "paused",
+            currentEmail: "",
+            currentSender: "",
+            updatedAt: serverTimestamp(),
+          });
+          await recordEvent({ type: "batch_done", sent, errors, total, remaining: total - sent });
+          send({ type: "batchDone", runId: runRef.id, sent, errors, total, remaining: total - sent });
+          controller.close();
+          return;
+        }
+
         if (i < filteredContacts.length - 1) {
           const delay = jitteredDelay(delayMs);
           send({ type: "wait", delay, nextAt: Date.now() + delay });
