@@ -21,6 +21,89 @@ const TABS = [
 
 const TEMPLATES = [
   {
+    key: "derniere-offre-aout-2026",
+    label: "Derniere offre aout 2026",
+    subject: "Dernieres places d'aout : My Creative Surf Camp a 250 EUR apres aide CAF",
+    html: `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<style>
+body{font-family:Arial,sans-serif;background:#f3f4f6;color:#111827;margin:0;padding:0}
+.wrap{max-width:640px;margin:0 auto;background:#fff}
+.top{background:#dc2626;color:#fff;padding:24px 28px;text-align:center}
+.top .kicker{font-size:13px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:0 0 8px}
+.top h1{font-size:28px;line-height:1.15;margin:0 0 8px;font-weight:800}
+.top p{font-size:15px;line-height:1.45;margin:0}
+.body{padding:28px}
+p{font-size:15px;line-height:1.65;margin:0 0 14px}
+.alert{background:#fff1f2;border:1px solid #fecdd3;border-left:5px solid #dc2626;border-radius:8px;padding:14px 16px;margin:0 0 18px}
+.alert strong{color:#b91c1c}
+.price{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:18px 0}
+.price .big{font-size:30px;font-weight:800;color:#dc2626;line-height:1;margin:0 0 6px}
+.price .small{font-size:13px;color:#475569;margin:0}
+.transport{border-collapse:collapse;width:100%;margin:16px 0 18px;font-size:14px}
+.transport th,.transport td{border:1px solid #e5e7eb;padding:10px;text-align:left}
+.transport th{background:#f9fafb;font-weight:700;color:#374151}
+.cta{display:inline-block;background:#dc2626;color:#fff!important;text-decoration:none;font-weight:800;border-radius:8px;padding:13px 18px;margin:6px 0 18px}
+.foot{background:#f9fafb;padding:18px 28px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb}
+.foot p{font-size:12px;line-height:1.5;margin:0}
+</style></head>
+<body><div class="wrap">
+  <div class="top">
+    <p class="kicker">ColoCrew &middot; &Eacute;t&eacute; 2026</p>
+    <h1>Derni&egrave;res offres d'ao&ucirc;t</h1>
+    <p>Quelques places seulement pour le dernier s&eacute;jour de l'&eacute;t&eacute;.</p>
+  </div>
+
+  <div class="body">
+    <p><strong>Association ColoCrew</strong></p>
+
+    <p>Bonjour {{params.PRENOM}},</p>
+
+    <div class="alert">
+      <p><strong>Derni&egrave;re offre :</strong> il nous reste quelques places pour le s&eacute;jour <strong>My Creative Surf Camp</strong>, du <strong>17 au 28 ao&ucirc;t 2026</strong>.</p>
+    </div>
+
+    <p>Pour ce s&eacute;jour, nous vous proposons un prix exceptionnel de <strong>850&nbsp;&euro;</strong>.</p>
+
+    <div class="price">
+      <p class="big">250&nbsp;&euro; &agrave; payer</p>
+      <p class="small">apr&egrave;s d&eacute;duction de l'aide CAF, selon &eacute;ligibilit&eacute;.</p>
+    </div>
+
+    <p>Il reste &eacute;galement des places de transport aller-retour :</p>
+
+    <table class="transport">
+      <thead>
+        <tr>
+          <th>Villes de d&eacute;part</th>
+          <th>Prix aller-retour</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Lyon, Montpellier, Paris</td>
+          <td><strong>150&nbsp;&euro;</strong></td>
+        </tr>
+        <tr>
+          <td>Bordeaux, Toulouse</td>
+          <td><strong>60&nbsp;&euro;</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Au vu des dates et des d&eacute;lais, n'h&eacute;sitez pas &agrave; me contacter directement :</p>
+
+    <a class="cta" href="tel:+33687916897">06 87 91 68 97</a>
+
+    <p>&Agrave; tr&egrave;s bient&ocirc;t,<br>L'&eacute;quipe ColoCrew</p>
+  </div>
+
+  <div class="foot">
+    <p>R&eacute;pondez avec "STOP" &agrave; ce mail si vous ne souhaitez plus en recevoir.</p>
+  </div>
+</div></body></html>`,
+  },
+  {
     key: "hebergement-urgence-2026",
     label: "Recherche hebergement 2026",
     subject: "Recherche urgente d'hebergement groupe ete 2026 - ColoCrew",
