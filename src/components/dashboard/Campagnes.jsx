@@ -1473,31 +1473,51 @@ function TabHistoriqueFirebase() {
     if (!runId) return;
     setResuming(true);
     try {
-      const res = await fetch(`/api/brevo/runs/${runId}/resume`, { method: "POST" });
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        showToast(data.error || "Impossible de reprendre cette campagne", "error");
-        setResuming(false);
-        return;
-      }
+      let keepGoing = true;
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+      while (keepGoing) {
+        keepGoing = false;
+        const res = await fetch(`/api/brevo/runs/${runId}/resume`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ maxPerRequest: 2 }),
+        });
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          showToast(data.error || "Impossible de reprendre cette campagne", "error");
+          setResuming(false);
+          return;
+        }
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value).split("\n").filter(Boolean);
-        for (const line of lines) {
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === "start" || msg.type === "ok" || msg.type === "err" || msg.type === "done") {
-              await loadRun(runId);
-            }
-            if (msg.type === "done") {
-              showToast(`Reprise terminee : ${msg.sent}/${msg.total} emails envoyes`, "success");
-            }
-          } catch {/* ligne incomplete */}
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const lines = decoder.decode(value).split("\n").filter(Boolean);
+          for (const line of lines) {
+            try {
+              const msg = JSON.parse(line);
+              if (["start", "ok", "err", "batchDone", "done"].includes(msg.type)) {
+                await loadRun(runId);
+              }
+              if (msg.type === "batchDone") {
+                keepGoing = true;
+              }
+              if (msg.type === "done") {
+                showToast(`Reprise terminee : ${msg.sent}/${msg.total} emails envoyes`, "success");
+                keepGoing = false;
+              }
+              if (msg.type === "paused" || msg.type === "stopped") {
+                keepGoing = false;
+              }
+            } catch {/* ligne incomplete */}
+          }
+        }
+
+        if (keepGoing) {
+          await new Promise(resolve => setTimeout(resolve, 800));
         }
       }
       await loadRuns();
