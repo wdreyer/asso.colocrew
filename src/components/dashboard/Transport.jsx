@@ -345,9 +345,10 @@ function reservationMatchesQuery(reservation, query) {
 }
 
 function passengerCity(transport, passenger) {
-  return passenger.pickupCity
-    || (transport.direction === "aller" ? passenger.departureCity : passenger.returnCity)
-    || "Ville à préciser";
+  if (transport.direction === "retour") {
+    return passenger.dropoffCity || passenger.returnCity || passenger.pickupCity || "Ville à préciser";
+  }
+  return passenger.pickupCity || passenger.departureCity || "Ville à préciser";
 }
 
 function passengerDropoffCity(passenger) {
@@ -1327,6 +1328,8 @@ function mapReservationForTransport(snap) {
     convocationSent: Boolean(d.convocationSent),
     convocationSentAt: d.convocationSentAt || null,
     convocationSentChannel: d.convocationSentChannel || "",
+    registrationSource: d.registrationSource || d.finance?.entries?.map((entry) => entry.source).filter(Boolean).join(" / ") || "",
+    registrationSourceIsTotemia: Boolean(d.registrationSourceIsTotemia || d.finance?.entries?.some((entry) => normalizeSearchKey(entry.source).includes("totemia"))),
     convocationReminderDone: Boolean(d.convocationReminderDoneAt || d.convocationReminderSentAt),
     convocationReminderDoneAt: d.convocationReminderDoneAt || d.convocationReminderSentAt || null,
     isImported2026: d.validationSource === "ete26_validated_workbook",
@@ -1372,6 +1375,8 @@ function hydrateTransportPassenger(passenger, reservation, transport) {
     convocationSent: Boolean(reservation.convocationSent ?? passenger.convocationSent),
     convocationSentAt: reservation.convocationSentAt || passenger.convocationSentAt || null,
     convocationSentChannel: reservation.convocationSentChannel || passenger.convocationSentChannel || "",
+    registrationSource: reservation.registrationSource || passenger.registrationSource || "",
+    registrationSourceIsTotemia: Boolean(reservation.registrationSourceIsTotemia || passenger.registrationSourceIsTotemia),
     pickupCity: passenger.pickupCity || (transport.direction === "retour" ? reservation.returnCity : reservation.departureCity) || "",
   };
 }
@@ -7459,7 +7464,41 @@ function contactsDisplay(values, fallback = "—") {
 }
 
 function isExternalConvocation(item) {
-  return normalizeSearchKey(item?.convocationSentChannel) === "totemia";
+  return normalizeSearchKey(item?.convocationSentChannel) === "totemia"
+    || Boolean(item?.registrationSourceIsTotemia)
+    || normalizeSearchKey(item?.registrationSource).includes("totemia");
+}
+
+function registrationSourceLabel(item) {
+  const source = String(item?.registrationSource || "").trim();
+  if (isExternalConvocation(item)) return source ? `Totemia · ${source}` : "Totemia";
+  return source || "ColoCrew";
+}
+
+function shortMeetingPoint(value, maxLength = 34) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const firstPart = text.split(/\s[-–—]\s|,\s|·/)[0]?.trim() || text;
+  const candidate = firstPart.length >= 12 ? firstPart : text;
+  return candidate.length > maxLength ? `${candidate.slice(0, maxLength - 1).trim()}…` : candidate;
+}
+
+function RegistrationSourceBadge({ item }) {
+  const external = isExternalConvocation(item);
+  return (
+    <span style={{
+      display: "inline-flex",
+      padding: "4px 8px",
+      borderRadius: 999,
+      background: external ? "#fff7ed" : "#ecfdf5",
+      color: external ? "#c2410c" : "#047857",
+      fontSize: 11,
+      fontWeight: 800,
+      whiteSpace: "nowrap",
+    }}>
+      {registrationSourceLabel(item)}
+    </span>
+  );
 }
 
 // Group passengers sharing an email only when their city and stay are also identical.
@@ -8405,6 +8444,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             <tr style={{ background: "#f8f9fa", borderBottom: "1px solid #e5e7eb" }}>
               <th style={cTh}>Parents</th>
               <th style={cTh}>Enfants</th>
+              <th style={cTh}>Origine</th>
               <th style={cTh}>Ville</th>
               <th style={cTh}>Horaire</th>
               <th style={cTh}>Point de RDV</th>
@@ -8419,7 +8459,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
             {/* Sur place — par séjour */}
             {onSiteSejourNames.length === 0 && (
               <tr style={{ background: "#f0fdf4" }}>
-                <td colSpan={9} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
+                <td colSpan={10} style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, color: "#15803d", borderBottom: "1px solid #d1fae5" }}>
                   <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", marginRight: 8, fontSize: 11 }}>SP</span>
                   Sur place — aucune famille cette semaine
                 </td>
@@ -8435,7 +8475,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
               return (
                 <Fragment key={`sp-${sejourName}`}>
                   <tr style={{ background: "#f0fdf4", borderTop: "2px solid #bbf7d0" }}>
-                    <td colSpan={9} style={{ padding: "8px 14px" }}>
+                    <td colSpan={10} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ background: "#15803d", color: "#fff", borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>SP</span>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#15803d" }}>{sejourName}</span>
@@ -8472,13 +8512,18 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                       <tr key={r.id} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: "1px solid #f0f0f0" }}>
                         <td style={cTd}><span style={{ fontWeight: 600, color: "#1e1040" }}>{r.nom}</span>{r._reservationCount > 1 && <div style={{ fontSize: 10, color: "#15803d", marginTop: 2 }}>{r._reservationCount} dossiers regroupés</div>}</td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{kids}</span></td>
+                        <td style={cTd}><RegistrationSourceBadge item={r} /></td>
                         <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}>Sur place</span></td>
                         <td style={cTd}>
                           <span style={{ fontWeight: 700, color: "#16a34a", fontSize: 11 }}>↓ {cfg.arrivalTime}</span>
                           <br />
                           <span style={{ fontWeight: 700, color: "#ea580c", fontSize: 11 }}>↑ {cfg.returnTime}</span>
                         </td>
-                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{cfg.lieu || "Lieu du séjour"}</span></td>
+                        <td style={cTd}>
+                          <span title={cfg.lieu || ""} style={{ color: "#374151", fontSize: 12 }}>
+                            Sur place
+                          </span>
+                        </td>
                         <td style={cTd}>
                           {externalConvocation ? (
                             <span style={{ display: "inline-flex", padding: "5px 9px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 800 }}>Totemia · envoi externe</span>
@@ -8571,7 +8616,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                 <Fragment key={trip.id}>
                   {/* En-tête trajet */}
                   <tr style={{ background: "#f5f0ff", borderTop: "2px solid #d4c0e8" }}>
-                    <td colSpan={9} style={{ padding: "8px 14px" }}>
+                    <td colSpan={10} style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 800, fontSize: 12, color: "#5f3374" }}>{trip.departureCity} → {trip.arrivalCity}</span>
                         <span style={{ fontSize: 11, color: "#7c3aed", background: "#ede9fe", borderRadius: 5, padding: "2px 7px", fontWeight: 700 }}>
@@ -8585,7 +8630,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     </td>
                   </tr>
                   {familyGroups.length === 0 && (
-                    <tr><td colSpan={9} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
+                    <tr><td colSpan={10} style={{ padding: "10px 14px", color: "#94a3b8", fontStyle: "italic", fontSize: 12 }}>Aucun passager assigné à ce trajet</td></tr>
                   )}
                   {familyGroups.map((passengers, i) => {
                     const primary   = passengers[0];
@@ -8613,13 +8658,18 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                           {passengers.length > 1 && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 6 }}>({passengers.length} dossiers)</span>}
                         </td>
                         <td style={cTd}><span style={{ color: "#7c3aed", fontSize: 12 }}>{allChildren}</span></td>
+                        <td style={cTd}><RegistrationSourceBadge item={primary} /></td>
                         <td style={cTd}><span style={{ fontSize: 12, fontWeight: 600, color: "#5f3374" }}>{passengerCity(trip, primary)}</span></td>
                         <td style={cTd}>
                           {rdvInfo.rdvTime
                             ? <span style={{ fontWeight: 700, color: "#16a34a" }}>{rdvInfo.rdvTime}</span>
                             : <span style={{ color: "#94a3b8" }}>—</span>}
                         </td>
-                        <td style={cTd}><span style={{ color: "#374151", fontSize: 12 }}>{rdvInfo.meetingPoint || passengerCity(trip, primary) || "—"}</span></td>
+                        <td style={cTd}>
+                          <span title={rdvInfo.meetingPoint || ""} style={{ color: "#374151", fontSize: 12, fontWeight: 600 }}>
+                            {passengerCity(trip, primary) || "—"}
+                          </span>
+                        </td>
                         <td style={cTd}>
                           {externalConvocation ? (
                             <span style={{ display: "inline-flex", padding: "5px 9px", borderRadius: 999, background: "#fff7ed", color: "#c2410c", fontSize: 11, fontWeight: 800 }}>Totemia · envoi externe</span>
