@@ -771,8 +771,40 @@ function openPrintableDocument(html, features = "width=1000,height=780") {
   return win;
 }
 
-function wrapForPrint(innerHtml) {
+function safeDocumentTitle(value, fallback = "Convocation transport") {
+  const text = String(value || fallback)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || fallback;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function passengerChildTitle(passenger, child = null) {
+  const target = child || passenger?.children?.[0] || null;
+  const firstName = target?.firstName || "";
+  const lastName = target?.lastName || "";
+  const fullName = `${String(lastName).toUpperCase()} ${firstName}`.trim()
+    || passenger?.childName
+    || passenger?.nom
+    || "Convocation transport";
+  return safeDocumentTitle(fullName);
+}
+
+function wrapForPrint(innerHtml, title = "Convocation transport") {
+  const docTitle = safeDocumentTitle(title);
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>${escapeHtml(docTitle)}</title>
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
   body{margin:0;padding:20px 8px;background:#f0ebff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;}
@@ -8035,6 +8067,54 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     return rows;
   }, [convocationTrips, onSiteGroups, sentStatus, reminderStatus, emailFor]);
 
+  const totemiaPdfItems = useMemo(() => {
+    const rows = [];
+    weekTrips.forEach((trip) => {
+      (trip.passengers || []).filter((passenger) => isExternalConvocation(passenger)).forEach((passenger) => {
+        const children = passenger.children?.length ? passenger.children : [{ firstName: passenger.childName || "", lastName: "" }];
+        children.forEach((child, childIndex) => {
+          rows.push({ trip, passenger, child, childIndex });
+        });
+      });
+    });
+    return rows;
+  }, [weekTrips]);
+
+  const handleOpenTotemiaPdfs = useCallback(() => {
+    if (!totemiaPdfItems.length) {
+      showToast("Aucune convocation Totemia sur cette semaine", "info");
+      return;
+    }
+    const opened = [];
+    for (const item of totemiaPdfItems) {
+      const childPassenger = {
+        ...item.passenger,
+        children: [item.child],
+        childName: childFullName(item.child) || item.passenger.childName,
+      };
+      const title = passengerChildTitle(item.passenger, item.child);
+      const rdvInfo = getEmailRdvInfo(item.trip, item.passenger);
+      const animInfo = getAnimForTrip(item.trip, item.passenger);
+      const html = wrapForPrint(
+        buildConvocEmailHtml(item.trip, childPassenger, rdvInfo, transports, customIntro, animInfo, convocSettings),
+        title,
+      );
+      const win = openPrintableDocument(html, "width=900,height=760");
+      if (win) opened.push(win);
+    }
+    opened.forEach((win, index) => {
+      setTimeout(() => {
+        try {
+          win.focus();
+          win.print();
+        } catch {
+          // The browser may block focus/print on multiple windows; opened tabs remain usable.
+        }
+      }, 500 + index * 250);
+    });
+    showToast(`${opened.length}/${totemiaPdfItems.length} convocation(s) Totemia ouverte(s)`, opened.length ? "success" : "warning");
+  }, [totemiaPdfItems, transports, customIntro, convocSettings, getAnimForTrip, showToast]);
+
   const handleSendAll = useCallback(async () => {
     const total = pendingFamilies.length + pendingOnSiteReservations.length;
     if (!total) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
@@ -8166,6 +8246,10 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
           </div>
         ) : (
           <>
+            <button type="button" className="dash-btn" onClick={handleOpenTotemiaPdfs} disabled={totemiaPdfItems.length === 0}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, color: totemiaPdfItems.length ? "#c2410c" : undefined, borderColor: totemiaPdfItems.length ? "#fdba74" : undefined, background: totemiaPdfItems.length ? "#fff7ed" : undefined }}>
+              PDF Totemia ({totemiaPdfItems.length})
+            </button>
             <button type="button" className="dash-btn" onClick={handleSendAllReminders} disabled={pendingReminderFamilies.length === 0}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, color: pendingReminderFamilies.length ? "#ea580c" : undefined, borderColor: pendingReminderFamilies.length ? "#fdba74" : undefined }}>
               Rappels {selectedReminderLabel} ({pendingReminderFamilies.length})
@@ -8283,7 +8367,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                               disabled={!lastMinuteTrip}
                               onClick={() => {
                                 const animInfo = getAnimForTrip(lastMinuteTrip, row.primary);
-                                openDoc(wrapForPrint(buildConvocEmailHtml(lastMinuteTrip, merged, rdvInfo, transports, lastMinuteMessage, animInfo, convocSettings)));
+                                openDoc(wrapForPrint(buildConvocEmailHtml(lastMinuteTrip, merged, rdvInfo, transports, lastMinuteMessage, animInfo, convocSettings), passengerChildTitle(merged)));
                               }}>
                               Aperçu
                             </button>
@@ -8560,7 +8644,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => { const ai = getAnimForOnSite(sejourName); openDoc(wrapForPrint(buildOnSiteEmailHtml(r, selectedWeek, { arrivalTime: cfg.arrivalTime, returnTime: cfg.returnTime, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }, customIntro, ai))); }}>
+                              onClick={() => { const ai = getAnimForOnSite(sejourName); openDoc(wrapForPrint(buildOnSiteEmailHtml(r, selectedWeek, { arrivalTime: cfg.arrivalTime, returnTime: cfg.returnTime, arrivalPoint: cfg.lieu || "Lieu du séjour", returnPoint: cfg.lieu || "Lieu du séjour" }, customIntro, ai), passengerChildTitle(r))); }}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -8708,7 +8792,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => { const ai = getAnimForTrip(trip, primary); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai))); }}>
+                              onClick={() => { const ai = getAnimForTrip(trip, primary); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai), passengerChildTitle(merged))); }}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
