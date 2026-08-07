@@ -7271,8 +7271,8 @@ function ConvocEmailSender({ transport, allTransports }) {
       )}
 
       {/* ── Tableau ── */}
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto", overflowY: "visible", maxWidth: "100%" }}>
+        <table style={{ width: "100%", minWidth: 1540, borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: "#f8f9fa", borderBottom: "1px solid #e5e7eb" }}>
               <th style={thS}>Famille</th>
