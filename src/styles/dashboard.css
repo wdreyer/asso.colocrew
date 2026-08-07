@@ -50,6 +50,76 @@
   height: 100%;
 }
 
+.ds-shell.is-sidebar-collapsed .ds-sidebar {
+  width: 68px;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-brand {
+  justify-content: center;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-brand-text,
+.ds-shell.is-sidebar-collapsed .ds-nav-group-label,
+.ds-shell.is-sidebar-collapsed .ds-nav-item {
+  font-size: 0;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-nav-item {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-nav-group-header {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-nav-group-chevron,
+.ds-shell.is-sidebar-collapsed .ds-foot-link,
+.ds-shell.is-sidebar-collapsed .ds-foot-email {
+  display: none;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-sidebar-foot {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.ds-shell.is-sidebar-collapsed .ds-foot-user {
+  justify-content: center;
+}
+
+.ds-sidebar-toggle {
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  border: 1px solid rgba(120, 90, 160, 0.18);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--dash-muted);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ds-sidebar-toggle:hover {
+  border-color: rgba(184, 51, 106, 0.32);
+  color: var(--dash-accent);
+}
+
+.ds-shell.is-sidebar-collapsed .ds-sidebar-toggle {
+  position: absolute;
+  right: 6px;
+  top: 18px;
+  margin-left: 0;
+}
+
 /* Mobile backdrop */
 .ds-backdrop {
   display: none;
@@ -92,6 +162,7 @@
 
 /* ── Brand block ── */
 .ds-brand {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -339,6 +410,17 @@
   .ds-backdrop  { display: block; }
   .ds-sidebar   { position: absolute; top: 0; left: 0; height: 100%; transform: translateX(-100%); transition: transform 0.22s ease; z-index: 200; }
   .ds-sidebar.is-open { transform: translateX(0); }
+  .ds-shell.is-sidebar-collapsed .ds-sidebar { width: var(--ds-sidebar-w); }
+  .ds-shell.is-sidebar-collapsed .ds-brand { justify-content: flex-start; padding-left: 18px; padding-right: 18px; }
+  .ds-shell.is-sidebar-collapsed .ds-brand-text { font-size: inherit; }
+  .ds-shell.is-sidebar-collapsed .ds-nav-group-label { font-size: 9px; }
+  .ds-shell.is-sidebar-collapsed .ds-nav-item { font-size: 12.5px; }
+  .ds-shell.is-sidebar-collapsed .ds-nav-item { justify-content: flex-start; gap: 10px; padding-left: 14px; padding-right: 14px; }
+  .ds-shell.is-sidebar-collapsed .ds-nav-group-header { justify-content: space-between; padding-left: 14px; padding-right: 14px; }
+  .ds-shell.is-sidebar-collapsed .ds-nav-group-chevron,
+  .ds-shell.is-sidebar-collapsed .ds-foot-link,
+  .ds-shell.is-sidebar-collapsed .ds-foot-email { display: inline-flex; }
+  .ds-shell.is-sidebar-collapsed .ds-sidebar-toggle { position: static; margin-left: auto; }
   .ds-content   { padding: 16px 14px 20px; }
   .dash-content { padding: 16px 14px 20px; }
 }
@@ -9024,7 +9106,55 @@
 }
 
 /* ── Onglet Convocations ── */
-.tr-convoc-tab { display: flex; flex-direction: column; }
+.tr-convoc-tab { display: flex; flex-direction: column; min-width: 0; }
+
+.tr-convoc-scroll-tools {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 6px 0;
+  background: var(--dash-content-bg);
+}
+
+.tr-convoc-scroll-tools span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tr-convoc-scroll-tools div {
+  display: flex;
+  gap: 6px;
+}
+
+.tr-convoc-scroll-tools .dash-btn {
+  min-width: 36px;
+  padding: 6px 10px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tr-convoc-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  scrollbar-gutter: stable;
+}
+
+.tr-convoc-table {
+  width: 100%;
+  min-width: 1480px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
 
 .tr-convoc-layout {
   display: grid;

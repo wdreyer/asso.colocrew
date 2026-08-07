@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   addDoc, collection, deleteDoc, doc, getDoc,
@@ -7581,6 +7581,7 @@ function isFamilyConvocationPassenger(transport, passenger) {
 
 function ConvocationsTab({ transports, reservations, staffMembers = [], staffContracts = [] }) {
   const { showToast } = useToast();
+  const convocationTableRef = useRef(null);
   const [selectedWeek, setSelectedWeek] = useState("S2");
   const [sentStatus, setSentStatus]     = useState({});
   const [reminderStatus, setReminderStatus] = useState({});
@@ -7603,6 +7604,15 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
   const [lastMinuteMessage, setLastMinuteMessage] = useState(
     "Bonjour,\n\nSuite a une modification de derniere minute sur le transport, nous vous transmettons la nouvelle convocation mise a jour.\n\nMerci de bien prendre en compte les nouveaux horaires indiques ci-dessous. L'animateur du convoyage reste joignable en cas de besoin.",
   );
+
+  const scrollConvocationTable = useCallback((direction) => {
+    const node = convocationTableRef.current;
+    if (!node) return;
+    node.scrollBy({
+      left: direction * Math.max(360, Math.round(node.clientWidth * 0.75)),
+      behavior: "smooth",
+    });
+  }, []);
 
   const emailsFor = useCallback((item) => {
     if (isExternalConvocation(item)) return [];
@@ -8522,8 +8532,19 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       )}
 
       {/* Tableau */}
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div className="tr-convoc-scroll-tools">
+        <span>Navigation horizontale du tableau</span>
+        <div>
+          <button type="button" className="dash-btn" onClick={() => scrollConvocationTable(-1)} aria-label="Aller vers la gauche">
+            &larr;
+          </button>
+          <button type="button" className="dash-btn" onClick={() => scrollConvocationTable(1)} aria-label="Aller vers la droite">
+            &rarr;
+          </button>
+        </div>
+      </div>
+      <div ref={convocationTableRef} className="tr-convoc-table-wrap">
+        <table className="tr-convoc-table">
           <thead>
             <tr style={{ background: "#f8f9fa", borderBottom: "1px solid #e5e7eb" }}>
               <th style={cTh}>Parents</th>

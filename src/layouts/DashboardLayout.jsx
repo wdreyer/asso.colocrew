@@ -58,6 +58,7 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname();
   const { currentUser, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [closedGroups, setClosedGroups] = useState(new Set());
 
   const initials = useMemo(() => (currentUser?.email || "AD").slice(0, 2).toUpperCase(), [currentUser?.email]);
@@ -75,7 +76,7 @@ export default function DashboardLayout({ children }) {
   const close = () => setMobileOpen(false);
 
   return (
-    <div className="ds-shell">
+    <div className={`ds-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
       <button className="ds-hamburger" onClick={() => setMobileOpen((v) => !v)} type="button" aria-label="Menu">
         <span /><span /><span />
       </button>
@@ -88,6 +89,15 @@ export default function DashboardLayout({ children }) {
             <span className="ds-brand-name">ColoCrew</span>
             <span className="ds-brand-sub">Admin</span>
           </div>
+          <button
+            type="button"
+            className="ds-sidebar-toggle"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            title={sidebarCollapsed ? "Agrandir le menu" : "Réduire le menu"}
+            aria-label={sidebarCollapsed ? "Agrandir le menu" : "Réduire le menu"}
+          >
+            {sidebarCollapsed ? ">" : "<"}
+          </button>
         </div>
 
         <nav className="ds-nav">
