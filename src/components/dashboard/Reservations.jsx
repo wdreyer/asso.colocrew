@@ -864,6 +864,7 @@ function buildSuiteEmailHtml({
   alreadyPaid = 0, amountDueNow, discountPercent = 0, childCount = 1,
   link, installmentsEnabled, installmentsCount, depositLink,
   priceDefined = true,
+  missingCafNumber = false,
 }) {
   const parts = [];
   parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">Bonjour ${escapeHtml(nom)},</p>`);
@@ -888,6 +889,14 @@ function buildSuiteEmailHtml({
       </div>`);
   } else {
     parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">Nous revenons vers vous au sujet de votre réservation pour le séjour "${escapeHtml(sejour)}" (réf. ${escapeHtml(ref)}).</p>`);
+  }
+
+  if (missingCafNumber) {
+    parts.push(`
+      <div style="border:1px solid #cfe8dc;border-radius:10px;padding:12px 14px;margin:0 0 14px;background:#f4fbf7;">
+        <p style="margin:0 0 5px;font-size:12px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:0.04em;">Information CAF</p>
+        <p style="margin:0;font-size:13px;color:#1e1535;line-height:1.6;">Vous ne nous avez pas encore transmis votre num&eacute;ro d'allocataire CAF. Si vous nous l'envoyez, nous pourrons v&eacute;rifier si vous avez droit &agrave; une aide et, le cas &eacute;ch&eacute;ant, ajuster le reste &agrave; charge.</p>
+      </div>`);
   }
 
   if (link) {
@@ -1131,6 +1140,7 @@ function EmailComposer({ item, onGoToTarif }) {
   const installmentsCountNum = Math.max(Math.round(Number(installmentsCount)) || 0, 2);
   const childCount = reservationChildCount(item);
   const discountPercent = Math.round((1 - siblingDiscountFactor(childCount)) * 100);
+  const missingCafNumber = !String(item.cafOrSecu || "").trim() || item.cafOrSecu === "—";
 
   const initFromTpl = (key) => {
     const t = EMAIL_TEMPLATES.find(x => x.key === key) || EMAIL_TEMPLATES[0];
@@ -1157,6 +1167,7 @@ function EmailComposer({ item, onGoToTarif }) {
     alreadyPaid, amountDueNow, discountPercent, childCount,
     link: stripeLink, installmentsEnabled, installmentsCount: installmentsCountNum, depositLink,
     priceDefined: isPriceDefined,
+    missingCafNumber,
   });
 
   const applyTpl = (key) => {
