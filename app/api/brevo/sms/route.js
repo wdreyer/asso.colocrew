@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 const BREVO_SMS_URL = "https://api.brevo.com/v3/transactionalSMS/sms";
+const BREVO_KEY_ENV_NAMES = ["BREVO_API_KEY", "SENDINBLUE_API_KEY", "SIB_API_KEY"];
 
 function cleanText(value, max = 1000) {
   return String(value || "").trim().slice(0, max);
@@ -15,11 +16,22 @@ function normalizeRecipient(value) {
   return "";
 }
 
+function getBrevoApiKey() {
+  for (const name of BREVO_KEY_ENV_NAMES) {
+    const value = String(process.env[name] || "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
 export async function POST(request) {
   try {
-    const apiKey = process.env.BREVO_API_KEY;
+    const apiKey = getBrevoApiKey();
     if (!apiKey) {
-      return Response.json({ error: "BREVO_API_KEY manquant" }, { status: 500 });
+      return Response.json({
+        error: "Cle API Brevo manquante. Ajoutez BREVO_API_KEY dans les variables d'environnement du site (cle API v3, pas le mot de passe SMTP).",
+        missingEnv: BREVO_KEY_ENV_NAMES,
+      }, { status: 500 });
     }
 
     const body = await request.json();
