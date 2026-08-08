@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { collection, doc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { useToast } from "@/src/contexts/ToastContext";
@@ -28,6 +28,7 @@ const SENDERS = [
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const LATEST_PLACES_TEMPLATE_KEY = "dernieres_places_aout";
+const SMS_S4_RELANCE_DEFAULT = `ColoCrew : il reste quelques places pour le sejour d'aout S4 de {{prenom_enfants}}. Pour bloquer la place, repondez OUI a ce SMS ou appelez William au 06 87 91 68 97. Ref {{numero_reservation}}`;
 
 const STATUS_FILTERS = [
   { value: "validated", label: "Validées" },
@@ -253,6 +254,23 @@ function childrenFullNames(minor) {
   return children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ");
 }
 
+function contactPhone(reservation) {
+  const legal = reservation?.legal || {};
+  return legal.phone || legal.telephone || reservation?.phone || "";
+}
+
+function normalizeSmsPhone(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const first = raw.split(/[,\n;/]+/).map((item) => item.trim()).find(Boolean) || "";
+  const compact = first.replace(/[^\d+]/g, "");
+  if (/^\+33[67]\d{8}$/.test(compact)) return compact;
+  if (/^0033[67]\d{8}$/.test(compact)) return `+${compact.slice(2)}`;
+  if (/^0[67]\d{8}$/.test(compact)) return `+33${compact.slice(1)}`;
+  if (/^33[67]\d{8}$/.test(compact)) return `+${compact}`;
+  return "";
+}
+
 function resolveVars(text, reservation, extraVars = {}) {
   if (!text) return "";
   const { legal = {}, minor = {}, sejour = {} } = reservation;
@@ -363,9 +381,10 @@ function StatusDot({ status }) {
   return <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />;
 }
 
-function SendResultsPanel({ progress, onReset }) {
+function SendResultsPanel({ progress, onReset, channel = "email" }) {
   const failed = progress.errors;
   const succeeded = progress.done - failed.length;
+  const itemLabel = channel === "sms" ? "SMS" : "email(s)";
   return (
     <div style={{ padding: "20px 28px", flex: 1, overflowY: "auto" }}>
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -378,7 +397,7 @@ function SendResultsPanel({ progress, onReset }) {
           <div style={{ fontSize: 36, marginBottom: 8 }}>{failed.length === 0 ? "✓" : "⚠"}</div>
           <div style={{ fontWeight: 800, fontSize: 18, color: "#1e1040" }}>
             {failed.length === 0
-              ? `${succeeded} email(s) envoyé(s) avec succès`
+              ? `${succeeded} ${itemLabel} envoyé(s) avec succès`
               : `${succeeded} succès · ${failed.length} erreur(s)`}
           </div>
           <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
@@ -416,6 +435,7 @@ function SendResultsPanel({ progress, onReset }) {
 
 export default function Communication() {
   const { showToast } = useToast();
+  const [activeChannel, setActiveChannel] = useState("email");
 
   // Data
   const [reservations, setReservations] = useState([]);
@@ -437,6 +457,8 @@ export default function Communication() {
   const [sender, setSender] = useState(SENDERS[0]);
   const [missingDocs, setMissingDocs] = useState(new Set());
   const [attachments, setAttachments] = useState([]);
+  const [smsSender, setSmsSender] = useState("ColoCrew");
+  const [smsBody, setSmsBody] = useState(SMS_S4_RELANCE_DEFAULT);
 
   // Send state
   const [sendState, setSendState] = useState("idle");
@@ -448,6 +470,7 @@ export default function Communication() {
 
   const subjectRef = useRef(null);
   const bodyRef = useRef(null);
+  const smsBodyRef = useRef(null);
   const attachmentInputRef = useRef(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -488,7 +511,8 @@ export default function Communication() {
 
   const filtered = useMemo(() => {
     return reservations.filter((r) => {
-      if (!r.legal?.email) return false;
+      if (activeChannel === "email" && !r.legal?.email) return false;
+      if (activeChannel === "sms" && !normalizeSmsPhone(contactPhone(r))) return false;
       if (filterStatus === "validated" && !isValidatedReservation(r)) return false;
       if (filterStatus === "pending" && !isPendingReservation(r)) return false;
       if (filterSejour !== "all" && r.sejour?.name !== filterSejour) return false;
@@ -499,13 +523,14 @@ export default function Communication() {
         const q = search.toLowerCase();
         const name = `${r.legal?.firstName || ""} ${r.legal?.lastName || ""}`.toLowerCase();
         const email = (r.legal?.email || "").toLowerCase();
+        const phone = contactPhone(r).toLowerCase();
         const num = (r.numeroDeReservation || "").toLowerCase();
         const kids = childrenFullNames(r.minor).toLowerCase();
-        if (!name.includes(q) && !email.includes(q) && !num.includes(q) && !kids.includes(q)) return false;
+        if (!name.includes(q) && !email.includes(q) && !phone.includes(q) && !num.includes(q) && !kids.includes(q)) return false;
       }
       return true;
     });
-  }, [reservations, filterSejour, filterStatus, filterWeek, search]);
+  }, [activeChannel, reservations, filterSejour, filterStatus, filterWeek, search]);
 
   const selectedList = useMemo(
     () => filtered.filter((r) => selected.has(r.id)),
@@ -532,6 +557,21 @@ export default function Communication() {
     if (key === LATEST_PLACES_TEMPLATE_KEY) {
       setFilterStatus("pending");
       setFilterWeek("all");
+    } else {
+      setFilterStatus("validated");
+    }
+  }, []);
+
+  const handleChannelChange = useCallback((channel) => {
+    setActiveChannel(channel);
+    setSelected(new Set());
+    setPreviewOpen(false);
+    setSendState("idle");
+    setSendProgress({ done: 0, total: 0, errors: [] });
+    if (channel === "sms") {
+      setFilterStatus("pending");
+      setFilterWeek("S4");
+      setTemplateKey(LATEST_PLACES_TEMPLATE_KEY);
     } else {
       setFilterStatus("validated");
     }
@@ -702,6 +742,60 @@ export default function Communication() {
     }
   }, [selectedList, templateKey, subject, body, sender, attachments, getExtraVars, showToast]);
 
+  const sendSmsBatch = useCallback(async () => {
+    if (selectedList.length === 0) { showToast("Aucun destinataire SMS sÃ©lectionnÃ©", "error"); return; }
+    const invalidPhone = selectedList.find((res) => !normalizeSmsPhone(contactPhone(res)));
+    if (invalidPhone) {
+      showToast("Certains destinataires n'ont pas de mobile valide", "error");
+      return;
+    }
+    if (selectedList.some((res) => weekFromStartDate(res.sejour?.startDate) !== "S4" || !isPendingReservation(res))) {
+      showToast("Le SMS de relance est prÃ©vu pour les S4 en cours non validÃ©es", "error");
+      return;
+    }
+    if (!smsSender.trim()) { showToast("L'expÃ©diteur SMS est obligatoire", "error"); return; }
+    if (!smsBody.trim()) { showToast("Le texte SMS est obligatoire", "error"); return; }
+
+    setSendState("sending");
+    setSendProgress({ done: 0, total: selectedList.length, errors: [] });
+    const errors = [];
+
+    for (let i = 0; i < selectedList.length; i++) {
+      const res = selectedList[i];
+      try {
+        const recipient = normalizeSmsPhone(contactPhone(res));
+        const content = resolveVars(smsBody, res);
+        const resp = await fetch("/api/brevo/sms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sender: smsSender.trim(),
+            recipient,
+            content,
+            tag: `relance-s4-${res.numeroDeReservation || res.id}`,
+          }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+        await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), {
+          smsS4ReminderSent: true,
+          smsS4ReminderSentAt: serverTimestamp(),
+          smsS4ReminderRecipient: recipient,
+          smsS4ReminderText: content,
+        });
+        setReservations((prev) => prev.map((item) => item.id === res.id ? { ...item, smsS4ReminderSent: true } : item));
+      } catch (e) {
+        errors.push({ email: `${contactPhone(res)} · ${res.legal?.firstName || ""} ${res.legal?.lastName || ""}`.trim(), error: e.message });
+      }
+      setSendProgress({ done: i + 1, total: selectedList.length, errors: [...errors] });
+      if (i < selectedList.length - 1) await new Promise((r) => setTimeout(r, 350));
+    }
+
+    setSendState("done");
+    if (errors.length === 0) showToast(`${selectedList.length} SMS envoyÃ©(s) avec succÃ¨s`, "success");
+    else showToast(`${selectedList.length - errors.length} succÃ¨s, ${errors.length} erreur(s)`, "error");
+  }, [selectedList, smsSender, smsBody, showToast]);
+
   const resetSend = useCallback(() => {
     setSendState("idle");
     setSendProgress({ done: 0, total: 0, errors: [] });
@@ -729,6 +823,15 @@ export default function Communication() {
       </div>
 
       {/* ── Body ── */}
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button type="button" onClick={() => handleChannelChange("email")} style={{ ...channelTabStyle, ...(activeChannel === "email" ? channelTabActiveStyle : {}) }}>
+            Emails
+          </button>
+          <button type="button" onClick={() => handleChannelChange("sms")} style={{ ...channelTabStyle, ...(activeChannel === "sms" ? channelTabActiveStyle : {}) }}>
+            SMS relance S4
+          </button>
+        </div>
+
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
         {/* ── Left : filtres + liste ── */}
@@ -829,7 +932,7 @@ export default function Communication() {
                         {week && <span style={{ fontWeight: 800, color: "#7c3aed", flexShrink: 0 }}>{week}</span>}
                       </div>
                       <div style={{ fontSize: 11, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {res.legal?.email}
+                        {activeChannel === "sms" ? normalizeSmsPhone(contactPhone(res)) : res.legal?.email}
                       </div>
                     </div>
 
@@ -844,7 +947,7 @@ export default function Communication() {
                         setPreviewOpen(true);
                       }}
                       title="Aperçu email"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", padding: 0, flexShrink: 0, paddingTop: 3 }}
+                      style={{ display: activeChannel === "sms" ? "none" : undefined, background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", padding: 0, flexShrink: 0, paddingTop: 3 }}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
@@ -859,7 +962,85 @@ export default function Communication() {
 
         {/* ── Right : composer ── */}
         {sendState === "done" ? (
-          <SendResultsPanel progress={sendProgress} onReset={resetSend} />
+          <SendResultsPanel progress={sendProgress} onReset={resetSend} channel={activeChannel} />
+        ) : activeChannel === "sms" ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 8px" }}>
+              <div style={{ marginBottom: 18, padding: 16, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10 }}>
+                <div style={{ ...labelStyle, color: "#047857", marginBottom: 6 }}>Ciblage SMS</div>
+                <p style={{ margin: 0, fontSize: 12, color: "#047857", lineHeight: 1.5 }}>
+                  Mode prÃ©vu pour les rÃ©servations S4 en cours non validÃ©es avec mobile valide. Pour recevoir une rÃ©ponse directe au SMS, l'expÃ©diteur Brevo doit permettre les rÃ©ponses ; un Sender ID texte comme "ColoCrew" peut ne pas recevoir les retours.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>ExpÃ©diteur SMS</label>
+                <input
+                  value={smsSender}
+                  onChange={(e) => setSmsSender(e.target.value)}
+                  maxLength={16}
+                  style={inputStyle}
+                  placeholder="ColoCrew ou numÃ©ro compatible rÃ©ponse"
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Message SMS</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
+                  {VAR_BADGES_BODY.filter((v) => ["prenom_parent", "prenom_enfants", "nom_sejour", "semaine", "numero_reservation"].includes(v.var)).map((v) => (
+                    <VarBadge key={v.var} label={v.label} onClick={() => insertVar(v.var, smsBodyRef, setSmsBody)} />
+                  ))}
+                </div>
+                <textarea
+                  ref={smsBodyRef}
+                  value={smsBody}
+                  onChange={(e) => setSmsBody(e.target.value)}
+                  rows={7}
+                  style={{ ...inputStyle, resize: "vertical", fontFamily: "'Courier New', Courier, monospace", fontSize: 13, lineHeight: 1.55 }}
+                />
+                <p style={{ margin: "6px 0 0", fontSize: 11, color: smsBody.length > 160 ? "#ea580c" : "#94a3b8" }}>
+                  {smsBody.length} caractÃ¨res avant personnalisation. Un SMS long peut consommer plusieurs crÃ©dits.
+                </p>
+              </div>
+
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+                <div style={{ padding: "10px 14px", background: "#f8fafc", fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
+                  AperÃ§u premier destinataire
+                </div>
+                <div style={{ padding: 14, fontSize: 14, lineHeight: 1.6, color: "#1e1040", whiteSpace: "pre-wrap" }}>
+                  {selectedList[0] ? resolveVars(smsBody, selectedList[0]) : "SÃ©lectionnez au moins une famille S4 non validÃ©e."}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: "12px 28px", borderTop: "1px solid #f0e8f5", background: "#fff", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+              {sendState === "sending" ? (
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: "#374151", marginBottom: 5 }}>
+                    Envoi SMS en coursâ€¦ {sendProgress.done}/{sendProgress.total}
+                    {sendProgress.errors.length > 0 && <span style={{ color: "#ef4444", marginLeft: 8 }}>Â· {sendProgress.errors.length} erreur(s)</span>}
+                  </div>
+                  <div style={{ height: 6, background: "#f3f4f6", borderRadius: 999, overflow: "hidden" }}>
+                    <div style={{ height: "100%", background: "#16a34a", borderRadius: 999, width: `${(sendProgress.done / sendProgress.total) * 100}%`, transition: "width 0.3s ease" }} />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <span style={{ fontSize: 13, color: "#64748b", flex: 1 }}>
+                    {selectedList.length === 0 ? "SÃ©lectionnez les familles S4 Ã  relancer" : `${selectedList.length} SMS prÃªt(s) Ã  envoyer`}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={selectedList.length === 0}
+                    onClick={sendSmsBatch}
+                    style={{ ...btnStyle, background: selectedList.length === 0 ? "#f1f5f9" : "#16a34a", color: selectedList.length === 0 ? "#94a3b8" : "#fff", cursor: selectedList.length === 0 ? "not-allowed" : "pointer" }}
+                  >
+                    Envoyer SMS{selectedList.length > 0 ? ` (${selectedList.length})` : ""}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         ) : (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
@@ -1208,6 +1389,23 @@ const btnSmallStyle = {
   background: "#f5f0ff",
   color: "#7c3aed",
   border: "1.5px solid #d4c0e8",
+};
+
+const channelTabStyle = {
+  border: "1.5px solid #e5e7eb",
+  borderRadius: 999,
+  background: "#fff",
+  color: "#64748b",
+  padding: "7px 14px",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const channelTabActiveStyle = {
+  borderColor: "#7c3aed",
+  background: "#7c3aed",
+  color: "#fff",
 };
 
 const labelStyle = {
