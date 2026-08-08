@@ -745,17 +745,17 @@ export default function Communication() {
   }, [selectedList, templateKey, subject, body, sender, attachments, getExtraVars, showToast]);
 
   const sendSmsBatch = useCallback(async () => {
-    if (selectedList.length === 0) { showToast("Aucun destinataire SMS sÃ©lectionnÃ©", "error"); return; }
+    if (selectedList.length === 0) { showToast("Aucun destinataire SMS sélectionné", "error"); return; }
     const invalidPhone = selectedList.find((res) => !normalizeSmsPhone(contactPhone(res)));
     if (invalidPhone) {
       showToast("Certains destinataires n'ont pas de mobile valide", "error");
       return;
     }
     if (selectedList.some((res) => weekFromStartDate(res.sejour?.startDate) !== "S4" || !isPendingReservation(res))) {
-      showToast("Le SMS de relance est prÃ©vu pour les S4 en cours non validÃ©es", "error");
+      showToast("Le SMS de relance est prévu pour les S4 en cours non validées", "error");
       return;
     }
-    if (!smsSender.trim()) { showToast("L'expÃ©diteur SMS est obligatoire", "error"); return; }
+    if (!smsSender.trim()) { showToast("L'expéditeur SMS est obligatoire", "error"); return; }
     if (!smsBody.trim()) { showToast("Le texte SMS est obligatoire", "error"); return; }
 
     setSendState("sending");
@@ -794,12 +794,12 @@ export default function Communication() {
     }
 
     setSendState("done");
-    if (errors.length === 0) showToast(`${selectedList.length} SMS envoyÃ©(s) avec succÃ¨s`, "success");
-    else showToast(`${selectedList.length - errors.length} succÃ¨s, ${errors.length} erreur(s)`, "error");
+    if (errors.length === 0) showToast(`${selectedList.length} SMS envoyé(s) avec succès`, "success");
+    else showToast(`${selectedList.length - errors.length} succès, ${errors.length} erreur(s)`, "error");
   }, [selectedList, smsSender, smsBody, showToast]);
 
   const sendSmsTest = useCallback(async () => {
-    if (!smsSender.trim()) { showToast("L'expÃ©diteur SMS est obligatoire", "error"); return; }
+    if (!smsSender.trim()) { showToast("L'expéditeur SMS est obligatoire", "error"); return; }
     if (!smsBody.trim()) { showToast("Le texte SMS est obligatoire", "error"); return; }
     const sample = selectedList[0] || filtered[0] || {
       numeroDeReservation: "TEST",
@@ -821,7 +821,7 @@ export default function Communication() {
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
-      showToast(`SMS test envoyÃ© au ${SMS_TEST_PHONE}`, "success");
+      showToast(`SMS test envoyé au ${SMS_TEST_PHONE}`, "success");
     } catch (error) {
       showToast(`Erreur test SMS : ${error.message}`, "error");
     } finally {
@@ -1002,19 +1002,19 @@ export default function Communication() {
               <div style={{ marginBottom: 18, padding: 16, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10 }}>
                 <div style={{ ...labelStyle, color: "#047857", marginBottom: 6 }}>Ciblage SMS</div>
                 <p style={{ margin: 0, fontSize: 12, color: "#047857", lineHeight: 1.5 }}>
-                  Mode prÃ©vu pour les rÃ©servations S4 en cours non validÃ©es avec mobile valide. Pour recevoir une rÃ©ponse directe au SMS, l'expÃ©diteur Brevo doit permettre les rÃ©ponses ; un Sender ID texte comme "ColoCrew" peut ne pas recevoir les retours.
+                  Mode prévu pour les réservations S4 en cours non validées avec mobile valide. Pour recevoir une réponse directe au SMS, l'expéditeur Brevo doit permettre les réponses ; un Sender ID texte comme "ColoCrew" peut ne pas recevoir les retours.
                 </p>
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>ExpÃ©diteur SMS</label>
+                <label style={labelStyle}>Expéditeur SMS</label>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input
                     value={smsSender}
                     onChange={(e) => setSmsSender(e.target.value)}
                     maxLength={16}
                     style={{ ...inputStyle, flex: 1 }}
-                    placeholder="ColoCrew ou numÃ©ro compatible rÃ©ponse"
+                    placeholder="ColoCrew ou numéro compatible réponse"
                   />
                   <button
                     type="button"
@@ -1042,16 +1042,16 @@ export default function Communication() {
                   style={{ ...inputStyle, resize: "vertical", fontFamily: "'Courier New', Courier, monospace", fontSize: 13, lineHeight: 1.55 }}
                 />
                 <p style={{ margin: "6px 0 0", fontSize: 11, color: smsBody.length > 160 ? "#ea580c" : "#94a3b8" }}>
-                  {smsBody.length} caractÃ¨res avant personnalisation. Un SMS long peut consommer plusieurs crÃ©dits.
+                  {smsBody.length} caractères avant personnalisation. Un SMS long peut consommer plusieurs crédits.
                 </p>
               </div>
 
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
                 <div style={{ padding: "10px 14px", background: "#f8fafc", fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
-                  AperÃ§u premier destinataire
+                  Aperçu premier destinataire
                 </div>
                 <div style={{ padding: 14, fontSize: 14, lineHeight: 1.6, color: "#1e1040", whiteSpace: "pre-wrap" }}>
-                  {selectedList[0] ? resolveVars(smsBody, selectedList[0]) : "SÃ©lectionnez au moins une famille S4 non validÃ©e."}
+                  {selectedList[0] ? resolveVars(smsBody, selectedList[0]) : "Sélectionnez au moins une famille S4 non validée."}
                 </div>
               </div>
             </div>
@@ -1060,8 +1060,8 @@ export default function Communication() {
               {sendState === "sending" ? (
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: "#374151", marginBottom: 5 }}>
-                    Envoi SMS en coursâ€¦ {sendProgress.done}/{sendProgress.total}
-                    {sendProgress.errors.length > 0 && <span style={{ color: "#ef4444", marginLeft: 8 }}>Â· {sendProgress.errors.length} erreur(s)</span>}
+                    Envoi SMS en cours… {sendProgress.done}/{sendProgress.total}
+                    {sendProgress.errors.length > 0 && <span style={{ color: "#ef4444", marginLeft: 8 }}>· {sendProgress.errors.length} erreur(s)</span>}
                   </div>
                   <div style={{ height: 6, background: "#f3f4f6", borderRadius: 999, overflow: "hidden" }}>
                     <div style={{ height: "100%", background: "#16a34a", borderRadius: 999, width: `${(sendProgress.done / sendProgress.total) * 100}%`, transition: "width 0.3s ease" }} />
@@ -1070,7 +1070,7 @@ export default function Communication() {
               ) : (
                 <>
                   <span style={{ fontSize: 13, color: "#64748b", flex: 1 }}>
-                    {selectedList.length === 0 ? "SÃ©lectionnez les familles S4 Ã  relancer" : `${selectedList.length} SMS prÃªt(s) Ã  envoyer`}
+                    {selectedList.length === 0 ? "Sélectionnez les familles S4 à relancer" : `${selectedList.length} SMS prêt(s) à envoyer`}
                   </span>
                   <button
                     type="button"
