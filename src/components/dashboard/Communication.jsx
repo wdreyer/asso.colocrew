@@ -28,6 +28,7 @@ const SENDERS = [
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const LATEST_PLACES_TEMPLATE_KEY = "dernieres_places_aout";
+const SMS_TEST_PHONE = "0687916897";
 const SMS_S4_RELANCE_DEFAULT = `ColoCrew : il reste quelques places pour le sejour d'aout S4 de {{prenom_enfants}}. Pour bloquer la place, repondez OUI a ce SMS ou appelez William au 06 87 91 68 97. Ref {{numero_reservation}}`;
 
 const STATUS_FILTERS = [
@@ -459,6 +460,7 @@ export default function Communication() {
   const [attachments, setAttachments] = useState([]);
   const [smsSender, setSmsSender] = useState("ColoCrew");
   const [smsBody, setSmsBody] = useState(SMS_S4_RELANCE_DEFAULT);
+  const [smsTestSending, setSmsTestSending] = useState(false);
 
   // Send state
   const [sendState, setSendState] = useState("idle");
@@ -796,6 +798,37 @@ export default function Communication() {
     else showToast(`${selectedList.length - errors.length} succÃ¨s, ${errors.length} erreur(s)`, "error");
   }, [selectedList, smsSender, smsBody, showToast]);
 
+  const sendSmsTest = useCallback(async () => {
+    if (!smsSender.trim()) { showToast("L'expÃ©diteur SMS est obligatoire", "error"); return; }
+    if (!smsBody.trim()) { showToast("Le texte SMS est obligatoire", "error"); return; }
+    const sample = selectedList[0] || filtered[0] || {
+      numeroDeReservation: "TEST",
+      legal: { firstName: "Test", lastName: "ColoCrew" },
+      minor: { children: [{ firstName: "Test", lastName: "" }] },
+      sejour: { name: "My Creative Surf Camp", startDate: "2026-08-17", endDate: "2026-08-28" },
+    };
+    setSmsTestSending(true);
+    try {
+      const resp = await fetch("/api/brevo/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: smsSender.trim(),
+          recipient: SMS_TEST_PHONE,
+          content: `[TEST] ${resolveVars(smsBody, sample)}`,
+          tag: "test-relance-s4",
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      showToast(`SMS test envoyÃ© au ${SMS_TEST_PHONE}`, "success");
+    } catch (error) {
+      showToast(`Erreur test SMS : ${error.message}`, "error");
+    } finally {
+      setSmsTestSending(false);
+    }
+  }, [filtered, selectedList, smsSender, smsBody, showToast]);
+
   const resetSend = useCallback(() => {
     setSendState("idle");
     setSendProgress({ done: 0, total: 0, errors: [] });
@@ -975,13 +1008,23 @@ export default function Communication() {
 
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>ExpÃ©diteur SMS</label>
-                <input
-                  value={smsSender}
-                  onChange={(e) => setSmsSender(e.target.value)}
-                  maxLength={16}
-                  style={inputStyle}
-                  placeholder="ColoCrew ou numÃ©ro compatible rÃ©ponse"
-                />
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    value={smsSender}
+                    onChange={(e) => setSmsSender(e.target.value)}
+                    maxLength={16}
+                    style={{ ...inputStyle, flex: 1 }}
+                    placeholder="ColoCrew ou numÃ©ro compatible rÃ©ponse"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendSmsTest}
+                    disabled={smsTestSending}
+                    style={{ ...btnSmallStyle, flexShrink: 0, background: smsTestSending ? "#f1f5f9" : "#eefcf3", color: smsTestSending ? "#94a3b8" : "#15803d", borderColor: smsTestSending ? "#e2e8f0" : "#bbf7d0", cursor: smsTestSending ? "not-allowed" : "pointer" }}
+                  >
+                    {smsTestSending ? "Test..." : `Test ${SMS_TEST_PHONE}`}
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
