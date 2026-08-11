@@ -530,6 +530,10 @@ function dashboardSegmentIndex(transport, portion) {
 }
 
 function passengersOnDashboardPortion(transport, portion) {
+  const explicitIds = portionPassengerIdSet(portion);
+  if (explicitIds) {
+    return (transport.passengers || []).filter((passenger) => explicitIds.has(passenger.reservationId));
+  }
   if (isBranchPortion(portion)) return passengersOnDashboardBranch(transport, portion);
   const index = dashboardSegmentIndex(transport, portion);
   return passengersOnDashboardSegment(transport, index);
@@ -2405,7 +2409,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                     ? "pickup"
                     : "destination";
               return (
-                <details key={seg.id || i} open style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
+                <details key={seg.id || i} style={{ background: "#fff", border: "1.5px solid #ddd5f5", borderRadius: 14, overflow: "hidden" }}>
                   {/* Segment header */}
                   <summary style={{
                     padding: "11px 16px", background: "#7c3aed",
