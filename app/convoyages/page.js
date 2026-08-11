@@ -932,9 +932,39 @@ function isReturnCollectionPortion(transport, portion, index) {
     && normalizePlace(portion?.to) === "bordeaux";
 }
 
+function isReturnRoadPortion(transport, portion) {
+  const mode = `${portion?.mode || ""} ${portion?.trainType || ""} ${portion?.id || ""}`;
+  return transport?.direction === "retour" && isRoadMode(mode);
+}
+
 function passengersForJourneyPortion(transport, portion, index, portions = []) {
   if (isReturnCollectionPortion(transport, portion, index)) return transport?.passengers || [];
   return passengersOnDashboardPortion(transport, portion);
+}
+
+function boardingBreakdownForPortion(transport, portion, passengers = []) {
+  if (!isReturnRoadPortion(transport, portion)) return [];
+  const orderedCities = [
+    portion?.from,
+    ...(portion?.stops || []).map((stop) => stop.city),
+  ].filter(Boolean);
+  const groups = new Map();
+  orderedCities.forEach((city) => {
+    const key = normalizePlace(city);
+    if (!groups.has(key)) groups.set(key, { city, passengers: [] });
+  });
+  (passengers || []).forEach((passenger) => {
+    const city = passengerBoardingCity(transport, passenger);
+    const key = normalizePlace(city);
+    if (!groups.has(key)) groups.set(key, { city: city || "Ville à confirmer", passengers: [] });
+    groups.get(key).passengers.push(passenger);
+  });
+  return [...groups.values()]
+    .filter((group) => group.passengers.length > 0)
+    .map((group) => ({
+      ...group,
+      childCount: countChildren(group.passengers),
+    }));
 }
 
 function transportForPortion(allTransports = [], fallbackTransport, portion) {
@@ -1644,9 +1674,10 @@ function PassengerListTable({ transport, passengers, allTransports = [], onToggl
       : baseRows;
   const showOrigin = isAllerRoadCollectionPortion(transport, portion);
   const showSeparateFinalCity = showFinal && transport?.direction !== "retour";
+  const showBoardingCity = isReturnRoadPortion(transport, portion);
   const familyTimeLabel = transport?.direction === "retour" ? "Dépose famille" : "RDV famille";
   const trainTimeLabel = transport?.direction === "retour" ? "Arrivée train" : "Départ train";
-  const pickupLabel = transport?.direction === "retour" ? "Dépose à" : "Pris à";
+  const pickupLabel = showBoardingCity ? "Monte à" : transport?.direction === "retour" ? "Dépose à" : "Pris à";
   if (!rows.length) return null;
   return (
     <div style={{ overflowX: "auto", border: "1px solid #d8d8df", borderRadius: 10, background: "#fff" }}>
@@ -1683,7 +1714,7 @@ function PassengerListTable({ transport, passengers, allTransports = [], onToggl
               <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3" }}><StayBadge stayCode={row.stay} /></td>
               {showPickup && (
                 <td style={{ padding: "7px 8px", borderTop: "1px solid #eeeaf3", color: "#334155", fontWeight: 800 }}>
-                  <div>{transport?.direction === "retour" ? row.dropoffCity : row.pickupCity}</div>
+                  <div>{showBoardingCity ? row.pickupCity : transport?.direction === "retour" ? row.dropoffCity : row.pickupCity}</div>
                   <div style={{ marginTop: 3, display: "flex", gap: 5, flexWrap: "wrap", fontSize: 10, color: "#64748b", fontWeight: 900 }}>
                     {showOrigin && <span>Origine {row.originCity || "—"}</span>}
                     <span>{transport?.direction === "retour" ? "Dépose" : "RDV"} {row.familyTime || "—"}</span>
@@ -2400,6 +2431,7 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
               const sourceTransport = transportForPortion(allTransports, transport, seg);
               const stopPassengers = passengersForJourneyPortion(sourceTransport, seg, i, segments);
               const childCount = countChildren(stopPassengers);
+              const boardingBreakdown = boardingBreakdownForPortion(sourceTransport, seg, stopPassengers);
               const segmentStaffNames = staffNames(sourceTransport, seg.assignedStaffIds || []);
               const sortMode = isReturnCollectionPortion(sourceTransport, seg, i)
                 ? "stay"
@@ -2436,6 +2468,21 @@ function BriefingView({ transport, allTransports = [], staff, mySegments, myTick
                     <InfoRow label="Départ" value={seg.departureTime} />
                     <InfoRow label="Arrivée" value={seg.arrivalTime} />
                     <InfoRow label="Train" value={`${seg.mode || ""} ${seg.number || ""}`.trim() || null} />
+
+                    {boardingBreakdown.length > 0 && (
+                      <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+                        {boardingBreakdown.map((group) => (
+                          <div key={normalizePlace(group.city)} style={{ padding: "10px 12px", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8 }}>
+                            <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.07em", color: "#0369a1" }}>
+                              Montée {group.city}
+                            </div>
+                            <div style={{ marginTop: 3, fontSize: 20, fontWeight: 900, color: "#0c4a6e" }}>
+                              {group.childCount} enfant{group.childCount > 1 ? "s" : ""}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {seg.instructions && (
                       <div style={{
