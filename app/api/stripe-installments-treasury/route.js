@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import {
+  installmentCountFromText,
   installmentCountFromSubscription,
 } from "@/src/lib/stripeInstallments";
 import { adminErrorResponse, requireFirebaseAdmin } from "@/src/lib/serverAdminAuth";
@@ -10,6 +11,7 @@ export const maxDuration = 60;
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 const SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due"];
+const PRODUCT_FETCH_CONCURRENCY = 6;
 const INVOICE_COUNT_CONCURRENCY = 8;
 
 function amount(value) {
@@ -52,11 +54,19 @@ function formatWeekLabel(weekStart) {
   return `${formatDate(weekStart)} - ${formatDate(end)}`;
 }
 
-function productName(subscription) {
+function productIds(subscription) {
+  return subscription.items?.data
+    ?.map((item) => item.price?.product)
+    .filter((product) => typeof product === "string" && product)
+    || [];
+}
+
+function productName(subscription, productById) {
   return subscription.items?.data
     ?.map((item) => {
       const product = item.price?.product;
-      return typeof product === "object" ? product.name : "";
+      if (typeof product === "object") return product.name || "";
+      return productById.get(product)?.name || item.price?.nickname || "";
     })
     .filter(Boolean)
     .join(" + ") || "Abonnement";
@@ -82,19 +92,55 @@ function customerDetails(subscription) {
   };
 }
 
+function installmentCountWithProducts(subscription, productById) {
+  const fromSubscription = installmentCountFromSubscription(subscription);
+  if (fromSubscription > 1) return fromSubscription;
+
+  for (const item of subscription.items?.data || []) {
+    const product = item.price?.product;
+    const hydratedProduct = typeof product === "string" ? productById.get(product) : product;
+    const parsed = installmentCountFromText([
+      item.price?.nickname || "",
+      hydratedProduct?.name || "",
+      hydratedProduct?.description || "",
+    ].join(" "));
+    if (parsed > 1) return parsed;
+  }
+  return 0;
+}
+
+async function fetchProductsById(stripe, subscriptions) {
+  const ids = [...new Set(subscriptions.flatMap((subscription) => productIds(subscription)))];
+  const products = await mapWithConcurrency(ids, PRODUCT_FETCH_CONCURRENCY, async (productId) => {
+    try {
+      return [productId, await stripe.products.retrieve(productId)];
+    } catch (error) {
+      console.warn(`[stripe-installments-treasury] produit Stripe ignore ${productId}:`, error?.message || error);
+      return [productId, null];
+    }
+  });
+  return new Map(products.filter(([, product]) => product));
+}
+
 async function listInstallmentSubscriptions(stripe) {
   const subscriptions = [];
   for (const status of SUBSCRIPTION_STATUSES) {
     for await (const subscription of stripe.subscriptions.list({
       status,
       limit: 100,
-      expand: ["data.items.data.price.product", "data.customer"],
+      expand: ["data.customer"],
     })) {
-      const installments = installmentCountFromSubscription(subscription);
-      if (installments > 1) subscriptions.push({ subscription, installments });
+      subscriptions.push(subscription);
     }
   }
-  return subscriptions;
+  const productById = await fetchProductsById(stripe, subscriptions);
+  return subscriptions
+    .map((subscription) => ({
+      subscription,
+      installments: installmentCountWithProducts(subscription, productById),
+      productLabel: productName(subscription, productById),
+    }))
+    .filter((item) => item.installments > 1);
 }
 
 async function countPaidInvoices(stripe, subscriptionId, maxInvoices = 12) {
@@ -155,7 +201,7 @@ export async function GET(request) {
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const installmentSubscriptions = await listInstallmentSubscriptions(stripe);
-    const rows = await mapWithConcurrency(installmentSubscriptions, INVOICE_COUNT_CONCURRENCY, async ({ subscription, installments }) => {
+    const rows = await mapWithConcurrency(installmentSubscriptions, INVOICE_COUNT_CONCURRENCY, async ({ subscription, installments, productLabel }) => {
       if (!ACTIVE_STATUSES.has(subscription.status)) return null;
 
       const paidInvoices = await countPaidInvoices(stripe, subscription.id, installments + 3);
@@ -169,7 +215,7 @@ export async function GET(request) {
         customerName: customer.name,
         customerEmail: customer.email,
         customerId: customer.id,
-        product: productName(subscription),
+        product: productLabel,
         installments,
         paidInvoices,
         remainingInvoices,
