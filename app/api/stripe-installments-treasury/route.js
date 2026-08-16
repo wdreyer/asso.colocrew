@@ -108,91 +108,100 @@ export async function GET(request) {
     return adminErrorResponse(error);
   }
 
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return Response.json({ error: "STRIPE_SECRET_KEY manquant" }, { status: 500 });
-  }
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-  const rows = [];
-
-  for await (const listedSubscription of stripe.subscriptions.list({ status: "all", limit: 100 })) {
-    if (!ACTIVE_STATUSES.has(listedSubscription.status)) continue;
-
-    const subscription = await stripe.subscriptions.retrieve(listedSubscription.id, {
-      expand: ["items.data.price.product", "customer"],
-    });
-    const installments = installmentCountFromSubscription(subscription);
-    if (!installments || installments <= 1) continue;
-
-    const paidInvoices = await countPaidInvoicesForSubscription(stripe, subscription.id);
-    const remainingInvoices = Math.max(installments - paidInvoices, 0);
-    const invoiceAmount = subscriptionUnitAmount(subscription);
-    const completed = paidInvoices >= installments;
-    const customer = customerDetails(subscription);
-    const row = {
-      id: subscription.id,
-      status: subscription.status,
-      customerName: customer.name,
-      customerEmail: customer.email,
-      customerId: customer.id,
-      product: productName(subscription),
-      installments,
-      paidInvoices,
-      remainingInvoices,
-      invoiceAmount,
-      expectedAmount: remainingInvoices * invoiceAmount,
-      cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
-      cancelAt: subscription.cancel_at ? dateKey(new Date(subscription.cancel_at * 1000)) : null,
-      currentPeriodEnd: subscription.current_period_end ? dateKey(new Date(subscription.current_period_end * 1000)) : null,
-      completed,
-      nextInvoices: [],
-    };
-    row.nextInvoices = buildSchedule({ ...subscription, paidInvoices }, remainingInvoices, invoiceAmount);
-    rows.push(row);
-  }
-
-  const weeklyMap = new Map();
-  for (const row of rows) {
-    for (const invoice of row.nextInvoices) {
-      const date = new Date(`${invoice.date}T00:00:00.000Z`);
-      const weekStart = startOfWeek(date);
-      const key = dateKey(weekStart);
-      const current = weeklyMap.get(key) || {
-        weekStart: key,
-        label: formatWeekLabel(weekStart),
-        amount: 0,
-        invoices: 0,
-        subscriptions: new Set(),
-      };
-      current.amount += invoice.amount;
-      current.invoices += 1;
-      current.subscriptions.add(row.id);
-      weeklyMap.set(key, current);
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return Response.json({ ok: false, error: "STRIPE_SECRET_KEY manquant" }, { status: 500 });
     }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const rows = [];
+
+    for await (const listedSubscription of stripe.subscriptions.list({ status: "all", limit: 100 })) {
+      if (!ACTIVE_STATUSES.has(listedSubscription.status)) continue;
+
+      const subscription = await stripe.subscriptions.retrieve(listedSubscription.id, {
+        expand: ["items.data.price.product", "customer"],
+      });
+      const installments = installmentCountFromSubscription(subscription);
+      if (!installments || installments <= 1) continue;
+
+      const paidInvoices = await countPaidInvoicesForSubscription(stripe, subscription.id);
+      const remainingInvoices = Math.max(installments - paidInvoices, 0);
+      const invoiceAmount = subscriptionUnitAmount(subscription);
+      const completed = paidInvoices >= installments;
+      const customer = customerDetails(subscription);
+      const row = {
+        id: subscription.id,
+        status: subscription.status,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        customerId: customer.id,
+        product: productName(subscription),
+        installments,
+        paidInvoices,
+        remainingInvoices,
+        invoiceAmount,
+        expectedAmount: remainingInvoices * invoiceAmount,
+        cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+        cancelAt: subscription.cancel_at ? dateKey(new Date(subscription.cancel_at * 1000)) : null,
+        currentPeriodEnd: subscription.current_period_end ? dateKey(new Date(subscription.current_period_end * 1000)) : null,
+        completed,
+        nextInvoices: [],
+      };
+      row.nextInvoices = buildSchedule({ ...subscription, paidInvoices }, remainingInvoices, invoiceAmount);
+      rows.push(row);
+    }
+
+    const weeklyMap = new Map();
+    for (const row of rows) {
+      for (const invoice of row.nextInvoices) {
+        const date = new Date(`${invoice.date}T00:00:00.000Z`);
+        const weekStart = startOfWeek(date);
+        const key = dateKey(weekStart);
+        const current = weeklyMap.get(key) || {
+          weekStart: key,
+          label: formatWeekLabel(weekStart),
+          amount: 0,
+          invoices: 0,
+          subscriptions: new Set(),
+        };
+        current.amount += invoice.amount;
+        current.invoices += 1;
+        current.subscriptions.add(row.id);
+        weeklyMap.set(key, current);
+      }
+    }
+
+    const weekly = [...weeklyMap.values()]
+      .map((week) => ({
+        ...week,
+        subscriptions: week.subscriptions.size,
+      }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+
+    const totals = rows.reduce(
+      (acc, row) => ({
+        activeSubscriptions: acc.activeSubscriptions + 1,
+        completedSubscriptions: acc.completedSubscriptions + (row.completed ? 1 : 0),
+        remainingInvoices: acc.remainingInvoices + row.remainingInvoices,
+        expectedAmount: acc.expectedAmount + row.expectedAmount,
+        monthlyRunRate: acc.monthlyRunRate + (!row.completed ? row.invoiceAmount : 0),
+      }),
+      { activeSubscriptions: 0, completedSubscriptions: 0, remainingInvoices: 0, expectedAmount: 0, monthlyRunRate: 0 },
+    );
+
+    return Response.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      totals,
+      subscriptions: rows.sort((a, b) => b.expectedAmount - a.expectedAmount || a.customerName.localeCompare(b.customerName, "fr")),
+      weekly,
+    });
+  } catch (error) {
+    console.error("[stripe-installments-treasury] erreur Stripe:", error);
+    return Response.json(
+      { ok: false, error: error?.message || "Erreur Stripe pendant le chargement des abonnements." },
+      { status: Number(error?.statusCode) || 500 },
+    );
   }
-
-  const weekly = [...weeklyMap.values()]
-    .map((week) => ({
-      ...week,
-      subscriptions: week.subscriptions.size,
-    }))
-    .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-
-  const totals = rows.reduce(
-    (acc, row) => ({
-      activeSubscriptions: acc.activeSubscriptions + 1,
-      completedSubscriptions: acc.completedSubscriptions + (row.completed ? 1 : 0),
-      remainingInvoices: acc.remainingInvoices + row.remainingInvoices,
-      expectedAmount: acc.expectedAmount + row.expectedAmount,
-      monthlyRunRate: acc.monthlyRunRate + (!row.completed ? row.invoiceAmount : 0),
-    }),
-    { activeSubscriptions: 0, completedSubscriptions: 0, remainingInvoices: 0, expectedAmount: 0, monthlyRunRate: 0 },
-  );
-
-  return Response.json({
-    generatedAt: new Date().toISOString(),
-    totals,
-    subscriptions: rows.sort((a, b) => b.expectedAmount - a.expectedAmount || a.customerName.localeCompare(b.customerName, "fr")),
-    weekly,
-  });
 }

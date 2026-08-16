@@ -121,7 +121,13 @@ export default function StripeInstallmentsTreasury() {
         cache: "no-store",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const payload = await response.json();
+      const raw = await response.text();
+      let payload = {};
+      try {
+        payload = raw ? JSON.parse(raw) : {};
+      } catch (_error) {
+        throw new Error(raw?.slice(0, 180) || "Reponse serveur illisible.");
+      }
       if (!response.ok) throw new Error(payload.error || "Chargement impossible");
       setData(payload);
     } catch (err) {
