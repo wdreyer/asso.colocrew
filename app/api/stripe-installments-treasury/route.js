@@ -1,14 +1,16 @@
 import Stripe from "stripe";
 import {
-  countPaidInvoicesForSubscription,
   installmentCountFromSubscription,
 } from "@/src/lib/stripeInstallments";
 import { adminErrorResponse, requireFirebaseAdmin } from "@/src/lib/serverAdminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
+const SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due"];
+const INVOICE_COUNT_CONCURRENCY = 8;
 
 function amount(value) {
   const parsed = Number(value);
@@ -80,6 +82,44 @@ function customerDetails(subscription) {
   };
 }
 
+async function listInstallmentSubscriptions(stripe) {
+  const subscriptions = [];
+  for (const status of SUBSCRIPTION_STATUSES) {
+    for await (const subscription of stripe.subscriptions.list({
+      status,
+      limit: 100,
+      expand: ["data.items.data.price.product", "data.customer"],
+    })) {
+      const installments = installmentCountFromSubscription(subscription);
+      if (installments > 1) subscriptions.push({ subscription, installments });
+    }
+  }
+  return subscriptions;
+}
+
+async function countPaidInvoices(stripe, subscriptionId, maxInvoices = 12) {
+  const invoices = await stripe.invoices.list({
+    subscription: subscriptionId,
+    status: "paid",
+    limit: Math.max(Math.min(maxInvoices, 100), 1),
+  });
+  return invoices.data.filter((invoice) => invoice.paid).length;
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 function buildSchedule(subscription, remainingInvoices, invoiceAmount) {
   const firstDate = subscription.current_period_end
     ? new Date(subscription.current_period_end * 1000)
@@ -114,18 +154,11 @@ export async function GET(request) {
     }
 
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    const rows = [];
+    const installmentSubscriptions = await listInstallmentSubscriptions(stripe);
+    const rows = await mapWithConcurrency(installmentSubscriptions, INVOICE_COUNT_CONCURRENCY, async ({ subscription, installments }) => {
+      if (!ACTIVE_STATUSES.has(subscription.status)) return null;
 
-    for await (const listedSubscription of stripe.subscriptions.list({ status: "all", limit: 100 })) {
-      if (!ACTIVE_STATUSES.has(listedSubscription.status)) continue;
-
-      const subscription = await stripe.subscriptions.retrieve(listedSubscription.id, {
-        expand: ["items.data.price.product", "customer"],
-      });
-      const installments = installmentCountFromSubscription(subscription);
-      if (!installments || installments <= 1) continue;
-
-      const paidInvoices = await countPaidInvoicesForSubscription(stripe, subscription.id);
+      const paidInvoices = await countPaidInvoices(stripe, subscription.id, installments + 3);
       const remainingInvoices = Math.max(installments - paidInvoices, 0);
       const invoiceAmount = subscriptionUnitAmount(subscription);
       const completed = paidInvoices >= installments;
@@ -149,11 +182,12 @@ export async function GET(request) {
         nextInvoices: [],
       };
       row.nextInvoices = buildSchedule({ ...subscription, paidInvoices }, remainingInvoices, invoiceAmount);
-      rows.push(row);
-    }
+      return row;
+    });
+    const filteredRows = rows.filter(Boolean);
 
     const weeklyMap = new Map();
-    for (const row of rows) {
+    for (const row of filteredRows) {
       for (const invoice of row.nextInvoices) {
         const date = new Date(`${invoice.date}T00:00:00.000Z`);
         const weekStart = startOfWeek(date);
@@ -179,7 +213,7 @@ export async function GET(request) {
       }))
       .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 
-    const totals = rows.reduce(
+    const totals = filteredRows.reduce(
       (acc, row) => ({
         activeSubscriptions: acc.activeSubscriptions + 1,
         completedSubscriptions: acc.completedSubscriptions + (row.completed ? 1 : 0),
@@ -194,7 +228,7 @@ export async function GET(request) {
       ok: true,
       generatedAt: new Date().toISOString(),
       totals,
-      subscriptions: rows.sort((a, b) => b.expectedAmount - a.expectedAmount || a.customerName.localeCompare(b.customerName, "fr")),
+      subscriptions: filteredRows.sort((a, b) => b.expectedAmount - a.expectedAmount || a.customerName.localeCompare(b.customerName, "fr")),
       weekly,
     });
   } catch (error) {
