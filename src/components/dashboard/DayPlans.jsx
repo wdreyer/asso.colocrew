@@ -210,9 +210,16 @@ function memberName(member) {
 
 function memberActiveOnDate(member, date) {
   if (!date) return true;
+  if (Array.isArray(member?.contracts) && member.contracts.length) {
+    return member.contracts.some((contract) => memberActiveOnDate(contract, date));
+  }
   const start = String(member?.contractStartDate || "").slice(0, 10);
   const end = String(member?.contractEndDate || "").slice(0, 10);
   return (!start || date >= start) && (!end || date <= end);
+}
+
+function activeContractOnDate(member, date) {
+  return (member?.contracts || []).find((contract) => memberActiveOnDate(contract, date)) || null;
 }
 
 function initials(member) {
@@ -491,9 +498,14 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
       const contracts = contractSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
       const stayContracts = contracts.filter((contract) => contract.week === stay.week && String(contract.stayCode || "").toUpperCase() === stay.code);
       const memberIds = new Set(stayContracts.map((contract) => contract.memberId));
-      const contractByMember = Object.fromEntries(stayContracts.map((contract) => [contract.memberId, contract]));
+      const contractsByMember = stayContracts.reduce((result, contract) => {
+        result[contract.memberId] = [...(result[contract.memberId] || []), contract];
+        return result;
+      }, {});
       setMembers(memberSnap.docs.map((item) => {
-        const contract = contractByMember[item.id] || {};
+        const memberContracts = (contractsByMember[item.id] || [])
+          .sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || ""), "fr"));
+        const contract = memberContracts[0] || {};
         return {
           id: item.id,
           ...item.data(),
@@ -501,6 +513,12 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
           contractId: contract.id || "",
           contractStartDate: contract.startDate || "",
           contractEndDate: contract.endDate || "",
+          contracts: memberContracts.map((item) => ({
+            id: item.id,
+            role: item.role || "Animateur·ice",
+            startDate: item.startDate || "",
+            endDate: item.endDate || "",
+          })),
         };
       }).filter((member) => memberIds.has(member.id)).sort((a, b) => memberName(a).localeCompare(memberName(b), "fr")));
 
@@ -535,7 +553,18 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
 
   const selectedPlan = plans[selectedDate] || seedDay(selectedDate, config);
   const selectedMembers = useMemo(
-    () => members.filter((member) => memberActiveOnDate(member, selectedDate)),
+    () => members
+      .map((member) => {
+        const contract = activeContractOnDate(member, selectedDate);
+        return contract ? {
+          ...member,
+          role: contract.role || member.role,
+          contractId: contract.id || member.contractId,
+          contractStartDate: contract.startDate || member.contractStartDate,
+          contractEndDate: contract.endDate || member.contractEndDate,
+        } : member;
+      })
+      .filter((member) => memberActiveOnDate(member, selectedDate)),
     [members, selectedDate],
   );
   const selectedMemberById = useMemo(() => Object.fromEntries(selectedMembers.map((member) => [member.id, member])), [selectedMembers]);
@@ -799,7 +828,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
       <TaskDetails
         task={editor}
         dates={dates}
-        members={members}
+        members={selectedMembers}
         memberById={selectedMemberById}
         saving={saving}
         onClose={() => setEditor(null)}
