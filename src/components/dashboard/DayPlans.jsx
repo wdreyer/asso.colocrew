@@ -208,6 +208,13 @@ function memberName(member) {
   return member?.firstName || String(member?.name || "").split(" ")[0] || "Anim";
 }
 
+function memberActiveOnDate(member, date) {
+  if (!date) return true;
+  const start = String(member?.contractStartDate || "").slice(0, 10);
+  const end = String(member?.contractEndDate || "").slice(0, 10);
+  return (!start || date >= start) && (!end || date <= end);
+}
+
 function initials(member) {
   return `${member?.firstName?.[0] || member?.name?.[0] || ""}`.toUpperCase() || "?";
 }
@@ -482,10 +489,20 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     ]).then(([memberSnap, contractSnap, planSnap]) => {
       if (!active) return;
       const contracts = contractSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
-      const memberIds = new Set(contracts.filter((contract) => contract.week === stay.week && String(contract.stayCode || "").toUpperCase() === stay.code).map((contract) => contract.memberId));
-      const roleByMember = Object.fromEntries(contracts.map((contract) => [contract.memberId, contract.role]));
-      setMembers(memberSnap.docs.map((item) => ({ id: item.id, ...item.data(), role: roleByMember[item.id] || "Animateur·ice" }))
-        .filter((member) => memberIds.has(member.id)).sort((a, b) => memberName(a).localeCompare(memberName(b), "fr")));
+      const stayContracts = contracts.filter((contract) => contract.week === stay.week && String(contract.stayCode || "").toUpperCase() === stay.code);
+      const memberIds = new Set(stayContracts.map((contract) => contract.memberId));
+      const contractByMember = Object.fromEntries(stayContracts.map((contract) => [contract.memberId, contract]));
+      setMembers(memberSnap.docs.map((item) => {
+        const contract = contractByMember[item.id] || {};
+        return {
+          id: item.id,
+          ...item.data(),
+          role: contract.role || "Animateur·ice",
+          contractId: contract.id || "",
+          contractStartDate: contract.startDate || "",
+          contractEndDate: contract.endDate || "",
+        };
+      }).filter((member) => memberIds.has(member.id)).sort((a, b) => memberName(a).localeCompare(memberName(b), "fr")));
 
       const existing = Object.fromEntries(planSnap.docs
         .map((item) => ({ id: item.id, ...item.data() }))
@@ -517,6 +534,11 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   }, [seededPlans, stay, showToast]);
 
   const selectedPlan = plans[selectedDate] || seedDay(selectedDate, config);
+  const selectedMembers = useMemo(
+    () => members.filter((member) => memberActiveOnDate(member, selectedDate)),
+    [members, selectedDate],
+  );
+  const selectedMemberById = useMemo(() => Object.fromEntries(selectedMembers.map((member) => [member.id, member])), [selectedMembers]);
   const memberById = useMemo(() => Object.fromEntries(members.map((member) => [member.id, member])), [members]);
 
   const saveDay = async (date, fields, successMessage = "Planning enregistré.") => {
@@ -698,7 +720,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
             <button type="button" className={view === "leaves" ? "is-active" : ""} onClick={() => setView("leaves")}>Congés</button>
           </div>
           {view === "day" && <button type="button" className="dp-pdf-button" onClick={() => {
-            if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members, memberById, unavailability, stay })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
+            if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members: selectedMembers, memberById, unavailability, stay })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
           }}>PDF du jour</button>}
           {view === "week" && <button type="button" className="dp-pdf-button" onClick={() => {
             if (!openWeekPdf({ plans, dates, config, stay, memberById })) showToast("Autorisez les fenetres pop-up pour ouvrir le PDF.", "error");
@@ -753,11 +775,11 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
             <LeavesOverview plans={plans} members={members} leaveDates={leaveDates} stay={stay} saving={saving} onToggle={toggleLeave} showToast={showToast} />
           ) : (
             <>
-              <DayHeader date={selectedDate} plan={selectedPlan} dates={dates} leaveDates={leaveDates} stay={stay} members={members} saving={saving} onToggleLeave={toggleLeave} />
+              <DayHeader date={selectedDate} plan={selectedPlan} dates={dates} leaveDates={leaveDates} stay={stay} members={selectedMembers} saving={saving} onToggleLeave={toggleLeave} />
               <DayTimeline
                 plan={selectedPlan}
-                members={members}
-                memberById={memberById}
+                members={selectedMembers}
+                memberById={selectedMemberById}
                 unavailability={unavailability}
                 onEdit={(task) => openTaskEditor(selectedDate, task)}
                 onAdd={(sectionKey) => openNewTaskEditor(selectedDate, sectionKey)}
@@ -778,7 +800,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         task={editor}
         dates={dates}
         members={members}
-        memberById={memberById}
+        memberById={selectedMemberById}
         saving={saving}
         onClose={() => setEditor(null)}
         onSave={saveTask}
