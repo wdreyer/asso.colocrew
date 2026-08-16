@@ -376,23 +376,32 @@ const mcscS2BaseDays = Object.fromEntries(Object.entries(basicStayDays(stayById[
   tasks.filter((item) => item.title !== "Activites ColoCrew / surf / grand jeu"),
 ]));
 const mcscS2SurfDetails = "Activite normale. Planning prestataire S2 importe depuis Planning acti ColoCrew S2.xlsx.";
+const mcscS4BaseDays = Object.fromEntries(Object.entries(basicStayDays(stayById["mcsc-s4-2026"])).map(([date, tasks]) => [
+  date,
+  tasks.filter((item) => item.title !== "Activites ColoCrew / surf / grand jeu"),
+]));
+const mcscS4SurfDetails = "Activite normale. Planning prestataire S4 importe depuis Planning MY Creative SURF Camp - aout 2026.";
 
-function surfTask(id, title, startTime, endTime, groups) {
+function surfTask(id, title, startTime, endTime, groups, details = mcscS2SurfDetails) {
   const hour = Number(startTime.split(":")[0]);
   return task(id, hour < 12 ? "morning" : "afternoon", title, startTime, endTime, {
     groups,
     location: "Ecole de surf",
-    details: mcscS2SurfDetails,
+    details,
   });
 }
 
-function withSurf(date, surfTasks) {
-  const baseTasks = mcscS2BaseDays[date] || [];
+function withSurfOnBase(baseDays, date, surfTasks) {
+  const baseTasks = baseDays[date] || [];
   const baseWithoutGenericActivities = baseTasks.filter((item) => {
     if (!["morning", "afternoon"].includes(item.category)) return true;
     return !/Activite principale|Temps projets|surf|grand jeu/i.test(`${item.title || ""} ${item.details || ""}`);
   });
   return sortByTime([...baseWithoutGenericActivities, ...surfTasks]);
+}
+
+function withSurf(date, surfTasks) {
+  return withSurfOnBase(mcscS2BaseDays, date, surfTasks);
 }
 
 function addEvenings(days, evenings) {
@@ -482,6 +491,38 @@ const mcscS2Days = addEvenings({
   },
 });
 
+function s4SurfTask(id, startTime, endTime, groups) {
+  return surfTask(id, `Surf - ${groups.toLowerCase()}`, startTime, endTime, groups, mcscS4SurfDetails);
+}
+
+const mcscS4Days = {
+  ...mcscS4BaseDays,
+  "2026-08-19": withSurfOnBase(mcscS4BaseDays, "2026-08-19", [
+    s4SurfTask("s4-1908-surf-1230-g12", "12:30", "14:00", "Groupes 1 et 2"),
+    s4SurfTask("s4-1908-surf-1400-g34", "14:00", "15:30", "Groupes 3 et 4"),
+  ]),
+  "2026-08-20": withSurfOnBase(mcscS4BaseDays, "2026-08-20", [
+    s4SurfTask("s4-2008-surf-1300-g34", "13:00", "14:30", "Groupes 3 et 4"),
+    s4SurfTask("s4-2008-surf-1430-g12", "14:30", "16:00", "Groupes 1 et 2"),
+  ]),
+  "2026-08-22": withSurfOnBase(mcscS4BaseDays, "2026-08-22", [
+    s4SurfTask("s4-2208-surf-1700-g12", "17:00", "18:30", "Groupes 1 et 2"),
+    s4SurfTask("s4-2208-surf-1830-g34", "18:30", "20:00", "Groupes 3 et 4"),
+  ]),
+  "2026-08-23": withSurfOnBase(mcscS4BaseDays, "2026-08-23", [
+    s4SurfTask("s4-2308-surf-1800-g34", "18:00", "19:30", "Groupes 3 et 4"),
+    s4SurfTask("s4-2308-surf-1930-g12", "19:30", "21:00", "Groupes 1 et 2"),
+  ]),
+  "2026-08-25": withSurfOnBase(mcscS4BaseDays, "2026-08-25", [
+    s4SurfTask("s4-2508-surf-0930-g12", "09:30", "11:00", "Groupes 1 et 2"),
+    s4SurfTask("s4-2508-surf-1100-g34", "11:00", "12:30", "Groupes 3 et 4"),
+  ]),
+  "2026-08-26": withSurfOnBase(mcscS4BaseDays, "2026-08-26", [
+    s4SurfTask("s4-2608-surf-1130-g34", "11:30", "13:00", "Groupes 3 et 4"),
+    s4SurfTask("s4-2608-surf-1300-g12", "13:00", "14:30", "Groupes 1 et 2"),
+  ]),
+};
+
 export const DAY_PLAN_CONFIGS = {
   "mcsc-s1-2026": {
     stay: stayById["mcsc-s1-2026"],
@@ -500,8 +541,8 @@ export const DAY_PLAN_CONFIGS = {
   },
   "mcsc-s4-2026": {
     stay: stayById["mcsc-s4-2026"],
-    seedDays: basicStayDays(stayById["mcsc-s4-2026"]),
-    createdFrom: "Seed basique ColoCrew 2026",
+    seedDays: mcscS4Days,
+    createdFrom: "Planning surf prestataire S4 2026",
   },
   "evcc-s2-2026": {
     stay: stayById["evcc-s2-2026"],

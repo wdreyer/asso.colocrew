@@ -35,14 +35,16 @@ function round2(n) {
 }
 
 // gridRow / primeUnit : lignes { perStayNet, perStayGross } issues de salary_grid.
-export function computeSalary({ gridRow, primeUnit, primeCount = 0, nbDays = REFERENCE_DAYS }) {
+export function computeSalary({ gridRow, primeUnit, primeCount = 0, convoyagePrime = false, nbDays = REFERENCE_DAYS }) {
   const ratio = nbDays > 0 ? nbDays / REFERENCE_DAYS : 1;
   const baseNet   = gridRow ? gridRow.perStayNet   * ratio : 0;
   const baseGross = gridRow ? gridRow.perStayGross * ratio : 0;
   const primeNet   = primeUnit ? primeUnit.perStayNet   * (Number(primeCount) || 0) : 0;
   const primeGross = primeUnit ? primeUnit.perStayGross * (Number(primeCount) || 0) : 0;
+  const convoyageNet = convoyagePrime && gridRow ? (Number(gridRow.perDay) || gridRow.perStayNet / REFERENCE_DAYS || 0) : 0;
+  const convoyageGross = convoyagePrime && gridRow ? (gridRow.perStayGross / REFERENCE_DAYS || 0) : 0;
   return {
-    net:   round2(baseNet + primeNet),
-    gross: round2(baseGross + primeGross),
+    net:   round2(baseNet + primeNet + convoyageNet),
+    gross: round2(baseGross + primeGross + convoyageGross),
   };
 }

@@ -127,14 +127,17 @@ function remunerationBreakdown(contract) {
   const primeCount = positiveNumber(contract?.primeCount, 0);
   const primeUnitNet = positiveNumber(contract?.primeUnitNet ?? contract?.primeNetUnit, DEFAULT_PRIME_NET);
   const primeUnitGross = positiveNumber(contract?.primeUnitGross ?? contract?.primeGrossUnit, DEFAULT_PRIME_GROSS);
+  const convoyagePrime = contract?.convoyagePrime === true;
+  const convoyagePrimeNet = convoyagePrime ? positiveNumber(contract?.convoyagePrimeNet, 0) : 0;
+  const convoyagePrimeGross = convoyagePrime ? positiveNumber(contract?.convoyagePrimeGross, 0) : 0;
   const totalNet = Number(contract?.netSalary);
   const totalGross = Number(contract?.grossSalary);
   const hasNet = Number.isFinite(totalNet);
   const hasGross = Number.isFinite(totalGross);
   const primeNet = round2(primeCount * primeUnitNet);
   const primeGross = round2(primeCount * primeUnitGross);
-  const baseNet = hasNet ? Math.max(round2(totalNet - primeNet), 0) : null;
-  const baseGross = hasGross ? Math.max(round2(totalGross - primeGross), 0) : null;
+  const baseNet = hasNet ? Math.max(round2(totalNet - primeNet - convoyagePrimeNet), 0) : null;
+  const baseGross = hasGross ? Math.max(round2(totalGross - primeGross - convoyagePrimeGross), 0) : null;
 
   return {
     primeCount,
@@ -142,6 +145,9 @@ function remunerationBreakdown(contract) {
     primeUnitGross,
     primeNet,
     primeGross,
+    convoyagePrime,
+    convoyagePrimeNet,
+    convoyagePrimeGross,
     baseNet,
     baseGross,
     totalNet: hasNet ? totalNet : null,
@@ -174,6 +180,11 @@ function remunerationTable(contract) {
           <td>Prime d'ancienneté <span>${esc(primeLabel)}</span></td>
           <td><strong>${formatEuro(b.primeNet)}</strong></td>
           <td>${formatEuro(b.primeGross)}</td>
+        </tr>
+        <tr>
+          <td>Prime convoyage <span>${b.convoyagePrime ? "1 jour de salaire" : "Non applicable"}</span></td>
+          <td><strong>${formatEuro(b.convoyagePrimeNet)}</strong></td>
+          <td>${formatEuro(b.convoyagePrimeGross)}</td>
         </tr>
         <tr class="cc-remuneration-total">
           <td>Total prévu</td>

@@ -165,6 +165,9 @@ function mapContract(snap) {
     role:     d.role      || "Poste non renseigné",
     roleKey:  d.roleKey   || "",
     primeCount: Math.max(Number(d.primeCount) || 0, 0),
+    convoyagePrime: d.convoyagePrime === true,
+    convoyagePrimeNet: amount(d.convoyagePrimeNet),
+    convoyagePrimeGross: amount(d.convoyagePrimeGross),
     primeUnitNet: Number(d.primeUnitNet) > 0 ? amount(d.primeUnitNet) : undefined,
     primeUnitGross: Number(d.primeUnitGross) > 0 ? amount(d.primeUnitGross) : undefined,
     startDate: d.startDate || "",
@@ -533,11 +536,12 @@ function docusignWaitingFromSigners(status, signers = []) {
 
 function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
   const [visibleContracts, setVisibleContracts] = useState([]);
+  const [weekTile, setWeekTile] = useState("all");
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
-  const tableContracts = useMemo(() => contracts.map((contract) => ({
+  const tableContracts = useMemo(() => contracts.filter((contract) => weekTile === "all" || contract.week === weekTile).map((contract) => ({
     ...contract,
     ceaStatus: contract.ceaDeclarationValidated ? "CEA fait" : "CEA à faire",
-  })), [contracts]);
+  })), [contracts, weekTile]);
 
   const visibleRefreshableContracts = visibleContracts.filter((contract) => (
     contract.docusignEnvelopeId && contract.docusignStatus !== "completed" && contract.docusignStatus !== "voided"
@@ -556,7 +560,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
         );
       },
     },
-    { key: "week", label: "S.", filterable: true, filterLabel: "Toutes les semaines" },
+    { key: "week", label: "S." },
     { key: "stay", label: "Séj.", filterable: true, filterLabel: "Tous les séjours", render: (row) => row.stayCode || row.stay },
     { key: "role", label: "Poste", filterable: true, filterLabel: "Tous les postes", render: compactRole },
     {
@@ -573,6 +577,11 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
     },
     { key: "datesLabel", label: "Dates", render: (row) => <span style={{ whiteSpace: "nowrap" }}>{fmtDateShort(row.startDate)} → {fmtDateShort(row.endDate)}</span>, sortValue: (r) => r.startDate },
     { key: "netSalary", label: "Net", render: (r) => currency(r.netSalary), sortValue: (r) => r.netSalary },
+    {
+      key: "convoyagePrime", label: "Conv.",
+      render: (row) => row.convoyagePrime ? <Badge label="+ 1 jour" variant="success" /> : <span className="dash-muted">Non</span>,
+      sortValue: (row) => row.convoyagePrime ? 1 : 0,
+    },
     {
       key: "ceaStatus", label: "CEA", sortable: false, filterable: true, filterLabel: "Tous CEA",
       render: (row) => (
@@ -664,6 +673,19 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
 
   return (
     <div>
+      <div className="hr-week-tiles" aria-label="Filtrer les contrats par semaine">
+        <button type="button" className={`hr-week-tile${weekTile === "all" ? " is-active" : ""}`} onClick={() => setWeekTile("all")}>
+          <strong>Toutes</strong><span>{contracts.length}</span>
+        </button>
+        {WEEK_ORDER.map((week) => {
+          const count = contracts.filter((item) => item.week === week).length;
+          return (
+            <button key={week} type="button" className={`hr-week-tile${weekTile === week ? " is-active" : ""}`} onClick={() => setWeekTile(week)}>
+              <strong>{week}</strong><span>{count}</span>
+            </button>
+          );
+        })}
+      </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
         <button
           type="button"
@@ -1189,6 +1211,7 @@ function emptyContractForm(member, contract) {
     endDate:   contract?.endDate   || defaults.endDate   || "",
     roleKey: contract?.roleKey || "",
     primeCount: contract?.primeCount || 0,
+    convoyagePrime: contract?.convoyagePrime === true,
     netSalary: contract?.netSalary || 0,
     grossSalary: contract?.grossSalary || 0,
     paidAmount: contract?.paidAmount || 0,
@@ -1217,17 +1240,28 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
   const recalculate = () => {
     const gridRow = posteRows.find((r) => r.id === form.roleKey);
     if (gridRow?.id === "benevole") {
-      setForm((p) => ({ ...p, primeCount: 0, netSalary: 0, grossSalary: 0, paidAmount: 0, paymentValidated: true }));
+      setForm((p) => ({ ...p, primeCount: 0, convoyagePrime: false, netSalary: 0, grossSalary: 0, paidAmount: 0, paymentValidated: true }));
       return;
     }
     const nbDays = nbDaysBetween(form.startDate, form.endDate);
-    const { net, gross } = computeSalary({ gridRow, primeUnit, primeCount: form.primeCount, nbDays });
+    const { net, gross } = computeSalary({ gridRow, primeUnit, primeCount: form.primeCount, convoyagePrime: form.convoyagePrime, nbDays });
     setForm((p) => ({ ...p, netSalary: net, grossSalary: gross }));
   };
 
   const handleWeekChange = (week) => {
     const d = WEEK_DATES[week] || {};
     setForm((p) => ({ ...p, week, startDate: d.startDate || p.startDate, endDate: d.endDate || p.endDate }));
+  };
+
+  const handleConvoyagePrimeChange = (checked) => {
+    const gridRow = posteRows.find((r) => r.id === form.roleKey);
+    if (!gridRow || gridRow.id === "benevole") {
+      setForm((p) => ({ ...p, convoyagePrime: false }));
+      return;
+    }
+    const nbDays = nbDaysBetween(form.startDate, form.endDate);
+    const { net, gross } = computeSalary({ gridRow, primeUnit, primeCount: form.primeCount, convoyagePrime: checked, nbDays });
+    setForm((p) => ({ ...p, convoyagePrime: checked, netSalary: net, grossSalary: gross }));
   };
 
   const save = async () => {
@@ -1272,6 +1306,9 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
 
       const paymentValidated = volunteerRole || (form.paymentValidated === true && amount(form.paidAmount) >= amount(form.netSalary));
       const outstandingAmount = paymentValidated ? 0 : Math.max(amount(form.netSalary) - amount(form.paidAmount), 0);
+      const convoyagePrime = !volunteerRole && form.convoyagePrime === true;
+      const convoyagePrimeNet = convoyagePrime ? amount(gridRow.perDay || gridRow.perStayNet / REFERENCE_DAYS) : 0;
+      const convoyagePrimeGross = convoyagePrime ? amount(gridRow.perStayGross / REFERENCE_DAYS) : 0;
       const payload = {
         memberId,
         memberName,
@@ -1283,6 +1320,9 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         startDate: form.startDate,
         endDate: form.endDate,
         primeCount: volunteerRole ? 0 : Math.max(Number(form.primeCount) || 0, 0),
+        convoyagePrime,
+        convoyagePrimeNet,
+        convoyagePrimeGross,
         primeUnitNet: amount(primeUnit?.perStayNet),
         primeUnitGross: amount(primeUnit?.perStayGross),
         netSalary: volunteerRole ? 0 : amount(form.netSalary),
@@ -1383,6 +1423,18 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
             <input type="number" min="0" value={form.primeCount} onChange={(e) => set("primeCount", e.target.value)} />
           </label>
         </div>
+
+        <label className="hr-convoyage-prime-toggle">
+          <input
+            type="checkbox"
+            checked={form.convoyagePrime}
+            onChange={(e) => handleConvoyagePrimeChange(e.target.checked)}
+          />
+          <span>
+            <strong>Prime convoyage</strong>
+            <small>Ajoute 1 jour de salaire au contrat.</small>
+          </span>
+        </label>
 
         <div className="hr-salary-preview">
           <div className="hr-salary-preview-item">

@@ -11,6 +11,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
+import { syncInstallmentSubscriptionCancellation } from "@/src/lib/stripeInstallments";
 
 // On force l'exécution en runtime Node.js
 export const runtime = "nodejs";
@@ -52,7 +53,39 @@ export async function POST(request) {
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
-  // Traiter l'événement (ici uniquement checkout.session.completed)
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object;
+    const subscriptionId = invoice.subscription || null;
+    if (subscriptionId) {
+      try {
+        const sync = await syncInstallmentSubscriptionCancellation(stripe, subscriptionId);
+        console.log("[stripe-webhook] sync abonnement echeances:", sync);
+      } catch (err) {
+        console.error("[stripe-webhook] erreur sync abonnement echeances:", err);
+        return new Response("Erreur sync abonnement", { status: 500 });
+      }
+    }
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object;
+    try {
+      const reservationsRef = collection(db, "reservations");
+      const q = query(reservationsRef, where("payment.installmentsSubscriptionId", "==", subscription.id));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map((reservationDoc) => updateDoc(doc(db, "reservations", reservationDoc.id), {
+        "payment.installmentsSubscriptionStatus": "canceled",
+        "payment.installmentsCanceledAt": serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })));
+      console.log(`[stripe-webhook] abonnement annule: ${subscription.id}, reservations=${snap.docs.length}`);
+    } catch (err) {
+      console.error("[stripe-webhook] erreur maj annulation abonnement:", err);
+      return new Response("Erreur maj annulation abonnement", { status: 500 });
+    }
+  }
+
+  // Traiter l'événement checkout.session.completed
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const tokenUnique = session.metadata.tokenUnique;
@@ -155,8 +188,15 @@ export async function POST(request) {
           // ── Paiement en plusieurs fois (abonnement Stripe) ──────────────
           const installmentsCount = Number(session.metadata.installments) || 0;
           if (session.subscription && installmentsCount > 1) {
-            const cancelAt = Math.floor(Date.now() / 1000) + installmentsCount * 30 * 24 * 3600 + 3 * 24 * 3600;
-            await stripe.subscriptions.update(session.subscription, { cancel_at: cancelAt });
+            await stripe.subscriptions.update(session.subscription, {
+              metadata: {
+                tokenUnique,
+                paymentType: "installments",
+                installments: String(installmentsCount),
+              },
+            });
+            const sync = await syncInstallmentSubscriptionCancellation(stripe, session.subscription);
+            console.log("[stripe-webhook] abonnement echeances initialise:", sync);
           }
 
           const payment = reservationData.payment;
@@ -175,6 +215,7 @@ export async function POST(request) {
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.remainingValue": newRemainingValue,
             "payment.installmentsSubscriptionId": session.subscription || null,
+            "payment.installmentsSubscriptionStatus": session.subscription ? "active" : null,
             updatedAt: serverTimestamp(),
             ...financePatch,
           });
