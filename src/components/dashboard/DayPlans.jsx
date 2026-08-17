@@ -209,6 +209,7 @@ function memberName(member) {
 }
 
 function memberActiveOnDate(member, date) {
+  if (!member) return false;
   if (!date) return true;
   if (Array.isArray(member?.contracts) && member.contracts.length) {
     return member.contracts.some((contract) => memberActiveOnDate(contract, date));
@@ -220,6 +221,44 @@ function memberActiveOnDate(member, date) {
 
 function activeContractOnDate(member, date) {
   return (member?.contracts || []).find((contract) => memberActiveOnDate(contract, date)) || null;
+}
+
+function memberWithActiveContract(member, date) {
+  const contract = activeContractOnDate(member, date);
+  if (!contract) return null;
+  return {
+    ...member,
+    role: contract.role || member.role,
+    contractId: contract.id || member.contractId,
+    contractStartDate: contract.startDate || member.contractStartDate,
+    contractEndDate: contract.endDate || member.contractEndDate,
+  };
+}
+
+function activeMembersOnDate(members, date) {
+  return (members || [])
+    .map((member) => memberWithActiveContract(member, date))
+    .filter(Boolean);
+}
+
+function activeMemberByIdOnDate(members, date) {
+  return Object.fromEntries(activeMembersOnDate(members, date).map((member) => [member.id, member]));
+}
+
+function cleanTaskAssigneesForDate(task, members, date) {
+  const activeIds = new Set(activeMembersOnDate(members, date).map((member) => member.id));
+  return {
+    ...task,
+    assigneeIds: (task.assigneeIds || []).filter((id) => activeIds.has(id)),
+  };
+}
+
+function cleanPlanAssigneesForDate(plan, members, date) {
+  return {
+    ...plan,
+    leaveMemberIds: (plan?.leaveMemberIds || []).filter((id) => memberActiveOnDate(members.find((member) => member.id === id), date)),
+    tasks: (plan?.tasks || []).map((task) => cleanTaskAssigneesForDate(task, members, date)),
+  };
 }
 
 function initials(member) {
@@ -361,13 +400,14 @@ function leaveWindowLabel(date) {
   return `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`;
 }
 
-function openWeekPdf({ plans, dates, config, stay, memberById }) {
+function openWeekPdf({ plans, dates, config, stay, members }) {
   const popup = window.open("", "_blank");
   if (!popup) return false;
   popup.opener = null;
   const headerCells = dates.map((date, index) => `<th><small>J${index + 1}</small><strong>${escapeHtml(dateLabel(date, true))}</strong></th>`).join("");
   const rows = DAY_PLAN_SECTIONS.map((section) => {
     const cells = dates.map((date) => {
+      const memberById = activeMemberByIdOnDate(members, date);
       const tasks = sortTasks(((plans[date] || seedDay(date, config)).tasks || []).filter((task) => task.category === section.key));
       const content = tasks.length ? tasks.map((task) => {
         const palette = activityPalette(task, section.color);
@@ -383,7 +423,7 @@ function openWeekPdf({ plans, dates, config, stay, memberById }) {
   return true;
 }
 
-function openMenusPdf({ plans, dates, config, stay, memberById }) {
+function openMenusPdf({ plans, dates, config, stay, members }) {
   const popup = window.open("", "_blank");
   if (!popup) return false;
   popup.opener = null;
@@ -394,7 +434,7 @@ function openMenusPdf({ plans, dates, config, stay, memberById }) {
     { key: "dinner", label: "Diner", color: "#ea580c" },
   ];
 
-  const mealContent = (task, color) => {
+  const mealContent = (task, color, memberById) => {
     const menu = task.menu && !/renseigner/i.test(task.menu) ? task.menu : task.details;
     const team = (task.assigneeIds || []).map((id) => memberById[id]?.firstName || memberById[id]?.name).filter(Boolean).join(", ");
     const meta = [
@@ -414,8 +454,9 @@ function openMenusPdf({ plans, dates, config, stay, memberById }) {
   const rows = mealSections.map((section) => {
     const cells = dates.map((date) => {
       const plan = plans[date] || seedDay(date, config);
+      const memberById = activeMemberByIdOnDate(members, date);
       const meals = sortTasks((plan.tasks || []).filter((task) => task.category === section.key));
-      return `<td>${meals.length ? meals.map((task) => mealContent(task, section.color)).join("") : `<span class="empty">A renseigner</span>`}</td>`;
+      return `<td>${meals.length ? meals.map((task) => mealContent(task, section.color, memberById)).join("") : `<span class="empty">A renseigner</span>`}</td>`;
     }).join("");
     return `<tr><th class="meal-head" style="--meal:${section.color}">${escapeHtml(section.label)}</th>${cells}</tr>`;
   }).join("");
@@ -430,15 +471,21 @@ function openLeavesPdf({ plans, members, leaveDates, stay }) {
   if (!popup) return false;
   popup.opener = null;
 
-  const counts = members.map((member) => ({
+  const roster = members.filter((member) => leaveDates.some((date) => memberActiveOnDate(member, date)));
+  const counts = roster.map((member) => ({
     member,
-    days: leaveDates.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)),
+    days: leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id)),
   }));
   const alerts = [];
   const memberRows = counts.map(({ member, days }) => {
     const cells = leaveDates.map((date) => {
+      if (!memberActiveOnDate(member, date)) {
+        return `<td><strong>Hors contrat</strong><small>Non assignable</small></td>`;
+      }
+      const activeMembers = activeMembersOnDate(members, date);
       const selected = days.includes(date);
-      const assessment = leaveAssessment(plans, members, member, date, leaveDates);
+      const activeMember = activeMembers.find((item) => item.id === member.id) || member;
+      const assessment = leaveAssessment(plans, activeMembers, activeMember, date, leaveDates);
       if (selected && ["danger", "warning"].includes(assessment.level)) {
         alerts.push({ member, date, assessment });
       }
@@ -452,11 +499,13 @@ function openLeavesPdf({ plans, members, leaveDates, stay }) {
   }).join("");
 
   const dayRows = leaveDates.map((date) => {
-    const offIds = plans[date]?.leaveMemberIds || [];
-    const offMembers = offIds.map((id) => members.find((member) => member.id === id)).filter(Boolean);
-    const conflictMembers = offMembers.filter((member) => leaveAssessment(plans, members, member, date, leaveDates).level === "danger");
+    const activeMembers = activeMembersOnDate(members, date);
+    const activeIds = new Set(activeMembers.map((member) => member.id));
+    const offIds = (plans[date]?.leaveMemberIds || []).filter((id) => activeIds.has(id));
+    const offMembers = offIds.map((id) => activeMembers.find((member) => member.id === id)).filter(Boolean);
+    const conflictMembers = offMembers.filter((member) => leaveAssessment(plans, activeMembers, member, date, leaveDates).level === "danger");
     const level = conflictMembers.length ? "danger" : offMembers.length >= 3 ? "warning" : "safe";
-    return `<tr class="is-${level}"><td><b>${escapeHtml(dateLabel(date))}</b><small>${escapeHtml(leaveWindowLabel(date))}</small></td><td>${escapeHtml(offMembers.map(memberName).join(", ") || "Personne")}</td><td>${members.length - offMembers.length}</td><td>${escapeHtml(conflictMembers.length ? conflictMembers.map(memberName).join(", ") : level === "warning" ? "Beaucoup de congés le même jour" : "OK")}</td></tr>`;
+    return `<tr class="is-${level}"><td><b>${escapeHtml(dateLabel(date))}</b><small>${escapeHtml(leaveWindowLabel(date))}</small></td><td>${escapeHtml(offMembers.map(memberName).join(", ") || "Personne")}</td><td>${activeMembers.length - offMembers.length}</td><td>${escapeHtml(conflictMembers.length ? conflictMembers.map(memberName).join(", ") : level === "warning" ? "Beaucoup de congés le même jour" : "OK")}</td></tr>`;
   }).join("");
 
   const alertRows = alerts.length ? alerts.map(({ member, date, assessment }) => `<tr><td>${escapeHtml(memberName(member))}</td><td>${escapeHtml(leaveWindowLabel(date))}</td><td>${escapeHtml(assessment.label)}</td><td>${escapeHtml(assessment.detail)}</td></tr>`).join("") : `<tr><td colspan="4">Aucune incompatibilité détectée sur les congés posés.</td></tr>`;
@@ -551,21 +600,14 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     return () => { active = false; unsubscribe(); };
   }, [seededPlans, stay, showToast]);
 
-  const selectedPlan = plans[selectedDate] || seedDay(selectedDate, config);
+  const rawSelectedPlan = plans[selectedDate] || seedDay(selectedDate, config);
   const selectedMembers = useMemo(
-    () => members
-      .map((member) => {
-        const contract = activeContractOnDate(member, selectedDate);
-        return contract ? {
-          ...member,
-          role: contract.role || member.role,
-          contractId: contract.id || member.contractId,
-          contractStartDate: contract.startDate || member.contractStartDate,
-          contractEndDate: contract.endDate || member.contractEndDate,
-        } : member;
-      })
-      .filter((member) => memberActiveOnDate(member, selectedDate)),
+    () => activeMembersOnDate(members, selectedDate),
     [members, selectedDate],
+  );
+  const selectedPlan = useMemo(
+    () => cleanPlanAssigneesForDate(rawSelectedPlan, members, selectedDate),
+    [rawSelectedPlan, members, selectedDate],
   );
   const selectedMemberById = useMemo(() => Object.fromEntries(selectedMembers.map((member) => [member.id, member])), [selectedMembers]);
   const memberById = useMemo(() => Object.fromEntries(members.map((member) => [member.id, member])), [members]);
@@ -619,7 +661,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
       photo = { name: photoFile.name, url: await getDownloadURL(storageRef) };
     }
     const { _sourceDate, targetDate: _targetDate, ...publicDraft } = draft;
-    const complete = { ...EMPTY_TASK, ...publicDraft, id: taskId, photo };
+    const complete = cleanTaskAssigneesForDate({ ...EMPTY_TASK, ...publicDraft, id: taskId, photo }, members, targetDate);
     if (sourceDate === targetDate) {
       const sourcePlan = plans[sourceDate] || seedDay(sourceDate, config);
       const tasks = [...(sourcePlan.tasks || []).filter((task) => task.id !== taskId), complete];
@@ -687,6 +729,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   };
 
   const toggleTaskAssignee = async (task, memberId) => {
+    if (!selectedMemberById[memberId]) return;
     const assigned = new Set(task.assigneeIds || []);
     if (unavailability(memberId, task.startTime) && !assigned.has(memberId)) return;
     assigned.has(memberId) ? assigned.delete(memberId) : assigned.add(memberId);
@@ -749,13 +792,13 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
             <button type="button" className={view === "leaves" ? "is-active" : ""} onClick={() => setView("leaves")}>Congés</button>
           </div>
           {view === "day" && <button type="button" className="dp-pdf-button" onClick={() => {
-            if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members: selectedMembers, memberById, unavailability, stay })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
+            if (!openDayPdf({ date: selectedDate, plan: selectedPlan, members: selectedMembers, memberById: selectedMemberById, unavailability, stay })) showToast("Autorisez les fenêtres pop-up pour ouvrir le PDF.", "error");
           }}>PDF du jour</button>}
           {view === "week" && <button type="button" className="dp-pdf-button" onClick={() => {
-            if (!openWeekPdf({ plans, dates, config, stay, memberById })) showToast("Autorisez les fenetres pop-up pour ouvrir le PDF.", "error");
+            if (!openWeekPdf({ plans, dates, config, stay, members })) showToast("Autorisez les fenetres pop-up pour ouvrir le PDF.", "error");
           }}>PDF semaine</button>}
           {view === "food" && <button type="button" className="dp-pdf-button" onClick={() => {
-            if (!openMenusPdf({ plans, dates, config, stay, memberById })) showToast("Autorisez les fenetres pop-up pour exporter les menus.", "error");
+            if (!openMenusPdf({ plans, dates, config, stay, members })) showToast("Autorisez les fenetres pop-up pour exporter les menus.", "error");
           }}>PDF menus</button>}
           {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK, _sourceDate: selectedDate, targetDate: selectedDate })}>+ Ajouter une tâche</button>}
         </div>
@@ -794,7 +837,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
             <FoodOverview
               plans={plans}
               dates={dates}
-              memberById={memberById}
+              members={members}
               stay={stay}
               selectedDate={selectedDate}
               onOpen={(date, task) => openTaskEditor(date, task, "food")}
@@ -932,7 +975,6 @@ function LeavePeople({ members }) {
 
 function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTask, onAddTask }) {
   const scrollRef = useRef(null);
-  const memberById = Object.fromEntries(members.map((member) => [member.id, member]));
   return <section className="dp-overview">
     <header><span className="dp-eyebrow">Planning général</span><h2>{stay.name} — {stay.week}</h2><p>Comme sur le planning Excel : les jours en colonnes et les moments de la journée en lignes.</p></header>
     <div className="dp-scroll-controls"><span>Déplacer le planning</span><div><button type="button" aria-label="Déplacer le planning vers la gauche" onClick={() => scrollRef.current?.scrollBy({ left: -700, behavior: "smooth" })}>←</button><button type="button" aria-label="Déplacer le planning vers la droite" onClick={() => scrollRef.current?.scrollBy({ left: 700, behavior: "smooth" })}>→</button></div></div>
@@ -943,6 +985,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
         {DAY_PLAN_SECTIONS.map((section) => <div className="dp-excel-line" key={section.key} style={{ display: "contents" }}>
           <div className="dp-excel-label" style={{ "--section-color": section.color }}><span>{section.icon}</span><strong>{section.label}</strong></div>
           {dates.map((date) => {
+            const memberById = activeMemberByIdOnDate(members, date);
             const tasks = sortTasks(((plans[date] || seedDay(date, config)).tasks || []).filter((task) => task.category === section.key));
             const addAtClick = (event) => {
               if (event.target.closest("[data-dp-action]")) return;
@@ -994,7 +1037,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
   </section>;
 }
 
-function FoodOverview({ plans, dates, memberById, stay, selectedDate, onOpen, onUseMenu }) {
+function FoodOverview({ plans, dates, members, stay, selectedDate, onOpen, onUseMenu }) {
   const mealSections = [
     { key: "breakfast", label: "Petit déjeuner", icon: "☕", color: "#d97706" },
     { key: "lunch", label: "Repas du midi", icon: "🥗", color: "#16a34a" },
@@ -1006,6 +1049,7 @@ function FoodOverview({ plans, dates, memberById, stay, selectedDate, onOpen, on
     <div className="dp-food-wrap"><table><thead><tr><th>Jour</th>{mealSections.map((section) => <th key={section.key}><span>{section.icon}</span>{section.label}</th>)}</tr></thead><tbody>
       {dates.map((date, index) => {
         const tasks = plans[date]?.tasks || [];
+        const memberById = activeMemberByIdOnDate(members, date);
         return <tr key={date}><th><small>J{index + 1}</small><strong>{dateLabel(date)}</strong></th>{mealSections.map((section) => {
           const meals = sortTasks(tasks.filter((task) => task.category === section.key));
           return <td key={section.key}>{meals.length ? meals.map((task) => {
@@ -1060,13 +1104,14 @@ function KitchenMenuLibrary({ selectedDate, onUseMenu }) {
 }
 
 function leaveAssessment(plans, members, member, date, leaveDates) {
+  const activeIds = new Set((members || []).map((item) => item.id));
   const previous = previousDate(date);
   const eveningTasks = (plans[previous]?.tasks || []).filter((task) => Number(String(task.startTime || "0").split(":")[0]) >= 19);
   const daytimeTasks = (plans[date]?.tasks || []).filter((task) => Number(String(task.startTime || "12").split(":")[0]) < 19);
   const conflicts = [...eveningTasks, ...daytimeTasks].filter((task) => (task.assigneeIds || []).includes(member.id));
-  const selectedIds = new Set(plans[date]?.leaveMemberIds || []);
+  const selectedIds = new Set((plans[date]?.leaveMemberIds || []).filter((id) => activeIds.has(id)));
   const alreadySelected = selectedIds.has(member.id);
-  const memberLeaveCount = leaveDates.filter((leaveDate) => (plans[leaveDate]?.leaveMemberIds || []).includes(member.id)).length;
+  const memberLeaveCount = leaveDates.filter((leaveDate) => memberActiveOnDate(member, leaveDate) && (plans[leaveDate]?.leaveMemberIds || []).includes(member.id)).length;
   selectedIds.add(member.id);
   const projectedOff = selectedIds.size;
   const available = Math.max(members.length - projectedOff, 0);
@@ -1080,7 +1125,8 @@ function leaveAssessment(plans, members, member, date, leaveDates) {
 }
 
 function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, showToast }) {
-  const countsByMember = Object.fromEntries(members.map((member) => [member.id, leaveDates.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)).length]));
+  const roster = members.filter((member) => leaveDates.some((date) => memberActiveOnDate(member, date)));
+  const countsByMember = Object.fromEntries(roster.map((member) => [member.id, leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id)).length]));
   return <section className="dp-leaves-view">
     <header className="dp-leaves-header"><div><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></div><button type="button" className="dp-leaves-export" onClick={() => {
       if (!openLeavesPdf({ plans, members, leaveDates, stay })) showToast?.("Autorisez les fenêtres pop-up pour exporter les congés.", "error");
@@ -1088,18 +1134,25 @@ function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, sh
     <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
     <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier</span><span className="is-danger">● Conflit</span><span className="is-quota">● Déjà 2 congés</span></div>
     <div className="dp-leave-capacity">{leaveDates.map((date) => {
-      const off = plans[date]?.leaveMemberIds || [];
+      const activeMembers = activeMembersOnDate(members, date);
+      const activeIds = new Set(activeMembers.map((member) => member.id));
+      const off = (plans[date]?.leaveMemberIds || []).filter((id) => activeIds.has(id));
       const conflictCount = off.filter((memberId) => {
-        const member = members.find((item) => item.id === memberId);
-        return member && leaveAssessment(plans, members, member, date, leaveDates).level === "danger";
+        const member = activeMembers.find((item) => item.id === memberId);
+        return member && leaveAssessment(plans, activeMembers, member, date, leaveDates).level === "danger";
       }).length;
       const level = conflictCount ? "danger" : off.length >= 3 ? "warning" : "safe";
-      return <div key={date} className={`is-${level}`}><strong>{dateLabel(date, true)}</strong><span>{members.length - off.length} disponibles</span><small>{off.length} en congé{conflictCount ? ` · ${conflictCount} conflit` : ""}</small></div>;
+      return <div key={date} className={`is-${level}`}><strong>{dateLabel(date, true)}</strong><span>{activeMembers.length - off.length} disponibles</span><small>{off.length} en congé{conflictCount ? ` · ${conflictCount} conflit` : ""}</small></div>;
     })}</div>
     <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{leaveDates.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
-      {members.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role} · {countsByMember[member.id] || 0}/2 congés</small></span></th>{leaveDates.map((date) => {
+      {roster.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role} · {countsByMember[member.id] || 0}/2 congés</small></span></th>{leaveDates.map((date) => {
+        if (!memberActiveOnDate(member, date)) {
+          return <td key={date} className="is-muted"><label title="Hors contrat ce jour-la"><input type="checkbox" checked={false} disabled /><span>Hors contrat</span><small>Non assignable ce jour-la.</small></label></td>;
+        }
+        const activeMembers = activeMembersOnDate(members, date);
         const selected = (plans[date]?.leaveMemberIds || []).includes(member.id);
-        const assessment = leaveAssessment(plans, members, member, date, leaveDates);
+        const activeMember = activeMembers.find((item) => item.id === member.id) || member;
+        const assessment = leaveAssessment(plans, activeMembers, activeMember, date, leaveDates);
         const change = () => {
           if (!selected && assessment.level === "danger" && !window.confirm(`${assessment.label}\n${assessment.detail}\n\nConfirmer quand même ce congé ?`)) return;
           onToggle(member.id, date);
@@ -1107,16 +1160,16 @@ function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, sh
         return <td key={date} className={`${selected ? "is-leave " : ""}is-${assessment.level}`}><label title={`${assessment.label} — ${assessment.detail}`}><input type="checkbox" checked={selected} disabled={saving || (!selected && assessment.limitReached)} onChange={change} /><span>{selected ? "Congé posé" : assessment.label}</span><small>{selected ? `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h` : assessment.level === "quota" ? "Décochez un autre congé pour changer." : assessment.detail}</small></label></td>;
       })}</tr>)}
     </tbody></table></div>
-    <div className="dp-leave-summary"><h3>Récapitulatif</h3>{members.map((member) => {
-      const days = leaveDates.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id));
+    <div className="dp-leave-summary"><h3>Récapitulatif</h3>{roster.map((member) => {
+      const days = leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id));
       return <div key={member.id}><strong>{memberName(member)}</strong><span>{days.length ? days.map((date) => `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`).join(" · ") : "Aucun congé renseigné"}</span></div>;
     })}</div>
-    <LeaveValidation plans={plans} members={members} leaveDates={leaveDates} />
+    <LeaveValidation plans={plans} members={roster} leaveDates={leaveDates} />
   </section>;
 }
 
 function LeaveValidation({ plans, members, leaveDates }) {
-  const counts = members.map((member) => ({ member, count: leaveDates.filter((date) => (plans[date]?.leaveMemberIds || []).includes(member.id)).length }));
+  const counts = members.map((member) => ({ member, count: leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id)).length }));
   const valid = counts.length > 0 && counts.every((item) => item.count === 2);
   const missing = counts.reduce((total, item) => total + Math.max(2 - item.count, 0), 0);
   return <section className={`dp-leave-validation ${valid ? "is-valid" : "is-invalid"}`}>
