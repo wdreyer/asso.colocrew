@@ -245,6 +245,17 @@ function activeMemberByIdOnDate(members, date) {
   return Object.fromEntries(activeMembersOnDate(members, date).map((member) => [member.id, member]));
 }
 
+function memberCanTakeLeaveOnDate(member, date, stayStartDate = "") {
+  if (!memberActiveOnDate(member, date)) return false;
+  const previous = previousDate(date);
+  if (stayStartDate && previous < stayStartDate) return true;
+  return memberActiveOnDate(member, previous);
+}
+
+function leaveEligibleMembersOnDate(members, date, stayStartDate = "") {
+  return activeMembersOnDate(members, date).filter((member) => memberCanTakeLeaveOnDate(member, date, stayStartDate));
+}
+
 function cleanTaskAssigneesForDate(task, members, date) {
   const activeIds = new Set(activeMembersOnDate(members, date).map((member) => member.id));
   return {
@@ -253,10 +264,10 @@ function cleanTaskAssigneesForDate(task, members, date) {
   };
 }
 
-function cleanPlanAssigneesForDate(plan, members, date) {
+function cleanPlanAssigneesForDate(plan, members, date, stayStartDate = "") {
   return {
     ...plan,
-    leaveMemberIds: (plan?.leaveMemberIds || []).filter((id) => memberActiveOnDate(members.find((member) => member.id === id), date)),
+    leaveMemberIds: (plan?.leaveMemberIds || []).filter((id) => memberCanTakeLeaveOnDate(members.find((member) => member.id === id), date, stayStartDate)),
     tasks: (plan?.tasks || []).map((task) => cleanTaskAssigneesForDate(task, members, date)),
   };
 }
@@ -471,15 +482,15 @@ function openLeavesPdf({ plans, members, leaveDates, stay }) {
   if (!popup) return false;
   popup.opener = null;
 
-  const roster = members.filter((member) => leaveDates.some((date) => memberActiveOnDate(member, date)));
+  const roster = members.filter((member) => leaveDates.some((date) => memberCanTakeLeaveOnDate(member, date, stay.startDate)));
   const counts = roster.map((member) => ({
     member,
-    days: leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id)),
+    days: leaveDates.filter((date) => memberCanTakeLeaveOnDate(member, date, stay.startDate) && (plans[date]?.leaveMemberIds || []).includes(member.id)),
   }));
   const alerts = [];
   const memberRows = counts.map(({ member, days }) => {
     const cells = leaveDates.map((date) => {
-      if (!memberActiveOnDate(member, date)) {
+      if (!memberCanTakeLeaveOnDate(member, date, stay.startDate)) {
         return `<td><strong>Hors contrat</strong><small>Non assignable</small></td>`;
       }
       const activeMembers = activeMembersOnDate(members, date);
@@ -499,7 +510,7 @@ function openLeavesPdf({ plans, members, leaveDates, stay }) {
   }).join("");
 
   const dayRows = leaveDates.map((date) => {
-    const activeMembers = activeMembersOnDate(members, date);
+    const activeMembers = leaveEligibleMembersOnDate(members, date, stay.startDate);
     const activeIds = new Set(activeMembers.map((member) => member.id));
     const offIds = (plans[date]?.leaveMemberIds || []).filter((id) => activeIds.has(id));
     const offMembers = offIds.map((id) => activeMembers.find((member) => member.id === id)).filter(Boolean);
@@ -606,8 +617,8 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
     [members, selectedDate],
   );
   const selectedPlan = useMemo(
-    () => cleanPlanAssigneesForDate(rawSelectedPlan, members, selectedDate),
-    [rawSelectedPlan, members, selectedDate],
+    () => cleanPlanAssigneesForDate(rawSelectedPlan, members, selectedDate, stay.startDate),
+    [rawSelectedPlan, members, selectedDate, stay.startDate],
   );
   const selectedMemberById = useMemo(() => Object.fromEntries(selectedMembers.map((member) => [member.id, member])), [selectedMembers]);
   const memberById = useMemo(() => Object.fromEntries(members.map((member) => [member.id, member])), [members]);
@@ -643,8 +654,14 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   };
 
   const toggleLeave = async (memberId, date = selectedDate) => {
+    const member = members.find((item) => item.id === memberId);
+    if (!memberCanTakeLeaveOnDate(member, date, stay.startDate)) {
+      showToast("Impossible : cette personne n'est pas sous contrat sur ce creneau de conge.", "error");
+      return;
+    }
     const plan = plans[date] || seedDay(date, config);
-    const leave = new Set(plan.leaveMemberIds || []);
+    const eligibleIds = new Set(leaveEligibleMembersOnDate(members, date, stay.startDate).map((item) => item.id));
+    const leave = new Set((plan.leaveMemberIds || []).filter((id) => eligibleIds.has(id)));
     leave.has(memberId) ? leave.delete(memberId) : leave.add(memberId);
     await saveDay(date, { leaveMemberIds: [...leave] }, "Congés mis à jour.");
   };
@@ -887,6 +904,7 @@ function DayHeader({ date, plan, dates, leaveDates, stay, members, saving, onTog
   const [open, setOpen] = useState(false);
   const leave = plan.leaveMemberIds || [];
   const leaveAllowed = leaveDates.includes(date);
+  const leaveMembers = members.filter((member) => memberCanTakeLeaveOnDate(member, date, stay.startDate));
   return (
     <section className="dp-day-head">
       <div>
@@ -898,7 +916,7 @@ function DayHeader({ date, plan, dates, leaveDates, stay, members, saving, onTog
         <button type="button" disabled={!leaveAllowed} title={leaveAllowed ? "" : "Aucun congé pendant les 2 premiers et les 2 derniers jours"} onClick={() => setOpen((value) => !value)}>{leaveAllowed ? "🌴 En congé aujourd’hui" : "Congés non disponibles"} {leaveAllowed && <b>{leave.length}</b>}</button>
         {leaveAllowed && open && <div className="dp-leave-menu">
           <strong>Congé du {dateLabel(previousDate(date), true)} à 19 h au {dateLabel(date, true)} à 19 h</strong>
-          {members.map((member) => <label key={member.id}>
+          {leaveMembers.map((member) => <label key={member.id}>
             <input type="checkbox" checked={leave.includes(member.id)} disabled={saving} onChange={() => onToggleLeave(member.id)} />
             <span className="dp-mini-avatar">{initials(member)}</span>{memberName(member)}
           </label>)}
@@ -1125,8 +1143,8 @@ function leaveAssessment(plans, members, member, date, leaveDates) {
 }
 
 function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, showToast }) {
-  const roster = members.filter((member) => leaveDates.some((date) => memberActiveOnDate(member, date)));
-  const countsByMember = Object.fromEntries(roster.map((member) => [member.id, leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id)).length]));
+  const roster = members.filter((member) => leaveDates.some((date) => memberCanTakeLeaveOnDate(member, date, stay.startDate)));
+  const countsByMember = Object.fromEntries(roster.map((member) => [member.id, leaveDates.filter((date) => memberCanTakeLeaveOnDate(member, date, stay.startDate) && (plans[date]?.leaveMemberIds || []).includes(member.id)).length]));
   return <section className="dp-leaves-view">
     <header className="dp-leaves-header"><div><span className="dp-eyebrow">Repos de l’équipe</span><h2>Planning des congés</h2><p>Une case cochée sur un jour signifie : départ en congé à <strong>19 h la veille</strong>, retour disponible à <strong>19 h le jour indiqué</strong>.</p></div><button type="button" className="dp-leaves-export" onClick={() => {
       if (!openLeavesPdf({ plans, members, leaveDates, stay })) showToast?.("Autorisez les fenêtres pop-up pour exporter les congés.", "error");
@@ -1134,7 +1152,7 @@ function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, sh
     <div className="dp-leave-example">Exemple : congé le mardi 7 juillet = du lundi 6 juillet à 19 h au mardi 7 juillet à 19 h.</div>
     <div className="dp-leave-legend"><span className="is-safe">● Possible</span><span className="is-warning">● À vérifier</span><span className="is-danger">● Conflit</span><span className="is-quota">● Déjà 2 congés</span></div>
     <div className="dp-leave-capacity">{leaveDates.map((date) => {
-      const activeMembers = activeMembersOnDate(members, date);
+      const activeMembers = leaveEligibleMembersOnDate(members, date, stay.startDate);
       const activeIds = new Set(activeMembers.map((member) => member.id));
       const off = (plans[date]?.leaveMemberIds || []).filter((id) => activeIds.has(id));
       const conflictCount = off.filter((memberId) => {
@@ -1146,10 +1164,10 @@ function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, sh
     })}</div>
     <div className="dp-leaves-wrap"><table><thead><tr><th>Équipe</th>{leaveDates.map((date) => <th key={date}>{dateLabel(date, true)}</th>)}</tr></thead><tbody>
       {roster.map((member) => <tr key={member.id}><th><span className="dp-mini-avatar">{initials(member)}</span><span>{memberName(member)}<small>{member.role} · {countsByMember[member.id] || 0}/2 congés</small></span></th>{leaveDates.map((date) => {
-        if (!memberActiveOnDate(member, date)) {
+        if (!memberCanTakeLeaveOnDate(member, date, stay.startDate)) {
           return <td key={date} className="is-muted"><label title="Hors contrat ce jour-la"><input type="checkbox" checked={false} disabled /><span>Hors contrat</span><small>Non assignable ce jour-la.</small></label></td>;
         }
-        const activeMembers = activeMembersOnDate(members, date);
+        const activeMembers = leaveEligibleMembersOnDate(members, date, stay.startDate);
         const selected = (plans[date]?.leaveMemberIds || []).includes(member.id);
         const activeMember = activeMembers.find((item) => item.id === member.id) || member;
         const assessment = leaveAssessment(plans, activeMembers, activeMember, date, leaveDates);
@@ -1161,15 +1179,15 @@ function LeavesOverview({ plans, members, leaveDates, stay, saving, onToggle, sh
       })}</tr>)}
     </tbody></table></div>
     <div className="dp-leave-summary"><h3>Récapitulatif</h3>{roster.map((member) => {
-      const days = leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id));
+      const days = leaveDates.filter((date) => memberCanTakeLeaveOnDate(member, date, stay.startDate) && (plans[date]?.leaveMemberIds || []).includes(member.id));
       return <div key={member.id}><strong>{memberName(member)}</strong><span>{days.length ? days.map((date) => `${dateLabel(previousDate(date), true)} 19 h → ${dateLabel(date, true)} 19 h`).join(" · ") : "Aucun congé renseigné"}</span></div>;
     })}</div>
-    <LeaveValidation plans={plans} members={roster} leaveDates={leaveDates} />
+    <LeaveValidation plans={plans} members={roster} leaveDates={leaveDates} stay={stay} />
   </section>;
 }
 
-function LeaveValidation({ plans, members, leaveDates }) {
-  const counts = members.map((member) => ({ member, count: leaveDates.filter((date) => memberActiveOnDate(member, date) && (plans[date]?.leaveMemberIds || []).includes(member.id)).length }));
+function LeaveValidation({ plans, members, leaveDates, stay }) {
+  const counts = members.map((member) => ({ member, count: leaveDates.filter((date) => memberCanTakeLeaveOnDate(member, date, stay.startDate) && (plans[date]?.leaveMemberIds || []).includes(member.id)).length }));
   const valid = counts.length > 0 && counts.every((item) => item.count === 2);
   const missing = counts.reduce((total, item) => total + Math.max(2 - item.count, 0), 0);
   return <section className={`dp-leave-validation ${valid ? "is-valid" : "is-invalid"}`}>
