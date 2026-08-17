@@ -214,8 +214,8 @@ function memberActiveOnDate(member, date) {
   if (Array.isArray(member?.contracts) && member.contracts.length) {
     return member.contracts.some((contract) => memberActiveOnDate(contract, date));
   }
-  const start = String(member?.contractStartDate || "").slice(0, 10);
-  const end = String(member?.contractEndDate || "").slice(0, 10);
+  const start = String(member?.contractStartDate || member?.startDate || "").slice(0, 10);
+  const end = String(member?.contractEndDate || member?.endDate || "").slice(0, 10);
   return (!start || date >= start) && (!end || date <= end);
 }
 
