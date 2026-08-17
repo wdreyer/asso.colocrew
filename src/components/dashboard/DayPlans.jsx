@@ -264,6 +264,11 @@ function cleanTaskAssigneesForDate(task, members, date) {
   };
 }
 
+function assignableMembersForTask(members, date, task = null) {
+  const taskDate = task?.targetDate || task?._sourceDate || date;
+  return activeMembersOnDate(members, taskDate);
+}
+
 function cleanPlanAssigneesForDate(plan, members, date, stayStartDate = "") {
   return {
     ...plan,
@@ -867,6 +872,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
               <DayHeader date={selectedDate} plan={selectedPlan} dates={dates} leaveDates={leaveDates} stay={stay} members={selectedMembers} saving={saving} onToggleLeave={toggleLeave} />
               <DayTimeline
                 plan={selectedPlan}
+                date={selectedDate}
                 members={selectedMembers}
                 memberById={selectedMemberById}
                 unavailability={unavailability}
@@ -926,7 +932,7 @@ function DayHeader({ date, plan, dates, leaveDates, stay, members, saving, onTog
   );
 }
 
-function DayTimeline({ plan, members, memberById, unavailability, onEdit, onAdd, onToggleAssignee }) {
+function DayTimeline({ plan, date, members, memberById, unavailability, onEdit, onAdd, onToggleAssignee }) {
   return <div className="dp-schedule-table">
     <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span><span>En congé</span></div>
     {DAY_PLAN_SECTIONS.map((section) => {
@@ -954,7 +960,7 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onAdd,
             {(task.details || task.menu) && <p>{task.details || task.menu}</p>}
             {(task.kitchen || task.photo?.url || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.photo?.url && <i>📷 Photo</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
           </button>
-          <QuickAssign task={task} members={members} unavailability={unavailability} onToggle={onToggleAssignee} />
+          <QuickAssign task={task} date={date} members={members} unavailability={unavailability} onToggle={onToggleAssignee} />
           <LeavePeople members={peopleOnLeave} />
           {index === tasks.length - 1 && <button type="button" className="dp-row-add-task" onClick={() => onAdd(section.key)} title={`Ajouter dans ${section.label}`}>+</button>}
         </div>;
@@ -963,16 +969,17 @@ function DayTimeline({ plan, members, memberById, unavailability, onEdit, onAdd,
   </div>;
 }
 
-function QuickAssign({ task, members, unavailability, onToggle }) {
+function QuickAssign({ task, date, members, unavailability, onToggle }) {
   const [open, setOpen] = useState(false);
   const selectedIds = new Set(task.assigneeIds || []);
-  const selected = members.filter((member) => selectedIds.has(member.id));
+  const assignableMembers = assignableMembersForTask(members, date, task);
+  const selected = assignableMembers.filter((member) => selectedIds.has(member.id));
   return <div className="dp-quick-assign">
     <div className="dp-assigned-names">{selected.length ? selected.map((member) => <span key={member.id}>{member.firstName || memberName(member)}</span>) : <em>À affecter</em>}</div>
     <button type="button" className="dp-assign-plus" aria-label={`Modifier les affectations de ${task.title}`} onClick={() => setOpen((value) => !value)}>+</button>
     {open && <div className="dp-assign-menu">
       <header><strong>Qui fait cette activité ?</strong><button type="button" onClick={() => setOpen(false)}>×</button></header>
-      {members.map((member) => {
+      {assignableMembers.map((member) => {
         const isSelected = selectedIds.has(member.id);
         const reason = unavailability(member.id, task.startTime);
         return <label key={member.id} className={reason && !isSelected ? "is-unavailable" : ""} title={reason || ""}>
