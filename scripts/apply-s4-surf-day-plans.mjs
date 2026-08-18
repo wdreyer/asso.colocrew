@@ -121,12 +121,12 @@ function basicTasks(date) {
   }
   if (isLast) {
     return [
-      task(`${key}-breakfast`, "breakfast", "Petit dejeuner et rangement", "08:00", "10:00", { kitchen: true }),
+      task(`${key}-breakfast`, "breakfast", "Petit dejeuner et rangement", "09:00", "10:30", { kitchen: true }),
       task(`${key}-departure`, "morning", "Depart du groupe", "10:00", "12:00", { details: "Inventaire, rangement et departs." }),
     ];
   }
   return [
-    task(`${key}-breakfast`, "breakfast", "Petit dejeuner", "08:00", "09:30", { kitchen: true }),
+    task(`${key}-breakfast`, "breakfast", "Petit dejeuner", "09:00", "10:30", { kitchen: true }),
     task(`${key}-morning`, "morning", "Activite principale / projets", "10:00", "12:00", { details: "Creneau a completer selon le planning d'activites." }),
     task(`${key}-lunch`, "lunch", "Repas du midi", "12:30", "13:30", { kitchen: true }),
     task(`${key}-afternoon`, "afternoon", "Activites ColoCrew / surf / grand jeu", "14:30", "17:30", { groups: "Groupes a renseigner", details: "Deroule a preciser par l'equipe." }),

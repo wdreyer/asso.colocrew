@@ -333,6 +333,7 @@ function dayKey(date) {
 function basicStayDays(stay) {
   const prefix = stay.id.replace("-2026", "");
   const isEvcc = stay.code === "EVCC";
+  const isS4 = stay.week === "S4";
   const dates = datesBetween(stay.startDate, stay.endDate);
   return Object.fromEntries(dates.map((date, index) => {
     const key = `${prefix}-${dayKey(date)}`;
@@ -344,12 +345,12 @@ function basicStayDays(stay) {
     }
     if (index === dates.length - 1) {
       return [date, [
-        task(`${key}-breakfast`, "breakfast", "Petit dejeuner et rangement", "08:00", "10:00", { kitchen: true }),
+        task(`${key}-breakfast`, "breakfast", "Petit dejeuner et rangement", isS4 ? "09:00" : "08:00", isS4 ? "10:30" : "10:00", { kitchen: true }),
         task(`${key}-departure`, "morning", "Depart du groupe", "10:00", "12:00", { details: "Inventaire, rangement et departs." }),
       ]];
     }
     return [date, [
-      task(`${key}-breakfast`, "breakfast", "Petit dejeuner", "08:00", "09:30", { kitchen: true }),
+      task(`${key}-breakfast`, "breakfast", "Petit dejeuner", isS4 ? "09:00" : "08:00", isS4 ? "10:30" : "09:30", { kitchen: true }),
       task(`${key}-morning`, "morning", isEvcc ? "Activite eaux vives / projets" : "Activite principale / projets", "10:00", "12:00", {
         details: isEvcc ? "Creneau a ajuster selon les rotations prestataire." : "Creneau a completer selon le planning d'activites.",
       }),
