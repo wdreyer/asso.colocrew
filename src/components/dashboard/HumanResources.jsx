@@ -526,15 +526,15 @@ function docusignWaitingLabel(value) {
 
 function docusignWaitingFromSigners(status, signers = []) {
   if (status === "completed") return "completed";
-  const ordered = [...(signers || [])].sort((a, b) => Number(a.routingOrder || 0) - Number(b.routingOrder || 0));
-  const staffSigner = ordered.find((signer) => String(signer.routingOrder) === "1") || ordered[0];
-  const organizerSigner = ordered.find((signer) => String(signer.routingOrder) === "2") || ordered[1];
+  const ordered = [...(signers || [])].sort((a, b) => Number(a.recipientId || 0) - Number(b.recipientId || 0));
+  const staffSigner = ordered.find((signer) => String(signer.recipientId) === "1") || ordered[0];
+  const organizerSigner = ordered.find((signer) => String(signer.recipientId) === "2") || ordered[1];
   if (staffSigner && staffSigner.status !== "completed") return "staff";
   if (organizerSigner && organizerSigner.status !== "completed") return "colocrew";
   return "";
 }
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
+function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignAttach, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
   const [visibleContracts, setVisibleContracts] = useState([]);
   const [weekTile, setWeekTile] = useState("all");
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
@@ -633,6 +633,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
               if (action === "complete-profile") onCompleteMember(m, true);
               if (action === "preview") onContract(m, row);
               if (action === "send") onDocusignSend(m, row);
+              if (action === "attach") onDocusignAttach(row);
               if (action === "refresh") onDocusignRefresh(row);
               if (action === "reset") onDocusignReset(row);
               if (action === "pdf") window.open(row.contractFileUrl, "_blank", "noopener,noreferrer");
@@ -645,6 +646,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
             {m && missingPersonalInformation(m).length > 0 && <option value="complete-profile">Compléter fiche</option>}
             {m && <option value="preview">Aperçu PDF</option>}
             {m && !row.docusignEnvelopeId && m.email && <option value="send">Envoyer DocuSign</option>}
+            <option value="attach">Rattacher enveloppe DocuSign</option>
             {row.docusignEnvelopeId && <option value="refresh">Actualiser signature</option>}
             {row.docusignEnvelopeId && <option value="reset">Réinitialiser</option>}
             {row.contractFileUrl && <option value="pdf">Ouvrir PDF signé</option>}
@@ -1760,6 +1762,39 @@ export default function HumanResources({ initialTab = "sejours" }) {
     sendContractWithDocusign(member, contract);
   };
 
+  const attachDocusignEnvelope = async (contract) => {
+    if (!currentUser || !contract || docusignBusyId) return;
+    const current = contract.docusignEnvelopeId || "";
+    const envelopeId = window.prompt(
+      `ID d'enveloppe DocuSign pour ${contract.memberName || "ce contrat"} :`,
+      current,
+    );
+    if (envelopeId == null) return;
+    const cleanEnvelopeId = envelopeId.trim();
+    if (!/^[0-9a-f-]{20,}$/i.test(cleanEnvelopeId)) {
+      showToast("ID d'enveloppe DocuSign invalide.", "error");
+      return;
+    }
+    const fields = {
+      docusignEnvelopeId: cleanEnvelopeId,
+      docusignStatus: contract.docusignStatus || "sent",
+      docusignUpdatedAt: new Date().toISOString(),
+      docusignWaitingFor: contract.docusignWaitingFor || "staff",
+      docusignRecipientStatuses: contract.docusignRecipientStatuses || [],
+    };
+    setDocusignBusyId(contract.id);
+    try {
+      await persistDocusignState(contract.id, fields);
+      showToast("Enveloppe DocuSign rattachée. Actualisation du statut...", "success");
+    } catch (error) {
+      showToast(error?.message || "Rattachement DocuSign impossible.", "error");
+      setDocusignBusyId("");
+      return;
+    }
+    setDocusignBusyId("");
+    await refreshDocusignStatus({ ...contract, ...fields });
+  };
+
   const saveMemberThenSendContract = async (updatedMember) => {
     if (!updatedMember?.id || !contractSendReview.contract) return;
     const updateData = memberIdentityUpdateData(updatedMember);
@@ -2176,6 +2211,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onToggleCea={toggleCeaDeclaration}
             onTogglePayment={toggleContractPayment}
             onDocusignSend={requestDocusignSend}
+            onDocusignAttach={attachDocusignEnvelope}
             onDocusignRefresh={refreshDocusignStatus}
             onDocusignRefreshMany={refreshVisibleDocusignStatuses}
             onDocusignReset={resetDocusignContract}

@@ -98,7 +98,7 @@ async function createDocusignEnvelope(context, { subject, html, signers, documen
     email: signer.email,
     name: signer.name,
     recipientId: String(index + 1),
-    routingOrder: String(index + 1),
+    routingOrder: String(signer.routingOrder || index + 1),
     tabs: {
       signHereTabs: [{
         anchorString: signer.anchor,
@@ -215,7 +215,7 @@ export async function getDocusignEnvelope(envelopeId) {
       sentDateTime: signer.sentDateTime || "",
     }));
     if (result.status === "completed") {
-      const staffSigner = (recipients.signers || []).find((signer) => String(signer.routingOrder) === "1")
+      const staffSigner = (recipients.signers || []).find((signer) => String(signer.recipientId) === "1")
         || recipients.signers?.[0];
       formData = Object.fromEntries(
         (staffSigner?.tabs?.textTabs || [])

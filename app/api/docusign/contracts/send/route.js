@@ -130,6 +130,7 @@ export async function POST(request) {
           email: member.email,
           name: fullName,
           anchor: "/cc-staff-signature/",
+          routingOrder: "1",
           textTabs: staffTextTabs,
           emailBody: `Bonjour ${member.firstName}, merci de vérifier puis signer votre contrat d'engagement éducatif ColoCrew. Une fois votre signature terminée, ColoCrew le contresignera.`,
         },
@@ -137,7 +138,8 @@ export async function POST(request) {
           email: adminEmail,
           name: adminName,
           anchor: "/cc-organizer-signature/",
-          emailBody: `Le contrat de ${fullName} a été signé par l'animateur·ice. Merci de le vérifier puis de le contresigner pour ColoCrew.`,
+          routingOrder: "1",
+          emailBody: `Le contrat de ${fullName} est prêt dans DocuSign. Merci de le vérifier puis de le signer pour ColoCrew.`,
         },
       ],
     });
