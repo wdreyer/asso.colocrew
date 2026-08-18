@@ -534,7 +534,7 @@ function docusignWaitingFromSigners(status, signers = []) {
   return "";
 }
 
-function ContratsView({ contracts, members, onContract, onEditContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignAttach, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
+function ContratsView({ contracts, members, onContract, onEditContract, onDeleteContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignAttach, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
   const [visibleContracts, setVisibleContracts] = useState([]);
   const [weekTile, setWeekTile] = useState("all");
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
@@ -632,6 +632,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
               if (action === "profile") onCompleteMember(m, false);
               if (action === "complete-profile") onCompleteMember(m, true);
               if (action === "preview") onContract(m, row);
+              if (action === "delete") onDeleteContract(row);
               if (action === "send") onDocusignSend(m, row);
               if (action === "attach") onDocusignAttach(row);
               if (action === "refresh") onDocusignRefresh(row);
@@ -643,6 +644,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onNewCon
             <option value="">Actions…</option>
             {m && <option value="profile">Voir fiche</option>}
             <option value="edit">Modifier contrat</option>
+            <option value="delete">Supprimer contrat</option>
             {m && missingPersonalInformation(m).length > 0 && <option value="complete-profile">Compléter fiche</option>}
             {m && <option value="preview">Aperçu PDF</option>}
             {m && !row.docusignEnvelopeId && m.email && <option value="send">Envoyer DocuSign</option>}
@@ -1635,6 +1637,27 @@ export default function HumanResources({ initialTab = "sejours" }) {
     }
   };
 
+  const deleteContractOnly = async (contract) => {
+    if (!currentUser || !contract?.id || docusignBusyId) return;
+    const hasDocusign = Boolean(contract.docusignEnvelopeId);
+    const hasSignedPdf = Boolean(contract.contractFileUrl || contract.signedContractStoragePath);
+    const warning = hasDocusign || hasSignedPdf
+      ? "\n\nAttention : ce contrat a une enveloppe DocuSign ou un PDF signe. Cette action supprime seulement la ligne RH. Pour annuler DocuSign et retirer le PDF signe, utilisez d'abord Reinitialiser."
+      : "";
+    const confirmed = window.confirm(
+      `Supprimer le contrat de ${contract.memberName || "cet animateur"} (${contract.week || ""} ${contract.stayCode || contract.stay || ""}) ?\n\n` +
+      "La fiche RH de la personne sera conservee." + warning,
+    );
+    if (!confirmed) return;
+    try {
+      await deleteDoc(doc(db, COLLECTIONS.STAFF_CONTRACTS, contract.id));
+      setContracts((previous) => previous.filter((item) => item.id !== contract.id));
+      showToast("Contrat supprime. La fiche RH est conservee.", "success");
+    } catch (error) {
+      showToast(error?.message || "Suppression du contrat impossible.", "error");
+    }
+  };
+
   const archiveSignedContract = async (contract, statusPayload, firebaseToken) => {
     const member = members.find((item) => item.id === contract.memberId);
     if (!member) throw new Error("Animateur·ice introuvable pour l'archivage du contrat.");
@@ -2206,6 +2229,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             members={members}
             onContract={handleContract}
             onEditContract={openEditContract}
+            onDeleteContract={deleteContractOnly}
             onNewContract={() => openNewContract(null)}
             onCompleteMember={(member, startEditing = true) => openMemberFile(member, startEditing)}
             onToggleCea={toggleCeaDeclaration}
