@@ -44,7 +44,7 @@ export async function POST(request) {
           currency: "eur",
           product_data: {
             name: `${product.name} - Taille ${size.value}`,
-            description: `${priceOption.label} - ${priceOption.amount} EUR. Le supplement finance directement ColoCrew.`,
+            description: `${priceOption.label} - ${priceOption.amount} EUR. Précommande, livraison dans environ 1 mois. Le supplément finance directement ColoCrew.`,
             images: [`${getBaseUrl()}${product.images[0].src}`],
             metadata: {
               productId: product.id,
@@ -71,6 +71,8 @@ export async function POST(request) {
       cancel_url: `${getBaseUrl()}/merch?commande=annulee`,
       metadata: {
         source: "colocrew-merch",
+        preorder: "true",
+        shippingEstimate: "environ 1 mois",
         itemCount: String(items.length),
       },
     });
