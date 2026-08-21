@@ -69,12 +69,30 @@
 .heroImage {
   object-fit: cover;
   object-position: center;
+  filter: sepia(0.2) saturate(0.86) contrast(1.08) brightness(1.03);
 }
 
 .heroShade {
   background:
-    linear-gradient(90deg, rgba(8, 4, 11, 0.86), rgba(8, 4, 11, 0.34) 48%, rgba(8, 4, 11, 0.1)),
+    radial-gradient(circle at 22% 18%, rgba(255, 233, 170, 0.18), transparent 28%),
+    linear-gradient(90deg, rgba(8, 4, 11, 0.82), rgba(8, 4, 11, 0.3) 48%, rgba(8, 4, 11, 0.08)),
     linear-gradient(0deg, rgba(8, 4, 11, 0.84), rgba(8, 4, 11, 0));
+}
+
+.heroShade::after,
+.mainPhoto::after,
+.photoStrip div::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.1), transparent 1px),
+    radial-gradient(circle at 72% 44%, rgba(0, 0, 0, 0.14), transparent 1px),
+    linear-gradient(115deg, rgba(255, 210, 120, 0.11), rgba(255, 255, 255, 0) 36%, rgba(32, 0, 38, 0.14));
+  background-size: 5px 5px, 7px 7px, 100% 100%;
+  mix-blend-mode: soft-light;
+  opacity: 0.62;
 }
 
 .heroContent {
@@ -215,6 +233,7 @@
 .productImage,
 .thumbImage {
   object-fit: cover;
+  filter: sepia(0.18) saturate(0.82) contrast(1.1) brightness(1.04);
 }
 
 .galleryButton {
@@ -552,6 +571,7 @@
 
 .photoStrip img {
   object-fit: cover;
+  filter: sepia(0.22) saturate(0.78) contrast(1.12) brightness(1.03);
 }
 
 .cartSection {
