@@ -44,7 +44,7 @@ export async function POST(request) {
           currency: "eur",
           product_data: {
             name: `${product.name} - Taille ${size.value}`,
-            description: `${priceOption.label} - ${priceOption.amount} EUR. Précommande, livraison dans environ 1 mois. Le supplément finance directement ColoCrew.`,
+            description: `${priceOption.label} - ${priceOption.amount} EUR. Précommande, livraison estimée dans 1 mois. Le supplément finance directement ColoCrew.`,
             images: [`${getBaseUrl()}${product.images[0].src}`],
             metadata: {
               productId: product.id,
@@ -81,7 +81,7 @@ export async function POST(request) {
   } catch (error) {
     console.error("Erreur merch checkout:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur pendant la creation du paiement." },
+      { error: error.message || "Erreur pendant la création du paiement." },
       { status: 400 }
     );
   }

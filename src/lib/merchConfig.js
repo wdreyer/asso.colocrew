@@ -1,8 +1,8 @@
 export const MERCH_PREORDER = {
   enabled: true,
-  shippingLabel: "Précommande - livraison dans environ 1 mois",
+  shippingLabel: "Précommande - livraison estimée dans 1 mois",
   detail:
-    "On lance la production groupée après les commandes. Les tee-shirts arrivent dans environ 1 mois.",
+    "On regroupe les commandes, on lance la production, puis on expédie. C'est une précommande, pas un stock immédiat.",
 };
 
 const priceOptions = [
@@ -10,19 +10,19 @@ const priceOptions = [
     id: "standard",
     label: "Prix standard",
     amount: 25,
-    helper: "Le tee-shirt au prix normal.",
+    helper: "Le prix normal du tee-shirt.",
   },
   {
     id: "support-30",
     label: "Je soutiens ColoCrew",
     amount: 30,
-    helper: "+5 EUR pour financer les activités.",
+    helper: "+5 EUR pour aider à financer les activités.",
   },
   {
     id: "support-35",
     label: "Je soutiens fort",
     amount: 35,
-    helper: "+10 EUR pour la colo.",
+    helper: "+10 EUR pour soutenir encore plus la colo.",
   },
 ];
 
@@ -38,9 +38,9 @@ export const MERCH_PRODUCTS = [
     id: "colocrew-summer-tour-2026-tee-red",
     name: "Tee-shirt rouge ColoCrew Summer Tour 2k26",
     shortName: "Tee-shirt rouge",
-    tagline: "Le rouge de la crew, celui qui signe l'été.",
+    tagline: "Le rouge de la crew, celui qui se voit de loin.",
     description:
-      "Coupe oversize, coton épais, print poitrine et grand visuel dos. Le bénéfice finance directement les activités ColoCrew.",
+      "Coupe oversize, coton épais, print poitrine discret et grand visuel dos Summer Tour 2k26. Précommande ouverte maintenant, livraison dans environ 1 mois.",
     color: "Rouge ColoCrew",
     fit: "Coupe oversize",
     material: "100% coton",
@@ -83,9 +83,9 @@ export const MERCH_PRODUCTS = [
     id: "colocrew-summer-tour-2026-tee-white",
     name: "Tee-shirt blanc ColoCrew Summer Tour 2k26",
     shortName: "Tee-shirt blanc",
-    tagline: "La version claire, facile à porter tout l'été.",
+    tagline: "La version blanche, plus clean, même signature ColoCrew.",
     description:
-      "Même coupe oversize, même esprit ColoCrew, print bordeaux sur base blanche. Le bénéfice finance directement les activités ColoCrew.",
+      "Même coupe oversize, même coton épais, print bordeaux sur base blanche. Précommande ouverte maintenant, livraison dans environ 1 mois.",
     color: "Blanc / print bordeaux",
     fit: "Coupe oversize",
     material: "100% coton",

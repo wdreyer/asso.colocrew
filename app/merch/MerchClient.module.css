@@ -2,13 +2,59 @@
   background: #0e0a12;
   color: #fff8ef;
   min-height: 100vh;
-  margin-top: -114px;
-  padding-top: 114px;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.merchNav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 80;
+  height: 72px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(14, 10, 18, 0.74);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+.logoLink {
+  color: #fff8ef;
+  font-family: "Baloo 2", cursive;
+  font-size: 1.45rem;
+  font-weight: 950;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.merchNav div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.merchNav a:not(.logoLink) {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: #fff8ef;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .hero {
   position: relative;
-  min-height: calc(100vh - 114px);
+  min-height: 100vh;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
@@ -212,7 +258,7 @@
 }
 
 .activeThumb {
-  border-color: #b8336a;
+  border-color: #ff315b;
 }
 
 .productPanel,
@@ -614,7 +660,7 @@
 
 @media (max-width: 900px) {
   .hero {
-    min-height: calc(100vh - 96px);
+    min-height: 100vh;
   }
 
   .heroShade {
@@ -639,9 +685,23 @@
 }
 
 @media (max-width: 560px) {
-  .page {
-    margin-top: -96px;
-    padding-top: 96px;
+  .merchNav {
+    height: 62px;
+    padding: 0 14px;
+  }
+
+  .logoLink {
+    font-size: 1.24rem;
+  }
+
+  .merchNav div {
+    gap: 6px;
+  }
+
+  .merchNav a:not(.logoLink) {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.7rem;
   }
 
   .shop {

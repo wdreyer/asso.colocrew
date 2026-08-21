@@ -10,5 +10,20 @@ export const metadata = {
 };
 
 export default function MerchPage() {
-  return <MerchClient />;
+  return (
+    <>
+      <style>{`
+        body:has(.merchStandalone) header,
+        body:has(.merchStandalone) footer,
+        body:has(.merchStandalone) .fixed.bottom-20.right-5 {
+          display: none !important;
+        }
+
+        body:has(.merchStandalone) main {
+          padding-top: 0 !important;
+        }
+      `}</style>
+      <MerchClient />
+    </>
+  );
 }

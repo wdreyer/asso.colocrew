@@ -145,7 +145,15 @@ export default function MerchClient() {
   };
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} merchStandalone`}>
+      <div className={styles.merchNav}>
+        <Link href="/" className={styles.logoLink}>ColoCrew</Link>
+        <div>
+          <a href="#shop">Le drop</a>
+          <a href="#panier">Panier</a>
+        </div>
+      </div>
+
       <section className={styles.hero}>
         <div className={styles.heroMedia}>
           <Image
@@ -160,14 +168,15 @@ export default function MerchClient() {
         </div>
 
         <div className={styles.heroContent}>
-          <p className={styles.kicker}>ColoCrew Merch Drop 01</p>
+          <p className={styles.kicker}>Drop 01 - précommande</p>
           <h1>Summer Tour 2k26</h1>
           <p>
-            Rouge ou blanc. Même coupe oversize, même esprit colo. Précommande ouverte,
+            Le tee-shirt de l'été ColoCrew. Rouge ou blanc, coupe oversize,
+            print poitrine et grand dos. Précommande ouverte maintenant,
             livraison dans environ 1 mois.
           </p>
           <a href="#shop" className={styles.primaryLink}>
-            Voir le drop <FaArrowRight />
+            Choisir mon tee-shirt <FaArrowRight />
           </a>
         </div>
       </section>
@@ -175,11 +184,12 @@ export default function MerchClient() {
       <section className={styles.dropIntro}>
         <div>
           <span>DROP 01</span>
-          <strong>Précommande limitée</strong>
+          <strong>Pas un souvenir. Un uniforme.</strong>
         </div>
         <p>
-          On regroupe les commandes, on lance la production, puis les tee-shirts arrivent
-          sous environ 1 mois. Les bénéfices financent directement les activités ColoCrew.
+          La commande sert à lancer une production groupée. Tu commandes maintenant,
+          on fabrique ensuite, et les tee-shirts arrivent dans environ 1 mois.
+          Les bénéfices repartent directement dans les activités de la colo.
         </p>
       </section>
 
@@ -238,7 +248,7 @@ export default function MerchClient() {
             ))}
           </div>
 
-          <p className={styles.kicker}>Tee-shirt officiel</p>
+          <p className={styles.kicker}>Tee-shirt officiel Summer Tour</p>
           <h2>{product.name}</h2>
           <p className={styles.tagline}>{product.tagline}</p>
           <p className={styles.description}>{product.description}</p>
@@ -253,7 +263,7 @@ export default function MerchClient() {
           <div className={styles.controlGroup}>
             <div className={styles.controlHeader}>
               <span>Taille</span>
-              <small>S, M, L, XL</small>
+              <small>Coupe oversize - S à XL</small>
             </div>
             <div className={styles.sizeGrid}>
               {product.sizes.map((size) => (
@@ -274,7 +284,7 @@ export default function MerchClient() {
           <div className={styles.controlGroup}>
             <div className={styles.controlHeader}>
               <span>Prix</span>
-              <small>Le même tee-shirt, soutien au choix</small>
+              <small>Prix libre encadré, tee-shirt identique</small>
             </div>
             <div className={styles.priceGrid}>
               {product.priceOptions.map((option) => (
@@ -311,8 +321,8 @@ export default function MerchClient() {
 
           <div className={styles.reassurance}>
             <span><FaCheck /> Paiement sécurisé Stripe</span>
-            <span><FaCheck /> Précommande transparente</span>
-            <span><FaCheck /> Bénéfices pour la colo</span>
+            <span><FaCheck /> Livraison estimée : 1 mois</span>
+            <span><FaCheck /> Le supplément finance la colo</span>
           </div>
         </div>
       </section>
@@ -333,16 +343,17 @@ export default function MerchClient() {
       <section className={styles.story}>
         <div>
           <p className={styles.kicker}>Pourquoi le tee-shirt</p>
-          <h2>Représenter la crew, financer la suite.</h2>
+          <h2>Porter la crew, financer la suite.</h2>
         </div>
         <p>
-          Chaque tee-shirt permet de garder un morceau de l'été. Le supplément choisi
-          finance directement les activités et les projets ColoCrew. Même design, même
-          coupe, soutien libre au moment de commander.
+          Ce n'est pas un produit posé au hasard sur le site. C'est le tee-shirt
+          porté pendant l'été, par les anims et la crew. Le prix standard couvre
+          l'achat normal. Les options soutien ajoutent 5 ou 10 EUR pour aider à
+          financer les sorties, le matériel et les projets des prochains séjours.
         </p>
       </section>
 
-      <section className={styles.cartSection}>
+      <section id="panier" className={styles.cartSection}>
         <div className={styles.cartHeader}>
           <div>
             <p className={styles.kicker}>Panier</p>
@@ -379,14 +390,14 @@ export default function MerchClient() {
             })}
           </div>
         ) : (
-          <div className={styles.emptyCart}>Choisis un modèle, une taille, puis ajoute ton tee-shirt au panier.</div>
+          <div className={styles.emptyCart}>Ton panier est vide. Choisis un modèle, une taille, puis ajoute ton tee-shirt.</div>
         )}
 
         <div className={styles.checkoutBar}>
           <div>
             <span>Total</span>
             <strong>{formatPrice(total)}</strong>
-            <small>Précommande - livraison dans environ 1 mois.</small>
+            <small>Précommande : production groupée, livraison dans environ 1 mois.</small>
           </div>
           <button type="button" onClick={checkout} disabled={!cart.length || checkingOut}>
             <FaLock /> {checkingOut ? "Redirection..." : "Payer"}
@@ -395,7 +406,7 @@ export default function MerchClient() {
       </section>
 
       <section className={styles.legalBand}>
-        <span>Prix TTC. Paiement sécurisé. Précommande expédiée dans environ 1 mois.</span>
+        <span>Prix TTC. Paiement sécurisé. Précommande fabriquée après clôture des commandes.</span>
         <Link href="/mentions-legales">Mentions légales</Link>
         <Link href="/conditions-generales-de-ventes">CGV</Link>
       </section>
