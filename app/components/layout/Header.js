@@ -38,6 +38,7 @@ const infosItems = [
 const aproposItems = [
   { href: "/qui-sommes-nous", label: "L'association" },
   { href: "/anims", label: "Équipe et recrutement" },
+  { href: "/merch", label: "Boutique" },
   { href: "/soutenir", label: "Nous soutenir" },
 ];
 
