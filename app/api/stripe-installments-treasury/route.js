@@ -41,6 +41,7 @@ function dateKey(date) {
 
 function formatDate(date) {
   return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short",
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -224,6 +225,9 @@ export async function GET(request) {
         cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
         cancelAt: subscription.cancel_at ? dateKey(new Date(subscription.cancel_at * 1000)) : null,
         currentPeriodEnd: subscription.current_period_end ? dateKey(new Date(subscription.current_period_end * 1000)) : null,
+        currentPeriodEndLabel: subscription.current_period_end ? formatDate(new Date(subscription.current_period_end * 1000)) : "",
+        interval: subscription.items?.data?.[0]?.price?.recurring?.interval || "month",
+        intervalCount: subscription.items?.data?.[0]?.price?.recurring?.interval_count || 1,
         completed,
         nextInvoices: [],
       };
@@ -259,6 +263,23 @@ export async function GET(request) {
       }))
       .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 
+    const upcomingInvoices = filteredRows
+      .flatMap((row) =>
+        (row.nextInvoices || []).map((invoice) => ({
+          ...invoice,
+          subscriptionId: row.id,
+          customerName: row.customerName,
+          customerEmail: row.customerEmail,
+          customerId: row.customerId,
+          product: row.product,
+          status: row.status,
+          installments: row.installments,
+          paidInvoices: row.paidInvoices,
+          remainingInvoices: row.remainingInvoices,
+        }))
+      )
+      .sort((a, b) => a.date.localeCompare(b.date) || a.customerName.localeCompare(b.customerName, "fr"));
+
     const totals = filteredRows.reduce(
       (acc, row) => ({
         activeSubscriptions: acc.activeSubscriptions + 1,
@@ -276,6 +297,7 @@ export async function GET(request) {
       totals,
       subscriptions: filteredRows.sort((a, b) => b.expectedAmount - a.expectedAmount || a.customerName.localeCompare(b.customerName, "fr")),
       weekly,
+      upcomingInvoices,
     });
   } catch (error) {
     console.error("[stripe-installments-treasury] erreur Stripe:", error);
