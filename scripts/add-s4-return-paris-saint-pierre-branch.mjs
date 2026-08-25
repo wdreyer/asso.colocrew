@@ -39,6 +39,43 @@ const samStaff = {
   boardingCity: "",
 };
 
+const meroualPassengers = [
+  {
+    reservationId: tahaReservationId,
+    familyReservationId: meroualFamilyReservationId,
+    numeroDeReservation: "MCSC-S4-MEROUAL",
+    nom: "Famille MEROUAL",
+    firstName: "Taha",
+    lastName: "MEROUAL",
+    childName: "Taha MEROUAL",
+    name: "Taha MEROUAL",
+    children: [{ firstName: "Taha", lastName: "MEROUAL", birthDate: "2014-10-01" }],
+    departureCity: "Libourne",
+    pickupCity: "Dax",
+    dropoffCity: "Saint-Pierre-des-Corps",
+    returnCity: "Saint-Pierre-des-Corps",
+    stayCode: "MCSC",
+    routeNote: "Retour Dax -> Paris, puis embranchement Paris -> Saint-Pierre-des-Corps avec Sam.",
+  },
+  {
+    reservationId: yahiaReservationId,
+    familyReservationId: meroualFamilyReservationId,
+    numeroDeReservation: "MCSC-S4-MEROUAL",
+    nom: "Famille MEROUAL",
+    firstName: "Yahia",
+    lastName: "MEROUAL",
+    childName: "Yahia MEROUAL",
+    name: "Yahia MEROUAL",
+    children: [{ firstName: "Yahia", lastName: "MEROUAL", birthDate: "2011-04-09" }],
+    departureCity: "Libourne",
+    pickupCity: "Dax",
+    dropoffCity: "Saint-Pierre-des-Corps",
+    returnCity: "Saint-Pierre-des-Corps",
+    stayCode: "MCSC",
+    routeNote: "Retour Dax -> Paris, puis embranchement Paris -> Saint-Pierre-des-Corps avec Sam.",
+  },
+];
+
 const pdfs = {
   taha: {
     label: "Taha Meroual",
@@ -233,6 +270,10 @@ function uniqById(items) {
   return [...new Map(items.filter(Boolean).map((item) => [item.id, item])).values()];
 }
 
+function uniqStrings(items) {
+  return [...new Set((items || []).filter(Boolean))];
+}
+
 const nextStaff = uniqById([...(transport.staff || []), samStaff]);
 
 const currentSegments = transport.segments || [];
@@ -247,6 +288,11 @@ const nextSegments = [
   if (segment.id !== "s4-retour-dax-paris") return segment;
   return {
     ...segment,
+    passengerReservationIds: uniqStrings([
+      ...(segment.passengerReservationIds || []),
+      tahaReservationId,
+      yahiaReservationId,
+    ]),
     instructions:
       "Convoi commun Dax -> Paris Montparnasse. Taha et Yahia Meroual poursuivent ensuite avec Sam sur la branche Paris -> Saint-Pierre-des-Corps (arrivee 17:49, depot quai).",
   };
@@ -257,43 +303,34 @@ const nextTickets = [
     ticket.id !== branchTicket.id
     && ticket.bookingReference !== branchTicket.bookingReference
     && ticket.externalReference !== branchTicket.bookingReference
-  ),
+  ).map((ticket) => {
+    if (ticket.id !== "s4-retour-dax-paris-anfqbu") return ticket;
+    return {
+      ...ticket,
+      coveredReservationIds: uniqStrings([
+        ...(ticket.coveredReservationIds || []),
+        tahaReservationId,
+        yahiaReservationId,
+      ]),
+      notes:
+        "Billet groupe Dax -> Paris du 28/08/2026. Inclut Taha et Yahia Meroual jusqu'a Paris, puis embranchement Paris -> Saint-Pierre-des-Corps avec Sam.",
+      updatedAt: new Date().toISOString(),
+    };
+  }),
   branchTicket,
 ];
 
-const nextPassengers = (transport.passengers || []).map((passenger) => {
-  if (passenger.reservationId === tahaReservationId) {
-    return {
-      ...passenger,
-      reservationId: tahaReservationId,
-      familyReservationId: meroualFamilyReservationId,
-      firstName: "Taha",
-      lastName: "MEROUAL",
-      name: "Taha MEROUAL",
-      departureCity: "Libourne",
-      pickupCity: "Dax",
-      dropoffCity: "Saint-Pierre-des-Corps",
-      returnCity: "Saint-Pierre-des-Corps",
-      routeNote: "Retour via Paris puis depot a Saint-Pierre-des-Corps avec Sam.",
-    };
-  }
-  if (passenger.reservationId === yahiaReservationId) {
-    return {
-      ...passenger,
-      reservationId: yahiaReservationId,
-      familyReservationId: meroualFamilyReservationId,
-      firstName: "Yahia",
-      lastName: "MEROUAL",
-      name: "Yahia MEROUAL",
-      departureCity: "Libourne",
-      pickupCity: "Dax",
-      dropoffCity: "Saint-Pierre-des-Corps",
-      returnCity: "Saint-Pierre-des-Corps",
-      routeNote: "Retour via Paris puis depot a Saint-Pierre-des-Corps avec Sam.",
-    };
-  }
-  return passenger;
-});
+const passengerOverrides = new Map(meroualPassengers.map((passenger) => [passenger.reservationId, passenger]));
+const seenPassengerIds = new Set();
+const nextPassengers = [
+  ...(transport.passengers || []).map((passenger) => {
+    const override = passengerOverrides.get(passenger.reservationId);
+    if (!override) return passenger;
+    seenPassengerIds.add(passenger.reservationId);
+    return { ...passenger, ...override };
+  }),
+  ...meroualPassengers.filter((passenger) => !seenPassengerIds.has(passenger.reservationId)),
+];
 
 const branch = {
   id: "s4-retour-branch-saint-pierre-des-corps",
