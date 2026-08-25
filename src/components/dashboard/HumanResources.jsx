@@ -200,6 +200,8 @@ function mapContract(snap) {
     paymentValidatedAt: d.paymentValidatedAt || d.paidAt || "",
     ceaDeclarationValidated: d.ceaDeclarationValidated === true,
     ceaDeclarationValidatedAt: d.ceaDeclarationValidatedAt || "",
+    socialSectionDone: d.socialSectionDone === true,
+    socialSectionDoneAt: d.socialSectionDoneAt || "",
     contractFileUrl: d.contractFileUrl || "",
     signedContractStoragePath: d.signedContractStoragePath || "",
     docusignEnvelopeId: d.docusignEnvelopeId || "",
@@ -550,7 +552,7 @@ function docusignWaitingFromSigners(status, signers = []) {
   return "";
 }
 
-function ContratsView({ contracts, members, onContract, onEditContract, onDeleteContract, onNewContract, onCompleteMember, onToggleCea, onTogglePayment, onDocusignSend, onDocusignAttach, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
+function ContratsView({ contracts, members, onContract, onEditContract, onDeleteContract, onNewContract, onCompleteMember, onToggleCea, onToggleSocialSection, onTogglePayment, onDocusignSend, onDocusignAttach, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
   const [visibleContracts, setVisibleContracts] = useState([]);
   const [weekTile, setWeekTile] = useState("all");
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
@@ -617,6 +619,15 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
         <label className="hr-contract-check" title="Déclaration CEA validée">
           <input type="checkbox" checked={row.ceaDeclarationValidated} onChange={(event) => onToggleCea(row, event.target.checked)} />
           <span>{row.ceaDeclarationValidated ? "Fait" : "À faire"}</span>
+        </label>
+      ),
+    },
+    {
+      key: "socialSectionDone", label: "Volet social", sortable: false,
+      render: (row) => (
+        <label className="hr-contract-check" title="Volet social fait">
+          <input type="checkbox" checked={row.socialSectionDone} onChange={(event) => onToggleSocialSection(row, event.target.checked)} />
+          <span>{row.socialSectionDone ? "Fait" : "À faire"}</span>
         </label>
       ),
     },
@@ -688,14 +699,14 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
   ];
 
   const exportCsv = () => {
-    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net total", "Brut total", "Brut hors CP", "CP 10% brut", "Net hors CP", "CP 10% net", "Déclaration CEA", "Paiement", "Signature"];
+    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net total", "Brut total", "Brut hors CP", "CP 10% brut", "Net hors CP", "CP 10% net", "Déclaration CEA", "Volet social", "Paiement", "Signature"];
     const lines = contracts.map((c) => {
       const grossSplit = socialSalarySplit(c.grossSalary);
       const netSplit = socialSalarySplit(c.netSalary);
       return [
         c.memberName, c.week, c.stay, c.role, c.startDate, c.endDate,
         c.netSalary, c.grossSalary, grossSplit.salary, grossSplit.paidLeave, netSplit.salary, netSplit.paidLeave,
-        c.ceaDeclarationValidated ? "Validée" : "À faire", c.status, c.docusignStatus || "Non envoyé",
+        c.ceaDeclarationValidated ? "Validée" : "À faire", c.socialSectionDone ? "Fait" : "À faire", c.status, c.docusignStatus || "Non envoyé",
       ];
     });
     const csv = [headers, ...lines]
@@ -1371,6 +1382,10 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
         paidAmount: volunteerRole ? 0 : amount(form.paidAmount),
         outstandingAmount,
         paymentValidated,
+        socialSectionDone: volunteerRole ? true : contract?.socialSectionDone === true,
+        socialSectionDoneAt: volunteerRole
+          ? (contract?.socialSectionDoneAt || new Date().toISOString())
+          : (contract?.socialSectionDoneAt || ""),
       };
 
       if (isEdit) {
@@ -1658,6 +1673,18 @@ export default function HumanResources({ initialTab = "sejours" }) {
       showToast(checked ? "Déclaration CEA validée." : "Validation CEA retirée.", "success");
     } catch (error) {
       showToast(error?.message || "Mise à jour CEA impossible.", "error");
+    }
+  };
+
+  const toggleSocialSection = async (contract, checked) => {
+    try {
+      await persistDocusignState(contract.id, {
+        socialSectionDone: checked,
+        socialSectionDoneAt: checked ? new Date().toISOString() : "",
+      });
+      showToast(checked ? "Volet social marqué fait." : "Volet social remis à faire.", "success");
+    } catch (error) {
+      showToast(error?.message || "Mise à jour du volet social impossible.", "error");
     }
   };
 
@@ -2276,6 +2303,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onNewContract={() => openNewContract(null)}
             onCompleteMember={(member, startEditing = true) => openMemberFile(member, startEditing)}
             onToggleCea={toggleCeaDeclaration}
+            onToggleSocialSection={toggleSocialSection}
             onTogglePayment={toggleContractPayment}
             onDocusignSend={requestDocusignSend}
             onDocusignAttach={attachDocusignEnvelope}
