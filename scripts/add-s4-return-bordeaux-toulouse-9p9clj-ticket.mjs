@@ -22,10 +22,11 @@ loadEnv(".env.local");
 const shouldApply = process.argv.includes("--apply");
 const transportId = "bYO5pWEIqEbFjdNGEp4b";
 const segmentId = "s4-retour-dax-toulouse";
-const sourcePdf = "C:\\Users\\dreye\\Downloads\\Nrqa3jS_Pm5G7EJ9dG34gQ.pdf";
+const sourcePdf = "C:\\Users\\dreye\\Downloads\\Q7ScsGBFurECZ23RfH2PEQ.pdf";
 
-const ticketId = "s4-retour-bordeaux-toulouse-9p9clj";
-const storagePath = `transports/${transportId}/billets/2026-08-25-${ticketId}.pdf`;
+const legacyTicketId = "s4-retour-bordeaux-toulouse-9p9clj";
+const ticketId = "s4-retour-bordeaux-toulouse-bnjmhn";
+const storagePath = `transports/${transportId}/billets/2026-08-28-${ticketId}.pdf`;
 const familyPickupNote = "Toulouse est une ville etape : les parents doivent etre presents directement sur le quai avant l'arrivee du train. Arret tres court, environ 5 minutes pour recuperer les enfants.";
 
 const app = getApps()[0] || initializeApp({
@@ -115,29 +116,29 @@ const ticket = {
   to: "Toulouse",
   coverageFrom: "Bordeaux",
   coverageTo: "Toulouse",
-  date: "2026-08-25",
+  date: "2026-08-28",
   transportDate: transport.date || "2026-08-28",
   departureTime: "12:10",
   arrivalTime: "14:37",
   trainType: "INTERCITES",
   trainNumber: "4661",
   seats: 10,
-  price: 87.2,
-  bookingReference: "9P9CLJ",
-  externalReference: "9P9CLJ",
+  price: 126.7,
+  bookingReference: "BNJMHN",
+  externalReference: "BNJMHN",
   eTicketNumbers: [
-    "870475633",
-    "374712482",
-    "474431264",
-    "999916491",
-    "430118410",
-    "722730331",
-    "221960191",
-    "544973650",
-    "869945052",
-    "742045594",
+    "645902753",
+    "154076530",
+    "526393241",
+    "391391252",
+    "115378372",
+    "347706903",
+    "416428671",
+    "141882873",
+    "504755413",
+    "211470890",
   ],
-  seat: "Voiture 6 places 41, 42, 43, 44, 45, 46, 48, 51, 52, 56",
+  seat: "Voiture 10 places 61, 62, 63, 64, 71, 72, 75, 76, 77, 78",
   purchased: true,
   option: false,
   url,
@@ -145,11 +146,11 @@ const ticket = {
   uploadedFileName: path.basename(sourcePdf),
   coveredReservationIds: segment.passengerReservationIds || [],
   coveredStaffIds: segment.assignedStaffIds || [],
-  notes: "PDF date du mardi 25/08/2026. Billet groupe INTERCITES 4661 Bordeaux Saint-Jean 12:10 -> Toulouse Matabiau 14:37. Toulouse est une ville etape quai pour les familles Toulouse.",
+  notes: "Billet groupe INTERCITES 4661 du vendredi 28/08/2026, Bordeaux Saint-Jean 12:10 -> Toulouse Matabiau 14:37. Toulouse est une ville etape quai pour les familles Toulouse.",
   updatedAt: new Date().toISOString(),
 };
 
-const existingTickets = (transport.tickets || []).filter((item) => item.id !== ticketId);
+const existingTickets = (transport.tickets || []).filter((item) => item.id !== ticketId && item.id !== legacyTicketId);
 const tickets = [...existingTickets, ticket];
 
 console.log(JSON.stringify({
