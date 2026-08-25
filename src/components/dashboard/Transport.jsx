@@ -6855,7 +6855,9 @@ function getRetourInfo(transport, passenger, allTransports) {
     const stopType = routeStop?.type === "sub" || routeStop?.type === "branch-sub" ? routeStop.stop?.stopType || "quai" : seg?.stopType || rt.stopType || "rdv";
     const platform = routeStop?.stop?.platform || seg?.platform || rt.platform || "";
     const trainLabel = routeTrainSummary(rt, routeStop);
-    return { date: rt.date, departureTime, arrivalTime, meetingTime: arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel };
+    const familyPickupNote = routeStop?.stop?.familyPickupNote || seg?.familyPickupNote || rt.familyPickupNote || "";
+    const shortStopMinutes = routeStop?.stop?.shortStopMinutes ?? seg?.shortStopMinutes ?? rt.shortStopMinutes ?? null;
+    return { date: rt.date, departureTime, arrivalTime, meetingTime: arrivalTime, arrivalCity, meetingPoint, stopType, platform, trainLabel, familyPickupNote, shortStopMinutes };
   }
   return null;
 }
@@ -6895,6 +6897,8 @@ function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSett
     retourInfo?.trainLabel ? `Train retour : ${retourInfo.trainLabel}` : null,
     retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
     retourInfo ? `Lieu de récupération : à la descente du quai — communiqué par l'animateur·ice` : null,
+    retourInfo?.shortStopMinutes ? `Attention : arrêt très court, environ ${retourInfo.shortStopMinutes} minutes pour récupérer l'enfant sur le quai.` : null,
+    retourInfo?.familyPickupNote ? retourInfo.familyPickupNote : null,
     retourInfo ? `` : null,
     `- CONSIGNES -`,
     ...buildConvocationReminderItems({
@@ -6970,7 +6974,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     ? trainDetailHtml(retourInfo.trainLabel, "", retourInfo.arrivalTime, retourInfo.arrivalCity)
     : TBC;
   const retourLieu = retourInfo
-    ? `<em style="color:#64748b;">À la descente du quai — communiqué par l'animateur·ice</em>`
+    ? `<em style="color:#64748b;">À la descente du quai — communiqué par l'animateur·ice</em>${retourInfo.shortStopMinutes ? `<br><strong style="color:#ea580c;">Arrêt très court : environ ${retourInfo.shortStopMinutes} min.</strong>` : ""}${retourInfo.familyPickupNote ? `<br><span style="color:#9a3412;font-weight:700;">${escapeHtml(retourInfo.familyPickupNote)}</span>` : ""}`
     : TBC;
 
   const td0 = (last) => `style="padding:13px 16px;font-weight:700;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;background:#fafafa;border-right:1px solid #e5e7eb;${last ? "" : "border-bottom:1px solid #f0f0f0;"}width:27%;vertical-align:top;"`;
