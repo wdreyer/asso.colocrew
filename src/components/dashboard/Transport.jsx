@@ -7671,6 +7671,31 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     };
   }, [staffMembers]);
 
+  const getReturnTripForPassenger = useCallback((passenger) => {
+    if (!passenger) return null;
+    return transports
+      .filter((trip) => trip.direction === "retour" && trip.week === selectedWeek && isActiveTransport(trip))
+      .map((trip) => ({
+        trip,
+        assignedPassenger: (trip.passengers || []).find((item) => item.reservationId && item.reservationId === passenger.reservationId) || null,
+      }))
+      .find(({ trip, assignedPassenger }) => {
+        const city = passenger.returnCity || assignedPassenger?.returnCity || assignedPassenger?.dropoffCity || assignedPassenger?.pickupCity || "";
+        return Boolean((assignedPassenger || city) && routeStopForCity(trip, city));
+      }) || null;
+  }, [transports, selectedWeek]);
+
+  const getConvocationAnimForTrip = useCallback((trip, passenger = null) => {
+    if (trip?.direction === "aller" && passenger) {
+      const retour = getReturnTripForPassenger(passenger);
+      if (retour?.trip) {
+        const anim = getAnimForTrip(retour.trip, retour.assignedPassenger || passenger);
+        if (anim.name || anim.phone) return anim;
+      }
+    }
+    return getAnimForTrip(trip, passenger);
+  }, [getAnimForTrip, getReturnTripForPassenger]);
+
   const getAnimForOnSite = useCallback((sejourName) => {
     const cfg = onSiteConfigs[sejourName] || {};
     if (!cfg.animName) return {};
@@ -7920,7 +7945,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     if (!destinationEmails.length) throw new Error("Adresse e-mail manquante");
     const merged   = mergeFamily(passengers);
     const rdvInfo  = getEmailRdvInfo(trip, primary);
-    const animInfo = getAnimForTrip(trip, primary);
+    const animInfo = getConvocationAnimForTrip(trip, primary);
     const convocationHtml = buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, animInfo, convocSettings);
     const reminderLabel = reminderDayLabel(trip.date);
     const html     = reminder ? buildReminderHtml(convocationHtml, trip.date) : convocationHtml;
@@ -7936,7 +7961,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const ids = passengers.map((p) => p.reservationId);
     if (reminder) await markReminderSent(ids);
     else await markAllSent(ids);
-  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getAnimForTrip, emailsFor]);
+  }, [transports, customIntro, convocSettings, markAllSent, markReminderSent, getConvocationAnimForTrip, emailsFor]);
 
   const doSendOnSite = useCallback(async (reservation, { reminder = false } = {}) => {
     const destinationEmails = emailsFor(reservation);
@@ -8108,7 +8133,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       };
       const title = passengerChildTitle(item.passenger, item.child);
       const rdvInfo = getEmailRdvInfo(item.trip, item.passenger);
-      const animInfo = getAnimForTrip(item.trip, item.passenger);
+      const animInfo = getConvocationAnimForTrip(item.trip, item.passenger);
       const html = wrapForPrint(
         buildConvocEmailHtml(item.trip, childPassenger, rdvInfo, transports, customIntro, animInfo, convocSettings),
         title,
@@ -8127,7 +8152,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       }, 500 + index * 250);
     });
     showToast(`${opened.length}/${totemiaPdfItems.length} convocation(s) Totemia ouverte(s)`, opened.length ? "success" : "warning");
-  }, [totemiaPdfItems, transports, customIntro, convocSettings, getAnimForTrip, showToast]);
+  }, [totemiaPdfItems, transports, customIntro, convocSettings, getConvocationAnimForTrip, showToast]);
 
   const handleSendAll = useCallback(async () => {
     const total = pendingFamilies.length + pendingOnSiteReservations.length;
@@ -8817,7 +8842,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                         <td style={{ ...cTd, textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
-                              onClick={() => { const ai = getAnimForTrip(trip, primary); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai), passengerChildTitle(merged))); }}>
+                              onClick={() => { const ai = getConvocationAnimForTrip(trip, primary); openDoc(wrapForPrint(buildConvocEmailHtml(trip, merged, rdvInfo, transports, customIntro, ai), passengerChildTitle(merged))); }}>
                               PDF
                             </button>
                             <button type="button" className="dash-btn" style={{ fontSize: 11, padding: "3px 9px" }}
@@ -8882,7 +8907,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     arrivalPoint: preview.cfg.lieu || "Lieu du séjour",
                     returnPoint:  preview.cfg.lieu || "Lieu du séjour",
                   }, customIntro, getAnimForOnSite(preview.reservation?.sejourName || "Séjour"))
-                  : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getAnimForTrip(preview._trip, preview._primary || preview), convocSettings);
+                  : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getConvocationAnimForTrip(preview._trip, preview._primary || preview), convocSettings);
                 const reminderDate = preview.type === "onsite" ? WEEK_INFO[selectedWeek]?.aller : preview._trip?.date;
                 return preview._isReminder ? buildReminderHtml(html, reminderDate) : html;
               })() }} />
