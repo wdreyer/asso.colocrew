@@ -6,6 +6,7 @@ import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
 export const REFERENCE_DAYS = 12;
+export const PAID_LEAVE_RATE = 0.10;
 
 export const DEFAULT_SALARY_GRID = [
   { id: "benevole",        label: "Benevole",             perDay: 0,  perStayNet: 0,    perStayGross: 0,    order: 0, isPrime: false },
@@ -34,6 +35,20 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+export function splitPaidLeaveIncluded(total, rate = PAID_LEAVE_RATE) {
+  const amount = Number(total);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { salary: 0, paidLeave: 0, total: 0, rate };
+  }
+  const salary = round2(amount / (1 + rate));
+  return {
+    salary,
+    paidLeave: round2(amount - salary),
+    total: round2(amount),
+    rate,
+  };
+}
+
 // gridRow / primeUnit : lignes { perStayNet, perStayGross } issues de salary_grid.
 export function computeSalary({ gridRow, primeUnit, primeCount = 0, convoyagePrime = false, nbDays = REFERENCE_DAYS }) {
   const ratio = nbDays > 0 ? nbDays / REFERENCE_DAYS : 1;
@@ -43,8 +58,12 @@ export function computeSalary({ gridRow, primeUnit, primeCount = 0, convoyagePri
   const primeGross = primeUnit ? primeUnit.perStayGross * (Number(primeCount) || 0) : 0;
   const convoyageNet = convoyagePrime && gridRow ? (Number(gridRow.perDay) || gridRow.perStayNet / REFERENCE_DAYS || 0) : 0;
   const convoyageGross = convoyagePrime && gridRow ? (gridRow.perStayGross / REFERENCE_DAYS || 0) : 0;
+  const net = round2(baseNet + primeNet + convoyageNet);
+  const gross = round2(baseGross + primeGross + convoyageGross);
   return {
-    net:   round2(baseNet + primeNet + convoyageNet),
-    gross: round2(baseGross + primeGross + convoyageGross),
+    net,
+    gross,
+    netSocial: splitPaidLeaveIncluded(net),
+    grossSocial: splitPaidLeaveIncluded(gross),
   };
 }

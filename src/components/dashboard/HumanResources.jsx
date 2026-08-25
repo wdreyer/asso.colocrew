@@ -13,7 +13,7 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { openContractPrint, openContractsBatchPrint } from "@/src/lib/contractTemplate";
 import { useToast } from "@/src/contexts/ToastContext";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded } from "@/src/lib/salaryGrid";
+import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded, splitPaidLeaveIncluded } from "@/src/lib/salaryGrid";
 import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
 import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, publicAssignmentsForMember, uploadStaffDocument } from "@/src/lib/staffDocuments";
 
@@ -60,6 +60,9 @@ function amount(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 function currency(v) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(amount(v));
 }
+function socialSalarySplit(total) {
+  return splitPaidLeaveIncluded(amount(total));
+}
 function fmtDate(v) {
   if (!v) return "—";
   const d = new Date(`${String(v).slice(0, 10)}T12:00:00`);
@@ -94,6 +97,19 @@ function avatarColor(str) {
 }
 function initials(m) {
   return [m.firstName?.[0], m.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+}
+
+function SocialSalaryBreakdown({ grossSalary, netSalary, compact = false }) {
+  const gross = socialSalarySplit(grossSalary);
+  const net = socialSalarySplit(netSalary);
+  if (gross.total <= 0 && net.total <= 0) return <span className="dash-muted">—</span>;
+  return (
+    <span style={{ display: "flex", flexDirection: "column", gap: 2, lineHeight: 1.25 }}>
+      <strong>{currency(gross.salary)} brut hors CP</strong>
+      <small style={{ color: "#6b5a7c", fontWeight: 700 }}>{currency(gross.paidLeave)} CP 10%</small>
+      {!compact && <small style={{ color: "#8a789d" }}>{currency(net.salary)} net hors CP · {currency(net.paidLeave)} CP</small>}
+    </span>
+  );
 }
 
 const PERSONAL_INFORMATION_RULES = [
@@ -576,7 +592,20 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
       },
     },
     { key: "datesLabel", label: "Dates", render: (row) => <span style={{ whiteSpace: "nowrap" }}>{fmtDateShort(row.startDate)} → {fmtDateShort(row.endDate)}</span>, sortValue: (r) => r.startDate },
-    { key: "netSalary", label: "Net", render: (r) => currency(r.netSalary), sortValue: (r) => r.netSalary },
+    {
+      key: "netSalary", label: "Net",
+      render: (r) => (
+        <span style={{ display: "flex", flexDirection: "column", gap: 2, whiteSpace: "nowrap" }}>
+          <strong>{currency(r.netSalary)}</strong>
+          <small className="dash-muted">total contrat</small>
+        </span>
+      ),
+      sortValue: (r) => r.netSalary,
+    },
+    {
+      key: "_socialSalary", label: "Droits sociaux", sortable: false,
+      render: (row) => <SocialSalaryBreakdown grossSalary={row.grossSalary} netSalary={row.netSalary} />,
+    },
     {
       key: "convoyagePrime", label: "Conv.",
       render: (row) => row.convoyagePrime ? <Badge label="+ 1 jour" variant="success" /> : <span className="dash-muted">Non</span>,
@@ -659,11 +688,16 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
   ];
 
   const exportCsv = () => {
-    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net", "Déclaration CEA", "Paiement", "Signature"];
-    const lines = contracts.map((c) => [
-      c.memberName, c.week, c.stay, c.role, c.startDate, c.endDate,
-      c.netSalary, c.ceaDeclarationValidated ? "Validée" : "À faire", c.status, c.docusignStatus || "Non envoyé",
-    ]);
+    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net total", "Brut total", "Brut hors CP", "CP 10% brut", "Net hors CP", "CP 10% net", "Déclaration CEA", "Paiement", "Signature"];
+    const lines = contracts.map((c) => {
+      const grossSplit = socialSalarySplit(c.grossSalary);
+      const netSplit = socialSalarySplit(c.netSalary);
+      return [
+        c.memberName, c.week, c.stay, c.role, c.startDate, c.endDate,
+        c.netSalary, c.grossSalary, grossSplit.salary, grossSplit.paidLeave, netSplit.salary, netSplit.paidLeave,
+        c.ceaDeclarationValidated ? "Validée" : "À faire", c.status, c.docusignStatus || "Non envoyé",
+      ];
+    });
     const csv = [headers, ...lines]
       .map((l) => l.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";"))
       .join("\r\n");
@@ -1055,6 +1089,9 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
                     <span>{currency(c.grossSalary)} brut</span>
                     <span className="hr-paid">{currency(c.paidAmount)} réglé</span>
                     {c.outstandingAmount > 0 && <span className="hr-due">{currency(c.outstandingAmount)} restant</span>}
+                  </div>
+                  <div style={{ marginTop: 6 }}>
+                    <SocialSalaryBreakdown grossSalary={c.grossSalary} netSalary={c.netSalary} compact />
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button
@@ -1449,6 +1486,12 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
             <span>Brut</span>
             <strong>{currency(form.grossSalary)}</strong>
           </div>
+        </div>
+        <div style={{ marginTop: 8, padding: "10px 12px", border: "1px solid #e7def3", borderRadius: 8, background: "#fbf8ff" }}>
+          <span style={{ display: "block", color: "#6b5a7c", fontSize: 12, fontWeight: 800, marginBottom: 4, textTransform: "uppercase" }}>
+            Décomposition droits sociaux
+          </span>
+          <SocialSalaryBreakdown grossSalary={form.grossSalary} netSalary={form.netSalary} />
         </div>
         <button type="button" className="hr-recalc-btn" onClick={recalculate}>
           ↻ Recalculer depuis la grille salariale

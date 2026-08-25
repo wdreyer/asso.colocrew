@@ -113,6 +113,7 @@ function formatEuro(value) {
 
 const DEFAULT_PRIME_NET = 60;
 const DEFAULT_PRIME_GROSS = 81;
+const PAID_LEAVE_RATE = 0.10;
 
 function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -121,6 +122,19 @@ function round2(value) {
 function positiveNumber(value, fallback = 0) {
   const amount = Number(value);
   return Number.isFinite(amount) ? Math.max(amount, 0) : fallback;
+}
+
+function splitPaidLeaveIncluded(total, rate = PAID_LEAVE_RATE) {
+  const amount = Number(total);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { salary: null, paidLeave: null, total: Number.isFinite(amount) ? round2(amount) : null };
+  }
+  const salary = round2(amount / (1 + rate));
+  return {
+    salary,
+    paidLeave: round2(amount - salary),
+    total: round2(amount),
+  };
 }
 
 function remunerationBreakdown(contract) {
@@ -138,6 +152,8 @@ function remunerationBreakdown(contract) {
   const primeGross = round2(primeCount * primeUnitGross);
   const baseNet = hasNet ? Math.max(round2(totalNet - primeNet - convoyagePrimeNet), 0) : null;
   const baseGross = hasGross ? Math.max(round2(totalGross - primeGross - convoyagePrimeGross), 0) : null;
+  const socialNet = splitPaidLeaveIncluded(totalNet);
+  const socialGross = splitPaidLeaveIncluded(totalGross);
 
   return {
     primeCount,
@@ -152,6 +168,8 @@ function remunerationBreakdown(contract) {
     baseGross,
     totalNet: hasNet ? totalNet : null,
     totalGross: hasGross ? totalGross : null,
+    socialNet,
+    socialGross,
   };
 }
 
@@ -187,9 +205,19 @@ function remunerationTable(contract) {
           <td>${formatEuro(b.convoyagePrimeGross)}</td>
         </tr>
         <tr class="cc-remuneration-total">
-          <td>Total prévu</td>
+          <td>Total prévu <span>Congés payés inclus</span></td>
           <td><strong>${formatEuro(b.totalNet)}</strong></td>
           <td>${formatEuro(b.totalGross)}</td>
+        </tr>
+        <tr>
+          <td>Salaire hors congés payés <span>Base à saisir pour les droits sociaux</span></td>
+          <td><strong>${formatEuro(b.socialNet.salary)}</strong></td>
+          <td>${formatEuro(b.socialGross.salary)}</td>
+        </tr>
+        <tr>
+          <td>Indemnité congés payés 10% <span>Incluse dans le total prévu ci-dessus</span></td>
+          <td><strong>${formatEuro(b.socialNet.paidLeave)}</strong></td>
+          <td>${formatEuro(b.socialGross.paidLeave)}</td>
         </tr>
       </tbody>
     </table>`;
@@ -728,7 +756,8 @@ export function generateContractHTML(member, contract) {
     <h2>Article 5 – Rémunération</h2>
     ${remunerationDetails}
     <ol>
-      <li>Rémunération nette totale prévue pour le contrat : <strong>${netSalary}</strong>.</li>
+      <li>Rémunération nette totale prévue pour le contrat : <strong>${netSalary}</strong>, congés payés inclus.</li>
+      <li>Pour la saisie des droits sociaux, le total se décompose en salaire hors congés payés et indemnité compensatrice de congés payés de 10%, comme indiqué dans le tableau ci-dessus.</li>
       <li>Rémunération nette moyenne par jour d'engagement : <strong>${netPerDay}</strong>.</li>
       <li>Paiement par virement au plus tard le 5 du mois suivant.</li>
     </ol>
