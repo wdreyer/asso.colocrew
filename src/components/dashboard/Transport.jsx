@@ -3727,6 +3727,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const [staff, setStaff] = useState(transport.staff || []);
   const [leadStaffId, setLeadStaffId] = useState(transport.leadStaffId || "");
   const [tickets, setTickets] = useState(transport.tickets || []);
+  const staffTicketAttachments = transport.staffTicketAttachments || [];
   const [meta, setMeta] = useState({
     routeGroup: transport.routeGroup || "direct",
     week: transport.week || "",
@@ -4250,6 +4251,8 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   );
   const activeSegIdx = segments.findIndex((s) => s.id === editingSegmentId);
   const activeSeg = (activeSegIdx >= 0 && editingSegmentId !== "__bilan__") ? segments[activeSegIdx] : null;
+  const staffAttachmentsForPortion = (portionId) => staffTicketAttachments
+    .filter((attachment) => attachment?.segmentId === portionId && (attachment.url || attachment.storagePath));
 
   const addTicketForSegment = (segmentId) => {
     const newId = crypto.randomUUID();
@@ -4278,6 +4281,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         {segments.map((seg, i) => {
         const rawSegTix = tickets.filter((t) => t.segmentId === seg.id);
         const segTix = rawSegTix.map((ticket) => displayTicketForSegment(ticket, activeT, seg, i, rawSegTix));
+        const segStaffAttachments = staffAttachmentsForPortion(seg.id);
         const segPassengers = passengersOnSegment(activeT, i);
         const passengerChildren = (passenger) =>
           (passenger.children?.length ? passenger.children : [{ firstName: passenger.childName, lastName: "", birthDate: "" }])
@@ -4637,6 +4641,28 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                   </div>
                 );
               })}
+              {segStaffAttachments.length > 0 && (
+                <div className="tr-ticket-staff-attachments">
+                  <span className="tr-ops-anims-label">Pièces jointes staff</span>
+                  {segStaffAttachments.map((attachment) => (
+                    <div key={attachment.id} className="tr-ticket-card is-bought is-staff-attachment">
+                      <span className="tr-ticket-status is-bought">Staff</span>
+                      <div className="tr-ticket-card-info">
+                        <span className="tr-ticket-card-name">
+                          {attachment.staffName || "Staff"} · {attachment.segmentLabel || `${attachment.from || ""} → ${attachment.to || ""}`}
+                        </span>
+                        <div className="tr-ticket-card-meta">
+                          {attachment.trainNumber && <span>{attachment.trainType || "Train"} {attachment.trainNumber}</span>}
+                          {(attachment.departureTime || attachment.arrivalTime) && <span>{attachment.departureTime || "--:--"} → {attachment.arrivalTime || "--:--"}</span>}
+                          {attachment.bookingReference && <span>{attachment.bookingReference}</span>}
+                          {attachment.seat && <span>{attachment.seat}</span>}
+                        </div>
+                      </div>
+                      {attachment.url && <a href={attachment.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
+                    </div>
+                  ))}
+                </div>
+              )}
               </div>
             </details>
           </div>
@@ -4649,6 +4675,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             const branchPortion = { ...branch, kind: branch.kind || "branch" };
             const branchStops = segmentSubStops(branch);
             const rawBranchTix = tickets.filter((ticket) => ticket.segmentId === branch.id);
+            const branchStaffAttachments = staffAttachmentsForPortion(branch.id);
             const branchTix = rawBranchTix.map((ticket) =>
               displayTicketForSegment(ticket, activeT, branchPortion, branchIndex, rawBranchTix),
             );
@@ -4935,6 +4962,28 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                         </div>
                       );
                     })}
+                    {branchStaffAttachments.length > 0 && (
+                      <div className="tr-ticket-staff-attachments">
+                        <span className="tr-ops-anims-label">Pièces jointes staff</span>
+                        {branchStaffAttachments.map((attachment) => (
+                          <div key={attachment.id} className="tr-ticket-card is-bought is-staff-attachment">
+                            <span className="tr-ticket-status is-bought">Staff</span>
+                            <div className="tr-ticket-card-info">
+                              <span className="tr-ticket-card-name">
+                                {attachment.staffName || "Staff"} · {attachment.segmentLabel || `${attachment.from || ""} → ${attachment.to || ""}`}
+                              </span>
+                              <div className="tr-ticket-card-meta">
+                                {attachment.trainNumber && <span>{attachment.trainType || "Train"} {attachment.trainNumber}</span>}
+                                {(attachment.departureTime || attachment.arrivalTime) && <span>{attachment.departureTime || "--:--"} → {attachment.arrivalTime || "--:--"}</span>}
+                                {attachment.bookingReference && <span>{attachment.bookingReference}</span>}
+                                {attachment.seat && <span>{attachment.seat}</span>}
+                              </div>
+                            </div>
+                            {attachment.url && <a href={attachment.url} target="_blank" rel="noreferrer" className="tr-ticket-card-pdf" onClick={(e) => e.stopPropagation()}>PDF</a>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </details>
               </div>
