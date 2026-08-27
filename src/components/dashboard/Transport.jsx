@@ -4252,7 +4252,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const activeSegIdx = segments.findIndex((s) => s.id === editingSegmentId);
   const activeSeg = (activeSegIdx >= 0 && editingSegmentId !== "__bilan__") ? segments[activeSegIdx] : null;
   const staffAttachmentsForPortion = (portionId) => staffTicketAttachments
-    .filter((attachment) => attachment?.segmentId === portionId && (attachment.url || attachment.storagePath));
+    .filter((attachment) => attachment?.segmentId === portionId && (attachment.visibleInRoutes || attachment.url || attachment.storagePath));
 
   const addTicketForSegment = (segmentId) => {
     const newId = crypto.randomUUID();
