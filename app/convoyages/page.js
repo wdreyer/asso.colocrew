@@ -346,7 +346,7 @@ function scopedTransportForStaff(transport, staff, portions) {
     ...transport,
     segments: (transport.segments || []).filter((segment) => portionIds.has(segment.id)),
     branches: (transport.branches || []).filter((branch) => portionIds.has(branch.id)),
-    tickets: (transport.tickets || []).filter((ticket) => ticketMatchesStaffScope(ticket, portionIds, staff.id)),
+    tickets: staffDocumentsForScope(transport, portionIds, staff.id),
     passengers: scopedPassengers,
     vehicleGroups: (transport.vehicleGroups || []).filter((group) => {
       const groupPortionIds = new Set([group.segmentId, group.branchId, group.portionId].filter(Boolean));
@@ -1568,6 +1568,57 @@ function ticketMatchesStaffScope(ticket, segmentIds, staffId) {
   if (staffId && (ticket.coveredStaffIds || []).includes(staffId)) return true;
   if (staffId && (ticket.assignedStaffIds || []).includes(staffId)) return true;
   return !ticket.segmentId;
+}
+
+function staffAttachmentMatchesScope(attachment, segmentIds, staffId) {
+  if (!attachment) return false;
+  if (attachment.visibleInRoutes === false) return false;
+  if (attachment.segmentId && !segmentIds.has(attachment.segmentId)) return false;
+  const staffIds = [
+    attachment.staffId,
+    ...(attachment.coveredStaffIds || []),
+    ...(attachment.assignedStaffIds || []),
+  ].filter(Boolean);
+  if (staffId && staffIds.length > 0 && !staffIds.includes(staffId)) return false;
+  return Boolean(
+    attachment.visibleInRoutes ||
+    attachment.url ||
+    attachment.storagePath ||
+    attachment.bookingReference ||
+    attachment.notes ||
+    attachment.name,
+  );
+}
+
+function normalizeStaffAttachmentDocument(attachment) {
+  const pathLabel = [attachment.from, attachment.to].filter(Boolean).join(" â†’ ");
+  const isHotel = normalizePlace(`${attachment.type || ""} ${attachment.kind || ""} ${attachment.bookingReference || ""} ${attachment.name || ""} ${attachment.route || ""}`).includes("hotel");
+  return {
+    ...attachment,
+    id: attachment.id || `staff-attachment-${attachment.segmentId || "all"}-${attachment.staffId || "staff"}-${attachment.bookingReference || attachment.name || ""}`,
+    purchased: true,
+    isStaffAttachment: true,
+    name: attachment.name || attachment.title || (isHotel ? `HÃ´tel - ${attachment.staffName || "Staff"}` : `Document staff - ${attachment.staffName || "Staff"}`),
+    segmentLabel: attachment.segmentLabel || pathLabel || (isHotel ? "HÃ´tel staff" : "Document staff"),
+    seats: Number(attachment.seats || 0),
+  };
+}
+
+function staffDocumentsForScope(transport, segmentIds, staffId) {
+  const ids = segmentIds instanceof Set ? segmentIds : new Set(segmentIds || []);
+  const documents = [
+    ...(transport?.tickets || []).filter((ticket) => ticketMatchesStaffScope(ticket, ids, staffId)),
+    ...(transport?.staffTicketAttachments || [])
+      .filter((attachment) => staffAttachmentMatchesScope(attachment, ids, staffId))
+      .map(normalizeStaffAttachmentDocument),
+  ];
+  const seen = new Set();
+  return documents.filter((document) => {
+    const key = document.id || `${document.name || ""}-${document.segmentId || ""}-${document.staffId || ""}-${document.bookingReference || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function firstNameOf(fullName) {
@@ -2810,7 +2861,6 @@ export default function ConvoyagePage() {
   const briefingTransport = useMemo(() => {
     if (!selectedTransport || !selectedStaff) return null;
     if (!selectedJourneyEntries.length) return scopedTransportForStaff(selectedTransport, selectedStaff, mySegments);
-    const segmentIds = new Set(mySegments.map((segment) => segment.id).filter(Boolean));
     const passengersById = new Map();
     const tickets = [];
     const vehicleGroupsById = new Map();
@@ -2824,9 +2874,7 @@ export default function ConvoyagePage() {
         const key = group.id || `${transport.id}-${group.type || "vehicle"}-${group.from || ""}-${group.to || ""}`;
         if (!vehicleGroupsById.has(key)) vehicleGroupsById.set(key, group);
       });
-      (transport.tickets || [])
-        .filter((ticket) => ticketMatchesStaffScope(ticket, segmentIds, selectedStaff.id))
-        .forEach((ticket) => tickets.push(ticket));
+      (scoped.tickets || []).forEach((ticket) => tickets.push(ticket));
     });
     const sortedSegments = [...mySegments].sort((left, right) =>
       timeMinutes(left.meetingTime || left.departureTime || left.arrivalTime)
@@ -2873,7 +2921,11 @@ export default function ConvoyagePage() {
   const myTickets = useMemo(() => {
     if (!briefingTransport || !mySegments.length) return [];
     const ids = new Set(mySegments.map((s) => s.id).filter(Boolean));
-    return (briefingTransport.tickets || []).filter((ticket) => ticketMatchesStaffScope(ticket, ids, selectedStaff?.id));
+    return (briefingTransport.tickets || []).filter((ticket) =>
+      ticket.isStaffAttachment
+        ? staffAttachmentMatchesScope(ticket, ids, selectedStaff?.id)
+        : ticketMatchesStaffScope(ticket, ids, selectedStaff?.id),
+    );
   }, [briefingTransport, mySegments, selectedStaff]);
 
   const handleTogglePresence = useCallback(async (passenger, checked) => {
