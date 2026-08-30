@@ -561,6 +561,55 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
     ceaStatus: contract.ceaDeclarationValidated ? "CEA fait" : "CEA à faire",
   })), [contracts, weekTile]);
 
+  const payrollSummary = useMemo(() => {
+    const empty = {
+      contracts: 0,
+      paidContracts: 0,
+      dueContracts: 0,
+      netTotal: 0,
+      netPaid: 0,
+      netDue: 0,
+      grossTotal: 0,
+      chargesDue: 0,
+    };
+    const summary = tableContracts.reduce((acc, contract) => {
+      const net = amount(contract.netSalary);
+      const gross = amount(contract.grossSalary);
+      const paidAmount = amount(contract.paidAmount);
+      const paid = contract.paymentValidated ? net : Math.min(paidAmount, net);
+      const due = contract.paymentValidated ? 0 : Math.max(net - paidAmount, 0);
+      const charges = Math.max(gross - net, 0);
+      const key = `${contract.week || "?"}__${contract.stayCode || contract.stay || "Non renseigne"}`;
+      if (!acc.groups.has(key)) {
+        acc.groups.set(key, {
+          ...empty,
+          key,
+          week: contract.week || "Non renseignee",
+          stay: contract.stayCode || contract.stay || "Non renseigne",
+        });
+      }
+      [acc.total, acc.groups.get(key)].forEach((target) => {
+        target.contracts += 1;
+        target.paidContracts += contract.paymentValidated ? 1 : 0;
+        target.dueContracts += due > 0 ? 1 : 0;
+        target.netTotal += net;
+        target.netPaid += paid;
+        target.netDue += due;
+        target.grossTotal += gross;
+        target.chargesDue += charges;
+      });
+      return acc;
+    }, { total: { ...empty }, groups: new Map() });
+
+    return {
+      total: summary.total,
+      groups: [...summary.groups.values()].sort((left, right) =>
+        WEEK_ORDER.indexOf(left.week) - WEEK_ORDER.indexOf(right.week)
+        || left.stay.localeCompare(right.stay, "fr")
+      ),
+    };
+  }, [tableContracts]);
+
   const visibleRefreshableContracts = visibleContracts.filter((contract) => (
     contract.docusignEnvelopeId && contract.docusignStatus !== "completed" && contract.docusignStatus !== "voided"
   ));
@@ -735,6 +784,62 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
           );
         })}
       </div>
+      <section className="hr-payroll-summary" aria-label="Synthese paie">
+        <div className="hr-payroll-kpis">
+          <div className="hr-payroll-kpi">
+            <span>Net total contrats</span>
+            <strong>{currency(payrollSummary.total.netTotal)}</strong>
+            <small>{payrollSummary.total.contracts} contrat{payrollSummary.total.contracts > 1 ? "s" : ""}</small>
+          </div>
+          <div className="hr-payroll-kpi is-paid">
+            <span>Net deja paye</span>
+            <strong>{currency(payrollSummary.total.netPaid)}</strong>
+            <small>{payrollSummary.total.paidContracts} marque{payrollSummary.total.paidContracts > 1 ? "s" : ""} paye{payrollSummary.total.paidContracts > 1 ? "s" : ""}</small>
+          </div>
+          <div className="hr-payroll-kpi is-due">
+            <span>Net reste a payer</span>
+            <strong>{currency(payrollSummary.total.netDue)}</strong>
+            <small>{payrollSummary.total.dueContracts} contrat{payrollSummary.total.dueContracts > 1 ? "s" : ""} a solder</small>
+          </div>
+          <div className="hr-payroll-kpi is-charge">
+            <span>Charges estimees</span>
+            <strong>{currency(payrollSummary.total.chargesDue)}</strong>
+            <small>Brut total {currency(payrollSummary.total.grossTotal)}</small>
+          </div>
+        </div>
+        {payrollSummary.groups.length > 0 && (
+          <div className="hr-payroll-breakdown">
+            <table>
+              <thead>
+                <tr>
+                  <th>Semaine</th>
+                  <th>Sejour</th>
+                  <th>Contrats</th>
+                  <th>Net total</th>
+                  <th>Net paye</th>
+                  <th>Net restant</th>
+                  <th>Brut total</th>
+                  <th>Charges estimees</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payrollSummary.groups.map((group) => (
+                  <tr key={group.key}>
+                    <td>{group.week}</td>
+                    <td>{group.stay}</td>
+                    <td>{group.contracts}</td>
+                    <td>{currency(group.netTotal)}</td>
+                    <td className="hr-paid">{currency(group.netPaid)}</td>
+                    <td className={group.netDue > 0 ? "hr-due" : "hr-paid"}>{currency(group.netDue)}</td>
+                    <td>{currency(group.grossTotal)}</td>
+                    <td>{currency(group.chargesDue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
         <button
           type="button"
