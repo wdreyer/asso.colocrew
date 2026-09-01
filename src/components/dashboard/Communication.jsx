@@ -28,6 +28,7 @@ const SENDERS = [
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const LATEST_PLACES_TEMPLATE_KEY = "dernieres_places_aout";
+const PAYMENT_FAILED_TEMPLATE_KEY = "paiement_cb_echoue";
 const SMS_TEST_PHONE = "0687916897";
 const SMS_S4_RELANCE_DEFAULT = `ColoCrew : il reste quelques places pour le sejour d'aout S4 de {{prenom_enfants}}. Pour bloquer la place, repondez OUI a ce SMS ou appelez William au 06 87 91 68 97. Ref {{numero_reservation}}`;
 
@@ -163,6 +164,36 @@ Pour toute question, n'hésitez pas à nous contacter.
 L'équipe ColoCrew`,
   },
   {
+    key: PAYMENT_FAILED_TEMPLATE_KEY,
+    label: "Paiement CB échoué",
+    defaultSubject: "ColoCrew — Paiement par carte échoué — N° {{numero_reservation}}",
+    defaultBody: `Bonjour {{prenom_parent}},
+
+Nous revenons vers vous concernant la réservation N° {{numero_reservation}} de {{prenom_enfants}} pour le séjour {{nom_sejour}} — {{semaine}}.
+
+Le dernier prélèvement sur la carte bancaire n'a pas pu être validé.
+
+Montant total à régler : {{montant_total}}
+Déjà réglé : {{deja_paye}}
+Reste à payer : {{reste_a_payer}}
+
+Vous pouvez régler le solde en ligne via le lien suivant :
+{{lien_paiement_solde}}
+
+Si besoin, vous pouvez aussi payer en plusieurs fois. Le lien ci-dessus est généré avec l'option choisie avant l'envoi.
+
+Ou par virement bancaire :
+Titulaire : COLOCREW
+IBAN : FR76 1695 8000 0158 6780 6033 040
+BIC/SWIFT : QNTOFRP1XXX
+Référence : {{numero_reservation}}
+
+Pour toute question, nous restons disponibles.
+
+À très bientôt,
+L'équipe ColoCrew`,
+  },
+  {
     key: "infos_pratiques",
     label: "Infos pratiques",
     defaultSubject: "ColoCrew — Infos pratiques — {{nom_sejour}} {{semaine}}",
@@ -208,6 +239,9 @@ const VAR_BADGES_BODY = [
   { label: "Dates séjour",          var: "dates_sejour" },
   { label: "N° résa",               var: "numero_reservation" },
   { label: "Lien paiement",         var: "lien_paiement" },
+  { label: "Lien solde",            var: "lien_paiement_solde" },
+  { label: "Reste à payer",         var: "reste_a_payer" },
+  { label: "Déjà payé",             var: "deja_paye" },
   { label: "Liste documents",       var: "liste_documents" },
 ];
 
@@ -260,6 +294,33 @@ function contactPhone(reservation) {
   return legal.phone || legal.telephone || reservation?.phone || "";
 }
 
+function formatEuro(value) {
+  const amount = Number(value || 0);
+  return `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+}
+
+function reservationPaymentAmounts(reservation) {
+  const payment = reservation?.payment || {};
+  const total = Number(
+    payment.resteACharge ??
+    payment.validatedPrice ??
+    payment.totalPrice ??
+    reservation?.finalPrice ??
+    0,
+  );
+  const alreadyPaid = Number(payment.alreadyPaid || 0);
+  const calculatedRemaining = Math.max(total - alreadyPaid, 0);
+  const storedRemaining = payment.remainingValue != null ? Number(payment.remainingValue || 0) : null;
+  const remaining = storedRemaining != null
+    ? Math.min(Math.max(storedRemaining, 0), calculatedRemaining)
+    : calculatedRemaining;
+  return {
+    total: Math.max(Number(total.toFixed(2)), 0),
+    alreadyPaid: Math.max(Number(alreadyPaid.toFixed(2)), 0),
+    remaining: Math.max(Number(remaining.toFixed(2)), 0),
+  };
+}
+
 function normalizeSmsPhone(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -276,6 +337,7 @@ function resolveVars(text, reservation, extraVars = {}) {
   if (!text) return "";
   const { legal = {}, minor = {}, sejour = {} } = reservation;
   const week = weekFromStartDate(sejour?.startDate);
+  const paymentAmounts = reservationPaymentAmounts(reservation);
   const vars = {
     prenom_parent:      legal.firstName || "",
     nom_parent:         legal.lastName  || "",
@@ -287,6 +349,10 @@ function resolveVars(text, reservation, extraVars = {}) {
     dates_sejour:       formatDateRange(sejour.startDate, sejour.endDate),
     numero_reservation: reservation.numeroDeReservation || "",
     lien_paiement:      reservation.stripeDepositUrl || "(lien non disponible)",
+    lien_paiement_solde: reservation.stripeBalanceUrl || reservation.paymentFailedPaymentUrl || "(lien généré à l'envoi)",
+    montant_total:      formatEuro(paymentAmounts.total),
+    deja_paye:          formatEuro(paymentAmounts.alreadyPaid),
+    reste_a_payer:      formatEuro(paymentAmounts.remaining),
     liste_documents:    "",
     ...extraVars,
   };
@@ -319,6 +385,44 @@ async function createDepositStripeLink(reservation) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.url) {
     throw new Error(data.error || "Lien Stripe acompte impossible à générer");
+  }
+  return data.url;
+}
+
+async function createBalanceStripeLink(reservation, installmentsCount = 1) {
+  const { legal = {}, sejour = {}, transport = {}, payment = {}, options = {} } = reservation;
+  const paymentAmounts = reservationPaymentAmounts(reservation);
+  if (!paymentAmounts.remaining || paymentAmounts.remaining <= 0) {
+    throw new Error("Aucun solde restant à payer pour cette réservation");
+  }
+  const count = Math.max(Math.round(Number(installmentsCount)) || 1, 1);
+  const response = await fetch("/api/create-stripe-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tokenUnique: reservation.tokenUnique,
+      amount: paymentAmounts.remaining,
+      currency: "eur",
+      sejourTitle: sejour.name || "Séjour ColoCrew",
+      ageGroup: sejour.ageGroup || "",
+      startDate: sejour.startDate,
+      endDate: sejour.endDate,
+      transportFee: Number(transport.price || payment.transportAmount || transport.fee || 0),
+      insuranceOpted: Boolean(options.insurance || payment.insuranceFee || payment.assurance),
+      paymentOption: count > 1 ? "installments" : "rest",
+      installments: count > 1 ? count : undefined,
+      customer_email: legal.email || undefined,
+      metadata: {
+        paymentType: count > 1 ? "installments" : "balance",
+        installments: count > 1 ? String(count) : undefined,
+        numeroDeReservation: reservation.numeroDeReservation || "",
+        source: "payment_failed_email",
+      },
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.url) {
+    throw new Error(data.error || "Lien Stripe solde impossible à générer");
   }
   return data.url;
 }
@@ -458,6 +562,7 @@ export default function Communication() {
   const [sender, setSender] = useState(SENDERS[0]);
   const [missingDocs, setMissingDocs] = useState(new Set());
   const [attachments, setAttachments] = useState([]);
+  const [paymentFailedInstallmentsCount, setPaymentFailedInstallmentsCount] = useState("3");
   const [smsSender, setSmsSender] = useState("ColoCrew");
   const [smsBody, setSmsBody] = useState(SMS_S4_RELANCE_DEFAULT);
   const [smsTestSending, setSmsTestSending] = useState(false);
@@ -558,6 +663,9 @@ export default function Communication() {
     setMissingDocs(new Set());
     if (key === LATEST_PLACES_TEMPLATE_KEY) {
       setFilterStatus("pending");
+      setFilterWeek("all");
+    } else if (key === PAYMENT_FAILED_TEMPLATE_KEY) {
+      setFilterStatus("all");
       setFilterWeek("all");
     } else {
       setFilterStatus("validated");
@@ -702,6 +810,27 @@ export default function Communication() {
             prev.map((item) => item.id === res.id ? { ...item, stripeDepositUrl } : item),
           );
         }
+        if (templateKey === PAYMENT_FAILED_TEMPLATE_KEY) {
+          if (!res.tokenUnique) {
+            throw new Error("Token réservation manquant pour générer le lien Stripe solde");
+          }
+          const paymentAmounts = reservationPaymentAmounts(res);
+          if (paymentAmounts.remaining <= 0) {
+            throw new Error("Aucun solde restant à payer");
+          }
+          const installmentsCount = Math.max(Math.round(Number(paymentFailedInstallmentsCount)) || 1, 1);
+          const stripeBalanceUrl = await createBalanceStripeLink(res, installmentsCount);
+          reservationForEmail = { ...res, stripeBalanceUrl, paymentFailedPaymentUrl: stripeBalanceUrl };
+          await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, res.id), {
+            stripeBalanceUrl,
+            "payment.failedPaymentRecoveryUrl": stripeBalanceUrl,
+            "payment.failedPaymentRecoveryInstallments": installmentsCount,
+            "payment.failedPaymentRecoveryCreatedAt": serverTimestamp(),
+          });
+          setReservations((prev) =>
+            prev.map((item) => item.id === res.id ? { ...item, stripeBalanceUrl } : item),
+          );
+        }
         const payload = {
           to: reservationForEmail.legal.email,
           subject: resolveVars(subject, reservationForEmail, extraVars),
@@ -742,7 +871,7 @@ export default function Communication() {
     } else {
       showToast(`${selectedList.length - errors.length} succès, ${errors.length} erreur(s)`, "error");
     }
-  }, [selectedList, templateKey, subject, body, sender, attachments, getExtraVars, showToast]);
+  }, [selectedList, templateKey, subject, body, sender, attachments, getExtraVars, paymentFailedInstallmentsCount, showToast]);
 
   const sendSmsBatch = useCallback(async () => {
     if (selectedList.length === 0) { showToast("Aucun destinataire SMS sélectionné", "error"); return; }
@@ -1122,6 +1251,26 @@ export default function Communication() {
                   <p style={{ margin: 0, fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
                     Ce modèle sélectionne toutes les réservations en cours non validées avec email. Le texte reste modifiable avant envoi pour personnaliser les familles.
                   </p>
+                </div>
+              )}
+
+              {templateKey === PAYMENT_FAILED_TEMPLATE_KEY && (
+                <div style={{ marginBottom: 20, padding: 16, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10 }}>
+                  <div style={{ ...labelStyle, color: "#c2410c", marginBottom: 6 }}>Relance paiement échoué</div>
+                  <p style={{ margin: "0 0 10px", fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
+                    Un lien Stripe de solde est généré pour chaque réservation au moment de l'envoi. Le montant déjà payé est déduit automatiquement.
+                  </p>
+                  <label style={{ ...labelStyle, color: "#92400e" }}>Paiement proposé</label>
+                  <select
+                    value={paymentFailedInstallmentsCount}
+                    onChange={(e) => setPaymentFailedInstallmentsCount(e.target.value)}
+                    style={{ ...selectStyle, maxWidth: 220, backgroundColor: "#fff" }}
+                  >
+                    <option value="1">En une fois</option>
+                    <option value="2">En 2 fois</option>
+                    <option value="3">En 3 fois</option>
+                    <option value="4">En 4 fois</option>
+                  </select>
                 </div>
               )}
 

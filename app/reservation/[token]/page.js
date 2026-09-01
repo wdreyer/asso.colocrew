@@ -141,11 +141,17 @@ export default function ReservationPage({ params }) {
   else if (nbEnfants >= 3) discountLabel = "-10%";
 
   const finalPrice = Number(payment?.validatedPrice || payment?.totalPrice || 0);
+  const totalDue = Number(payment?.resteACharge ?? payment?.validatedPrice ?? payment?.totalPrice ?? 0);
   const isPriceCalculated =
     finalPrice > 0 && (payment?.priceStatus === "validated" || status === "validated");
   const isDepositPaid = payment?.depositStatus === "paid";
   const depositAmount = Number(payment?.depositAmount || 100);
-  const remainingAfterDeposit = Math.max(finalPrice - (isDepositPaid ? depositAmount : 0), 0);
+  const alreadyPaid = Math.max(Number(payment?.alreadyPaid || 0), isDepositPaid ? depositAmount : 0);
+  const calculatedRemaining = Math.max((totalDue || finalPrice) - alreadyPaid, 0);
+  const storedRemaining = payment?.remainingValue != null ? Math.max(Number(payment.remainingValue) || 0, 0) : null;
+  const remainingToPay = storedRemaining != null
+    ? Math.min(storedRemaining, calculatedRemaining)
+    : calculatedRemaining;
 
   // Lance une nouvelle session Stripe acompte 100€
   const handleDepositPayment = async () => {
@@ -424,6 +430,12 @@ export default function ReservationPage({ params }) {
                 <span>- {depositAmount}€</span>
               </div>
             )}
+            {alreadyPaid > depositAmount && (
+              <div className="flex justify-between border-b pb-2 text-green-700">
+                <span>Autres paiements reçus</span>
+                <span>- {formatMontant(alreadyPaid - depositAmount)}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-2">
               <strong>{isPriceCalculated ? "Prix validé" : "Estimation"}</strong>
               {isPriceCalculated ? (
@@ -435,7 +447,7 @@ export default function ReservationPage({ params }) {
             {isPriceCalculated && (
               <div className="flex justify-between pt-2 text-base">
                 <strong>Reste à régler</strong>
-                <strong style={{ color: colorPrimary }}>{formatMontant(remainingAfterDeposit)}</strong>
+                <strong style={{ color: colorPrimary }}>{formatMontant(remainingToPay)}</strong>
               </div>
             )}
           </div>
@@ -446,14 +458,14 @@ export default function ReservationPage({ params }) {
               <strong>Statut de paiement :</strong>{" "}
               {payment?.paymentStatus === "paid"
                 ? "Payé"
-                : isDepositPaid
+                : alreadyPaid > 0
                 ? "Acompte reçu — solde à venir"
                 : "Non payé"}
             </p>
           </div>
 
           {/* Paiement du solde (quand le prix est calculé et non encore soldé) */}
-          {isPriceCalculated && payment?.paymentStatus !== "paid" && remainingAfterDeposit > 0 && (
+          {isPriceCalculated && payment?.paymentStatus !== "paid" && remainingToPay > 0 && (
             <div className="mt-6 p-4 text-sm">
               {options?.paymentMethod === "CB" ? (
                 <div>
@@ -461,7 +473,7 @@ export default function ReservationPage({ params }) {
                     Vous pouvez régler le{" "}
                     <strong>
                       {isDepositPaid ? "solde" : "montant validé"} de{" "}
-                      {formatMontant(remainingAfterDeposit)}
+                      {formatMontant(remainingToPay)}
                     </strong>{" "}
                     par carte bancaire :
                   </p>
@@ -473,7 +485,7 @@ export default function ReservationPage({ params }) {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             tokenUnique: token,
-                            amount: remainingAfterDeposit,
+                            amount: remainingToPay,
                             currency: "eur",
                             sejourTitle,
                             ageGroup,
@@ -500,7 +512,7 @@ export default function ReservationPage({ params }) {
                 <div>
                   <p className="mb-3">
                     Veuillez régler {isDepositPaid ? "le solde" : "le montant validé"} de{" "}
-                    <strong>{formatMontant(remainingAfterDeposit)}</strong> par{" "}
+                    <strong>{formatMontant(remainingToPay)}</strong> par{" "}
                     <strong>chèque ou virement</strong> :
                   </p>
                   <div className="mb-2 p-3 border border-dashed border-[#B8336A] rounded">
@@ -517,7 +529,7 @@ Colocrew{"\n"}1 rue Magenta{"\n"}93500 Pantin
                     <p className="text-sm leading-7">
                       <strong>IBAN :</strong> FR76 1695 8000 0158 6780 6033 040<br />
                       <strong>BIC :</strong> QNTOFRP1XXX<br />
-                      <strong>Montant :</strong> {formatMontant(remainingAfterDeposit)}<br />
+                      <strong>Montant :</strong> {formatMontant(remainingToPay)}<br />
                       <strong>Référence :</strong> {numeroDeReservation}
                     </p>
                   </div>

@@ -41,6 +41,13 @@ const EMAIL_TEMPLATES = [
     body: () => "",
   },
   {
+    key: "payment_failed",
+    label: "Paiement CB échoué",
+    subject: (_n, sejour) =>
+      `ColoCrew — Paiement par carte échoué pour votre réservation "${sejour}"`,
+    body: () => "",
+  },
+  {
     key: "custom",
     label: "Personnalisé",
     subject: () => "",
@@ -865,11 +872,20 @@ function buildSuiteEmailHtml({
   link, installmentsEnabled, installmentsCount, depositLink,
   priceDefined = true,
   missingCafNumber = false,
+  paymentFailed = false,
 }) {
   const parts = [];
   parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">Bonjour ${escapeHtml(nom)},</p>`);
   if (introText.trim()) {
     parts.push(`<p style="font-size:14px;color:#1e1535;line-height:1.6;margin:0 0 10px;">${escapeHtml(introText).replace(/\n/g, "<br>")}</p>`);
+  }
+
+  if (paymentFailed) {
+    parts.push(`
+      <div style="border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;margin:0 0 14px;background:#fff7ed;">
+        <p style="margin:0 0 5px;font-size:12px;font-weight:800;color:#c2410c;text-transform:uppercase;letter-spacing:0.04em;">Paiement par carte non abouti</p>
+        <p style="margin:0;font-size:13px;color:#1e1535;line-height:1.6;">Le dernier pr&eacute;l&egrave;vement sur la carte bancaire n'a pas pu &ecirc;tre valid&eacute;. Le montant d&eacute;j&agrave; r&eacute;gl&eacute; est bien d&eacute;duit du solde ci-dessous.</p>
+      </div>`);
   }
 
   if (priceDefined) {
@@ -879,7 +895,7 @@ function buildSuiteEmailHtml({
       suiteEmailRow("Transport", fmtCur(transportAmountNum)),
       cafEligible ? suiteEmailRow("Pris en charge CAF", `− ${fmtCur(cafAmountNum)}`) : "",
       suiteEmailRow("Reste à charge", fmtCur(resteACharge)),
-      alreadyPaid > 0 ? suiteEmailRow("Déjà réglé (acompte)", `− ${fmtCur(alreadyPaid)}`) : "",
+      alreadyPaid > 0 ? suiteEmailRow("Déjà réglé", `− ${fmtCur(alreadyPaid)}`) : "",
       suiteEmailRow("À régler maintenant", fmtCur(amountDueNow), { accent: true }),
     ].join("");
     parts.push(`
@@ -901,8 +917,8 @@ function buildSuiteEmailHtml({
 
   if (link) {
     const label = installmentsEnabled && installmentsCount > 1
-      ? `Payer en ${installmentsCount} fois →`
-      : "Payer en ligne par carte →";
+      ? (paymentFailed ? `Régler le solde en ${installmentsCount} fois →` : `Payer en ${installmentsCount} fois →`)
+      : (paymentFailed ? "Régler le solde en ligne →" : "Payer en ligne par carte →");
     parts.push(suiteEmailButton(link, label));
     parts.push(`<p style="font-size:11.5px;color:#aaa;text-align:center;margin:-6px 0 14px;">Lien valable 48h</p>`);
   }
@@ -1087,7 +1103,7 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
           )}
           <div className="rp-price-calc-summary-row"><span>Reste à charge</span><span>{fmtCur(resteACharge)}</span></div>
           {alreadyPaid > 0 && (
-            <div className="rp-price-calc-summary-row"><span>Déjà réglé (acompte)</span><span>− {fmtCur(alreadyPaid)}</span></div>
+            <div className="rp-price-calc-summary-row"><span>Déjà réglé</span><span>− {fmtCur(alreadyPaid)}</span></div>
           )}
           <div className="rp-price-calc-summary-row is-total"><span>À régler maintenant</span><span>{fmtCur(amountDueNow)}</span></div>
         </div>
@@ -1141,6 +1157,8 @@ function EmailComposer({ item, onGoToTarif }) {
   const childCount = reservationChildCount(item);
   const discountPercent = Math.round((1 - siblingDiscountFactor(childCount)) * 100);
   const missingCafNumber = !String(item.cafOrSecu || "").trim() || item.cafOrSecu === "—";
+  const isFinancialEmail = tplKey === "suite_reservation" || tplKey === "payment_failed";
+  const isPaymentFailedEmail = tplKey === "payment_failed";
 
   const initFromTpl = (key) => {
     const t = EMAIL_TEMPLATES.find(x => x.key === key) || EMAIL_TEMPLATES[0];
@@ -1168,12 +1186,17 @@ function EmailComposer({ item, onGoToTarif }) {
     link: stripeLink, installmentsEnabled, installmentsCount: installmentsCountNum, depositLink,
     priceDefined: isPriceDefined,
     missingCafNumber,
+    paymentFailed: isPaymentFailedEmail,
   });
 
   const applyTpl = (key) => {
     setTplKey(key);
-    if (key === "suite_reservation") {
+    if (key === "suite_reservation" || key === "payment_failed") {
       setSubject(EMAIL_TEMPLATES.find(t => t.key === key).subject(nom, item.sejourName));
+      setIntroText(key === "payment_failed"
+        ? `Nous revenons vers vous concernant votre réservation pour le séjour "${item.sejourName}". Le prélèvement par carte bancaire n'a pas fonctionné ; vous pouvez régler le solde restant ci-dessous, en une fois ou en plusieurs fois.`
+        : `Voici le récapitulatif financier de votre réservation pour le séjour "${item.sejourName}".`
+      );
       return;
     }
     const { subject: s, body: b } = initFromTpl(key);
@@ -1214,8 +1237,10 @@ function EmailComposer({ item, onGoToTarif }) {
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error();
-      setTplKey("suite_reservation");
-      setSubject(EMAIL_TEMPLATES.find(t => t.key === "suite_reservation").subject(nom, item.sejourName));
+      if (!isFinancialEmail) {
+        setTplKey("suite_reservation");
+        setSubject(EMAIL_TEMPLATES.find(t => t.key === "suite_reservation").subject(nom, item.sejourName));
+      }
       if (mode === "deposit") setDepositLink(data.url);
       else setStripeLink(data.url);
       return true;
@@ -1266,14 +1291,13 @@ function EmailComposer({ item, onGoToTarif }) {
   };
 
   const send = async () => {
-    const isSuite = tplKey === "suite_reservation";
-    if (!to || !subject || (isSuite ? false : !body)) { showToast("Remplissez tous les champs", "warning"); return; }
+    if (!to || !subject || (isFinancialEmail ? false : !body)) { showToast("Remplissez tous les champs", "warning"); return; }
     setSending(true);
     try {
       const res = await fetch("/api/send-admin-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isSuite ? { to, subject, bodyHtml: previewHtml } : { to, subject, body }),
+        body: JSON.stringify(isFinancialEmail ? { to, subject, bodyHtml: previewHtml } : { to, subject, body }),
       });
       if (!res.ok) throw new Error();
       showToast("Email envoyé !", "success");
@@ -1294,9 +1318,11 @@ function EmailComposer({ item, onGoToTarif }) {
         ))}
       </div>
 
-      {tplKey === "suite_reservation" && (
+      {isFinancialEmail && (
         <div className="rp-price-calc">
-          <div className="rp-price-calc-title">Récapitulatif (défini dans l'onglet Tarif)</div>
+          <div className="rp-price-calc-title">
+            {isPaymentFailedEmail ? "Relance paiement CB échoué" : "Récapitulatif (défini dans l'onglet Tarif)"}
+          </div>
 
           {!isPriceDefined ? (
             <div className="rp-price-calc-summary" style={{ borderTop: "none", paddingTop: 0 }}>
@@ -1316,7 +1342,7 @@ function EmailComposer({ item, onGoToTarif }) {
               )}
               <div className="rp-price-calc-summary-row"><span>Reste à charge</span><span>{fmtCur(resteACharge)}</span></div>
               {alreadyPaid > 0 && (
-                <div className="rp-price-calc-summary-row"><span>Déjà réglé (acompte)</span><span>− {fmtCur(alreadyPaid)}</span></div>
+                <div className="rp-price-calc-summary-row"><span>Déjà réglé</span><span>− {fmtCur(alreadyPaid)}</span></div>
               )}
               <div className="rp-price-calc-summary-row is-total"><span>À régler maintenant</span><span>{fmtCur(amountDueNow)}</span></div>
             </div>
@@ -1375,7 +1401,7 @@ function EmailComposer({ item, onGoToTarif }) {
         <input className="dash-input" value={subject} onChange={e => setSubject(e.target.value)} />
       </label>
 
-      {tplKey === "suite_reservation" ? (
+      {isFinancialEmail ? (
         <>
           <label className="rp-email-label">
             <span>Message d'introduction (optionnel)</span>

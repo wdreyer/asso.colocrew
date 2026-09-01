@@ -10,6 +10,7 @@ import {
   doc,
   updateDoc,
   serverTimestamp,
+  arrayUnion,
 } from "firebase/firestore";
 import { syncInstallmentSubscriptionCancellation } from "@/src/lib/stripeInstallments";
 
@@ -17,6 +18,127 @@ import { syncInstallmentSubscriptionCancellation } from "@/src/lib/stripeInstall
 export const runtime = "nodejs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+function toMoney(value) {
+  return Number((Number(value || 0)).toFixed(2));
+}
+
+function amountFromStripeCents(value) {
+  return toMoney(Number(value || 0) / 100);
+}
+
+function knownReservationTotal(payment = {}) {
+  return Number(
+    payment.resteACharge ??
+    payment.validatedPrice ??
+    payment.totalPrice ??
+    payment.basePrice ??
+    0,
+  );
+}
+
+function hasProcessedStripePayment(payment = {}, { eventId, invoiceId, paymentIntentId } = {}) {
+  const eventIds = Array.isArray(payment.stripePaymentEventIds) ? payment.stripePaymentEventIds : [];
+  const invoiceIds = Array.isArray(payment.stripeInvoiceIds) ? payment.stripeInvoiceIds : [];
+  const paymentIntentIds = Array.isArray(payment.stripePaymentIntentIds) ? payment.stripePaymentIntentIds : [];
+  return Boolean(
+    (eventId && eventIds.includes(eventId)) ||
+    (invoiceId && invoiceIds.includes(invoiceId)) ||
+    (paymentIntentId && paymentIntentIds.includes(paymentIntentId))
+  );
+}
+
+function buildReservationPaymentPatch(reservationData, amountPaid, extra = {}) {
+  const payment = reservationData.payment || {};
+  const alreadyPaid = Number(payment.alreadyPaid || 0);
+  const newAlreadyPaid = toMoney(alreadyPaid + amountPaid);
+  const knownTotalDue = knownReservationTotal(payment);
+  const newRemainingValue = knownTotalDue > 0
+    ? toMoney(Math.max(knownTotalDue - newAlreadyPaid, 0))
+    : payment.remainingValue ?? null;
+  const newStatus = newRemainingValue === 0 ? "paid" : newAlreadyPaid > 0 ? "in_progress" : "not_paid";
+  const finance = reservationData.finance || null;
+  const currentFinancePaid = Number(finance?.paidAmount || 0);
+  const nextFinancePaid = toMoney(currentFinancePaid + amountPaid);
+  const financeNetAmount = Number(finance?.netAmount || 0);
+  const financePatch = finance
+    ? {
+        "finance.paidAmount": nextFinancePaid,
+        "finance.remainingAmount": toMoney(Math.max(financeNetAmount - nextFinancePaid, 0)),
+        financeUpdatedAt: serverTimestamp(),
+      }
+    : {};
+
+  return {
+    "payment.paymentStatus": newStatus,
+    "payment.alreadyPaid": newAlreadyPaid,
+    "payment.remainingValue": newRemainingValue,
+    "payment.lastStripePaymentAt": serverTimestamp(),
+    "payment.lastStripePaymentAmount": amountPaid,
+    updatedAt: serverTimestamp(),
+    ...extra,
+    ...financePatch,
+  };
+}
+
+function stripeTrackingPatch({ eventId, invoiceId, paymentIntentId }) {
+  const patch = {};
+  if (eventId) patch["payment.stripePaymentEventIds"] = arrayUnion(eventId);
+  if (invoiceId) patch["payment.stripeInvoiceIds"] = arrayUnion(invoiceId);
+  if (paymentIntentId) patch["payment.stripePaymentIntentIds"] = arrayUnion(paymentIntentId);
+  return patch;
+}
+
+async function findReservationByTokenOrSubscription({ tokenUnique, subscriptionId }) {
+  const reservationsRef = collection(db, "reservations");
+  if (tokenUnique) {
+    const snap = await getDocs(query(reservationsRef, where("tokenUnique", "==", tokenUnique)));
+    if (!snap.empty) return snap.docs[0];
+  }
+  if (subscriptionId) {
+    const snap = await getDocs(query(reservationsRef, where("payment.installmentsSubscriptionId", "==", subscriptionId)));
+    if (!snap.empty) return snap.docs[0];
+  }
+  return null;
+}
+
+async function creditReservationStripePayment({ tokenUnique, subscriptionId, amountPaid, eventId, invoiceId, paymentIntentId, source, billingReason }) {
+  if (!amountPaid || amountPaid <= 0) return { status: "skipped", reason: "amount_zero" };
+  const reservationDoc = await findReservationByTokenOrSubscription({ tokenUnique, subscriptionId });
+  if (!reservationDoc) return { status: "missing_reservation" };
+
+  const reservationData = reservationDoc.data();
+  const payment = reservationData.payment || {};
+  if (hasProcessedStripePayment(payment, { eventId, invoiceId, paymentIntentId })) {
+    return { status: "already_processed", reservationId: reservationDoc.id };
+  }
+  if (
+    source === "invoice.paid" &&
+    billingReason === "subscription_create" &&
+    payment.installmentsSubscriptionId === subscriptionId &&
+    payment.lastStripePaymentSource === "checkout.session.completed" &&
+    Math.abs(Number(payment.lastStripePaymentAmount || 0) - amountPaid) < 0.01
+  ) {
+    await updateDoc(doc(db, "reservations", reservationDoc.id), {
+      ...stripeTrackingPatch({ eventId, invoiceId, paymentIntentId }),
+      updatedAt: serverTimestamp(),
+    });
+    return { status: "already_credited_by_checkout", reservationId: reservationDoc.id };
+  }
+
+  const reservationRef = doc(db, "reservations", reservationDoc.id);
+  await updateDoc(reservationRef, buildReservationPaymentPatch(reservationData, amountPaid, {
+    ...(subscriptionId
+      ? {
+          "payment.installmentsSubscriptionId": subscriptionId,
+          "payment.installmentsSubscriptionStatus": "active",
+        }
+      : {}),
+    "payment.lastStripePaymentSource": source || null,
+    ...stripeTrackingPatch({ eventId, invoiceId, paymentIntentId }),
+  }));
+  return { status: "credited", reservationId: reservationDoc.id };
+}
 
 export async function POST(request) {
   console.log("Requête webhook reçue (POST)");
@@ -55,14 +177,36 @@ export async function POST(request) {
 
   if (event.type === "invoice.paid") {
     const invoice = event.data.object;
-    const subscriptionId = invoice.subscription || null;
+    const subscriptionId = typeof invoice.subscription === "string"
+      ? invoice.subscription
+      : invoice.subscription?.id || null;
     if (subscriptionId) {
       try {
         const sync = await syncInstallmentSubscriptionCancellation(stripe, subscriptionId);
         console.log("[stripe-webhook] sync abonnement echeances:", sync);
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const tokenUnique =
+          invoice.subscription_details?.metadata?.tokenUnique ||
+          subscription.metadata?.tokenUnique ||
+          null;
+        const paymentIntentId = typeof invoice.payment_intent === "string"
+          ? invoice.payment_intent
+          : invoice.payment_intent?.id || null;
+        const amountPaid = amountFromStripeCents(invoice.amount_paid);
+        const credit = await creditReservationStripePayment({
+          tokenUnique,
+          subscriptionId,
+          amountPaid,
+          eventId: event.id,
+          invoiceId: invoice.id,
+          paymentIntentId,
+          source: "invoice.paid",
+          billingReason: invoice.billing_reason || null,
+        });
+        console.log("[stripe-webhook] credit facture abonnement:", credit);
       } catch (err) {
-        console.error("[stripe-webhook] erreur sync abonnement echeances:", err);
-        return new Response("Erreur sync abonnement", { status: 500 });
+        console.error("[stripe-webhook] erreur traitement facture abonnement:", err);
+        return new Response("Erreur traitement facture abonnement", { status: 500 });
       }
     }
   }
@@ -88,9 +232,13 @@ export async function POST(request) {
   // Traiter l'événement checkout.session.completed
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
-    const tokenUnique = session.metadata.tokenUnique;
-    const paymentType = session.metadata.paymentType; // "deposit" ou undefined
-    const amountPaid = Number((session.amount_total / 100).toFixed(2));
+    const tokenUnique = session.metadata?.tokenUnique;
+    const paymentType = session.metadata?.paymentType; // "deposit" ou undefined
+    const amountPaid = amountFromStripeCents(session.amount_total);
+    const sessionInvoiceId = typeof session.invoice === "string" ? session.invoice : session.invoice?.id || null;
+    const sessionPaymentIntentId = typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id || null;
 
     try {
       if (session.metadata?.campaign === "acompte-18-juin" && session.metadata?.acompteDocId) {
@@ -110,6 +258,17 @@ export async function POST(request) {
       if (!snap.empty) {
         const reservationDoc = snap.docs[0];
         const reservationData = reservationDoc.data();
+        if (hasProcessedStripePayment(reservationData.payment, {
+          eventId: event.id,
+          invoiceId: sessionInvoiceId,
+          paymentIntentId: sessionPaymentIntentId,
+        })) {
+          console.log(`[stripe-webhook] checkout deja traite pour ${tokenUnique}`);
+          return new Response(JSON.stringify({ received: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         const reservationRef = doc(db, "reservations", reservationDoc.id);
         const finance = reservationData.finance || null;
         const currentFinancePaid = Number(finance?.paidAmount || 0);
@@ -146,6 +305,14 @@ export async function POST(request) {
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.depositAmount": depositAmount,
             "payment.remainingValue": newRemainingValue,
+            "payment.lastStripePaymentAt": serverTimestamp(),
+            "payment.lastStripePaymentAmount": amountPaid,
+            "payment.lastStripePaymentSource": "checkout.session.completed",
+            ...stripeTrackingPatch({
+              eventId: event.id,
+              invoiceId: sessionInvoiceId,
+              paymentIntentId: sessionPaymentIntentId,
+            }),
             status: "deposit_paid",
             updatedAt: serverTimestamp(),
             ...financePatch,
@@ -216,6 +383,14 @@ export async function POST(request) {
             "payment.remainingValue": newRemainingValue,
             "payment.installmentsSubscriptionId": session.subscription || null,
             "payment.installmentsSubscriptionStatus": session.subscription ? "active" : null,
+            "payment.lastStripePaymentAt": serverTimestamp(),
+            "payment.lastStripePaymentAmount": amountPaid,
+            "payment.lastStripePaymentSource": "checkout.session.completed",
+            ...stripeTrackingPatch({
+              eventId: event.id,
+              invoiceId: sessionInvoiceId,
+              paymentIntentId: sessionPaymentIntentId,
+            }),
             updatedAt: serverTimestamp(),
             ...financePatch,
           });
@@ -242,6 +417,14 @@ export async function POST(request) {
             "payment.paymentStatus": newStatus,
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.remainingValue": newRemainingValue,
+            "payment.lastStripePaymentAt": serverTimestamp(),
+            "payment.lastStripePaymentAmount": amountPaid,
+            "payment.lastStripePaymentSource": "checkout.session.completed",
+            ...stripeTrackingPatch({
+              eventId: event.id,
+              invoiceId: sessionInvoiceId,
+              paymentIntentId: sessionPaymentIntentId,
+            }),
             updatedAt: serverTimestamp(),
             ...financePatch,
           });
