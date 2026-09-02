@@ -559,6 +559,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
   const tableContracts = useMemo(() => contracts.filter((contract) => weekTile === "all" || contract.week === weekTile).map((contract) => ({
     ...contract,
     ceaStatus: contract.ceaDeclarationValidated ? "CEA fait" : "CEA à faire",
+    socialSectionStatus: contract.socialSectionDone ? "Volet social fait" : "Volet social à faire",
   })), [contracts, weekTile]);
 
   const payrollSummary = useMemo(() => {
@@ -672,13 +673,14 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
       ),
     },
     {
-      key: "socialSectionDone", label: "Volet social", sortable: false,
+      key: "socialSectionStatus", label: "Volet social", filterable: true, filterLabel: "Tous volets sociaux",
       render: (row) => (
         <label className="hr-contract-check" title="Volet social fait">
           <input type="checkbox" checked={row.socialSectionDone} onChange={(event) => onToggleSocialSection(row, event.target.checked)} />
           <span>{row.socialSectionDone ? "Fait" : "À faire"}</span>
         </label>
       ),
+      sortValue: (row) => row.socialSectionStatus,
     },
     {
       key: "status", label: "Paiement", filterable: true, filterLabel: "Tous",
