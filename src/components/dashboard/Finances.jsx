@@ -43,6 +43,13 @@ const DEFAULT_ACCOUNTING = {
     difficulties: "Maîtrise des coûts de transport, hébergement, masse salariale et trésorerie pendant la saison.",
     nextSteps: "Consolider le modèle économique, améliorer le suivi des paiements, préparer les dossiers de subvention et structurer les bilans annuels.",
   },
+  financingRequest: {
+    requestedAmount: 50000,
+    purpose: "Financer le changement d'échelle 2027 : doublement des séjours, sécurisation de la trésorerie avant les périodes de forte activité, structuration administrative et maintien de l'accessibilité familles.",
+    development: "L'association veut doubler son chiffre d'affaires et son volume de séjours en conservant la même saisonnalité : montée en charge en février, puis pic opérationnel sur l'été.",
+    useOfFunds: "Le financement demandé couvre principalement l'avance de trésorerie avant encaissement complet des familles/aides, les acomptes fournisseurs, les transports, la masse salariale et les coûts de structuration.",
+    repaymentView: "La capacité de remboursement dépend de l'encaissement des inscriptions et subventions, concentré autour des périodes février et été.",
+  },
   actual: {
     products: [
       { label: "Vente de séjours / participations familles", account: "70", amount: 108857.3 },
@@ -104,6 +111,37 @@ const DEFAULT_ACCOUNTING = {
       { label: "Dettes d'exploitation", account: "4", amount: 0 },
     ],
   },
+  forecast2027: {
+    products: [
+      { label: "Vente de séjours / participations familles", account: "70", amount: 640000 },
+      { label: "CAF / VACAF et organismes sociaux", account: "74", amount: 80000 },
+      { label: "Subventions publiques", account: "74", amount: 176000 },
+      { label: "Cotisations, dons, mécénat", account: "75", amount: 14000 },
+      { label: "Refacturations / remboursements", account: "79", amount: 8000 },
+    ],
+    expenses: [
+      { label: "Achats, fournitures et alimentation", account: "60", amount: 270000 },
+      { label: "Locations, hébergements, salles, matériel", account: "61", amount: 220000 },
+      { label: "Transport, assurances, communication, services extérieurs", account: "62", amount: 155000 },
+      { label: "Rémunérations", account: "64", amount: 110000 },
+      { label: "Charges sociales", account: "64", amount: 40000 },
+      { label: "Autres charges, amortissements, imprévus", account: "65-68", amount: 65000 },
+    ],
+  },
+  cashPlan2027: [
+    { month: "Janvier", inflows: 20000, outflows: 18000, note: "Préparation administrative et acomptes" },
+    { month: "Février", inflows: 52000, outflows: 60000, note: "Première grosse période d'inscriptions / dépenses" },
+    { month: "Mars", inflows: 19000, outflows: 20000, note: "Suivi des inscriptions" },
+    { month: "Avril", inflows: 22000, outflows: 20000, note: "Préparation des séjours" },
+    { month: "Mai", inflows: 35000, outflows: 30000, note: "Acomptes fournisseurs et familles" },
+    { month: "Juin", inflows: 134000, outflows: 125000, note: "Montée en charge été" },
+    { month: "Juillet", inflows: 173000, outflows: 155000, note: "Pic séjours été" },
+    { month: "Août", inflows: 147000, outflows: 142000, note: "Pic séjours été" },
+    { month: "Septembre", inflows: 35000, outflows: 28000, note: "Encaissements résiduels et clôture été" },
+    { month: "Octobre", inflows: 18000, outflows: 16000, note: "Basse saison" },
+    { month: "Novembre", inflows: 18000, outflows: 16000, note: "Basse saison" },
+    { month: "Décembre", inflows: 22000, outflows: 18000, note: "Préparation N+1" },
+  ],
 };
 
 function amount(value) {
@@ -139,6 +177,7 @@ function mergeAccountingDraft(saved) {
     association: { ...DEFAULT_ACCOUNTING.association, ...(saved.association || {}) },
     exercise: { ...DEFAULT_ACCOUNTING.exercise, ...(saved.exercise || {}) },
     moralReport: { ...DEFAULT_ACCOUNTING.moralReport, ...(saved.moralReport || {}) },
+    financingRequest: { ...DEFAULT_ACCOUNTING.financingRequest, ...(saved.financingRequest || {}) },
     actual: {
       products: saved.actual?.products || DEFAULT_ACCOUNTING.actual.products,
       expenses: saved.actual?.expenses || DEFAULT_ACCOUNTING.actual.expenses,
@@ -152,6 +191,11 @@ function mergeAccountingDraft(saved) {
       assets: saved.balance?.assets || DEFAULT_ACCOUNTING.balance.assets,
       liabilities: saved.balance?.liabilities || DEFAULT_ACCOUNTING.balance.liabilities,
     },
+    forecast2027: {
+      products: saved.forecast2027?.products || DEFAULT_ACCOUNTING.forecast2027.products,
+      expenses: saved.forecast2027?.expenses || DEFAULT_ACCOUNTING.forecast2027.expenses,
+    },
+    cashPlan2027: saved.cashPlan2027 || DEFAULT_ACCOUNTING.cashPlan2027,
   };
 }
 
@@ -185,6 +229,65 @@ function lineTable(title, lines) {
   `;
 }
 
+function cashPlanTable(title, rows) {
+  let running = 0;
+  return `
+    <section>
+      <h2>${escapeHtml(title)}</h2>
+      <table>
+        <thead><tr><th>Mois</th><th>Encaissements</th><th>Décaissements</th><th>Solde mensuel</th><th>Solde cumulé</th><th>Commentaire</th></tr></thead>
+        <tbody>
+          ${(rows || []).map((row) => {
+            const monthly = amount(row.inflows) - amount(row.outflows);
+            running += monthly;
+            return `
+              <tr>
+                <td>${escapeHtml(row.month)}</td>
+                <td class="num">${escapeHtml(currency(row.inflows))}</td>
+                <td class="num">${escapeHtml(currency(row.outflows))}</td>
+                <td class="num">${escapeHtml(currency(monthly))}</td>
+                <td class="num">${escapeHtml(currency(running))}</td>
+                <td>${escapeHtml(row.note)}</td>
+              </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function fundingRowsFrom(accounting) {
+  const products = accounting.forecast2027?.products || [];
+  const total = sumLines(products);
+  return products.map((line) => ({
+    ...line,
+    share: total > 0 ? (amount(line.amount) / total) * 100 : 0,
+  }));
+}
+
+function fundingSplitTable(accounting) {
+  const rows = fundingRowsFrom(accounting);
+  return `
+    <section>
+      <h2>Décomposition du budget par financeurs</h2>
+      <table>
+        <thead><tr><th>Compte</th><th>Financeur / ressource</th><th>Montant</th><th>%</th></tr></thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td>${escapeHtml(row.account)}</td>
+              <td>${escapeHtml(row.label)}</td>
+              <td class="num">${escapeHtml(currency(row.amount))}</td>
+              <td class="num">${escapeHtml(row.share.toFixed(1))} %</td>
+            </tr>`).join("")}
+          <tr class="total"><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(rows)))}</td><td class="num">100 %</td></tr>
+        </tbody>
+      </table>
+      <p>Lecture : cette table permet d'identifier le poids relatif des familles, aides publiques, subventions et autres ressources dans le budget prévisionnel.</p>
+    </section>
+  `;
+}
+
 function openAccountingPrint(accounting, kind, dashboardSnapshot) {
   const actualProducts = sumLines(accounting.actual.products);
   const actualExpenses = sumLines(accounting.actual.expenses);
@@ -198,6 +301,11 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
     forecast: "Budget prévisionnel",
     moral: "Bilan moral et financier",
     dca: "Synthèse de dépôt DCA",
+    funderPack: "Dossier financeur",
+    forecast2027: "Prévisionnel financier 2027",
+    cashPlan2027: "Plan de trésorerie 12 mois",
+    fundingSplit: "Répartition des financeurs",
+    financingRequest: "Demande de financement",
   };
   const blocks = {
     annual: `
@@ -247,6 +355,29 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       </section>
       ${lineTable("Recettes à publier", accounting.actual.products)}
       ${lineTable("Dépenses à publier", accounting.actual.expenses)}
+    `,
+    funderPack: `
+      <section class="note"><strong>Demande :</strong> ${escapeHtml(currency(accounting.financingRequest.requestedAmount))} - ${escapeHtml(accounting.financingRequest.purpose)}</section>
+      ${lineTable("Atterrissage 2026 - produits", accounting.actual.products)}
+      ${lineTable("Atterrissage 2026 - charges", accounting.actual.expenses)}
+      ${lineTable("Prévisionnel 2027 - produits", accounting.forecast2027.products)}
+      ${lineTable("Prévisionnel 2027 - charges", accounting.forecast2027.expenses)}
+      ${cashPlanTable("Plan de trésorerie 2027", accounting.cashPlan2027)}
+      ${fundingSplitTable(accounting)}
+    `,
+    forecast2027: `
+      ${lineTable("Produits 2027", accounting.forecast2027.products)}
+      ${lineTable("Charges 2027", accounting.forecast2027.expenses)}
+      <section class="note"><strong>Résultat prévisionnel 2027 :</strong> ${escapeHtml(currency(resultFrom(accounting.forecast2027)))}</section>
+    `,
+    cashPlan2027: cashPlanTable("Plan de trésorerie 2027 - saisonnalité sur 12 mois", accounting.cashPlan2027),
+    fundingSplit: fundingSplitTable(accounting),
+    financingRequest: `
+      <section><h2>Objet de la demande</h2><p>${escapeHtml(accounting.financingRequest.purpose)}</p></section>
+      <section><h2>Développement envisagé</h2><p>${escapeHtml(accounting.financingRequest.development)}</p></section>
+      <section><h2>Utilisation du financement</h2><p>${escapeHtml(accounting.financingRequest.useOfFunds)}</p></section>
+      <section><h2>Lecture de remboursement / sécurisation</h2><p>${escapeHtml(accounting.financingRequest.repaymentView)}</p></section>
+      <section class="note"><strong>Montant demandé :</strong> ${escapeHtml(currency(accounting.financingRequest.requestedAmount))}</section>
     `,
   };
   const html = `<!doctype html>
@@ -578,6 +709,134 @@ function AccountingTextEditor({ accounting, setAccounting }) {
   );
 }
 
+function FinancingRequestEditor({ request, onChange }) {
+  const update = (key, value) => onChange({ ...request, [key]: value });
+  return (
+    <section className="accounting-text-grid">
+      {[
+        ["purpose", "Objet de la demande"],
+        ["development", "Développement"],
+        ["useOfFunds", "Utilisation des fonds"],
+        ["repaymentView", "Remboursement / sécurisation"],
+      ].map(([key, label]) => (
+        <label key={key}>
+          <span>{label}</span>
+          <textarea value={request[key] || ""} onChange={(event) => update(key, event.target.value)} />
+        </label>
+      ))}
+    </section>
+  );
+}
+
+function parseMoney(value) {
+  const cleaned = String(value || "").replace(/\s/g, "").replace(",", ".");
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function splitCsvLine(line) {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"' && line[index + 1] === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ";" && !quoted) {
+      cells.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current);
+  return cells;
+}
+
+function importQontoCashPlan(text) {
+  const lines = String(text || "").split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return null;
+  const headers = splitCsvLine(lines[0]);
+  const dateIndex = headers.indexOf("Date de l'opération (local)");
+  const debitIndex = headers.indexOf("Débit");
+  const creditIndex = headers.indexOf("Crédit");
+  if (dateIndex < 0 || debitIndex < 0 || creditIndex < 0) return null;
+  const byMonth = new Map();
+  const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+  for (const line of lines.slice(1)) {
+    const cells = splitCsvLine(line);
+    const rawDate = cells[dateIndex] || "";
+    const match = rawDate.match(/^(\d{2})-(\d{2})-(\d{4})/);
+    if (!match) continue;
+    const month = Number(match[2]);
+    const key = `${match[3]}-${match[2]}`;
+    const current = byMonth.get(key) || {
+      month: monthNames[month - 1] || key,
+      inflows: 0,
+      outflows: 0,
+      note: "Import Qonto",
+    };
+    current.inflows += parseMoney(cells[creditIndex]);
+    current.outflows += parseMoney(cells[debitIndex]);
+    byMonth.set(key, current);
+  }
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, row]) => ({
+      ...row,
+      inflows: Math.round(row.inflows * 100) / 100,
+      outflows: Math.round(row.outflows * 100) / 100,
+    }));
+}
+
+function CashPlanEditor({ rows, onChange }) {
+  const updateRow = (index, key, value) => {
+    onChange(rows.map((row, i) => (i === index ? { ...row, [key]: key === "inflows" || key === "outflows" ? amount(value) : value } : row)));
+  };
+  let running = 0;
+  return (
+    <section className="accounting-editor-block accounting-cash-block">
+      <div className="accounting-editor-head">
+        <h3>Plan de trésorerie 2027</h3>
+        <strong>{currency((rows || []).reduce((total, row) => total + amount(row.inflows) - amount(row.outflows), 0))}</strong>
+      </div>
+      <div className="accounting-cash-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Mois</th>
+              <th>Encaissements</th>
+              <th>Décaissements</th>
+              <th>Solde</th>
+              <th>Cumul</th>
+              <th>Commentaire</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(rows || []).map((row, index) => {
+              const monthly = amount(row.inflows) - amount(row.outflows);
+              running += monthly;
+              return (
+                <tr key={`${row.month}-${index}`}>
+                  <td><input value={row.month || ""} onChange={(event) => updateRow(index, "month", event.target.value)} /></td>
+                  <td><input type="number" step="0.01" value={row.inflows ?? 0} onChange={(event) => updateRow(index, "inflows", event.target.value)} /></td>
+                  <td><input type="number" step="0.01" value={row.outflows ?? 0} onChange={(event) => updateRow(index, "outflows", event.target.value)} /></td>
+                  <td className={monthly >= 0 ? "finance-paid" : "finance-due"}>{currency(monthly)}</td>
+                  <td>{currency(running)}</td>
+                  <td><input value={row.note || ""} onChange={(event) => updateRow(index, "note", event.target.value)} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function Finances() {
   const [rows, setRows] = useState([]);
   const [transportFinance, setTransportFinance] = useState([]);
@@ -678,6 +937,9 @@ export default function Finances() {
   const accountingActualExpenses = sumLines(accounting.actual.expenses);
   const accountingForecastProducts = sumLines(accounting.forecast.products);
   const accountingForecastExpenses = sumLines(accounting.forecast.expenses);
+  const accounting2027Products = sumLines(accounting.forecast2027.products);
+  const accounting2027Expenses = sumLines(accounting.forecast2027.expenses);
+  const topFundingShare = Math.max(0, ...fundingRowsFrom(accounting).map((line) => line.share));
   const dashboardSnapshot = {
     reservations: rows.length,
     grossAmount: amount(displayed.grossAmount),
@@ -728,6 +990,56 @@ export default function Finances() {
       },
     }));
     setAccountingStatus("Données préremplies depuis réservations, transports et RH.");
+  };
+
+  const build2027From2026 = () => {
+    setAccounting((previous) => ({
+      ...previous,
+      forecast2027: {
+        products: previous.forecast.products.map((line) => ({
+          ...line,
+          amount: Math.round(amount(line.amount) * 2 * 100) / 100,
+        })),
+        expenses: previous.forecast.expenses.map((line) => ({
+          ...line,
+          amount: Math.round(amount(line.amount) * 1.75 * 100) / 100,
+        })),
+      },
+      cashPlan2027: previous.cashPlan2027.map((row) => ({
+        ...row,
+        inflows: Math.round(amount(row.inflows) * 100) / 100,
+        outflows: Math.round(amount(row.outflows) * 100) / 100,
+      })),
+    }));
+    setAccountingStatus("Prévisionnel 2027 recalculé : produits x2, charges x1,75, saisonnalité conservée.");
+  };
+
+  const importQontoFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const imported = importQontoCashPlan(text);
+    if (!imported?.length) {
+      setAccountingStatus("Import Qonto impossible : colonnes attendues non trouvées.");
+      event.target.value = "";
+      return;
+    }
+    setAccounting((previous) => {
+      const importedByMonth = new Map(imported.map((row) => [row.month, row]));
+      const projected = previous.cashPlan2027.map((existing) => {
+        const row = importedByMonth.get(existing.month);
+        if (!row) return existing;
+        return {
+          ...existing,
+          inflows: Math.round(amount(row.inflows) * 2 * 100) / 100,
+          outflows: Math.round(amount(row.outflows) * 1.75 * 100) / 100,
+          note: `${row.note} 2026, projection 2027`,
+        };
+      });
+      return { ...previous, cashPlan2027: projected };
+    });
+    setAccountingStatus(`${imported.length} mois importés depuis Qonto, les autres mois restent prévisionnels.`);
+    event.target.value = "";
   };
 
   const exportCsv = () => {
@@ -825,6 +1137,12 @@ export default function Finances() {
           <div><span>Salaires bruts RH</span><strong>{currency(staffTotals.gross)}</strong></div>
           <div><span>Charges sociales estimées</span><strong>{currency(staffTotals.estimatedCharges)}</strong></div>
           <div><span>Net restant à payer</span><strong className={staffTotals.remaining > 0 ? "finance-due" : "finance-paid"}>{currency(staffTotals.remaining)}</strong></div>
+          <div><span>Produits 2027</span><strong>{currency(accounting2027Products)}</strong></div>
+          <div><span>Charges 2027</span><strong>{currency(accounting2027Expenses)}</strong></div>
+          <div><span>Résultat 2027</span><strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.forecast2027))}</strong></div>
+          <div><span>Financement demandé</span><strong>{currency(accounting.financingRequest.requestedAmount)}</strong></div>
+          <div><span>1er financeur</span><strong>{topFundingShare.toFixed(1)} %</strong></div>
+          <div><span>Plan tréso 12 mois</span><strong>{accounting.cashPlan2027.length} mois</strong></div>
         </div>
 
         <div className="accounting-form-grid">
@@ -878,9 +1196,14 @@ export default function Finances() {
 
         <div className="accounting-export-grid">
           {[
+            ["funderPack", "Dossier financeur", "Atterrissage, 2027, trésorerie, financeurs."],
             ["annual", "Comptes annuels", "Recettes, dépenses, bilan actif/passif."],
             ["financial", "Bilan financier", "Synthèse prête à transmettre."],
-            ["forecast", "Budget prévisionnel", "Postes 2026 issus du modèle joint."],
+            ["forecast", "Budget prévisionnel 2026", "Postes issus du modèle joint."],
+            ["forecast2027", "Prévisionnel 2027", "Doublement CA et séjours."],
+            ["cashPlan2027", "Trésorerie 12 mois", "Saisonnalité février + été."],
+            ["fundingSplit", "Répartition financeurs", "% par source de financement."],
+            ["financingRequest", "Demande de financement", "Objet, usage, développement."],
             ["moral", "Bilan moral et financier", "Texte éditable + tableaux."],
             ["dca", "Dépôt DCA", "Contrôles et chiffres pour publication."],
           ].map(([kind, title, detail]) => (
@@ -894,6 +1217,36 @@ export default function Finances() {
             </button>
           ))}
         </div>
+
+        <div className="accounting-tool-row">
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
+            Recalculer 2027 depuis 2026
+          </button>
+          <label className="accounting-file-btn">
+            <input type="file" accept=".csv,text/csv" onChange={importQontoFile} />
+            <span>Importer un export Qonto CSV</span>
+          </label>
+          <p>Les documents externes à fournir séparément restent hors génération : statuts, composition du bureau, présentation libre et relevés Qonto PDF.</p>
+        </div>
+
+        <section className="accounting-request-box">
+          <h3>Demande de financement</h3>
+          <div className="accounting-form-grid">
+            <label>
+              <span>Montant demandé</span>
+              <input
+                type="number"
+                step="0.01"
+                value={accounting.financingRequest.requestedAmount ?? 0}
+                onChange={(event) => updateAccountingSection("financingRequest", "requestedAmount", amount(event.target.value))}
+              />
+            </label>
+          </div>
+          <FinancingRequestEditor
+            request={accounting.financingRequest}
+            onChange={(request) => setAccounting((previous) => ({ ...previous, financingRequest: request }))}
+          />
+        </section>
 
         <div className="accounting-editor-grid">
           <AccountingLinesEditor
@@ -917,6 +1270,16 @@ export default function Finances() {
             onChange={(lines) => updateAccountingSection("forecast", "expenses", lines)}
           />
           <AccountingLinesEditor
+            title="Produits prévisionnels 2027"
+            lines={accounting.forecast2027.products}
+            onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)}
+          />
+          <AccountingLinesEditor
+            title="Charges prévisionnelles 2027"
+            lines={accounting.forecast2027.expenses}
+            onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)}
+          />
+          <AccountingLinesEditor
             title="Contributions volontaires"
             lines={accounting.forecast.voluntary}
             onChange={(lines) => updateAccountingSection("forecast", "voluntary", lines)}
@@ -930,6 +1293,10 @@ export default function Finances() {
             title="Passif du bilan"
             lines={accounting.balance.liabilities}
             onChange={(lines) => updateAccountingSection("balance", "liabilities", lines)}
+          />
+          <CashPlanEditor
+            rows={accounting.cashPlan2027}
+            onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))}
           />
         </div>
 
