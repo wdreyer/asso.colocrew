@@ -20,6 +20,15 @@ const WEEK_LABELS = {
   "2026-08-17": "S4",
 };
 
+const ACCOUNTING_TABS = [
+  { key: "exports", label: "Exports" },
+  { key: "year2025", label: "Bilan 2025" },
+  { key: "landing2026", label: "Atterrissage 2026" },
+  { key: "forecast2027", label: "Prévisionnel 2027" },
+  { key: "request", label: "Financement" },
+  { key: "settings", label: "Paramètres" },
+];
+
 const DEFAULT_ACCOUNTING = {
   association: {
     name: "ColoCrew",
@@ -524,10 +533,16 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       </footer>
       <script>setTimeout(()=>window.print(),250)</script>
     </body></html>`;
-  const popup = window.open("", "_blank", "noopener,noreferrer,width=1000,height=800");
-  if (!popup) return;
-  popup.document.write(html);
-  popup.document.close();
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const popup = window.open(url, "_blank", "width=1000,height=800");
+  if (!popup) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${kind}-${accounting.association.name || "colocrew"}.html`;
+    link.click();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function canonicalStayName(value) {
@@ -911,7 +926,7 @@ function importQontoCashPlan(text) {
     }));
 }
 
-function CashPlanEditor({ rows, onChange }) {
+function CashPlanEditor({ rows, onChange, title = "Plan de trésorerie 2027" }) {
   const updateRow = (index, key, value) => {
     onChange(rows.map((row, i) => (i === index ? { ...row, [key]: key === "inflows" || key === "outflows" ? amount(value) : value } : row)));
   };
@@ -919,7 +934,7 @@ function CashPlanEditor({ rows, onChange }) {
   return (
     <section className="accounting-editor-block accounting-cash-block">
       <div className="accounting-editor-head">
-        <h3>Plan de trésorerie 2027</h3>
+        <h3>{title}</h3>
         <strong>{currency((rows || []).reduce((total, row) => total + amount(row.inflows) - amount(row.outflows), 0))}</strong>
       </div>
       <div className="accounting-cash-table">
@@ -963,6 +978,7 @@ export default function Finances() {
   const [summary, setSummary] = useState(null);
   const [accounting, setAccounting] = useState(() => deepClone(DEFAULT_ACCOUNTING));
   const [accountingStatus, setAccountingStatus] = useState("");
+  const [activeAccountingTab, setActiveAccountingTab] = useState("exports");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1304,224 +1320,155 @@ export default function Finances() {
           <div><span>Plan tréso 12 mois</span><strong>{accounting.cashPlan2027.length} mois</strong></div>
         </div>
 
-        <div className="accounting-form-grid">
-          <label>
-            <span>Association</span>
-            <input
-              value={accounting.association.name || ""}
-              onChange={(event) => updateAccountingSection("association", "name", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>SIRET</span>
-            <input
-              value={accounting.association.siret || ""}
-              onChange={(event) => updateAccountingSection("association", "siret", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Exercice</span>
-            <input
-              value={accounting.exercise.year || ""}
-              onChange={(event) => updateAccountingSection("exercise", "year", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Début</span>
-            <input
-              type="date"
-              value={accounting.exercise.startDate || ""}
-              onChange={(event) => updateAccountingSection("exercise", "startDate", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Clôture</span>
-            <input
-              type="date"
-              value={accounting.exercise.endDate || ""}
-              onChange={(event) => updateAccountingSection("exercise", "endDate", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Trésorerie de clôture</span>
-            <input
-              type="number"
-              step="0.01"
-              value={accounting.exercise.closingCash ?? 0}
-              onChange={(event) => updateAccountingSection("exercise", "closingCash", amount(event.target.value))}
-            />
-          </label>
-        </div>
-
-        <div className="accounting-export-grid">
-          {[
-            ["financial2025", "Bilan comptable 2025", "Version positive, prêts reclassés en dons."],
-            ["landing2026", "Atterrissage 2026", "Synthèse Qonto + dashboard."],
-            ["funderPack", "Dossier financeur", "Atterrissage, 2027, trésorerie, financeurs."],
-            ["annual", "Comptes annuels", "Recettes, dépenses, bilan actif/passif."],
-            ["financial", "Bilan financier", "Synthèse prête à transmettre."],
-            ["forecast", "Budget prévisionnel 2026", "Postes issus du modèle joint."],
-            ["forecast2027", "Prévisionnel 2027", "Doublement CA et séjours."],
-            ["cashPlan2027", "Trésorerie 12 mois", "Saisonnalité février + été."],
-            ["fundingSplit", "Répartition financeurs", "% par source de financement."],
-            ["financingRequest", "Demande de financement", "Objet, usage, développement."],
-            ["moral", "Bilan moral et financier", "Texte éditable + tableaux."],
-            ["dca", "Dépôt DCA", "Contrôles et chiffres pour publication."],
-          ].map(([kind, title, detail]) => (
+        <nav className="accounting-tabs" aria-label="Sections comptables">
+          {ACCOUNTING_TABS.map((tab) => (
             <button
               type="button"
-              key={kind}
-              onClick={() => openAccountingPrint(accounting, kind, dashboardSnapshot)}
+              key={tab.key}
+              className={activeAccountingTab === tab.key ? "is-active" : ""}
+              onClick={() => setActiveAccountingTab(tab.key)}
             >
-              <strong>{title}</strong>
-              <span>{detail}</span>
+              {tab.label}
             </button>
           ))}
-        </div>
+        </nav>
 
-        <div className="accounting-tool-row">
-          <button type="button" className="dash-btn dash-btn-secondary" onClick={reclassLoansAsDonations}>
-            Reclasser prêts en dons
-          </button>
-          <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
-            Recalculer 2027 depuis 2026
-          </button>
-          <label className="accounting-file-btn">
-            <input type="file" accept=".csv,text/csv" onChange={importQontoFile} />
-            <span>Importer un export Qonto CSV</span>
-          </label>
-          <p>Les documents externes à fournir séparément restent hors génération : statuts, composition du bureau, présentation libre et relevés Qonto PDF.</p>
-        </div>
+        {activeAccountingTab === "exports" && (
+          <>
+            <div className="accounting-export-grid">
+              {[
+                ["financial2025", "Bilan comptable 2025", "Version positive, prêts reclassés en dons."],
+                ["landing2026", "Atterrissage 2026", "Synthèse Qonto + dashboard."],
+                ["funderPack", "Dossier financeur", "Atterrissage, 2027, trésorerie, financeurs."],
+                ["annual", "Comptes annuels", "Recettes, dépenses, bilan actif/passif."],
+                ["financial", "Bilan financier", "Synthèse prête à transmettre."],
+                ["forecast", "Budget prévisionnel 2026", "Postes issus du modèle joint."],
+                ["forecast2027", "Prévisionnel 2027", "Doublement CA et séjours."],
+                ["cashPlan2027", "Trésorerie 12 mois", "Saisonnalité février + été."],
+                ["fundingSplit", "Répartition financeurs", "% par source de financement."],
+                ["financingRequest", "Demande de financement", "Objet, usage, développement."],
+                ["moral", "Bilan moral et financier", "Texte éditable + tableaux."],
+                ["dca", "Dépôt DCA", "Contrôles et chiffres pour publication."],
+              ].map(([kind, title, detail]) => (
+                <button
+                  type="button"
+                  key={kind}
+                  onClick={() => openAccountingPrint(accounting, kind, dashboardSnapshot)}
+                >
+                  <strong>{title}</strong>
+                  <span>{detail}</span>
+                </button>
+              ))}
+            </div>
+            <div className="accounting-tool-row">
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={reclassLoansAsDonations}>
+                Reclasser prêts en dons
+              </button>
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
+                Recalculer 2027 depuis 2026
+              </button>
+              <label className="accounting-file-btn">
+                <input type="file" accept=".csv,text/csv" onChange={importQontoFile} />
+                <span>Importer un export Qonto CSV</span>
+              </label>
+              <p>Les statuts, la composition du bureau, la présentation libre et les relevés Qonto PDF restent à joindre séparément.</p>
+            </div>
+          </>
+        )}
 
-        <section className="accounting-request-box">
-          <h3>Demande de financement</h3>
-          <div className="accounting-form-grid">
-            <label>
-              <span>Montant demandé</span>
-              <input
-                type="number"
-                step="0.01"
-                value={accounting.financingRequest.requestedAmount ?? 0}
-                onChange={(event) => updateAccountingSection("financingRequest", "requestedAmount", amount(event.target.value))}
-              />
-            </label>
-          </div>
-          <FinancingRequestEditor
-            request={accounting.financingRequest}
-            onChange={(request) => setAccounting((previous) => ({ ...previous, financingRequest: request }))}
-          />
-        </section>
-
-        <section className="accounting-request-box">
-          <h3>Notes bilans 2025 / 2026</h3>
-          <div className="accounting-text-grid">
-            <label>
-              <span>Note positive 2025</span>
+        {activeAccountingTab === "year2025" && (
+          <>
+            <section className="accounting-request-box">
+              <h3>Note de lecture 2025</h3>
               <textarea
+                className="accounting-wide-textarea"
                 value={accounting.financial2025.note || ""}
                 onChange={(event) => updateAccountingSection("financial2025", "note", event.target.value)}
               />
-            </label>
-            <label>
-              <span>Note atterrissage 2026</span>
+            </section>
+            <div className="accounting-editor-grid">
+              <AccountingLinesEditor title="Produits 2025" lines={accounting.financial2025.products} onChange={(lines) => updateAccountingSection("financial2025", "products", lines)} />
+              <AccountingLinesEditor title="Charges 2025" lines={accounting.financial2025.expenses} onChange={(lines) => updateAccountingSection("financial2025", "expenses", lines)} />
+              <AccountingLinesEditor title="Actif 2025" lines={accounting.financial2025.assets} onChange={(lines) => updateAccountingSection("financial2025", "assets", lines)} />
+              <AccountingLinesEditor title="Passif 2025" lines={accounting.financial2025.liabilities} onChange={(lines) => updateAccountingSection("financial2025", "liabilities", lines)} />
+            </div>
+          </>
+        )}
+
+        {activeAccountingTab === "landing2026" && (
+          <>
+            <section className="accounting-request-box">
+              <h3>Note d’atterrissage 2026</h3>
               <textarea
+                className="accounting-wide-textarea"
                 value={accounting.landing2026.note || ""}
                 onChange={(event) => updateAccountingSection("landing2026", "note", event.target.value)}
               />
-            </label>
-          </div>
-        </section>
+            </section>
+            <div className="accounting-editor-grid">
+              <AccountingLinesEditor title="Encaissements Qonto 2026" lines={accounting.landing2026.bankCategories} onChange={(lines) => updateAccountingSection("landing2026", "bankCategories", lines)} />
+              <AccountingLinesEditor title="Décaissements Qonto 2026" lines={accounting.landing2026.expenseCategories} onChange={(lines) => updateAccountingSection("landing2026", "expenseCategories", lines)} />
+              <AccountingLinesEditor title="Produits réalisés dashboard" lines={accounting.actual.products} onChange={(lines) => updateAccountingSection("actual", "products", lines)} />
+              <AccountingLinesEditor title="Charges réalisées dashboard" lines={accounting.actual.expenses} onChange={(lines) => updateAccountingSection("actual", "expenses", lines)} />
+              <CashPlanEditor title="Flux mensuels Qonto 2026" rows={accounting.landing2026.bankMonthly} onChange={(lines) => updateAccountingSection("landing2026", "bankMonthly", lines)} />
+            </div>
+          </>
+        )}
 
-        <div className="accounting-editor-grid">
-          <AccountingLinesEditor
-            title="Produits 2025"
-            lines={accounting.financial2025.products}
-            onChange={(lines) => updateAccountingSection("financial2025", "products", lines)}
-          />
-          <AccountingLinesEditor
-            title="Charges 2025"
-            lines={accounting.financial2025.expenses}
-            onChange={(lines) => updateAccountingSection("financial2025", "expenses", lines)}
-          />
-          <AccountingLinesEditor
-            title="Actif 2025"
-            lines={accounting.financial2025.assets}
-            onChange={(lines) => updateAccountingSection("financial2025", "assets", lines)}
-          />
-          <AccountingLinesEditor
-            title="Passif 2025"
-            lines={accounting.financial2025.liabilities}
-            onChange={(lines) => updateAccountingSection("financial2025", "liabilities", lines)}
-          />
-          <AccountingLinesEditor
-            title="Encaissements Qonto 2026"
-            lines={accounting.landing2026.bankCategories}
-            onChange={(lines) => updateAccountingSection("landing2026", "bankCategories", lines)}
-          />
-          <AccountingLinesEditor
-            title="Décaissements Qonto 2026"
-            lines={accounting.landing2026.expenseCategories}
-            onChange={(lines) => updateAccountingSection("landing2026", "expenseCategories", lines)}
-          />
-          <AccountingLinesEditor
-            title="Recettes / produits réalisés"
-            lines={accounting.actual.products}
-            onChange={(lines) => updateAccountingSection("actual", "products", lines)}
-          />
-          <AccountingLinesEditor
-            title="Dépenses / charges réalisées"
-            lines={accounting.actual.expenses}
-            onChange={(lines) => updateAccountingSection("actual", "expenses", lines)}
-          />
-          <AccountingLinesEditor
-            title="Produits prévisionnels"
-            lines={accounting.forecast.products}
-            onChange={(lines) => updateAccountingSection("forecast", "products", lines)}
-          />
-          <AccountingLinesEditor
-            title="Charges prévisionnelles"
-            lines={accounting.forecast.expenses}
-            onChange={(lines) => updateAccountingSection("forecast", "expenses", lines)}
-          />
-          <AccountingLinesEditor
-            title="Produits prévisionnels 2027"
-            lines={accounting.forecast2027.products}
-            onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)}
-          />
-          <AccountingLinesEditor
-            title="Charges prévisionnelles 2027"
-            lines={accounting.forecast2027.expenses}
-            onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)}
-          />
-          <AccountingLinesEditor
-            title="Contributions volontaires"
-            lines={accounting.forecast.voluntary}
-            onChange={(lines) => updateAccountingSection("forecast", "voluntary", lines)}
-          />
-          <AccountingLinesEditor
-            title="Actif du bilan"
-            lines={accounting.balance.assets}
-            onChange={(lines) => updateAccountingSection("balance", "assets", lines)}
-          />
-          <AccountingLinesEditor
-            title="Passif du bilan"
-            lines={accounting.balance.liabilities}
-            onChange={(lines) => updateAccountingSection("balance", "liabilities", lines)}
-          />
-          <CashPlanEditor
-            rows={accounting.cashPlan2027}
-            onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))}
-          />
-        </div>
+        {activeAccountingTab === "forecast2027" && (
+          <>
+            <div className="accounting-editor-grid">
+              <AccountingLinesEditor title="Produits prévisionnels 2027" lines={accounting.forecast2027.products} onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)} />
+              <AccountingLinesEditor title="Charges prévisionnelles 2027" lines={accounting.forecast2027.expenses} onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)} />
+              <CashPlanEditor rows={accounting.cashPlan2027} onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))} />
+            </div>
+            <div className="accounting-forecast-result">
+              <span>Prévisionnel : produits {currency(accounting2027Products)} · charges {currency(accounting2027Expenses)}</span>
+              <strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>
+                Résultat {currency(resultFrom(accounting.forecast2027))}
+              </strong>
+            </div>
+          </>
+        )}
 
-        <div className="accounting-forecast-result">
-          <span>Prévisionnel : produits {currency(accountingForecastProducts)} · charges {currency(accountingForecastExpenses)}</span>
-          <strong className={resultFrom(accounting.forecast) >= 0 ? "finance-paid" : "finance-due"}>
-            Résultat {currency(resultFrom(accounting.forecast))}
-          </strong>
-        </div>
+        {activeAccountingTab === "request" && (
+          <section className="accounting-request-box">
+            <h3>Demande de financement</h3>
+            <div className="accounting-form-grid">
+              <label>
+                <span>Montant demandé</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={accounting.financingRequest.requestedAmount ?? 0}
+                  onChange={(event) => updateAccountingSection("financingRequest", "requestedAmount", amount(event.target.value))}
+                />
+              </label>
+            </div>
+            <FinancingRequestEditor request={accounting.financingRequest} onChange={(request) => setAccounting((previous) => ({ ...previous, financingRequest: request }))} />
+          </section>
+        )}
 
-        <AccountingTextEditor accounting={accounting} setAccounting={setAccounting} />
+        {activeAccountingTab === "settings" && (
+          <>
+            <div className="accounting-form-grid">
+              <label><span>Association</span><input value={accounting.association.name || ""} onChange={(event) => updateAccountingSection("association", "name", event.target.value)} /></label>
+              <label><span>SIRET</span><input value={accounting.association.siret || ""} onChange={(event) => updateAccountingSection("association", "siret", event.target.value)} /></label>
+              <label><span>Exercice</span><input value={accounting.exercise.year || ""} onChange={(event) => updateAccountingSection("exercise", "year", event.target.value)} /></label>
+              <label><span>Début</span><input type="date" value={accounting.exercise.startDate || ""} onChange={(event) => updateAccountingSection("exercise", "startDate", event.target.value)} /></label>
+              <label><span>Clôture</span><input type="date" value={accounting.exercise.endDate || ""} onChange={(event) => updateAccountingSection("exercise", "endDate", event.target.value)} /></label>
+              <label><span>Trésorerie de clôture</span><input type="number" step="0.01" value={accounting.exercise.closingCash ?? 0} onChange={(event) => updateAccountingSection("exercise", "closingCash", amount(event.target.value))} /></label>
+            </div>
+            <div className="accounting-editor-grid">
+              <AccountingLinesEditor title="Produits prévisionnels 2026" lines={accounting.forecast.products} onChange={(lines) => updateAccountingSection("forecast", "products", lines)} />
+              <AccountingLinesEditor title="Charges prévisionnelles 2026" lines={accounting.forecast.expenses} onChange={(lines) => updateAccountingSection("forecast", "expenses", lines)} />
+              <AccountingLinesEditor title="Contributions volontaires" lines={accounting.forecast.voluntary} onChange={(lines) => updateAccountingSection("forecast", "voluntary", lines)} />
+              <AccountingLinesEditor title="Actif du bilan courant" lines={accounting.balance.assets} onChange={(lines) => updateAccountingSection("balance", "assets", lines)} />
+              <AccountingLinesEditor title="Passif du bilan courant" lines={accounting.balance.liabilities} onChange={(lines) => updateAccountingSection("balance", "liabilities", lines)} />
+            </div>
+            <AccountingTextEditor accounting={accounting} setAccounting={setAccounting} />
+          </>
+        )}
       </section>
 
       <div className="finance-summary-grid">
