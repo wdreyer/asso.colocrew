@@ -2,6 +2,7 @@
   SEJOURS: "sejours",
   RESERVATIONS: "reservations",
   FINANCE_SUMMARIES: "finance_summaries",
+  ACCOUNTING_REPORTS: "accounting_reports",
   TRANSPORTS: "transports",
   TRANSPORT_RDV_POINTS: "transport_rdv_points",
   TRANSPORT_SETTINGS: "transport_settings",
