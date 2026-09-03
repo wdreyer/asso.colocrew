@@ -29,8 +29,20 @@ const SENDERS = [
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const LATEST_PLACES_TEMPLATE_KEY = "dernieres_places_aout";
 const PAYMENT_FAILED_TEMPLATE_KEY = "paiement_cb_echoue";
+const BAFA_TEMPLATE_KEY = "bafa_toussaint_2026";
+const BAFA_TARGET_COUNT = 3000;
 const SMS_TEST_PHONE = "0687916897";
 const SMS_S4_RELANCE_DEFAULT = `ColoCrew : il reste quelques places pour le sejour d'aout S4 de {{prenom_enfants}}. Pour bloquer la place, repondez OUI a ce SMS ou appelez William au 06 87 91 68 97. Ref {{numero_reservation}}`;
+
+const AURA_AND_CANTAL_NEARBY_DEPARTMENTS = new Set([
+  "01", "03", "07", "12", "15", "19", "26", "38", "42", "43", "46", "48", "63", "69", "71", "73", "74",
+]);
+
+const BAFA_CITY_HINTS = [
+  "aurillac", "saint-flour", "mauriac", "clermont", "clermont-ferrand", "lyon", "saint-etienne",
+  "grenoble", "valence", "le puy", "moulins", "vichy", "montlucon", "rodez", "brive", "tulle",
+  "mende", "figeac", "cahors", "villefranche", "bourg-en-bresse", "annecy", "chambery",
+];
 
 const STATUS_FILTERS = [
   { value: "validated", label: "Validées" },
@@ -209,6 +221,39 @@ Pour toute question, nous restons disponibles à cette adresse.
 L'équipe ColoCrew`,
   },
   {
+    key: BAFA_TEMPLATE_KEY,
+    label: "BAFA Toussaint",
+    defaultSubject: "BAFA Toussaint 2026 — dernières places disponibles",
+    defaultBody: `Bonjour {{prenom_parent}},
+
+Je me permets de vous écrire pour vous souhaiter une très bonne rentrée 2026/2027.
+
+Il nous reste quelques places pour nos prochaines formations BAFA qui auront lieu pendant les vacances de la Toussaint. Quoi de mieux que l'automne pour passer son BAFA ?
+
+Les prochaines formations :
+
+• Formation Générale BAFA, du 17 au 25 octobre 2026
+Inscription directe : https://murathenes.s2.yapla.com/fr/event-102459
+
+• Approfondissement "Séjours à l'étranger - Échanges de jeunes", du 19 au 25 octobre 2026
+Inscription directe : https://murathenes.s2.yapla.com/fr/event-102464
+
+Vous pouvez vous inscrire directement via les liens ci-dessus.
+
+Si vous souhaitez payer en plusieurs fois, sélectionnez "virement" au moment de l'inscription et je pourrai vous envoyer un échéancier personnalisé.
+
+Pour plus de renseignements sur le BAFA, les aides possibles ou le déroulé des formations, vous pouvez consulter notre site :
+https://bafa.murathenes.org/
+
+Vous pouvez également me répondre par mail ou m'appeler directement au 06 87 91 68 97.
+
+PS : si vous avez participé à une colo avec ColoCrew, vous bénéficiez de 50€ de réduction sur votre formation BAFA.
+
+En vous souhaitant une bonne journée,
+William
+Association ColoCrew`,
+  },
+  {
     key: "personnalise",
     label: "Personnalisé",
     defaultSubject: "",
@@ -321,6 +366,101 @@ function reservationPaymentAmounts(reservation) {
   };
 }
 
+function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function cleanEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function reservationSearchBlob(reservation) {
+  const legal = reservation?.legal || {};
+  const transport = reservation?.transport || {};
+  const sejour = reservation?.sejour || {};
+  const parts = [
+    legal.firstName,
+    legal.lastName,
+    legal.email,
+    legal.phone,
+    legal.address,
+    legal.addressLine1,
+    legal.addressLine2,
+    legal.zipCode,
+    legal.postalCode,
+    legal.city,
+    legal.commune,
+    reservation?.city,
+    reservation?.postalCode,
+    transport.departureCity,
+    transport.returnCity,
+    transport.pickupCity,
+    transport.dropoffCity,
+    sejour.name,
+    childrenFullNames(reservation?.minor),
+  ];
+  return normalizeSearchText(parts.filter(Boolean).join(" "));
+}
+
+function reservationPostalCode(reservation) {
+  const legal = reservation?.legal || {};
+  const blob = [
+    legal.postalCode,
+    legal.zipCode,
+    legal.address,
+    reservation?.postalCode,
+    reservationSearchBlob(reservation),
+  ].filter(Boolean).join(" ");
+  const match = String(blob).match(/\b\d{5}\b/);
+  return match?.[0] || "";
+}
+
+function reservationDepartment(reservation) {
+  const postalCode = reservationPostalCode(reservation);
+  if (!postalCode) return "";
+  if (postalCode.startsWith("20")) return postalCode.slice(0, 3);
+  return postalCode.slice(0, 2);
+}
+
+function isBafaRegionalTarget(reservation) {
+  const department = reservationDepartment(reservation);
+  if (AURA_AND_CANTAL_NEARBY_DEPARTMENTS.has(department)) return true;
+  const blob = reservationSearchBlob(reservation);
+  return BAFA_CITY_HINTS.some((city) => blob.includes(city));
+}
+
+function uniqueByEmail(reservationsList) {
+  const map = new Map();
+  reservationsList.forEach((reservation) => {
+    const email = cleanEmail(reservation?.legal?.email);
+    if (!email || map.has(email)) return;
+    map.set(email, reservation);
+  });
+  return [...map.values()];
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if (/[",\n;]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map(csvEscape).join(";")).join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function normalizeSmsPhone(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -427,16 +567,44 @@ async function createBalanceStripeLink(reservation, installmentsCount = 1) {
   return data.url;
 }
 
-function bodyToHtml(bodyText) {
+function linkifyHtml(text) {
+  return text.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+    const cleanUrl = url.replace(/[),.;]+$/, "");
+    const suffix = url.slice(cleanUrl.length);
+    return `<a href="${cleanUrl}" style="color:#2563eb;text-decoration:underline;font-weight:700;">${cleanUrl}</a>${suffix}`;
+  });
+}
+
+function bodyToHtml(bodyText, variant = "default") {
   const escaped = bodyText
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
   const paragraphs = escaped.split(/\n\n+/).map((para) => {
-    const lines = para.split(/\n/).join("<br/>");
+    const lines = linkifyHtml(para).split(/\n/).join("<br/>");
     return `<p style="margin:0 0 16px;line-height:1.7;font-size:15px;">${lines}</p>`;
   });
+
+  if (variant === BAFA_TEMPLATE_KEY) {
+    return `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:660px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+  <div style="background:#111827;padding:28px 34px;color:#fff;">
+    <p style="margin:0 0 8px;color:#f59e0b;font-size:12px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;">BAFA · Toussaint 2026</p>
+    <h1 style="margin:0;font-size:25px;line-height:1.2;font-weight:850;letter-spacing:0;">Quelques places restantes pour se former cet automne</h1>
+    <p style="margin:12px 0 0;color:#d1d5db;font-size:14px;line-height:1.6;">Formations BAFA du 17 au 25 octobre et approfondissement du 19 au 25 octobre.</p>
+  </div>
+  <div style="padding:30px 34px 12px;color:#1f2937;">
+    ${paragraphs.join("")}
+  </div>
+  <div style="padding:20px 34px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+    <p style="margin:0;color:#4b5563;font-size:13px;line-height:1.6;">
+      Association ColoCrew · BAFA Murathènes<br/>
+      <a href="https://bafa.murathenes.org/" style="color:#2563eb;text-decoration:none;font-weight:700;">bafa.murathenes.org</a> · 06 87 91 68 97
+    </p>
+  </div>
+</div>`;
+  }
 
   return `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:620px;margin:auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
@@ -611,6 +779,20 @@ export default function Communication() {
     return { files: validatedReservations.length, children, withEmail };
   }, [validatedReservations]);
 
+  const bafaAudience = useMemo(() => {
+    const individualContacts = uniqueByEmail(
+      reservations.filter((reservation) => reservation?.legal?.email && reservation?.status !== "deleted"),
+    );
+    const regionalContacts = individualContacts.filter(isBafaRegionalTarget);
+    const targetContacts = uniqueByEmail([...regionalContacts, ...individualContacts]);
+    return {
+      individualContacts,
+      regionalContacts,
+      targetContacts,
+      missingToTarget: Math.max(BAFA_TARGET_COUNT - targetContacts.length, 0),
+    };
+  }, [reservations]);
+
   const sejourOptions = useMemo(() => {
     const names = new Set(reservations.map((r) => r.sejour?.name).filter(Boolean));
     return [...names].sort();
@@ -667,6 +849,11 @@ export default function Communication() {
     } else if (key === PAYMENT_FAILED_TEMPLATE_KEY) {
       setFilterStatus("all");
       setFilterWeek("all");
+    } else if (key === BAFA_TEMPLATE_KEY) {
+      setFilterStatus("all");
+      setFilterWeek("all");
+      setFilterSejour("all");
+      setActiveChannel("email");
     } else {
       setFilterStatus("validated");
     }
@@ -699,6 +886,47 @@ export default function Communication() {
 
   const selectAll = useCallback(() => setSelected(new Set(filtered.map((r) => r.id))), [filtered]);
   const deselectAll = useCallback(() => setSelected(new Set()), []);
+
+  const prepareBafaCampaign = useCallback(() => {
+    const tpl = TEMPLATES.find((item) => item.key === BAFA_TEMPLATE_KEY);
+    setActiveChannel("email");
+    setTemplateKey(BAFA_TEMPLATE_KEY);
+    setSubject(tpl.defaultSubject);
+    setBody(tpl.defaultBody);
+    setFilterStatus("all");
+    setFilterSejour("all");
+    setFilterWeek("all");
+    setSearch("");
+    setSelected(new Set(bafaAudience.targetContacts.map((reservation) => reservation.id)));
+    setPreviewOpen(false);
+    setSendState("idle");
+    setSendProgress({ done: 0, total: 0, errors: [] });
+    showToast(`${bafaAudience.targetContacts.length} contact(s) BAFA préparé(s), sans envoi automatique`, "success");
+  }, [bafaAudience.targetContacts, showToast]);
+
+  const exportBafaContacts = useCallback(() => {
+    const rows = [
+      ["email", "prenom", "nom", "telephone", "ville", "departement", "statut", "sejour", "enfants", "zone_cantal_aura", "reduction_colocrew"],
+      ...bafaAudience.targetContacts.map((reservation) => {
+        const legal = reservation.legal || {};
+        return [
+          cleanEmail(legal.email),
+          legal.firstName || "",
+          legal.lastName || "",
+          contactPhone(reservation),
+          legal.city || legal.commune || "",
+          reservationDepartment(reservation),
+          reservation.status || "",
+          reservation.sejour?.name || "",
+          childrenFullNames(reservation.minor),
+          isBafaRegionalTarget(reservation) ? "oui" : "non",
+          "50 EUR si ancien participant ColoCrew",
+        ];
+      }),
+    ];
+    downloadCsv(`contacts-bafa-toussaint-2026-${new Date().toISOString().slice(0, 10)}.csv`, rows);
+    showToast("Export CSV BAFA généré", "success");
+  }, [bafaAudience.targetContacts, showToast]);
 
   // ── Variable insertion ────────────────────────────────────────────────────
 
@@ -767,8 +995,8 @@ export default function Communication() {
 
   const previewHtml = useMemo(() => {
     if (!previewReservation) return "";
-    return bodyToHtml(resolveVars(body, previewReservation, getExtraVars()));
-  }, [previewReservation, body, getExtraVars]);
+    return bodyToHtml(resolveVars(body, previewReservation, getExtraVars()), templateKey);
+  }, [previewReservation, body, getExtraVars, templateKey]);
 
   const previewSubject = useMemo(() => {
     if (!previewReservation) return "";
@@ -834,7 +1062,7 @@ export default function Communication() {
         const payload = {
           to: reservationForEmail.legal.email,
           subject: resolveVars(subject, reservationForEmail, extraVars),
-          html: bodyToHtml(resolveVars(body, reservationForEmail, extraVars)),
+          html: bodyToHtml(resolveVars(body, reservationForEmail, extraVars), templateKey),
           from_name: sender.name,
           from_email: sender.email,
         };
@@ -993,6 +1221,42 @@ export default function Communication() {
             SMS relance S4
           </button>
         </div>
+
+      <div style={{
+        margin: "12px 24px 0",
+        padding: "14px 16px",
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
+        background: "#f9fafb",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        flexWrap: "wrap",
+        flexShrink: 0,
+      }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#92400e", marginBottom: 3 }}>
+            Campagne BAFA Toussaint 2026
+          </div>
+          <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+            {bafaAudience.targetContacts.length} contacts uniques préparables · {bafaAudience.regionalContacts.length} proches Cantal/AURA · objectif {BAFA_TARGET_COUNT}, encore {bafaAudience.missingToTarget} à compléter.
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={prepareBafaCampaign}
+          style={{ ...btnSmallStyle, background: "#111827", color: "#fff", border: "1.5px solid #111827" }}
+        >
+          Préparer la liste BAFA
+        </button>
+        <button
+          type="button"
+          onClick={exportBafaContacts}
+          style={{ ...btnSmallStyle, background: "#fff", color: "#374151", border: "1.5px solid #d1d5db" }}
+        >
+          Export CSV
+        </button>
+      </div>
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
@@ -1271,6 +1535,15 @@ export default function Communication() {
                     <option value="3">En 3 fois</option>
                     <option value="4">En 4 fois</option>
                   </select>
+                </div>
+              )}
+
+              {templateKey === BAFA_TEMPLATE_KEY && (
+                <div style={{ marginBottom: 20, padding: 16, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+                  <div style={{ ...labelStyle, color: "#111827", marginBottom: 6 }}>Ciblage BAFA</div>
+                  <p style={{ margin: 0, fontSize: 12, color: "#4b5563", lineHeight: 1.5 }}>
+                    Liste préparée à partir des contacts uniques de réservations avec email, tous statuts hors supprimés. Les contacts proches Cantal/AURA sont identifiés par code postal ou ville quand l'information existe.
+                  </p>
                 </div>
               )}
 
