@@ -21,7 +21,7 @@ const CONTACTS = "campagne_contacts";
 const LISTS = "campagne_listes";
 const UNSUBSCRIBES = "campagne_unsubscribes";
 const LIST_NAME = "BAFA Toussaint 2026 - reservations + Cantal AURA";
-const TARGET_COUNT = 3000;
+const MIN_TARGET_COUNT = 3000;
 
 const AURA_AND_CANTAL_NEARBY_DEPARTMENTS = new Set([
   "01", "03", "07", "12", "15", "19", "26", "38", "42", "43", "46", "48", "63", "69", "71", "73", "74",
@@ -171,7 +171,7 @@ function reservationToContact(reservation) {
   return { ...contact, regionalBafa: regionalMatch(contact) ? "oui" : "non" };
 }
 
-function campaignContactToBafa(contact) {
+function campaignContactToBafa(contact, listName = "") {
   const email = cleanEmail(contact.email);
   if (!email) return null;
   const normalized = {
@@ -187,6 +187,9 @@ function campaignContactToBafa(contact) {
     type: contact.type || "",
     pertinence: contact.pertinence || "",
     scorePertinence: scoreContact(contact),
+    sourceListId: contact.listId || "",
+    sourceListName: listName,
+    indivImported: /indiv|individuel/i.test(`${listName} ${contact.source || ""} ${contact.categorie || ""}`) ? "oui" : "non",
   };
   return { ...normalized, regionalBafa: regionalMatch(normalized) ? "oui" : "non" };
 }
@@ -219,8 +222,8 @@ async function upsertList(name) {
       name,
       count: 0,
       updatedAt: serverTimestamp(),
-      targetCount: TARGET_COUNT,
-      description: "Campagne BAFA Toussaint 2026 : reservations ColoCrew + contacts Cantal/AURA + complement qualifie.",
+      targetCount: MIN_TARGET_COUNT,
+      description: "Campagne BAFA Toussaint 2026 : reservations confirmees/non confirmees + tous contacts importes, dont Cantal/AURA et indiv.",
     }, { merge: true });
     return { listId: existing.id, removed };
   }
@@ -228,8 +231,8 @@ async function upsertList(name) {
   const ref = await addDoc(collection(db, LISTS), {
     name,
     count: 0,
-    targetCount: TARGET_COUNT,
-    description: "Campagne BAFA Toussaint 2026 : reservations ColoCrew + contacts Cantal/AURA + complement qualifie.",
+    targetCount: MIN_TARGET_COUNT,
+    description: "Campagne BAFA Toussaint 2026 : reservations confirmees/non confirmees + tous contacts importes, dont Cantal/AURA et indiv.",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -257,20 +260,13 @@ function mergeContacts({ reservationContacts, campaignContacts, unsubscribed }) 
   };
 
   reservationContacts.forEach((contact) => add(contact, 1000));
+  campaignContacts.filter((contact) => contact.indivImported === "oui").forEach((contact) => add(contact, 700));
   campaignContacts.filter((contact) => contact.regionalBafa === "oui").forEach((contact) => add(contact, 500));
-
-  if (byEmail.size < TARGET_COUNT) {
-    campaignContacts
-      .sort((a, b) => Number(b.scorePertinence || 0) - Number(a.scorePertinence || 0))
-      .forEach((contact) => {
-        if (byEmail.size < TARGET_COUNT) add(contact, 100);
-      });
-  }
+  campaignContacts.forEach((contact) => add(contact, 100));
 
   return {
     contacts: [...byEmail.values()]
-      .sort((a, b) => Number(b.scorePertinence || 0) - Number(a.scorePertinence || 0) || a.email.localeCompare(b.email))
-      .slice(0, TARGET_COUNT),
+      .sort((a, b) => Number(b.scorePertinence || 0) - Number(a.scorePertinence || 0) || a.email.localeCompare(b.email)),
     skippedUnsubscribed,
   };
 }
@@ -295,21 +291,31 @@ async function writeContacts(listId, contacts) {
     updatedAt: serverTimestamp(),
     regionalCount: contacts.filter((contact) => contact.regionalBafa === "oui").length,
     reservationCount: contacts.filter((contact) => contact.source === "reservations_colocrew").length,
+    confirmedReservationCount: contacts.filter((contact) => contact.source === "reservations_colocrew" && contact.reservationStatus === "validated").length,
+    pendingReservationCount: contacts.filter((contact) => contact.source === "reservations_colocrew" && contact.reservationStatus !== "validated").length,
+    indivImportedCount: contacts.filter((contact) => contact.indivImported === "oui").length,
   }, { merge: true });
 }
 
 async function main() {
-  const [reservationSnap, contactsSnap, unsubscribed] = await Promise.all([
+  const [reservationSnap, contactsSnap, listsSnap, unsubscribed] = await Promise.all([
     getDocs(collection(db, RESERVATIONS)),
     getDocs(collection(db, CONTACTS)),
+    getDocs(collection(db, LISTS)),
     getUnsubscribedEmails(),
   ]);
+
+  const listNames = new Map(listsSnap.docs.map((listDoc) => [listDoc.id, String(listDoc.data().name || "")]));
+  const existingTargetList = listsSnap.docs.find((listDoc) => String(listDoc.data().name || "") === LIST_NAME);
+  const existingTargetListId = existingTargetList?.id || "";
 
   const reservationContacts = reservationSnap.docs
     .map((reservationDoc) => reservationToContact({ id: reservationDoc.id, ...reservationDoc.data() }))
     .filter(Boolean);
   const campaignContacts = contactsSnap.docs
-    .map((contactDoc) => campaignContactToBafa({ id: contactDoc.id, ...contactDoc.data() }))
+    .map((contactDoc) => ({ id: contactDoc.id, ...contactDoc.data() }))
+    .filter((contact) => !existingTargetListId || contact.listId !== existingTargetListId)
+    .map((contact) => campaignContactToBafa(contact, listNames.get(contact.listId) || ""))
     .filter(Boolean);
 
   const { contacts, skippedUnsubscribed } = mergeContacts({ reservationContacts, campaignContacts, unsubscribed });
@@ -317,7 +323,10 @@ async function main() {
   await writeContacts(listId, contacts);
 
   const reservationCount = contacts.filter((contact) => contact.source === "reservations_colocrew").length;
+  const confirmedReservationCount = contacts.filter((contact) => contact.source === "reservations_colocrew" && contact.reservationStatus === "validated").length;
+  const pendingReservationCount = contacts.filter((contact) => contact.source === "reservations_colocrew" && contact.reservationStatus !== "validated").length;
   const regionalCount = contacts.filter((contact) => contact.regionalBafa === "oui").length;
+  const indivImportedCount = contacts.filter((contact) => contact.indivImported === "oui").length;
 
   console.log(`Liste creee/mise a jour: ${LIST_NAME}`);
   console.log(`ID liste: ${listId}`);
@@ -326,10 +335,13 @@ async function main() {
   console.log(`Contacts campagne scannes: ${contactsSnap.size}`);
   console.log(`Contacts BAFA ajoutes: ${contacts.length}`);
   console.log(`Dont reservations ColoCrew: ${reservationCount}`);
+  console.log(` - confirmees: ${confirmedReservationCount}`);
+  console.log(` - non confirmees / autres statuts: ${pendingReservationCount}`);
   console.log(`Dont Cantal/AURA/proches: ${regionalCount}`);
+  console.log(`Dont liste indiv importee: ${indivImportedCount}`);
   console.log(`Desinscrits ignores: ${skippedUnsubscribed}`);
-  console.log(`Objectif: ${TARGET_COUNT}`);
-  console.log(`Reste pour atteindre objectif: ${Math.max(TARGET_COUNT - contacts.length, 0)}`);
+  console.log(`Objectif minimum: ${MIN_TARGET_COUNT}`);
+  console.log(`Reste pour atteindre objectif: ${Math.max(MIN_TARGET_COUNT - contacts.length, 0)}`);
 }
 
 main().then(() => {
