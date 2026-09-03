@@ -57,12 +57,61 @@ const DEFAULT_ACCOUNTING = {
       { label: "SDJES 93", account: "74", amount: 9900 },
       { label: "Adhésions", account: "756", amount: 135 },
       { label: "Dons / mécénat", account: "758", amount: 1400 },
-      { label: "Prêt reçu", account: "16", amount: 6000 },
+      { label: "Apports requalifiés en dons", account: "758", amount: 6000 },
     ],
     expenses: [
       { label: "Fonctionnement", account: "60-62", amount: 10866.6 },
       { label: "Séjours", account: "60-64", amount: 131595.68 },
     ],
+  },
+  financial2025: {
+    products: [
+      { label: "Vente de séjours", account: "70", amount: 108857.3 },
+      { label: "CAF / VACAF", account: "74", amount: 17079.44 },
+      { label: "SDJES 93", account: "74", amount: 9900 },
+      { label: "Apport exercice 2024", account: "75", amount: 470 },
+      { label: "Adhésions", account: "756", amount: 135 },
+      { label: "Dons, mécénat et prêts requalifiés en dons", account: "758", amount: 7400 },
+    ],
+    expenses: [
+      { label: "Fonctionnement", account: "60-62", amount: 10866.6 },
+      { label: "Séjours", account: "60-64", amount: 131595.68 },
+    ],
+    assets: [
+      { label: "Immobilisations", account: "2", amount: 2700 },
+      { label: "Trésorerie disponible", account: "5", amount: 1379.46 },
+    ],
+    liabilities: [
+      { label: "Fonds associatif et résultat positif 2025", account: "1", amount: 1379.46 },
+      { label: "Dons requalifiés - aucune dette financière liée aux anciens prêts", account: "75/758", amount: 0 },
+    ],
+    note: "L'exercice 2025 se clôture sur une trésorerie positive. Les avances initialement suivies comme prêts sont requalifiées en dons, ce qui clarifie la situation financière et fait ressortir un exercice équilibré, sans dette financière associée à ces apports.",
+  },
+  landing2026: {
+    bankMonthly: [
+      { month: "Janvier", inflows: 7684.13, outflows: 3198.16, note: "Préparation et premiers encaissements" },
+      { month: "Février", inflows: 26191.52, outflows: 30064.88, note: "Première forte période d'activité" },
+      { month: "Mars", inflows: 9563.22, outflows: 9889.77, note: "Suivi inscriptions et dépenses courantes" },
+      { month: "Avril", inflows: 10852.19, outflows: 9936.78, note: "Préparation opérationnelle" },
+      { month: "Mai", inflows: 17404.7, outflows: 15195.65, note: "Montée en charge" },
+      { month: "Juin", inflows: 67145.42, outflows: 65079.57, note: "Lancement saison été" },
+      { month: "Juillet", inflows: 86432.21, outflows: 80130.02, note: "Pic séjours été" },
+      { month: "Août", inflows: 73482.89, outflows: 72838.11, note: "Pic séjours été" },
+      { month: "Septembre", inflows: 17632.87, outflows: 15528.21, note: "Encaissements résiduels au 03/09" },
+    ],
+    bankCategories: [
+      { label: "Chiffre d'affaires", account: "70", amount: 154816.82 },
+      { label: "Subventions et aides", account: "74", amount: 76604.46 },
+      { label: "Autres encaissements, apports et régularisations", account: "75/79", amount: 84969.87 },
+    ],
+    expenseCategories: [
+      { label: "Frais de personnel", account: "64", amount: 36566.53 },
+      { label: "Travel expenses / transports", account: "625", amount: 39114.99 },
+      { label: "Nourriture et boissons", account: "60", amount: 13091.32 },
+      { label: "Dépenses opérationnelles et séjours", account: "60-62", amount: 136226.1 },
+      { label: "Marketing, technologies, administratif, banque et taxes", account: "62-66", amount: 76862.21 },
+    ],
+    note: "Au 3 septembre 2026, les extraits Qonto montrent déjà plus de 316 k€ d'encaissements et une trésorerie positive de 14 186,20 €. L'activité est fortement saisonnière, avec une première tension en février puis une concentration majeure des flux sur juin, juillet et août.",
   },
   forecast: {
     products: [
@@ -106,8 +155,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "Créances", account: "4", amount: 0 },
     ],
     liabilities: [
-      { label: "Résultat de l'exercice", account: "12", amount: -4620.54 },
-      { label: "Emprunt / dette", account: "16", amount: 6000 },
+      { label: "Résultat de l'exercice après reclassement des dons", account: "12", amount: 1379.46 },
+      { label: "Emprunt / dette", account: "16", amount: 0 },
       { label: "Dettes d'exploitation", account: "4", amount: 0 },
     ],
   },
@@ -181,6 +230,19 @@ function mergeAccountingDraft(saved) {
     actual: {
       products: saved.actual?.products || DEFAULT_ACCOUNTING.actual.products,
       expenses: saved.actual?.expenses || DEFAULT_ACCOUNTING.actual.expenses,
+    },
+    financial2025: {
+      products: saved.financial2025?.products || DEFAULT_ACCOUNTING.financial2025.products,
+      expenses: saved.financial2025?.expenses || DEFAULT_ACCOUNTING.financial2025.expenses,
+      assets: saved.financial2025?.assets || DEFAULT_ACCOUNTING.financial2025.assets,
+      liabilities: saved.financial2025?.liabilities || DEFAULT_ACCOUNTING.financial2025.liabilities,
+      note: saved.financial2025?.note || DEFAULT_ACCOUNTING.financial2025.note,
+    },
+    landing2026: {
+      bankMonthly: saved.landing2026?.bankMonthly || DEFAULT_ACCOUNTING.landing2026.bankMonthly,
+      bankCategories: saved.landing2026?.bankCategories || DEFAULT_ACCOUNTING.landing2026.bankCategories,
+      expenseCategories: saved.landing2026?.expenseCategories || DEFAULT_ACCOUNTING.landing2026.expenseCategories,
+      note: saved.landing2026?.note || DEFAULT_ACCOUNTING.landing2026.note,
     },
     forecast: {
       products: saved.forecast?.products || DEFAULT_ACCOUNTING.forecast.products,
@@ -288,6 +350,36 @@ function fundingSplitTable(accounting) {
   `;
 }
 
+function financialNarrative2025(accounting) {
+  const products = sumLines(accounting.financial2025.products);
+  const expenses = sumLines(accounting.financial2025.expenses);
+  const result = products - expenses;
+  return `
+    <section>
+      <h2>Lecture de l'exercice</h2>
+      <p>L'année 2025 constitue une année de structuration et de validation du modèle ColoCrew. L'association a démontré sa capacité à générer des recettes propres significatives grâce à la vente de séjours, tout en mobilisant des aides publiques et des soutiens associatifs.</p>
+      <p>Les apports initialement suivis comme prêts sont désormais requalifiés en dons. Cette clarification renforce la lisibilité du bilan : l'association ne porte pas de dette financière liée à ces apports et clôture l'exercice avec une situation assainie.</p>
+      <p>Avec ${escapeHtml(currency(products))} de produits et ${escapeHtml(currency(expenses))} de charges, le résultat ressort à ${escapeHtml(currency(result))}. Les dépenses sont très majoritairement affectées aux séjours et donc directement à l'objet social de l'association.</p>
+      <p>${escapeHtml(accounting.financial2025.note)}</p>
+    </section>
+  `;
+}
+
+function landingNarrative2026(accounting, dashboardSnapshot) {
+  const qontoProducts = sumLines(accounting.landing2026.bankCategories);
+  const qontoExpenses = sumLines(accounting.landing2026.expenseCategories);
+  const qontoResult = qontoProducts - qontoExpenses;
+  return `
+    <section>
+      <h2>Atterrissage 2026</h2>
+      <p>L'exercice 2026 confirme une nette accélération de l'activité. Les flux Qonto disponibles au 3 septembre 2026 font ressortir ${escapeHtml(currency(qontoProducts))} d'encaissements catégorisés et ${escapeHtml(currency(qontoExpenses))} de décaissements catégorisés, soit un solde opérationnel suivi de ${escapeHtml(currency(qontoResult))}.</p>
+      <p>Le dashboard inscriptions complète cette lecture avec ${escapeHtml(currency(dashboardSnapshot.grossAmount))} de chiffre d'affaires inscriptions, ${escapeHtml(currency(dashboardSnapshot.ticketCost))} de billets transport suivis et ${escapeHtml(currency(dashboardSnapshot.grossSalary))} de masse salariale brute RH.</p>
+      <p>La saisonnalité est claire : février mobilise déjà beaucoup de trésorerie, puis juin, juillet et août concentrent la majeure partie de l'activité. C'est une contrainte normale pour un modèle de séjours, mais elle rend utile un financement de développement pour absorber les acomptes et sécuriser la montée en charge.</p>
+      <p>${escapeHtml(accounting.landing2026.note)}</p>
+    </section>
+  `;
+}
+
 function openAccountingPrint(accounting, kind, dashboardSnapshot) {
   const actualProducts = sumLines(accounting.actual.products);
   const actualExpenses = sumLines(accounting.actual.expenses);
@@ -306,6 +398,8 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
     cashPlan2027: "Plan de trésorerie 12 mois",
     fundingSplit: "Répartition des financeurs",
     financingRequest: "Demande de financement",
+    financial2025: "Bilan comptable 2025",
+    landing2026: "Atterrissage comptable 2026",
   };
   const blocks = {
     annual: `
@@ -319,7 +413,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       ${lineTable("Recettes de l'exercice", accounting.actual.products)}
       ${lineTable("Dépenses de l'exercice", accounting.actual.expenses)}
       <section class="grid">
-        <p><span>Recettes hors prêt</span><strong>${escapeHtml(currency(actualProducts - sumLines(accounting.actual.products.filter((line) => String(line.account).startsWith("16")))))}</strong></p>
+        <p><span>Produits comptables</span><strong>${escapeHtml(currency(actualProducts))}</strong></p>
         <p><span>Dépenses</span><strong>${escapeHtml(currency(actualExpenses))}</strong></p>
         <p><span>Résultat</span><strong>${escapeHtml(currency(actualResult))}</strong></p>
         <p><span>Trésorerie de clôture</span><strong>${escapeHtml(currency(accounting.exercise.closingCash))}</strong></p>
@@ -378,6 +472,31 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       <section><h2>Utilisation du financement</h2><p>${escapeHtml(accounting.financingRequest.useOfFunds)}</p></section>
       <section><h2>Lecture de remboursement / sécurisation</h2><p>${escapeHtml(accounting.financingRequest.repaymentView)}</p></section>
       <section class="note"><strong>Montant demandé :</strong> ${escapeHtml(currency(accounting.financingRequest.requestedAmount))}</section>
+    `,
+    financial2025: `
+      ${financialNarrative2025(accounting)}
+      ${lineTable("Produits 2025", accounting.financial2025.products)}
+      ${lineTable("Charges 2025", accounting.financial2025.expenses)}
+      <section class="grid">
+        <p><span>Produits 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.products)))}</strong></p>
+        <p><span>Charges 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.expenses)))}</strong></p>
+        <p><span>Résultat 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.products) - sumLines(accounting.financial2025.expenses)))}</strong></p>
+        <p><span>Dette financière reclassée</span><strong>0,00 €</strong></p>
+      </section>
+      ${lineTable("Actif 2025", accounting.financial2025.assets)}
+      ${lineTable("Passif 2025", accounting.financial2025.liabilities)}
+    `,
+    landing2026: `
+      ${landingNarrative2026(accounting, dashboardSnapshot)}
+      ${cashPlanTable("Flux Qonto 2026 disponibles", accounting.landing2026.bankMonthly)}
+      ${lineTable("Encaissements catégorisés Qonto 2026", accounting.landing2026.bankCategories)}
+      ${lineTable("Décaissements catégorisés Qonto 2026", accounting.landing2026.expenseCategories)}
+      <section class="grid">
+        <p><span>Encaissements Qonto</span><strong>${escapeHtml(currency(sumLines(accounting.landing2026.bankCategories)))}</strong></p>
+        <p><span>Décaissements Qonto</span><strong>${escapeHtml(currency(sumLines(accounting.landing2026.expenseCategories)))}</strong></p>
+        <p><span>Solde suivi</span><strong>${escapeHtml(currency(sumLines(accounting.landing2026.bankCategories) - sumLines(accounting.landing2026.expenseCategories)))}</strong></p>
+        <p><span>Trésorerie Qonto 03/09/2026</span><strong>14 186,20 €</strong></p>
+      </section>
     `,
   };
   const html = `<!doctype html>
@@ -1014,6 +1133,39 @@ export default function Finances() {
     setAccountingStatus("Prévisionnel 2027 recalculé : produits x2, charges x1,75, saisonnalité conservée.");
   };
 
+  const reclassLoansAsDonations = () => {
+    const reclassProducts = (lines) => (lines || []).map((line) => {
+      const label = String(line.label || "").toLowerCase();
+      const account = String(line.account || "");
+      if (account.startsWith("16") || label.includes("prêt") || label.includes("pret")) {
+        return { ...line, account: "758", label: "Apports requalifiés en dons" };
+      }
+      return line;
+    });
+    const reclassLiabilities = (lines) => (lines || []).map((line) => {
+      const label = String(line.label || "").toLowerCase();
+      const account = String(line.account || "");
+      if (account.startsWith("16") || label.includes("emprunt") || label.includes("dette")) {
+        return { ...line, amount: 0, label: "Aucune dette financière liée aux apports requalifiés" };
+      }
+      return line;
+    });
+    setAccounting((previous) => ({
+      ...previous,
+      actual: { ...previous.actual, products: reclassProducts(previous.actual.products) },
+      financial2025: {
+        ...previous.financial2025,
+        products: reclassProducts(previous.financial2025.products),
+        liabilities: reclassLiabilities(previous.financial2025.liabilities),
+      },
+      balance: {
+        ...previous.balance,
+        liabilities: reclassLiabilities(previous.balance.liabilities),
+      },
+    }));
+    setAccountingStatus("Les anciens prêts ont été reclassés en dons et les dettes associées mises à zéro.");
+  };
+
   const importQontoFile = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1036,7 +1188,14 @@ export default function Finances() {
           note: `${row.note} 2026, projection 2027`,
         };
       });
-      return { ...previous, cashPlan2027: projected };
+      return {
+        ...previous,
+        cashPlan2027: projected,
+        landing2026: {
+          ...previous.landing2026,
+          bankMonthly: imported,
+        },
+      };
     });
     setAccountingStatus(`${imported.length} mois importés depuis Qonto, les autres mois restent prévisionnels.`);
     event.target.value = "";
@@ -1196,6 +1355,8 @@ export default function Finances() {
 
         <div className="accounting-export-grid">
           {[
+            ["financial2025", "Bilan comptable 2025", "Version positive, prêts reclassés en dons."],
+            ["landing2026", "Atterrissage 2026", "Synthèse Qonto + dashboard."],
             ["funderPack", "Dossier financeur", "Atterrissage, 2027, trésorerie, financeurs."],
             ["annual", "Comptes annuels", "Recettes, dépenses, bilan actif/passif."],
             ["financial", "Bilan financier", "Synthèse prête à transmettre."],
@@ -1219,6 +1380,9 @@ export default function Finances() {
         </div>
 
         <div className="accounting-tool-row">
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={reclassLoansAsDonations}>
+            Reclasser prêts en dons
+          </button>
           <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
             Recalculer 2027 depuis 2026
           </button>
@@ -1248,7 +1412,57 @@ export default function Finances() {
           />
         </section>
 
+        <section className="accounting-request-box">
+          <h3>Notes bilans 2025 / 2026</h3>
+          <div className="accounting-text-grid">
+            <label>
+              <span>Note positive 2025</span>
+              <textarea
+                value={accounting.financial2025.note || ""}
+                onChange={(event) => updateAccountingSection("financial2025", "note", event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Note atterrissage 2026</span>
+              <textarea
+                value={accounting.landing2026.note || ""}
+                onChange={(event) => updateAccountingSection("landing2026", "note", event.target.value)}
+              />
+            </label>
+          </div>
+        </section>
+
         <div className="accounting-editor-grid">
+          <AccountingLinesEditor
+            title="Produits 2025"
+            lines={accounting.financial2025.products}
+            onChange={(lines) => updateAccountingSection("financial2025", "products", lines)}
+          />
+          <AccountingLinesEditor
+            title="Charges 2025"
+            lines={accounting.financial2025.expenses}
+            onChange={(lines) => updateAccountingSection("financial2025", "expenses", lines)}
+          />
+          <AccountingLinesEditor
+            title="Actif 2025"
+            lines={accounting.financial2025.assets}
+            onChange={(lines) => updateAccountingSection("financial2025", "assets", lines)}
+          />
+          <AccountingLinesEditor
+            title="Passif 2025"
+            lines={accounting.financial2025.liabilities}
+            onChange={(lines) => updateAccountingSection("financial2025", "liabilities", lines)}
+          />
+          <AccountingLinesEditor
+            title="Encaissements Qonto 2026"
+            lines={accounting.landing2026.bankCategories}
+            onChange={(lines) => updateAccountingSection("landing2026", "bankCategories", lines)}
+          />
+          <AccountingLinesEditor
+            title="Décaissements Qonto 2026"
+            lines={accounting.landing2026.expenseCategories}
+            onChange={(lines) => updateAccountingSection("landing2026", "expenseCategories", lines)}
+          />
           <AccountingLinesEditor
             title="Recettes / produits réalisés"
             lines={accounting.actual.products}
