@@ -30,6 +30,12 @@ const ACCOUNTING_TABS = [
   { key: "settings", label: "Paramètres" },
 ];
 
+const FINANCE_SECTIONS = [
+  { key: "dashboard", label: "Dashboard", detail: "CA, encaissements, restes à payer" },
+  { key: "stays", label: "Séjours & transports", detail: "Synthèses par séjour, semaine et billets" },
+  { key: "documents", label: "Documents comptables", detail: "Bilans, prévisionnels et exports PDF" },
+];
+
 const DEFAULT_ACCOUNTING = {
   association: {
     name: "ColoCrew",
@@ -1157,6 +1163,7 @@ export default function Finances() {
   const [summary, setSummary] = useState(null);
   const [accounting, setAccounting] = useState(() => deepClone(DEFAULT_ACCOUNTING));
   const [accountingStatus, setAccountingStatus] = useState("");
+  const [activeFinanceSection, setActiveFinanceSection] = useState("dashboard");
   const [activeAccountingTab, setActiveAccountingTab] = useState("exports");
   const [loading, setLoading] = useState(true);
 
@@ -1247,12 +1254,12 @@ export default function Finances() {
     },
     { net: 0, gross: 0, paid: 0, remaining: 0, estimatedCharges: 0 },
   ), [staffContracts]);
-  const accountingActualProducts = sumLines(accounting.actual.products);
-  const accountingActualExpenses = sumLines(accounting.actual.expenses);
   const accountingForecastProducts = sumLines(accounting.forecast.products);
   const accountingForecastExpenses = sumLines(accounting.forecast.expenses);
   const accounting2027Products = sumLines(accounting.forecast2027.products);
   const accounting2027Expenses = sumLines(accounting.forecast2027.expenses);
+  const accountingLandingProducts = sumLines(accounting.landing2026.bankCategories);
+  const accountingLandingExpenses = sumLines(accounting.landing2026.expenseCategories);
   const topFundingShare = Math.max(0, ...fundingRowsFrom(accounting).map((line) => line.share));
   const dashboardSnapshot = {
     reservations: rows.length,
@@ -1446,11 +1453,29 @@ export default function Finances() {
           <h1>Suivi financier</h1>
           <p>Chiffre d’affaires, aides, encaissements et reste à percevoir.</p>
         </div>
-        <button type="button" className="dash-btn" onClick={exportCsv} disabled={!rows.length}>
-          Exporter en CSV
-        </button>
+        {activeFinanceSection === "dashboard" && (
+          <button type="button" className="dash-btn" onClick={exportCsv} disabled={!rows.length}>
+            Exporter les lignes CSV
+          </button>
+        )}
       </header>
 
+      <nav className="finance-section-tabs" aria-label="Sections finances">
+        {FINANCE_SECTIONS.map((section) => (
+          <button
+            type="button"
+            key={section.key}
+            className={activeFinanceSection === section.key ? "is-active" : ""}
+            onClick={() => setActiveFinanceSection(section.key)}
+          >
+            <strong>{section.label}</strong>
+            <span>{section.detail}</span>
+          </button>
+        ))}
+      </nav>
+
+      {activeFinanceSection === "dashboard" && (
+        <>
       <section className="finance-metrics">
         <Metric label="CA séjours" value={displayed.stayAmount} tone="stay" detail="Prestations séjours, aides comprises" />
         <Metric label="CA transport" value={displayed.transportAmount} tone="transport" detail="Transports facturés" />
@@ -1469,6 +1494,23 @@ export default function Finances() {
         <div><span>Enfants rapprochés</span><strong>{totalChildren}</strong></div>
       </section>
 
+          {loading ? (
+            <section className="dash-section"><p className="dash-muted">Chargement des finances...</p></section>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={rows}
+              searchableKeys={["reference", "responsible", "children", "stay", "week"]}
+              defaultSortKey="remainingAmount"
+              defaultSortDirection="desc"
+              emptyLabel="Aucune donnée financière importée."
+              toolsInline
+            />
+          )}
+        </>
+      )}
+
+      {activeFinanceSection === "documents" && (
       <section className="accounting-panel">
         <div className="accounting-panel-head">
           <div>
@@ -1485,18 +1527,12 @@ export default function Finances() {
         {accountingStatus && <p className="accounting-status">{accountingStatus}</p>}
 
         <div className="accounting-kpis">
-          <div><span>Produits saisis</span><strong>{currency(accountingActualProducts)}</strong></div>
-          <div><span>Charges saisies</span><strong>{currency(accountingActualExpenses)}</strong></div>
-          <div><span>Résultat saisi</span><strong className={resultFrom(accounting.actual) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.actual))}</strong></div>
-          <div><span>Salaires bruts RH</span><strong>{currency(staffTotals.gross)}</strong></div>
-          <div><span>Charges sociales estimées</span><strong>{currency(staffTotals.estimatedCharges)}</strong></div>
-          <div><span>Net restant à payer</span><strong className={staffTotals.remaining > 0 ? "finance-due" : "finance-paid"}>{currency(staffTotals.remaining)}</strong></div>
-          <div><span>Résultat 2024</span><strong className={resultFrom(accounting.financial2024) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.financial2024))}</strong></div>
-          <div><span>Résultat prév. 2026</span><strong className={accountingForecastProducts - accountingForecastExpenses >= 0 ? "finance-paid" : "finance-due"}>{currency(accountingForecastProducts - accountingForecastExpenses)}</strong></div>
-          <div><span>Produits 2027</span><strong>{currency(accounting2027Products)}</strong></div>
-          <div><span>Charges 2027</span><strong>{currency(accounting2027Expenses)}</strong></div>
-          <div><span>Résultat 2027</span><strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.forecast2027))}</strong></div>
-          <div><span>Financement demandé</span><strong>{currency(accounting.financingRequest.requestedAmount)}</strong></div>
+          <div><span>Bilan 2024</span><strong className={resultFrom(accounting.financial2024) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.financial2024))}</strong></div>
+          <div><span>Bilan 2025</span><strong className={resultFrom(accounting.financial2025) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.financial2025))}</strong></div>
+          <div><span>Atterrissage 2026</span><strong className={accountingLandingProducts - accountingLandingExpenses >= 0 ? "finance-paid" : "finance-due"}>{currency(accountingLandingProducts - accountingLandingExpenses)}</strong></div>
+          <div><span>Prévisionnel 2026</span><strong className={accountingForecastProducts - accountingForecastExpenses >= 0 ? "finance-paid" : "finance-due"}>{currency(accountingForecastProducts - accountingForecastExpenses)}</strong></div>
+          <div><span>Prévisionnel 2027</span><strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.forecast2027))}</strong></div>
+          <div><span>Financement</span><strong>{currency(accounting.financingRequest.requestedAmount)}</strong></div>
           <div><span>1er financeur</span><strong>{topFundingShare.toFixed(1)} %</strong></div>
           <div><span>Plan tréso 12 mois</span><strong>{accounting.cashPlan2027.length} mois</strong></div>
         </div>
@@ -1673,26 +1709,31 @@ export default function Finances() {
           </>
         )}
       </section>
+      )}
 
-      <div className="finance-summary-grid">
-        <SummaryTable title="Totaux par séjour" firstColumn="Séjour" rows={staySummaries} />
-        <SummaryTable title="Totaux par semaine" firstColumn="Semaine" rows={weekSummaries} />
-      </div>
-
-      <TransportFinanceTable rows={rows} transports={transportFinance} />
-
-      {loading ? (
-        <section className="dash-section"><p className="dash-muted">Chargement des finances...</p></section>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={rows}
-          searchableKeys={["reference", "responsible", "children", "stay", "week"]}
-          defaultSortKey="remainingAmount"
-          defaultSortDirection="desc"
-          emptyLabel="Aucune donnée financière importée."
-          toolsInline
-        />
+      {activeFinanceSection === "stays" && (
+        <>
+          <section className="finance-section-head">
+            <div>
+              <h2>Séjours et transports</h2>
+              <p>Synthèse opérationnelle issue des réservations validées, des semaines et des billets transport.</p>
+            </div>
+            <button type="button" className="dash-btn" onClick={exportCsv} disabled={!rows.length}>
+              Exporter en CSV
+            </button>
+          </section>
+          {loading ? (
+            <section className="dash-section"><p className="dash-muted">Chargement des synthèses séjours...</p></section>
+          ) : (
+            <>
+              <div className="finance-summary-grid">
+                <SummaryTable title="Totaux par séjour" firstColumn="Séjour" rows={staySummaries} />
+                <SummaryTable title="Totaux par semaine" firstColumn="Semaine" rows={weekSummaries} />
+              </div>
+              <TransportFinanceTable rows={rows} transports={transportFinance} />
+            </>
+          )}
+        </>
       )}
     </div>
   );
