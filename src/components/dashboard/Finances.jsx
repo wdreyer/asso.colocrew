@@ -21,19 +21,77 @@ const WEEK_LABELS = {
 };
 
 const ACCOUNTING_TABS = [
-  { key: "exports", label: "Exports" },
-  { key: "year2024", label: "Bilan 2024" },
-  { key: "year2025", label: "Bilan 2025" },
+  { key: "balances", label: "Bilans" },
   { key: "landing2026", label: "Atterrissage 2026" },
   { key: "forecast2027", label: "Prévisionnel 2027" },
   { key: "request", label: "Financement" },
   { key: "settings", label: "Paramètres" },
 ];
 
+const BALANCE_YEARS = ["2024", "2025", "2026", "2027"];
+
+const BUDGET_EXPENSE_LINES = [
+  { account: "60", label: "Fournitures d'atelier ou d'activités" },
+  { account: "60", label: "Eau - Gaz - Électricité" },
+  { account: "60", label: "Fournitures d'entretien et de bureau" },
+  { account: "60", label: "Autres achats à préciser" },
+  { account: "61", label: "Formation des bénévoles" },
+  { account: "61", label: "Locations" },
+  { account: "61", label: "Assurance" },
+  { account: "61", label: "Autres services extérieurs à préciser" },
+  { account: "62", label: "Transports d'activités et d'animations" },
+  { account: "62", label: "Frais postaux - Téléphone - Services bancaires" },
+  { account: "62", label: "Autres services extérieurs à préciser" },
+  { account: "63", label: "Taxes sur salaires" },
+  { account: "63", label: "Autres impôts et taxes" },
+  { account: "64", label: "Salaires bruts" },
+  { account: "64", label: "Charges sociales de l'employeur" },
+  { account: "64", label: "Autres charges de personnel à préciser" },
+  { account: "65", label: "Autres charges de gestion courante" },
+  { account: "66", label: "Charges financières" },
+  { account: "67", label: "Charges exceptionnelles" },
+  { account: "68", label: "Dotations aux amortissements et provisions" },
+];
+
+const BUDGET_PRODUCT_LINES = [
+  { account: "70", label: "Participation des usagers" },
+  { account: "70", label: "Prestation de services" },
+  { account: "70", label: "Autres rémunérations des services" },
+  { account: "74", label: "Collectivités territoriales" },
+  { account: "74", label: "Pantin" },
+  { account: "74", label: "Pantin Contrat de ville" },
+  { account: "74", label: "Aubervilliers" },
+  { account: "74", label: "Département" },
+  { account: "74", label: "Région" },
+  { account: "74", label: "Autres subventions à préciser" },
+  { account: "74", label: "État" },
+  { account: "74", label: "Fonds Social Européen" },
+  { account: "74", label: "Subventions privées" },
+  { account: "74", label: "Entreprises" },
+  { account: "74", label: "Autres à préciser - Dons" },
+  { account: "75", label: "Participation des adhérents, cotisations, dons manuels ou legs" },
+  { account: "76", label: "Produits financiers" },
+  { account: "77", label: "Produits exceptionnels" },
+  { account: "78", label: "Reprises sur amortissements et provisions" },
+  { account: "79", label: "Transferts de charges" },
+];
+
+const VOLUNTARY_EXPENSE_LINES = [
+  { account: "86", label: "Secours en nature" },
+  { account: "86", label: "Mise à disposition gratuite de biens et prestations" },
+  { account: "86", label: "Personnel bénévole" },
+];
+
+const VOLUNTARY_PRODUCT_LINES = [
+  { account: "87", label: "Bénévolat" },
+  { account: "87", label: "Prestations en nature" },
+  { account: "87", label: "Dons en nature" },
+];
+
 const FINANCE_SECTIONS = [
   { key: "dashboard", label: "Dashboard", detail: "CA, encaissements, restes à payer" },
   { key: "stays", label: "Séjours & transports", detail: "Synthèses par séjour, semaine et billets" },
-  { key: "documents", label: "Documents comptables", detail: "Bilans, prévisionnels et exports PDF" },
+  { key: "documents", label: "Documents comptables", detail: "Bilans, prévisionnels et financement" },
 ];
 
 const DEFAULT_ACCOUNTING = {
@@ -393,13 +451,62 @@ function fundingSplitTable(accounting) {
   `;
 }
 
-function compactLineRows(lines) {
-  return (lines || []).filter((line) => amount(line.amount) !== 0 || String(line.label || "").trim());
+function normalizeLineKey(line) {
+  return `${String(line.account || "").trim()}::${String(line.label || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")}`;
+}
+
+function completeBudgetLines(lines, template) {
+  const source = Array.isArray(lines) ? lines : [];
+  const byKey = new Map(source.map((line) => [normalizeLineKey(line), line]));
+  const templateKeys = new Set(template.map(normalizeLineKey));
+  const completed = template.map((line) => {
+    const saved = byKey.get(normalizeLineKey(line));
+    return {
+      ...line,
+      amount: amount(saved?.amount),
+    };
+  });
+  const customLines = source.filter((line) => !templateKeys.has(normalizeLineKey(line)));
+  return [...completed, ...customLines];
+}
+
+function accountingSectionForYear(accounting, year) {
+  if (year === "2024") return accounting.financial2024;
+  if (year === "2025") return accounting.financial2025;
+  if (year === "2027") return accounting.forecast2027;
+  return accounting.forecast;
+}
+
+function accountingSectionKeyForYear(year) {
+  if (year === "2024") return "financial2024";
+  if (year === "2025") return "financial2025";
+  if (year === "2027") return "forecast2027";
+  return "forecast";
+}
+
+function budgetProductsFor(section) {
+  return completeBudgetLines(section?.products, BUDGET_PRODUCT_LINES);
+}
+
+function budgetExpensesFor(section) {
+  return completeBudgetLines(section?.expenses, BUDGET_EXPENSE_LINES);
+}
+
+function budgetVoluntaryExpensesFor(section) {
+  return completeBudgetLines(section?.voluntaryExpenses || section?.voluntary, VOLUNTARY_EXPENSE_LINES);
+}
+
+function budgetVoluntaryProductsFor(section) {
+  return completeBudgetLines(section?.voluntaryProducts || section?.voluntary, VOLUNTARY_PRODUCT_LINES);
 }
 
 function budgetStatementTable(title, products, expenses, voluntary = []) {
-  const expenseRows = compactLineRows(expenses);
-  const productRows = compactLineRows(products);
+  const expenseRows = completeBudgetLines(expenses, BUDGET_EXPENSE_LINES);
+  const productRows = completeBudgetLines(products, BUDGET_PRODUCT_LINES);
   const maxRows = Math.max(expenseRows.length, productRows.length);
   const rows = Array.from({ length: maxRows }, (_, index) => {
     const expense = expenseRows[index] || {};
@@ -418,26 +525,32 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
   const productsTotal = sumLines(productRows);
   const expensesTotal = sumLines(expenseRows);
   const result = productsTotal - expensesTotal;
-  const voluntaryRows = compactLineRows(voluntary);
-  const voluntaryBlock = voluntaryRows.length ? `
+  const voluntaryExpenseRows = completeBudgetLines(voluntary?.expenses || voluntary, VOLUNTARY_EXPENSE_LINES);
+  const voluntaryProductRows = completeBudgetLines(voluntary?.products || voluntary, VOLUNTARY_PRODUCT_LINES);
+  const voluntaryMaxRows = Math.max(voluntaryExpenseRows.length, voluntaryProductRows.length);
+  const voluntaryBlock = `
     <h3>Contributions volontaires</h3>
     <table class="budget-table">
       <thead><tr><th colspan="3">86 Emploi des contributions volontaires en nature</th><th colspan="3">87 Contributions volontaires en nature</th></tr></thead>
       <tbody>
-        ${voluntaryRows.map((line) => `
+        ${Array.from({ length: voluntaryMaxRows }, (_, index) => {
+          const expense = voluntaryExpenseRows[index] || {};
+          const product = voluntaryProductRows[index] || {};
+          return `
           <tr>
-            <td>${escapeHtml(line.account)}</td>
-            <td>${escapeHtml(line.label)}</td>
-            <td class="num">${escapeHtml(currency(line.amount))}</td>
-            <td>${escapeHtml(line.account)}</td>
-            <td>${escapeHtml(line.label)}</td>
-            <td class="num">${escapeHtml(currency(line.amount))}</td>
+            <td>${escapeHtml(expense.account)}</td>
+            <td>${escapeHtml(expense.label)}</td>
+            <td class="num">${escapeHtml(currency(expense.amount))}</td>
+            <td>${escapeHtml(product.account)}</td>
+            <td>${escapeHtml(product.label)}</td>
+            <td class="num">${escapeHtml(currency(product.amount))}</td>
           </tr>
-        `).join("")}
-        <tr class="total"><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryRows)))}</td><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryRows)))}</td></tr>
+          `;
+        }).join("")}
+        <tr class="total"><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryExpenseRows)))}</td><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryProductRows)))}</td></tr>
       </tbody>
     </table>
-  ` : "";
+  `;
 
   return `
     <section class="budget-sheet">
@@ -467,8 +580,8 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
 }
 
 function compactBalanceTable(title, assets, liabilities) {
-  const assetRows = compactLineRows(assets);
-  const liabilityRows = compactLineRows(liabilities);
+  const assetRows = (assets || []);
+  const liabilityRows = (liabilities || []);
   const maxRows = Math.max(assetRows.length, liabilityRows.length);
   const rows = Array.from({ length: maxRows }, (_, index) => {
     const asset = assetRows[index] || {};
@@ -510,21 +623,7 @@ function annualBudgetDocument(year, section, options = {}) {
   const products = options.products || section.products;
   const expenses = options.expenses || section.expenses;
   const voluntary = options.voluntary || section.voluntary;
-  const result = sumLines(products) - sumLines(expenses);
-  return `
-    <section class="note">
-      <strong>Lecture ${escapeHtml(year)} :</strong>
-      ${escapeHtml(options.note || section.note || "")}
-    </section>
-    <section class="grid">
-      <p><span>Total recettes</span><strong>${escapeHtml(currency(sumLines(products)))}</strong></p>
-      <p><span>Total dépenses</span><strong>${escapeHtml(currency(sumLines(expenses)))}</strong></p>
-      <p><span>Résultat</span><strong>${escapeHtml(currency(result))}</strong></p>
-      <p><span>Situation</span><strong>${result >= 0 ? "Excédentaire" : "Déficitaire"}</strong></p>
-    </section>
-    ${budgetStatementTable(`Bilan comptable ${year}`, products, expenses, voluntary)}
-    ${section.assets || section.liabilities ? compactBalanceTable(`Bilan simplifié ${year}`, section.assets || [], section.liabilities || []) : ""}
-  `;
+  return budgetStatementTable(`Bilan comptable ${year}`, products, expenses, voluntary);
 }
 
 function financialNarrative2025(accounting) {
@@ -557,13 +656,15 @@ function landingNarrative2026(accounting, dashboardSnapshot) {
   `;
 }
 
-function openAccountingPrint(accounting, kind, dashboardSnapshot) {
+function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) {
   const actualProducts = sumLines(accounting.actual.products);
   const actualExpenses = sumLines(accounting.actual.expenses);
   const forecastProducts = sumLines(accounting.forecast.products);
   const forecastExpenses = sumLines(accounting.forecast.expenses);
   const actualResult = actualProducts - actualExpenses;
   const forecastResult = forecastProducts - forecastExpenses;
+  const budgetYear = options.year || "2026";
+  const budgetSection = accountingSectionForYear(accounting, budgetYear);
   const titles = {
     annual: "Comptes annuels",
     financial: "Bilan financier",
@@ -577,6 +678,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
     financingRequest: "Demande de financement",
     financial2024: "Bilan comptable 2024",
     financial2025: "Bilan comptable 2025",
+    budgetYear: `Bilan comptable ${budgetYear}`,
     landing2026: "Atterrissage comptable 2026",
     loanPack2024To2026: "Bilans 2024, 2025 et prévisionnel 2026",
   };
@@ -650,6 +752,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       <section><h2>Lecture de remboursement / sécurisation</h2><p>${escapeHtml(accounting.financingRequest.repaymentView)}</p></section>
       <section class="note"><strong>Montant demandé :</strong> ${escapeHtml(currency(accounting.financingRequest.requestedAmount))}</section>
     `,
+    budgetYear: annualBudgetDocument(budgetYear, budgetSection),
     financial2024: annualBudgetDocument("2024", accounting.financial2024),
     financial2025: `
       ${financialNarrative2025(accounting)}
@@ -693,8 +796,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
     <html><head><meta charset="utf-8" /><title>${escapeHtml(titles[kind])} ${escapeHtml(accounting.association.name)}</title>
     <style>
       body{font-family:Arial,sans-serif;margin:32px;color:#1f172f}
-      header{border-bottom:3px solid #b8336a;padding-bottom:18px;margin-bottom:22px}
-      h1{margin:0;font-size:28px} h2{font-size:17px;margin:24px 0 8px} h3{font-size:13px;margin:14px 0 5px}
+      h2{font-size:17px;margin:0 0 8px;text-transform:uppercase} h3{font-size:13px;margin:14px 0 5px}
       p{line-height:1.45} small{color:#6b5f78}
       table{width:100%;border-collapse:collapse;margin-bottom:14px} th,td{border:1px solid #ddd5e7;padding:8px;text-align:left;font-size:12px}
       th{background:#f7f2fa;color:#5f506f;text-transform:uppercase;font-size:10px}.num{text-align:right}.total td{font-weight:700;background:#faf8fc}
@@ -704,18 +806,10 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.grid p,.note{border:1px solid #ddd5e7;padding:12px;background:#faf8fc}
       .grid span{display:block;color:#6b5f78;font-size:10px;text-transform:uppercase}.grid strong{display:block;margin-top:4px}
       .page-break{break-before:page;page-break-before:always}
-      footer{margin-top:28px;color:#6b5f78;font-size:11px}
       @media print{body{margin:18mm}.no-print{display:none}}
     </style></head><body>
       <button class="no-print" onclick="window.print()">Exporter en PDF</button>
-      <header>
-        <h1>${escapeHtml(titles[kind])} - ${escapeHtml(accounting.association.name)}</h1>
-        <small>${escapeHtml(accounting.association.email)} · ${escapeHtml(accounting.association.phone)} · ${escapeHtml(accounting.association.website)} · SIRET ${escapeHtml(accounting.association.siret)}</small>
-      </header>
       ${blocks[kind] || blocks.annual}
-      <footer>
-        Données dashboard : ${escapeHtml(dashboardSnapshot.reservations)} réservation(s), ${escapeHtml(currency(dashboardSnapshot.grossAmount))} de CA inscriptions, ${escapeHtml(currency(dashboardSnapshot.ticketCost))} de billets transport, ${escapeHtml(currency(dashboardSnapshot.grossSalary))} de salaires bruts RH.
-      </footer>
       <script>setTimeout(()=>window.print(),250)</script>
     </body></html>`;
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -1003,6 +1097,112 @@ function AccountingLinesEditor({ title, lines, onChange, totalLabel = "Total" })
   );
 }
 
+function BudgetStatementEditor({ year, section, onChange, onExport }) {
+  const products = budgetProductsFor(section);
+  const expenses = budgetExpensesFor(section);
+  const voluntaryExpenses = budgetVoluntaryExpensesFor(section);
+  const voluntaryProducts = budgetVoluntaryProductsFor(section);
+  const productTotal = sumLines(products);
+  const expenseTotal = sumLines(expenses);
+  const result = productTotal - expenseTotal;
+
+  const updateSide = (side, index, value) => {
+    const source = side === "expenses" ? expenses : products;
+    const next = source.map((line, lineIndex) => (
+      lineIndex === index ? { ...line, amount: amount(value) } : line
+    ));
+    onChange({ ...section, [side]: next });
+  };
+
+  const updateVoluntarySide = (side, index, value) => {
+    const source = side === "voluntaryExpenses" ? voluntaryExpenses : voluntaryProducts;
+    const next = source.map((line, lineIndex) => (
+      lineIndex === index ? { ...line, amount: amount(value) } : line
+    ));
+    onChange({ ...section, [side]: next });
+  };
+
+  const maxRows = Math.max(expenses.length, products.length);
+  const maxVoluntaryRows = Math.max(voluntaryExpenses.length, voluntaryProducts.length);
+
+  return (
+    <section className="budget-editor">
+      <div className="budget-editor-head">
+        <div>
+          <h3>Bilan comptable {year}</h3>
+          <p>Formulaire dépenses / recettes. Les totaux et le résultat sont recalculés automatiquement.</p>
+        </div>
+        <button type="button" className="dash-btn" onClick={onExport}>Exporter ce bilan</button>
+      </div>
+      <div className="budget-result-strip">
+        <div><span>Total dépenses</span><strong>{currency(expenseTotal)}</strong></div>
+        <div><span>Total recettes</span><strong>{currency(productTotal)}</strong></div>
+        <div><span>Résultat</span><strong className={result >= 0 ? "finance-paid" : "finance-due"}>{currency(result)}</strong></div>
+      </div>
+      <div className="budget-editor-table-wrap">
+        <table className="budget-editor-table">
+          <thead>
+            <tr><th colSpan="3">Dépenses</th><th colSpan="3">Recettes</th></tr>
+            <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: maxRows }, (_, index) => {
+              const expense = expenses[index] || {};
+              const product = products[index] || {};
+              return (
+                <tr key={`budget-${year}-${index}`}>
+                  <td>{expense.account || ""}</td>
+                  <td>{expense.label || ""}</td>
+                  <td><input type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateSide("expenses", index, event.target.value)} /></td>
+                  <td>{product.account || ""}</td>
+                  <td>{product.label || ""}</td>
+                  <td><input type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateSide("products", index, event.target.value)} /></td>
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td colSpan="2">Total</td>
+              <td>{currency(expenseTotal)}</td>
+              <td colSpan="2">Total</td>
+              <td>{currency(productTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="budget-editor-table-wrap">
+        <table className="budget-editor-table">
+          <thead>
+            <tr><th colSpan="3">86 Emploi des contributions volontaires en nature</th><th colSpan="3">87 Contributions volontaires en nature</th></tr>
+            <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: maxVoluntaryRows }, (_, index) => {
+              const expense = voluntaryExpenses[index] || {};
+              const product = voluntaryProducts[index] || {};
+              return (
+                <tr key={`budget-voluntary-${year}-${index}`}>
+                  <td>{expense.account || ""}</td>
+                  <td>{expense.label || ""}</td>
+                  <td><input type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, event.target.value)} /></td>
+                  <td>{product.account || ""}</td>
+                  <td>{product.label || ""}</td>
+                  <td><input type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, event.target.value)} /></td>
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td colSpan="2">Total</td>
+              <td>{currency(sumLines(voluntaryExpenses))}</td>
+              <td colSpan="2">Total</td>
+              <td>{currency(sumLines(voluntaryProducts))}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function AccountingTextEditor({ accounting, setAccounting }) {
   const setText = (key, value) => {
     setAccounting((previous) => ({
@@ -1164,7 +1364,8 @@ export default function Finances() {
   const [accounting, setAccounting] = useState(() => deepClone(DEFAULT_ACCOUNTING));
   const [accountingStatus, setAccountingStatus] = useState("");
   const [activeFinanceSection, setActiveFinanceSection] = useState("dashboard");
-  const [activeAccountingTab, setActiveAccountingTab] = useState("exports");
+  const [activeAccountingTab, setActiveAccountingTab] = useState("balances");
+  const [selectedBalanceYear, setSelectedBalanceYear] = useState("2026");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1267,6 +1468,8 @@ export default function Finances() {
     ticketCost: ticketTotals.cost,
     grossSalary: staffTotals.gross,
   };
+  const selectedBalanceSection = accountingSectionForYear(accounting, selectedBalanceYear);
+  const selectedBalanceSectionKey = accountingSectionKeyForYear(selectedBalanceYear);
 
   const updateAccountingSection = (section, key, value) => {
     setAccounting((previous) => ({
@@ -1550,92 +1753,53 @@ export default function Finances() {
           ))}
         </nav>
 
-        {activeAccountingTab === "exports" && (
+        {activeAccountingTab === "balances" && (
           <>
-            <div className="accounting-export-grid">
-              {[
-                ["loanPack2024To2026", "Pack prêt 2024-2026", "Bilans 2024, 2025 et prévisionnel 2026 dans le même format."],
-                ["financial2024", "Bilan comptable 2024", "Format dépenses / recettes du modèle joint."],
-                ["financial2025", "Bilan comptable 2025", "Version positive, prêts reclassés en dons."],
-                ["landing2026", "Atterrissage 2026", "Synthèse Qonto + dashboard."],
-                ["funderPack", "Dossier financeur", "Atterrissage, 2027, trésorerie, financeurs."],
-                ["annual", "Comptes annuels", "Recettes, dépenses, bilan actif/passif."],
-                ["financial", "Bilan financier", "Synthèse prête à transmettre."],
-                ["forecast", "Budget prévisionnel 2026", "Postes issus du modèle joint."],
-                ["forecast2027", "Prévisionnel 2027", "Doublement CA et séjours."],
-                ["cashPlan2027", "Trésorerie 12 mois", "Saisonnalité février + été."],
-                ["fundingSplit", "Répartition financeurs", "% par source de financement."],
-                ["financingRequest", "Demande de financement", "Objet, usage, développement."],
-                ["moral", "Bilan moral et financier", "Texte éditable + tableaux."],
-                ["dca", "Dépôt DCA", "Contrôles et chiffres pour publication."],
-              ].map(([kind, title, detail]) => (
-                <button
-                  type="button"
-                  key={kind}
-                  onClick={() => openAccountingPrint(accounting, kind, dashboardSnapshot)}
-                >
-                  <strong>{title}</strong>
-                  <span>{detail}</span>
-                </button>
-              ))}
-            </div>
-            <div className="accounting-tool-row">
+            <section className="accounting-document-toolbar">
+              <label>
+                <span>Année du bilan</span>
+                <select value={selectedBalanceYear} onChange={(event) => setSelectedBalanceYear(event.target.value)}>
+                  {BALANCE_YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </label>
               <button type="button" className="dash-btn dash-btn-secondary" onClick={reclassLoansAsDonations}>
                 Reclasser prêts en dons
               </button>
               <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
                 Recalculer 2027 depuis 2026
               </button>
-              <label className="accounting-file-btn">
-                <input type="file" accept=".csv,text/csv" onChange={importQontoFile} />
-                <span>Importer un export Qonto CSV</span>
-              </label>
-              <p>Les statuts, la composition du bureau, la présentation libre et les relevés Qonto PDF restent à joindre séparément.</p>
-            </div>
-          </>
-        )}
-
-        {activeAccountingTab === "year2024" && (
-          <>
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}>
+                Exporter en PDF
+              </button>
+            </section>
             <section className="accounting-request-box">
-              <h3>Note de lecture 2024</h3>
+              <h3>Commentaire interne {selectedBalanceYear}</h3>
               <textarea
                 className="accounting-wide-textarea"
-                value={accounting.financial2024.note || ""}
-                onChange={(event) => updateAccountingSection("financial2024", "note", event.target.value)}
+                value={selectedBalanceSection.note || ""}
+                onChange={(event) => updateAccountingSection(selectedBalanceSectionKey, "note", event.target.value)}
               />
             </section>
-            <div className="accounting-editor-grid">
-              <AccountingLinesEditor title="Recettes 2024" lines={accounting.financial2024.products} onChange={(lines) => updateAccountingSection("financial2024", "products", lines)} />
-              <AccountingLinesEditor title="Dépenses 2024" lines={accounting.financial2024.expenses} onChange={(lines) => updateAccountingSection("financial2024", "expenses", lines)} />
-              <AccountingLinesEditor title="Contributions volontaires 2024" lines={accounting.financial2024.voluntary} onChange={(lines) => updateAccountingSection("financial2024", "voluntary", lines)} />
-              <AccountingLinesEditor title="Actif 2024" lines={accounting.financial2024.assets} onChange={(lines) => updateAccountingSection("financial2024", "assets", lines)} />
-              <AccountingLinesEditor title="Passif 2024" lines={accounting.financial2024.liabilities} onChange={(lines) => updateAccountingSection("financial2024", "liabilities", lines)} />
-            </div>
-          </>
-        )}
-
-        {activeAccountingTab === "year2025" && (
-          <>
-            <section className="accounting-request-box">
-              <h3>Note de lecture 2025</h3>
-              <textarea
-                className="accounting-wide-textarea"
-                value={accounting.financial2025.note || ""}
-                onChange={(event) => updateAccountingSection("financial2025", "note", event.target.value)}
-              />
-            </section>
-            <div className="accounting-editor-grid">
-              <AccountingLinesEditor title="Produits 2025" lines={accounting.financial2025.products} onChange={(lines) => updateAccountingSection("financial2025", "products", lines)} />
-              <AccountingLinesEditor title="Charges 2025" lines={accounting.financial2025.expenses} onChange={(lines) => updateAccountingSection("financial2025", "expenses", lines)} />
-              <AccountingLinesEditor title="Actif 2025" lines={accounting.financial2025.assets} onChange={(lines) => updateAccountingSection("financial2025", "assets", lines)} />
-              <AccountingLinesEditor title="Passif 2025" lines={accounting.financial2025.liabilities} onChange={(lines) => updateAccountingSection("financial2025", "liabilities", lines)} />
-            </div>
+            <BudgetStatementEditor
+              year={selectedBalanceYear}
+              section={selectedBalanceSection}
+              onChange={(section) => setAccounting((previous) => ({ ...previous, [selectedBalanceSectionKey]: section }))}
+              onExport={() => openAccountingPrint(accounting, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}
+            />
           </>
         )}
 
         {activeAccountingTab === "landing2026" && (
           <>
+            <section className="accounting-document-toolbar">
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "landing2026", dashboardSnapshot)}>
+                Exporter l'atterrissage
+              </button>
+              <label className="accounting-file-btn">
+                <input type="file" accept=".csv,text/csv" onChange={importQontoFile} />
+                <span>Importer un export Qonto CSV</span>
+              </label>
+            </section>
             <section className="accounting-request-box">
               <h3>Note d’atterrissage 2026</h3>
               <textarea
@@ -1656,6 +1820,17 @@ export default function Finances() {
 
         {activeAccountingTab === "forecast2027" && (
           <>
+            <section className="accounting-document-toolbar">
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
+                Recalculer depuis 2026
+              </button>
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "forecast2027", dashboardSnapshot)}>
+                Exporter le prévisionnel
+              </button>
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={() => openAccountingPrint(accounting, "cashPlan2027", dashboardSnapshot)}>
+                Exporter la trésorerie
+              </button>
+            </section>
             <div className="accounting-editor-grid">
               <AccountingLinesEditor title="Produits prévisionnels 2027" lines={accounting.forecast2027.products} onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)} />
               <AccountingLinesEditor title="Charges prévisionnelles 2027" lines={accounting.forecast2027.expenses} onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)} />
@@ -1672,7 +1847,12 @@ export default function Finances() {
 
         {activeAccountingTab === "request" && (
           <section className="accounting-request-box">
-            <h3>Demande de financement</h3>
+            <div className="accounting-document-title-row">
+              <h3>Demande de financement</h3>
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "financingRequest", dashboardSnapshot)}>
+                Exporter la demande
+              </button>
+            </div>
             <div className="accounting-form-grid">
               <label>
                 <span>Montant demandé</span>
