@@ -1373,8 +1373,8 @@
 }
 
 .budget-editor-table th {
-  background: #f8fafc;
-  color: #647084;
+  background: #e5e7eb;
+  color: #172033;
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
@@ -1383,13 +1383,13 @@
 .budget-editor-table th:nth-child(1),
 .budget-editor-table th:nth-child(2),
 .budget-editor-table th:nth-child(3) {
-  background: #f3f5f8;
+  background: #e5e7eb;
 }
 
 .budget-editor-table th:nth-child(4),
 .budget-editor-table th:nth-child(5),
 .budget-editor-table th:nth-child(6) {
-  background: #f7f1f5;
+  background: #e5e7eb;
 }
 
 .budget-editor-table td:nth-child(1),

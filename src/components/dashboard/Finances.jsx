@@ -90,6 +90,33 @@ const VOLUNTARY_PRODUCT_LINES = [
   { account: "87", label: "Dons en nature" },
 ];
 
+const BUDGET_ACCOUNT_LABELS = {
+  expenses: {
+    60: "60 - Achats",
+    61: "61 - Services extérieurs",
+    62: "62 - Autres services extérieurs",
+    63: "63 - Impôts et taxes",
+    64: "64 - Charges de personnel",
+    65: "65 - Autres charges de gestion courante",
+    66: "66 - Charges financières",
+    67: "67 - Charges exceptionnelles",
+    68: "68 - Dotations aux amortissements, provisions",
+    69: "69 - Impôt sur les bénéfices / participation salariés",
+  },
+  products: {
+    70: "70 - Vente de produits finis, marchandises, prestations de services",
+    73: "73 - Concours publics",
+    74: "74 - Subventions d'exploitation",
+    75: "75 - Autres produits de gestion courante",
+    756: "756 - Cotisations",
+    758: "758 - Dons manuels / mécénat",
+    76: "76 - Produits financiers",
+    77: "77 - Produits exceptionnels",
+    78: "78 - Reprises sur amortissements et provisions",
+    79: "79 - Transferts de charges",
+  },
+};
+
 const FINANCE_SECTIONS = [
   { key: "dashboard", label: "Dashboard", detail: "CA, encaissements, restes à payer" },
   { key: "stays", label: "Séjours & transports", detail: "Synthèses par séjour, semaine et billets" },
@@ -332,6 +359,10 @@ function sumLines(lines) {
   return (Array.isArray(lines) ? lines : []).reduce((total, line) => total + amount(line.amount), 0);
 }
 
+function budgetCurrency(value) {
+  return amount(value) === 0 ? "-" : currency(value).replace(",00", "");
+}
+
 function resultFrom(section) {
   return sumLines(section?.products) - sumLines(section?.expenses);
 }
@@ -556,34 +587,62 @@ function budgetVoluntaryProductsFor(section) {
   return completeBudgetLines(section?.voluntaryProducts || section?.voluntary, VOLUNTARY_PRODUCT_LINES);
 }
 
+function budgetAccountKey(line) {
+  const raw = String(line?.account || "").trim();
+  if (raw === "756" || raw === "758") return raw;
+  return raw.slice(0, 2) || "";
+}
+
+function groupedBudgetRows(lines, templates, side) {
+  const completed = completeBudgetLines(lines, templates);
+  const rows = [];
+  let currentKey = "";
+  for (const line of completed) {
+    const key = budgetAccountKey(line);
+    if (key && key !== currentKey) {
+      currentKey = key;
+      rows.push({
+        isHeading: true,
+        account: key,
+        label: BUDGET_ACCOUNT_LABELS[side]?.[key] || `${key} - ${line.label || "Poste comptable"}`,
+        amount: 0,
+      });
+    }
+    rows.push(line);
+  }
+  return rows;
+}
+
 function budgetStatementTable(title, products, expenses, voluntary = []) {
-  const expenseRows = completeBudgetLines(expenses, BUDGET_EXPENSE_LINES);
-  const productRows = completeBudgetLines(products, BUDGET_PRODUCT_LINES);
+  const expenseRows = groupedBudgetRows(expenses, BUDGET_EXPENSE_LINES, "expenses");
+  const productRows = groupedBudgetRows(products, BUDGET_PRODUCT_LINES, "products");
   const maxRows = Math.max(expenseRows.length, productRows.length);
   const rows = Array.from({ length: maxRows }, (_, index) => {
     const expense = expenseRows[index] || {};
     const product = productRows[index] || {};
+    const expenseClass = expense.isHeading ? "account-heading" : "";
+    const productClass = product.isHeading ? "account-heading" : "";
     return `
       <tr>
-        <td>${escapeHtml(expense.account)}</td>
-        <td>${escapeHtml(expense.label)}</td>
-        <td class="num">${expenseRows[index] ? escapeHtml(currency(expense.amount)) : ""}</td>
-        <td>${escapeHtml(product.account)}</td>
-        <td>${escapeHtml(product.label)}</td>
-        <td class="num">${productRows[index] ? escapeHtml(currency(product.amount)) : ""}</td>
+        <td class="${expenseClass}">${escapeHtml(expense.isHeading ? "" : expense.account)}</td>
+        <td class="${expenseClass}">${escapeHtml(expense.label)}</td>
+        <td class="num ${expenseClass}">${expenseRows[index] && !expense.isHeading ? escapeHtml(budgetCurrency(expense.amount)) : ""}</td>
+        <td class="${productClass}">${escapeHtml(product.isHeading ? "" : product.account)}</td>
+        <td class="${productClass}">${escapeHtml(product.label)}</td>
+        <td class="num ${productClass}">${productRows[index] && !product.isHeading ? escapeHtml(budgetCurrency(product.amount)) : ""}</td>
       </tr>
     `;
   }).join("");
-  const productsTotal = sumLines(productRows);
-  const expensesTotal = sumLines(expenseRows);
+  const productsTotal = sumLines(productRows.filter((line) => !line.isHeading));
+  const expensesTotal = sumLines(expenseRows.filter((line) => !line.isHeading));
   const result = productsTotal - expensesTotal;
   const voluntaryExpenseRows = completeBudgetLines(voluntary?.expenses || voluntary, VOLUNTARY_EXPENSE_LINES);
   const voluntaryProductRows = completeBudgetLines(voluntary?.products || voluntary, VOLUNTARY_PRODUCT_LINES);
   const voluntaryMaxRows = Math.max(voluntaryExpenseRows.length, voluntaryProductRows.length);
   const voluntaryBlock = `
-    <h3>Contributions volontaires</h3>
+    <h3 class="cvn-title">CONTRIBUTIONS VOLONTAIRES EN NATURE (CVN)</h3>
     <table class="budget-table">
-      <thead><tr><th colspan="3">86 Emploi des contributions volontaires en nature</th><th colspan="3">87 Contributions volontaires en nature</th></tr></thead>
+      <thead><tr class="budget-sub-head"><th colspan="3">86 - Emplois des contributions volontaires en nature</th><th colspan="3">87 - Contributions volontaires en nature</th></tr></thead>
       <tbody>
         ${Array.from({ length: voluntaryMaxRows }, (_, index) => {
           const expense = voluntaryExpenseRows[index] || {};
@@ -592,37 +651,42 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
           <tr>
             <td>${escapeHtml(expense.account)}</td>
             <td>${escapeHtml(expense.label)}</td>
-            <td class="num">${escapeHtml(currency(expense.amount))}</td>
+            <td class="num">${escapeHtml(budgetCurrency(expense.amount))}</td>
             <td>${escapeHtml(product.account)}</td>
             <td>${escapeHtml(product.label)}</td>
-            <td class="num">${escapeHtml(currency(product.amount))}</td>
+            <td class="num">${escapeHtml(budgetCurrency(product.amount))}</td>
           </tr>
           `;
         }).join("")}
-        <tr class="total"><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryExpenseRows)))}</td><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryProductRows)))}</td></tr>
+        <tr class="total"><td colspan="2">TOTAL DONT CVN</td><td class="num">${escapeHtml(budgetCurrency(sumLines(voluntaryExpenseRows)))}</td><td colspan="2">TOTAL DONT CVN</td><td class="num">${escapeHtml(budgetCurrency(sumLines(voluntaryProductRows)))}</td></tr>
       </tbody>
     </table>
   `;
 
   return `
-    <section class="budget-sheet">
-      <h2>${escapeHtml(title)}</h2>
+    <section class="budget-sheet budget-model-sheet">
+      <h1>Budget de l'association - ${escapeHtml(title)}</h1>
       <table class="budget-table">
         <thead>
-          <tr><th colspan="3">Dépenses</th><th colspan="3">Recettes</th></tr>
+          <tr class="budget-main-head"><th colspan="3">CHARGES</th><th colspan="3">PRODUITS</th></tr>
+          <tr class="budget-sub-head"><th colspan="3">CHARGES DIRECTES</th><th colspan="3">RESSOURCES DIRECTES</th></tr>
           <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
         </thead>
         <tbody>
           ${rows}
           <tr class="total">
-            <td colspan="2">Total dépenses</td>
-            <td class="num">${escapeHtml(currency(expensesTotal))}</td>
-            <td colspan="2">Total recettes</td>
-            <td class="num">${escapeHtml(currency(productsTotal))}</td>
+            <td colspan="2">TOTAL DES CHARGES HORS CVN</td>
+            <td class="num">${escapeHtml(budgetCurrency(expensesTotal))}</td>
+            <td colspan="2">TOTAL DES PRODUITS HORS CVN</td>
+            <td class="num">${escapeHtml(budgetCurrency(productsTotal))}</td>
           </tr>
-          <tr class="result">
-            <td colspan="5">Résultat ${result >= 0 ? "excédentaire" : "déficitaire"}</td>
-            <td class="num">${escapeHtml(currency(result))}</td>
+          <tr class="result ${result >= 0 ? "is-positive" : "is-empty"}">
+            <td colspan="5">Excédent prévisionnel / résultat positif</td>
+            <td class="num">${escapeHtml(result >= 0 ? budgetCurrency(result) : "-")}</td>
+          </tr>
+          <tr class="result ${result < 0 ? "is-negative" : "is-empty"}">
+            <td colspan="5">Insuffisance prévisionnelle / déficit</td>
+            <td class="num">${escapeHtml(result < 0 ? budgetCurrency(Math.abs(result)) : "-")}</td>
           </tr>
         </tbody>
       </table>
@@ -850,14 +914,14 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
   const html = `<!doctype html>
     <html><head><meta charset="utf-8" /><title>${escapeHtml(titles[kind])} ${escapeHtml(accounting.association.name)}</title>
     <style>
-      body{font-family:Arial,sans-serif;margin:32px;color:#1f172f}
+      body{font-family:Arial,sans-serif;margin:28px;color:#111827;background:#fff}
+      h1{font-size:14px;margin:0 0 10px;text-align:center;font-weight:700}
       h2{font-size:17px;margin:0 0 8px;text-transform:uppercase} h3{font-size:13px;margin:14px 0 5px}
       p{line-height:1.45} small{color:#6b5f78}
-      table{width:100%;border-collapse:collapse;margin-bottom:14px} th,td{border:1px solid #ddd5e7;padding:8px;text-align:left;font-size:12px}
-      th{background:#f7f2fa;color:#5f506f;text-transform:uppercase;font-size:10px}.num{text-align:right}.total td{font-weight:700;background:#faf8fc}
-      .budget-table th:nth-child(1),.budget-table th:nth-child(2),.budget-table th:nth-child(3){background:#f3f5f8;color:#3d4656}
-      .budget-table th:nth-child(4),.budget-table th:nth-child(5),.budget-table th:nth-child(6){background:#f6f0f4;color:#6f2846}
-      .budget-table .result td{font-weight:800;background:#fff7ed}
+      table{width:100%;border-collapse:collapse;margin-bottom:14px} th,td{border:1px solid #cfd4dc;padding:6px 7px;text-align:left;font-size:10.5px;vertical-align:top}
+      th{background:#e5e7eb;color:#111827;text-transform:uppercase;font-size:9px;font-weight:800}.num{text-align:right;white-space:nowrap}.total td{font-weight:800;background:#e5e7eb}
+      .budget-model-sheet{max-width:1000px;margin:0 auto}.budget-table{table-layout:fixed}.budget-table th:nth-child(1),.budget-table td:nth-child(1),.budget-table th:nth-child(4),.budget-table td:nth-child(4){width:48px}.budget-table th:nth-child(3),.budget-table td:nth-child(3),.budget-table th:nth-child(6),.budget-table td:nth-child(6){width:82px}
+      .budget-table .budget-main-head th{background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}.budget-table .budget-sub-head th{background:#eceff3;text-align:center;font-size:9px}.budget-table .account-heading{background:#f3f4f6;font-weight:800;color:#111827}.budget-table .result td{font-weight:800;background:#f8fafc}.budget-table .result.is-positive td{background:#ecfdf5}.budget-table .result.is-negative td{background:#fef2f2}.budget-table .result.is-empty td{color:#6b7280}.cvn-title{margin:12px 0 0;padding:7px;border:1px solid #cfd4dc;border-bottom:0;background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.grid p,.note{border:1px solid #ddd5e7;padding:12px;background:#faf8fc}
       .grid span{display:block;color:#6b5f78;font-size:10px;text-transform:uppercase}.grid strong{display:block;margin-top:4px}
       .pie-wrap{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;margin:10px 0 18px}.pie-chart{width:170px;height:170px;border-radius:50%;border:1px solid #ddd5e7}.pie-legend{display:grid;gap:7px}.pie-legend p{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;margin:0;font-size:11px}.pie-legend span{width:12px;height:12px;border-radius:3px}.pie-legend em{color:#6b5f78;font-style:normal}
