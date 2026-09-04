@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useToast } from "@/src/contexts/ToastContext";
 
 // Expediteurs verifies @colocrew.com.
@@ -20,6 +20,85 @@ const TABS = [
 ];
 
 const TEMPLATES = [
+  {
+    key: "bafa-toussaint-2026",
+    label: "BAFA Toussaint 2026",
+    subject: "Bonne rentrée — dernières places BAFA à la Toussaint",
+    html: `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<style>
+body{margin:0;padding:0;background:#f4f1ec;color:#1f2937;font-family:Arial,sans-serif}
+.wrap{max-width:680px;margin:0 auto;background:#fff}
+.hero{background:#111827;color:#fff;padding:34px 34px 30px}
+.hero .kicker{margin:0 0 10px;color:#f59e0b;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.hero h1{margin:0;font-size:30px;line-height:1.15;font-weight:800}
+.hero p{margin:12px 0 0;color:#d1d5db;font-size:15px;line-height:1.55}
+.body{padding:30px 34px}
+p{font-size:15px;line-height:1.7;margin:0 0 15px}
+.intro{font-size:16px;color:#111827}
+.formations{margin:22px 0;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+.formation{padding:18px 18px 16px;border-bottom:1px solid #e5e7eb}
+.formation:last-child{border-bottom:0}
+.formation h2{margin:0 0 6px;font-size:18px;color:#111827}
+.formation p{margin:0 0 12px;color:#4b5563;font-size:14px}
+.cta{display:inline-block;background:#f59e0b;color:#111827!important;text-decoration:none;font-weight:800;border-radius:8px;padding:11px 14px}
+.note{background:#fffbeb;border:1px solid #fde68a;border-left:5px solid #f59e0b;border-radius:10px;padding:15px 17px;margin:20px 0;color:#78350f}
+.note p{margin:0;font-size:14px}
+.contact{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:18px 0}
+.contact p{margin:0;font-size:14px}
+.foot{background:#111827;color:#cbd5e1;padding:20px 34px;font-size:12px}
+.foot p{font-size:12px;line-height:1.5;margin:0}
+a{color:#2563eb}
+</style></head>
+<body><div class="wrap">
+  <div class="hero">
+    <p class="kicker">BAFA · Toussaint 2026</p>
+    <h1>Quelques places restantes pour se former cet automne</h1>
+    <p>Formation générale et approfondissement BAFA pendant les vacances de la Toussaint.</p>
+  </div>
+
+  <div class="body">
+    <p class="intro">Bonjour {{params.PRENOM}},</p>
+
+    <p>Je me permets de vous envoyer ce mail pour vous souhaiter une très bonne rentrée 2026/2027.</p>
+
+    <p>Il nous reste également quelques places pour nos prochaines formations BAFA qui auront lieu à la Toussaint. Quoi de mieux que l'automne pour passer son BAFA&nbsp;?</p>
+
+    <div class="formations">
+      <div class="formation">
+        <h2>Formation Générale BAFA</h2>
+        <p><strong>Du 17 au 25 octobre 2026</strong></p>
+        <a class="cta" href="https://murathenes.s2.yapla.com/fr/event-102459">S'inscrire à la formation générale</a>
+      </div>
+      <div class="formation">
+        <h2>Approfondissement</h2>
+        <p><strong>Du 19 au 25 octobre 2026</strong><br>Séjours à l'étranger - Échanges de jeunes</p>
+        <a class="cta" href="https://murathenes.s2.yapla.com/fr/event-102464">S'inscrire à l'approfondissement</a>
+      </div>
+    </div>
+
+    <p>Vous pouvez vous inscrire directement via les liens ci-dessus.</p>
+
+    <p>Si vous souhaitez payer en plusieurs fois, sélectionnez <strong>virement</strong> au moment de l'inscription et je pourrai vous envoyer un échéancier personnalisé.</p>
+
+    <div class="note">
+      <p><strong>PS :</strong> si vous avez participé à une colo avec ColoCrew, vous bénéficiez de <strong>50&nbsp;€ de réduction</strong> sur votre formation BAFA.</p>
+    </div>
+
+    <div class="contact">
+      <p>Pour plus de renseignements sur le BAFA, les aides ou le déroulé des formations, vous pouvez consulter <a href="https://bafa.murathenes.org/">notre site BAFA</a>, répondre à ce mail ou m'appeler au <strong>06 87 91 68 97</strong>.</p>
+    </div>
+
+    <p>En vous souhaitant une bonne journée,</p>
+
+    <p>William<br>Association ColoCrew</p>
+  </div>
+
+  <div class="foot">
+    <p>Vous recevez ce message car vous avez été en contact avec ColoCrew ou nos actions jeunesse. Répondez avec "STOP" si vous ne souhaitez plus recevoir nos informations.</p>
+  </div>
+</div></body></html>`,
+  },
   {
     key: "derniere-offre-aout-2026",
     label: "Derniere offre aout 2026",
@@ -577,6 +656,7 @@ function TabCampagne({ lists }) {
   const { showToast } = useToast();
 
   // Formulaire
+  const [activeTemplateKey, setActiveTemplateKey] = useState(TEMPLATES[0].key);
   const [subject,     setSubject]     = useState(TEMPLATES[0].subject);
   const [html,        setHtml]        = useState(TEMPLATES[0].html);
   const [replyTo,     setReplyTo]     = useState("equipe@colocrew.com");
@@ -605,6 +685,11 @@ function TabCampagne({ lists }) {
   const [savedRun,     setSavedRun]     = useState(null);
   const [savedEvents,  setSavedEvents]  = useState([]);
   const [controllingRun, setControllingRun] = useState(false);
+
+  const selectedList = useMemo(
+    () => lists.find((list) => list.id === listId) || null,
+    [lists, listId],
+  );
 
   const loadRun = useCallback(async (runId) => {
     if (!runId) return;
@@ -652,7 +737,29 @@ function TabCampagne({ lists }) {
 
   function pickTemplate(key) {
     const t = TEMPLATES.find(t => t.key === key);
-    if (t) { setSubject(t.subject); setHtml(t.html); }
+    if (t) {
+      setActiveTemplateKey(t.key);
+      setSubject(t.subject);
+      setHtml(t.html);
+      setPreview(true);
+    }
+  }
+
+  function prepareBafaToussaint2026() {
+    const list = lists.find(l => l.name === "BAFA Toussaint 2026 - reservations + Cantal AURA")
+      || lists.find(l => /bafa/i.test(l.name || ""));
+    pickTemplate("bafa-toussaint-2026");
+    setSourceMode("list");
+    if (list) setListId(list.id);
+    setReplyTo("equipe@colocrew.com");
+    setSelectedSenders(SENDERS.map((_, i) => i));
+    setDelayMs(3000);
+    showToast(
+      list
+        ? `Campagne BAFA prête avec la liste "${list.name}" (${list.count || 0} contacts)`
+        : "Campagne BAFA prête. Sélectionne la liste BAFA avant l'envoi.",
+      list ? "success" : "info",
+    );
   }
 
   function prepareJuillet2026() {
@@ -821,21 +928,78 @@ function TabCampagne({ lists }) {
   const savedPct = savedRun?.total ? Math.round(((savedRun.sent || 0) / savedRun.total) * 100) : 0;
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div style={{ maxWidth: 1040 }}>
 
       {/* Templates */}
-      <H2>Template</H2>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 14 }}>
+        <div>
+          <H2 mt={0}>Préparer la campagne</H2>
+          <p style={{ margin: "-6px 0 0", fontSize: 13, color: "#64748b" }}>
+            Choisis un modèle, une liste, teste le rendu, puis lance l'envoi. Le modèle actif reste visible.
+          </p>
+        </div>
+        <button type="button" onClick={prepareBafaToussaint2026}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #111827", background: "#111827", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 800 }}>
+          Préparer BAFA Toussaint
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 24 }}>
         {TEMPLATES.map(t => (
           <button key={t.key} type="button" onClick={() => pickTemplate(t.key)}
-            style={{ padding: "7px 14px", borderRadius: 6, border: "1.5px solid #e2e8f0", background: "#f8fafc", fontSize: 13, cursor: "pointer", fontWeight: 500, color: "#475569" }}>
-            {t.label}
+            style={{
+              textAlign: "left",
+              padding: "12px 13px",
+              borderRadius: 8,
+              border: `1.5px solid ${activeTemplateKey === t.key ? "#111827" : "#e2e8f0"}`,
+              background: activeTemplateKey === t.key ? "#f9fafb" : "#fff",
+              fontSize: 13,
+              cursor: "pointer",
+              color: "#1e293b",
+              boxShadow: activeTemplateKey === t.key ? "0 8px 20px rgba(15,23,42,0.08)" : "none",
+            }}>
+            <span style={{ display: "block", fontWeight: 800, marginBottom: 5 }}>{t.label}</span>
+            <span style={{ display: "block", color: "#64748b", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {t.subject || "Objet personnalisé"}
+            </span>
+            {activeTemplateKey === t.key && (
+              <span style={{ display: "inline-flex", marginTop: 8, padding: "3px 8px", borderRadius: 999, background: "#111827", color: "#fff", fontSize: 11, fontWeight: 800 }}>
+                Sélectionné
+              </span>
+            )}
           </button>
         ))}
         <button type="button" onClick={prepareJuillet2026}
-          style={{ padding: "7px 14px", borderRadius: 6, border: "1.5px solid #7c3aed", background: "#f5f3ff", fontSize: 13, cursor: "pointer", fontWeight: 700, color: "#6d28d9" }}>
+          style={{ textAlign: "left", padding: "12px 13px", borderRadius: 8, border: "1.5px solid #7c3aed", background: "#f5f3ff", fontSize: 13, cursor: "pointer", fontWeight: 800, color: "#6d28d9" }}>
           Preparer l'envoi juillet 2026
         </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 22 }}>
+        <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Modèle</div>
+          <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>
+            {TEMPLATES.find((t) => t.key === activeTemplateKey)?.label || "Personnalisé"}
+          </div>
+        </div>
+        <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Liste</div>
+          <div style={{ fontSize: 14, color: selectedList ? "#111827" : "#dc2626", fontWeight: 800, marginTop: 4 }}>
+            {selectedList ? selectedList.name : "Aucune"}
+          </div>
+        </div>
+        <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Contacts</div>
+          <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>
+            {sourceMode === "list" ? (selectedList?.count || 0) : (csvContacts?.length || 0)}
+          </div>
+        </div>
+        <div style={{ ...S.card, padding: 12 }}>
+          <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Expéditeurs</div>
+          <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>
+            {selectedSenders.length}
+          </div>
+        </div>
       </div>
 
       {/* Objet + Reply-to */}
@@ -902,10 +1066,43 @@ function TabCampagne({ lists }) {
           ))}
         </div>
         {sourceMode === "list" ? (
-          <select style={{ ...S.input, width: "100%", maxWidth: 400 }} value={listId} onChange={e => setListId(e.target.value)}>
-            <option value="">Choisir une liste…</option>
-            {lists.map(l => <option key={l.id} value={l.id}>{l.name} ({l.count} contacts)</option>)}
-          </select>
+          <>
+            <select style={{ ...S.input, width: "100%", maxWidth: 520 }} value={listId} onChange={e => setListId(e.target.value)}>
+              <option value="">Choisir une liste…</option>
+              {lists.map(l => <option key={l.id} value={l.id}>{l.name} ({l.count} contacts)</option>)}
+            </select>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8, marginTop: 12 }}>
+              {lists
+                .filter((l) => /bafa|fiable|tous les mails uniques|colocrew news|focus/i.test(l.name || ""))
+                .slice(0, 8)
+                .map((l) => {
+                  const active = l.id === listId;
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => setListId(l.id)}
+                      style={{
+                        textAlign: "left",
+                        padding: "10px 11px",
+                        borderRadius: 8,
+                        border: `1.5px solid ${active ? "#111827" : "#e2e8f0"}`,
+                        background: active ? "#f9fafb" : "#fff",
+                        cursor: "pointer",
+                        color: "#1e293b",
+                      }}
+                    >
+                      <span style={{ display: "block", fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {l.name}
+                      </span>
+                      <span style={{ display: "block", marginTop: 3, fontSize: 11, color: active ? "#111827" : "#64748b", fontWeight: active ? 800 : 600 }}>
+                        {l.count || 0} contacts{active ? " · sélectionnée" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </>
         ) : (
           <>
             <p style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>Format : <code>email,prenom,nom</code></p>
@@ -1570,13 +1767,26 @@ function TabHistoriqueFirebase() {
               const active = selectedRun?.id === run.id;
               return (
                 <button key={run.id} type="button" onClick={() => loadRun(run.id)}
-                  style={{ textAlign: "left", background: active ? "#f5f3ff" : "#fff", border: `1.5px solid ${active ? "#7c3aed" : "#e2e8f0"}`, borderRadius: 8, padding: 12, cursor: "pointer" }}>
+                  style={{
+                    textAlign: "left",
+                    background: active ? "#111827" : "#fff",
+                    border: `1.5px solid ${active ? "#111827" : "#e2e8f0"}`,
+                    borderRadius: 8,
+                    padding: 12,
+                    cursor: "pointer",
+                    boxShadow: active ? "0 10px 24px rgba(15,23,42,0.16)" : "none",
+                  }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-                    <strong style={{ fontSize: 13, color: "#1e293b" }}>{run.status}</strong>
-                    <span style={{ fontSize: 12, color: "#64748b" }}>{runPct}%</span>
+                    <strong style={{ fontSize: 13, color: active ? "#fff" : "#1e293b" }}>
+                      {active ? "Sélectionnée · " : ""}{run.status}
+                    </strong>
+                    <span style={{ fontSize: 12, color: active ? "#fbbf24" : "#64748b", fontWeight: 800 }}>{runPct}%</span>
                   </div>
-                  <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.4, marginBottom: 6 }}>{run.subject}</div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{formatDate(run.createdAt)}</div>
+                  <div style={{ fontSize: 12, color: active ? "#e5e7eb" : "#475569", lineHeight: 1.4, marginBottom: 6 }}>{run.subject}</div>
+                  <div style={{ height: 5, borderRadius: 999, overflow: "hidden", background: active ? "rgba(255,255,255,0.18)" : "#e2e8f0", marginBottom: 7 }}>
+                    <div style={{ width: `${runPct}%`, height: "100%", background: run.status === "done" ? "#10b981" : "#f59e0b" }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: active ? "#cbd5e1" : "#94a3b8" }}>{formatDate(run.createdAt)}</div>
                 </button>
               );
             })}
@@ -1688,7 +1898,7 @@ function TabHistoriqueLegacy() {
 
 export default function Campagnes() {
   const { showToast } = useToast();
-  const [tab,   setTab]   = useState("contacts");
+  const [tab,   setTab]   = useState("campagne");
   const [lists, setLists] = useState([]);
   const [loadingLists, setLoadingLists] = useState(true);
 
