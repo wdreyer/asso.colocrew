@@ -22,6 +22,7 @@ const WEEK_LABELS = {
 
 const ACCOUNTING_TABS = [
   { key: "exports", label: "Exports" },
+  { key: "year2024", label: "Bilan 2024" },
   { key: "year2025", label: "Bilan 2025" },
   { key: "landing2026", label: "Atterrissage 2026" },
   { key: "forecast2027", label: "Prévisionnel 2027" },
@@ -73,6 +74,24 @@ const DEFAULT_ACCOUNTING = {
       { label: "Séjours", account: "60-64", amount: 131595.68 },
     ],
   },
+  financial2024: {
+    products: [
+      { label: "Participation des adhérents, cotisations, dons manuels ou legs", account: "75", amount: 370 },
+      { label: "Dons", account: "74", amount: 100 },
+    ],
+    expenses: [
+      { label: "Assurance", account: "61", amount: 29.7 },
+      { label: "Frais postaux, téléphone et services bancaires", account: "62", amount: 53.13 },
+    ],
+    voluntary: [],
+    assets: [
+      { label: "Trésorerie reportée sur l'exercice suivant", account: "5", amount: 387.17 },
+    ],
+    liabilities: [
+      { label: "Résultat associatif 2024", account: "12", amount: 387.17 },
+    ],
+    note: "L'exercice 2024 correspond à une première année légère de structuration administrative. Les charges restent limitées et les ressources proviennent principalement des cotisations et dons, avec un excédent reportable de 387,17 €.",
+  },
   financial2025: {
     products: [
       { label: "Vente de séjours", account: "70", amount: 108857.3 },
@@ -119,8 +138,9 @@ const DEFAULT_ACCOUNTING = {
       { label: "Nourriture et boissons", account: "60", amount: 13091.32 },
       { label: "Dépenses opérationnelles et séjours", account: "60-62", amount: 136226.1 },
       { label: "Marketing, technologies, administratif, banque et taxes", account: "62-66", amount: 76862.21 },
+      { label: "Charges de clôture estimées restant à engager", account: "60-68", amount: 4530 },
     ],
-    note: "Au 3 septembre 2026, les extraits Qonto montrent déjà plus de 316 k€ d'encaissements et une trésorerie positive de 14 186,20 €. L'activité est fortement saisonnière, avec une première tension en février puis une concentration majeure des flux sur juin, juillet et août.",
+    note: "Au 3 septembre 2026, les extraits Qonto montrent déjà plus de 316 k€ d'encaissements. Après intégration des charges de clôture estimées restant à engager, l'atterrissage 2026 vise un excédent d'environ 10 000 €. L'activité est fortement saisonnière, avec une première tension en février puis une concentration majeure des flux sur juin, juillet et août.",
   },
   forecast: {
     products: [
@@ -138,19 +158,19 @@ const DEFAULT_ACCOUNTING = {
     expenses: [
       { label: "Achats matières et fournitures", account: "60", amount: 95000 },
       { label: "Autres fournitures", account: "60", amount: 40000 },
-      { label: "Locations centres, salles, matériel", account: "61", amount: 105000 },
+      { label: "Locations centres, salles, matériel", account: "61", amount: 110000 },
       { label: "Entretien et réparation", account: "61", amount: 6000 },
       { label: "Assurance", account: "61", amount: 8000 },
       { label: "Documentation", account: "61", amount: 6000 },
-      { label: "Honoraires / intervenants", account: "62", amount: 60000 },
+      { label: "Honoraires / intervenants", account: "62", amount: 64000 },
       { label: "Publicité, publication, relations publiques", account: "62", amount: 8000 },
       { label: "Impôts et taxes", account: "63", amount: 5000 },
       { label: "Rémunération des personnels", account: "64", amount: 55000 },
-      { label: "Charges sociales", account: "64", amount: 20000 },
+      { label: "Charges sociales", account: "64", amount: 22000 },
       { label: "Autres charges de personnel", account: "64", amount: 5000 },
       { label: "Autres charges de gestion courante", account: "65", amount: 10000 },
       { label: "Charges financières", account: "66", amount: 2000 },
-      { label: "Charges exceptionnelles", account: "67", amount: 3000 },
+      { label: "Charges exceptionnelles", account: "67", amount: 4000 },
       { label: "Dotations amortissements / provisions", account: "68", amount: 10000 },
     ],
     voluntary: [
@@ -239,6 +259,14 @@ function mergeAccountingDraft(saved) {
     actual: {
       products: saved.actual?.products || DEFAULT_ACCOUNTING.actual.products,
       expenses: saved.actual?.expenses || DEFAULT_ACCOUNTING.actual.expenses,
+    },
+    financial2024: {
+      products: saved.financial2024?.products || DEFAULT_ACCOUNTING.financial2024.products,
+      expenses: saved.financial2024?.expenses || DEFAULT_ACCOUNTING.financial2024.expenses,
+      voluntary: saved.financial2024?.voluntary || DEFAULT_ACCOUNTING.financial2024.voluntary,
+      assets: saved.financial2024?.assets || DEFAULT_ACCOUNTING.financial2024.assets,
+      liabilities: saved.financial2024?.liabilities || DEFAULT_ACCOUNTING.financial2024.liabilities,
+      note: saved.financial2024?.note || DEFAULT_ACCOUNTING.financial2024.note,
     },
     financial2025: {
       products: saved.financial2025?.products || DEFAULT_ACCOUNTING.financial2025.products,
@@ -359,6 +387,140 @@ function fundingSplitTable(accounting) {
   `;
 }
 
+function compactLineRows(lines) {
+  return (lines || []).filter((line) => amount(line.amount) !== 0 || String(line.label || "").trim());
+}
+
+function budgetStatementTable(title, products, expenses, voluntary = []) {
+  const expenseRows = compactLineRows(expenses);
+  const productRows = compactLineRows(products);
+  const maxRows = Math.max(expenseRows.length, productRows.length);
+  const rows = Array.from({ length: maxRows }, (_, index) => {
+    const expense = expenseRows[index] || {};
+    const product = productRows[index] || {};
+    return `
+      <tr>
+        <td>${escapeHtml(expense.account)}</td>
+        <td>${escapeHtml(expense.label)}</td>
+        <td class="num">${expenseRows[index] ? escapeHtml(currency(expense.amount)) : ""}</td>
+        <td>${escapeHtml(product.account)}</td>
+        <td>${escapeHtml(product.label)}</td>
+        <td class="num">${productRows[index] ? escapeHtml(currency(product.amount)) : ""}</td>
+      </tr>
+    `;
+  }).join("");
+  const productsTotal = sumLines(productRows);
+  const expensesTotal = sumLines(expenseRows);
+  const result = productsTotal - expensesTotal;
+  const voluntaryRows = compactLineRows(voluntary);
+  const voluntaryBlock = voluntaryRows.length ? `
+    <h3>Contributions volontaires</h3>
+    <table class="budget-table">
+      <thead><tr><th colspan="3">86 Emploi des contributions volontaires en nature</th><th colspan="3">87 Contributions volontaires en nature</th></tr></thead>
+      <tbody>
+        ${voluntaryRows.map((line) => `
+          <tr>
+            <td>${escapeHtml(line.account)}</td>
+            <td>${escapeHtml(line.label)}</td>
+            <td class="num">${escapeHtml(currency(line.amount))}</td>
+            <td>${escapeHtml(line.account)}</td>
+            <td>${escapeHtml(line.label)}</td>
+            <td class="num">${escapeHtml(currency(line.amount))}</td>
+          </tr>
+        `).join("")}
+        <tr class="total"><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryRows)))}</td><td colspan="2">Total</td><td class="num">${escapeHtml(currency(sumLines(voluntaryRows)))}</td></tr>
+      </tbody>
+    </table>
+  ` : "";
+
+  return `
+    <section class="budget-sheet">
+      <h2>${escapeHtml(title)}</h2>
+      <table class="budget-table">
+        <thead>
+          <tr><th colspan="3">Dépenses</th><th colspan="3">Recettes</th></tr>
+          <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr class="total">
+            <td colspan="2">Total dépenses</td>
+            <td class="num">${escapeHtml(currency(expensesTotal))}</td>
+            <td colspan="2">Total recettes</td>
+            <td class="num">${escapeHtml(currency(productsTotal))}</td>
+          </tr>
+          <tr class="result">
+            <td colspan="5">Résultat ${result >= 0 ? "excédentaire" : "déficitaire"}</td>
+            <td class="num">${escapeHtml(currency(result))}</td>
+          </tr>
+        </tbody>
+      </table>
+      ${voluntaryBlock}
+    </section>
+  `;
+}
+
+function compactBalanceTable(title, assets, liabilities) {
+  const assetRows = compactLineRows(assets);
+  const liabilityRows = compactLineRows(liabilities);
+  const maxRows = Math.max(assetRows.length, liabilityRows.length);
+  const rows = Array.from({ length: maxRows }, (_, index) => {
+    const asset = assetRows[index] || {};
+    const liability = liabilityRows[index] || {};
+    return `
+      <tr>
+        <td>${escapeHtml(asset.account)}</td>
+        <td>${escapeHtml(asset.label)}</td>
+        <td class="num">${assetRows[index] ? escapeHtml(currency(asset.amount)) : ""}</td>
+        <td>${escapeHtml(liability.account)}</td>
+        <td>${escapeHtml(liability.label)}</td>
+        <td class="num">${liabilityRows[index] ? escapeHtml(currency(liability.amount)) : ""}</td>
+      </tr>
+    `;
+  }).join("");
+  return `
+    <section class="budget-sheet">
+      <h2>${escapeHtml(title)}</h2>
+      <table class="budget-table">
+        <thead>
+          <tr><th colspan="3">Actif</th><th colspan="3">Passif</th></tr>
+          <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr class="total">
+            <td colspan="2">Total actif</td>
+            <td class="num">${escapeHtml(currency(sumLines(assetRows)))}</td>
+            <td colspan="2">Total passif</td>
+            <td class="num">${escapeHtml(currency(sumLines(liabilityRows)))}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function annualBudgetDocument(year, section, options = {}) {
+  const products = options.products || section.products;
+  const expenses = options.expenses || section.expenses;
+  const voluntary = options.voluntary || section.voluntary;
+  const result = sumLines(products) - sumLines(expenses);
+  return `
+    <section class="note">
+      <strong>Lecture ${escapeHtml(year)} :</strong>
+      ${escapeHtml(options.note || section.note || "")}
+    </section>
+    <section class="grid">
+      <p><span>Total recettes</span><strong>${escapeHtml(currency(sumLines(products)))}</strong></p>
+      <p><span>Total dépenses</span><strong>${escapeHtml(currency(sumLines(expenses)))}</strong></p>
+      <p><span>Résultat</span><strong>${escapeHtml(currency(result))}</strong></p>
+      <p><span>Situation</span><strong>${result >= 0 ? "Excédentaire" : "Déficitaire"}</strong></p>
+    </section>
+    ${budgetStatementTable(`Bilan comptable ${year}`, products, expenses, voluntary)}
+    ${section.assets || section.liabilities ? compactBalanceTable(`Bilan simplifié ${year}`, section.assets || [], section.liabilities || []) : ""}
+  `;
+}
+
 function financialNarrative2025(accounting) {
   const products = sumLines(accounting.financial2025.products);
   const expenses = sumLines(accounting.financial2025.expenses);
@@ -407,8 +569,10 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
     cashPlan2027: "Plan de trésorerie 12 mois",
     fundingSplit: "Répartition des financeurs",
     financingRequest: "Demande de financement",
+    financial2024: "Bilan comptable 2024",
     financial2025: "Bilan comptable 2025",
     landing2026: "Atterrissage comptable 2026",
+    loanPack2024To2026: "Bilans 2024, 2025 et prévisionnel 2026",
   };
   const blocks = {
     annual: `
@@ -429,9 +593,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       </section>
     `,
     forecast: `
-      ${lineTable("Produits prévisionnels", accounting.forecast.products)}
-      ${lineTable("Charges prévisionnelles", accounting.forecast.expenses)}
-      ${lineTable("Contributions volontaires en nature", accounting.forecast.voluntary)}
+      ${budgetStatementTable("Budget prévisionnel 2026", accounting.forecast.products, accounting.forecast.expenses, accounting.forecast.voluntary)}
       <section class="note"><strong>Résultat prévisionnel :</strong> ${escapeHtml(currency(forecastResult))}</section>
     `,
     moral: `
@@ -482,18 +644,17 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       <section><h2>Lecture de remboursement / sécurisation</h2><p>${escapeHtml(accounting.financingRequest.repaymentView)}</p></section>
       <section class="note"><strong>Montant demandé :</strong> ${escapeHtml(currency(accounting.financingRequest.requestedAmount))}</section>
     `,
+    financial2024: annualBudgetDocument("2024", accounting.financial2024),
     financial2025: `
       ${financialNarrative2025(accounting)}
-      ${lineTable("Produits 2025", accounting.financial2025.products)}
-      ${lineTable("Charges 2025", accounting.financial2025.expenses)}
+      ${budgetStatementTable("Bilan comptable 2025", accounting.financial2025.products, accounting.financial2025.expenses, accounting.financial2025.voluntary)}
       <section class="grid">
         <p><span>Produits 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.products)))}</strong></p>
         <p><span>Charges 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.expenses)))}</strong></p>
         <p><span>Résultat 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.products) - sumLines(accounting.financial2025.expenses)))}</strong></p>
         <p><span>Dette financière reclassée</span><strong>0,00 €</strong></p>
       </section>
-      ${lineTable("Actif 2025", accounting.financial2025.assets)}
-      ${lineTable("Passif 2025", accounting.financial2025.liabilities)}
+      ${compactBalanceTable("Bilan simplifié 2025", accounting.financial2025.assets, accounting.financial2025.liabilities)}
     `,
     landing2026: `
       ${landingNarrative2026(accounting, dashboardSnapshot)}
@@ -507,6 +668,20 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
         <p><span>Trésorerie Qonto 03/09/2026</span><strong>14 186,20 €</strong></p>
       </section>
     `,
+    loanPack2024To2026: `
+      <section class="note"><strong>Dossier de demande de prêt :</strong> présentation homogène des bilans 2024, 2025 et du prévisionnel 2026. Les prêts 2025 sont présentés en dons conformément au reclassement indiqué, ce qui fait ressortir un exercice positif.</section>
+      ${annualBudgetDocument("2024", accounting.financial2024)}
+      <div class="page-break"></div>
+      ${annualBudgetDocument("2025", accounting.financial2025)}
+      <div class="page-break"></div>
+      ${budgetStatementTable("Budget prévisionnel 2026", accounting.forecast.products, accounting.forecast.expenses, accounting.forecast.voluntary)}
+      <section class="grid">
+        <p><span>Produits prévisionnels 2026</span><strong>${escapeHtml(currency(forecastProducts))}</strong></p>
+        <p><span>Charges prévisionnelles 2026</span><strong>${escapeHtml(currency(forecastExpenses))}</strong></p>
+        <p><span>Excédent visé 2026</span><strong>${escapeHtml(currency(forecastResult))}</strong></p>
+        <p><span>Lecture financeur</span><strong>Développement maîtrisé</strong></p>
+      </section>
+    `,
   };
   const html = `<!doctype html>
     <html><head><meta charset="utf-8" /><title>${escapeHtml(titles[kind])} ${escapeHtml(accounting.association.name)}</title>
@@ -517,14 +692,18 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot) {
       p{line-height:1.45} small{color:#6b5f78}
       table{width:100%;border-collapse:collapse;margin-bottom:14px} th,td{border:1px solid #ddd5e7;padding:8px;text-align:left;font-size:12px}
       th{background:#f7f2fa;color:#5f506f;text-transform:uppercase;font-size:10px}.num{text-align:right}.total td{font-weight:700;background:#faf8fc}
+      .budget-table th:nth-child(1),.budget-table th:nth-child(2),.budget-table th:nth-child(3){background:#f3f5f8;color:#3d4656}
+      .budget-table th:nth-child(4),.budget-table th:nth-child(5),.budget-table th:nth-child(6){background:#f6f0f4;color:#6f2846}
+      .budget-table .result td{font-weight:800;background:#fff7ed}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.grid p,.note{border:1px solid #ddd5e7;padding:12px;background:#faf8fc}
       .grid span{display:block;color:#6b5f78;font-size:10px;text-transform:uppercase}.grid strong{display:block;margin-top:4px}
+      .page-break{break-before:page;page-break-before:always}
       footer{margin-top:28px;color:#6b5f78;font-size:11px}
       @media print{body{margin:18mm}.no-print{display:none}}
     </style></head><body>
       <button class="no-print" onclick="window.print()">Exporter en PDF</button>
       <header>
-        <h1>${escapeHtml(titles[kind])} ${escapeHtml(accounting.exercise.year)} - ${escapeHtml(accounting.association.name)}</h1>
+        <h1>${escapeHtml(titles[kind])} - ${escapeHtml(accounting.association.name)}</h1>
         <small>${escapeHtml(accounting.association.email)} · ${escapeHtml(accounting.association.phone)} · ${escapeHtml(accounting.association.website)} · SIRET ${escapeHtml(accounting.association.siret)}</small>
       </header>
       ${blocks[kind] || blocks.annual}
@@ -1312,6 +1491,8 @@ export default function Finances() {
           <div><span>Salaires bruts RH</span><strong>{currency(staffTotals.gross)}</strong></div>
           <div><span>Charges sociales estimées</span><strong>{currency(staffTotals.estimatedCharges)}</strong></div>
           <div><span>Net restant à payer</span><strong className={staffTotals.remaining > 0 ? "finance-due" : "finance-paid"}>{currency(staffTotals.remaining)}</strong></div>
+          <div><span>Résultat 2024</span><strong className={resultFrom(accounting.financial2024) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.financial2024))}</strong></div>
+          <div><span>Résultat prév. 2026</span><strong className={accountingForecastProducts - accountingForecastExpenses >= 0 ? "finance-paid" : "finance-due"}>{currency(accountingForecastProducts - accountingForecastExpenses)}</strong></div>
           <div><span>Produits 2027</span><strong>{currency(accounting2027Products)}</strong></div>
           <div><span>Charges 2027</span><strong>{currency(accounting2027Expenses)}</strong></div>
           <div><span>Résultat 2027</span><strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.forecast2027))}</strong></div>
@@ -1337,6 +1518,8 @@ export default function Finances() {
           <>
             <div className="accounting-export-grid">
               {[
+                ["loanPack2024To2026", "Pack prêt 2024-2026", "Bilans 2024, 2025 et prévisionnel 2026 dans le même format."],
+                ["financial2024", "Bilan comptable 2024", "Format dépenses / recettes du modèle joint."],
                 ["financial2025", "Bilan comptable 2025", "Version positive, prêts reclassés en dons."],
                 ["landing2026", "Atterrissage 2026", "Synthèse Qonto + dashboard."],
                 ["funderPack", "Dossier financeur", "Atterrissage, 2027, trésorerie, financeurs."],
@@ -1372,6 +1555,26 @@ export default function Finances() {
                 <span>Importer un export Qonto CSV</span>
               </label>
               <p>Les statuts, la composition du bureau, la présentation libre et les relevés Qonto PDF restent à joindre séparément.</p>
+            </div>
+          </>
+        )}
+
+        {activeAccountingTab === "year2024" && (
+          <>
+            <section className="accounting-request-box">
+              <h3>Note de lecture 2024</h3>
+              <textarea
+                className="accounting-wide-textarea"
+                value={accounting.financial2024.note || ""}
+                onChange={(event) => updateAccountingSection("financial2024", "note", event.target.value)}
+              />
+            </section>
+            <div className="accounting-editor-grid">
+              <AccountingLinesEditor title="Recettes 2024" lines={accounting.financial2024.products} onChange={(lines) => updateAccountingSection("financial2024", "products", lines)} />
+              <AccountingLinesEditor title="Dépenses 2024" lines={accounting.financial2024.expenses} onChange={(lines) => updateAccountingSection("financial2024", "expenses", lines)} />
+              <AccountingLinesEditor title="Contributions volontaires 2024" lines={accounting.financial2024.voluntary} onChange={(lines) => updateAccountingSection("financial2024", "voluntary", lines)} />
+              <AccountingLinesEditor title="Actif 2024" lines={accounting.financial2024.assets} onChange={(lines) => updateAccountingSection("financial2024", "assets", lines)} />
+              <AccountingLinesEditor title="Passif 2024" lines={accounting.financial2024.liabilities} onChange={(lines) => updateAccountingSection("financial2024", "liabilities", lines)} />
             </div>
           </>
         )}
