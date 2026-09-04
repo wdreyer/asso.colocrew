@@ -613,26 +613,24 @@ function groupedBudgetRows(lines, templates, side) {
   return rows;
 }
 
+function budgetSideTable(title, rows) {
+  return `
+    <table class="budget-side-table">
+      <thead><tr class="budget-sub-head"><th colspan="2">${escapeHtml(title)}</th></tr></thead>
+      <tbody>
+        ${rows.map((row) => row.isHeading ? `
+          <tr class="account-heading"><td>${escapeHtml(row.label)}</td><td class="num"></td></tr>
+        ` : `
+          <tr><td>${escapeHtml(row.label)}</td><td class="num">${escapeHtml(budgetCurrency(row.amount))}</td></tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
 function budgetStatementTable(title, products, expenses, voluntary = []) {
   const expenseRows = groupedBudgetRows(expenses, BUDGET_EXPENSE_LINES, "expenses");
   const productRows = groupedBudgetRows(products, BUDGET_PRODUCT_LINES, "products");
-  const maxRows = Math.max(expenseRows.length, productRows.length);
-  const rows = Array.from({ length: maxRows }, (_, index) => {
-    const expense = expenseRows[index] || {};
-    const product = productRows[index] || {};
-    const expenseClass = expense.isHeading ? "account-heading" : "";
-    const productClass = product.isHeading ? "account-heading" : "";
-    return `
-      <tr>
-        <td class="${expenseClass}">${escapeHtml(expense.isHeading ? "" : expense.account)}</td>
-        <td class="${expenseClass}">${escapeHtml(expense.label)}</td>
-        <td class="num ${expenseClass}">${expenseRows[index] && !expense.isHeading ? escapeHtml(budgetCurrency(expense.amount)) : ""}</td>
-        <td class="${productClass}">${escapeHtml(product.isHeading ? "" : product.account)}</td>
-        <td class="${productClass}">${escapeHtml(product.label)}</td>
-        <td class="num ${productClass}">${productRows[index] && !product.isHeading ? escapeHtml(budgetCurrency(product.amount)) : ""}</td>
-      </tr>
-    `;
-  }).join("");
   const productsTotal = sumLines(productRows.filter((line) => !line.isHeading));
   const expensesTotal = sumLines(expenseRows.filter((line) => !line.isHeading));
   const result = productsTotal - expensesTotal;
@@ -666,28 +664,15 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
   return `
     <section class="budget-sheet budget-model-sheet">
       <h1>Budget de l'association - ${escapeHtml(title)}</h1>
-      <table class="budget-table">
-        <thead>
-          <tr class="budget-main-head"><th colspan="3">CHARGES</th><th colspan="3">PRODUITS</th></tr>
-          <tr class="budget-sub-head"><th colspan="3">CHARGES DIRECTES</th><th colspan="3">RESSOURCES DIRECTES</th></tr>
-          <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
-        </thead>
+      <div class="budget-main-labels"><strong>CHARGES</strong><strong>PRODUITS</strong></div>
+      <div class="budget-two-columns">
+        ${budgetSideTable("CHARGES DIRECTES", expenseRows)}
+        ${budgetSideTable("RESSOURCES DIRECTES", productRows)}
+      </div>
+      <table class="budget-total-table">
         <tbody>
-          ${rows}
-          <tr class="total">
-            <td colspan="2">TOTAL DES CHARGES HORS CVN</td>
-            <td class="num">${escapeHtml(budgetCurrency(expensesTotal))}</td>
-            <td colspan="2">TOTAL DES PRODUITS HORS CVN</td>
-            <td class="num">${escapeHtml(budgetCurrency(productsTotal))}</td>
-          </tr>
-          <tr class="result ${result >= 0 ? "is-positive" : "is-empty"}">
-            <td colspan="5">Excédent prévisionnel / résultat positif</td>
-            <td class="num">${escapeHtml(result >= 0 ? budgetCurrency(result) : "-")}</td>
-          </tr>
-          <tr class="result ${result < 0 ? "is-negative" : "is-empty"}">
-            <td colspan="5">Insuffisance prévisionnelle / déficit</td>
-            <td class="num">${escapeHtml(result < 0 ? budgetCurrency(Math.abs(result)) : "-")}</td>
-          </tr>
+          <tr class="total"><td>TOTAL DES CHARGES HORS CVN</td><td class="num">${escapeHtml(budgetCurrency(expensesTotal))}</td><td>TOTAL DES PRODUITS HORS CVN</td><td class="num">${escapeHtml(budgetCurrency(productsTotal))}</td></tr>
+          <tr><td>Excédent prévisionnel / résultat positif</td><td class="num">${escapeHtml(result >= 0 ? budgetCurrency(result) : "-")}</td><td>Insuffisance prévisionnelle / déficit</td><td class="num">${escapeHtml(result < 0 ? budgetCurrency(Math.abs(result)) : "-")}</td></tr>
         </tbody>
       </table>
       ${voluntaryBlock}
@@ -920,8 +905,8 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       p{line-height:1.45} small{color:#6b5f78}
       table{width:100%;border-collapse:collapse;margin-bottom:14px} th,td{border:1px solid #cfd4dc;padding:6px 7px;text-align:left;font-size:10.5px;vertical-align:top}
       th{background:#e5e7eb;color:#111827;text-transform:uppercase;font-size:9px;font-weight:800}.num{text-align:right;white-space:nowrap}.total td{font-weight:800;background:#e5e7eb}
-      .budget-model-sheet{max-width:1000px;margin:0 auto}.budget-table{table-layout:fixed}.budget-table th:nth-child(1),.budget-table td:nth-child(1),.budget-table th:nth-child(4),.budget-table td:nth-child(4){width:48px}.budget-table th:nth-child(3),.budget-table td:nth-child(3),.budget-table th:nth-child(6),.budget-table td:nth-child(6){width:82px}
-      .budget-table .budget-main-head th{background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}.budget-table .budget-sub-head th{background:#eceff3;text-align:center;font-size:9px}.budget-table .account-heading{background:#f3f4f6;font-weight:800;color:#111827}.budget-table .result td{font-weight:800;background:#f8fafc}.budget-table .result.is-positive td{background:#ecfdf5}.budget-table .result.is-negative td{background:#fef2f2}.budget-table .result.is-empty td{color:#6b7280}.cvn-title{margin:12px 0 0;padding:7px;border:1px solid #cfd4dc;border-bottom:0;background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}
+      .budget-model-sheet{max-width:1000px;margin:0 auto}.budget-main-labels{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 6px;text-align:center;font-size:10px}.budget-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.budget-side-table,.budget-total-table{table-layout:fixed}.budget-side-table td:first-child{width:auto}.budget-side-table td:last-child{width:92px;color:#00f}.budget-side-table .budget-sub-head th{background:#b8d1e6;text-align:center;color:#000}.budget-side-table .account-heading td{background:#d8e0ef;font-weight:800;color:#000}.budget-total-table{margin-top:14px}.budget-total-table td:nth-child(2),.budget-total-table td:nth-child(4){width:92px;color:#00f}.budget-total-table .total td{background:#b8d1e6;color:#000}.budget-table{table-layout:fixed}.budget-table th:nth-child(1),.budget-table td:nth-child(1),.budget-table th:nth-child(4),.budget-table td:nth-child(4){width:48px}.budget-table th:nth-child(3),.budget-table td:nth-child(3),.budget-table th:nth-child(6),.budget-table td:nth-child(6){width:82px}
+      .budget-table .budget-main-head th{background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}.budget-table .budget-sub-head th{background:#d8e0ef;text-align:left;font-size:9px}.budget-table .account-heading{background:#d8e0ef;font-weight:800;color:#111827}.budget-table .result td{font-weight:800;background:#f8fafc}.budget-table .result.is-positive td{background:#ecfdf5}.budget-table .result.is-negative td{background:#fef2f2}.budget-table .result.is-empty td{color:#6b7280}.cvn-title{margin:26px 0 0;padding:7px;border:1px solid #cfd4dc;border-bottom:0;background:#f3c9ad;text-align:center;font-size:10px;letter-spacing:.03em}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.grid p,.note{border:1px solid #ddd5e7;padding:12px;background:#faf8fc}
       .grid span{display:block;color:#6b5f78;font-size:10px;text-transform:uppercase}.grid strong{display:block;margin-top:4px}
       .pie-wrap{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;margin:10px 0 18px}.pie-chart{width:170px;height:170px;border-radius:50%;border:1px solid #ddd5e7}.pie-legend{display:grid;gap:7px}.pie-legend p{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;margin:0;font-size:11px}.pie-legend span{width:12px;height:12px;border-radius:3px}.pie-legend em{color:#6b5f78;font-style:normal}
@@ -1217,7 +1202,7 @@ function AccountingLinesEditor({ title, lines, onChange, totalLabel = "Total" })
   );
 }
 
-function BudgetStatementEditor({ year, section, onChange, onExport }) {
+function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
   const products = budgetProductsFor(section);
   const expenses = budgetExpensesFor(section);
   const voluntaryExpenses = budgetVoluntaryExpensesFor(section);
@@ -1242,49 +1227,70 @@ function BudgetStatementEditor({ year, section, onChange, onExport }) {
     onChange({ ...section, [side]: next });
   };
 
-  const maxRows = Math.max(expenses.length, products.length);
   const maxVoluntaryRows = Math.max(voluntaryExpenses.length, voluntaryProducts.length);
+  const renderSideEditor = (title, lines, templates, side) => {
+    const groupedRows = groupedBudgetRows(lines, templates, side);
+    let lineIndex = -1;
+    return (
+      <table className="budget-side-editor-table">
+        <thead><tr><th colSpan="2">{title}</th></tr></thead>
+        <tbody>
+          {groupedRows.map((row, index) => {
+            if (row.isHeading) {
+              return <tr className="account-heading" key={`${side}-heading-${row.account}-${index}`}><td>{row.label}</td><td></td></tr>;
+            }
+            lineIndex += 1;
+            const updateIndex = lineIndex;
+            return (
+              <tr key={`${side}-${row.account}-${index}`}>
+                <td>{row.label}</td>
+                <td>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={row.amount ?? 0}
+                    onChange={(event) => updateSide(side, updateIndex, event.target.value)}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  };
 
   return (
     <section className="budget-editor">
       <div className="budget-editor-head">
         <div>
-          <h3>Bilan comptable {year}</h3>
-          <p>Formulaire dépenses / recettes. Les totaux et le résultat sont recalculés automatiquement.</p>
+          <h3>Budget de l'association - Bilan comptable {year}</h3>
+          <p>Disposition identique au modèle. Les montants bleus sont modifiables et les totaux se recalculent automatiquement.</p>
         </div>
-        <button type="button" className="dash-btn" onClick={onExport}>Exporter ce bilan</button>
+        <div className="budget-editor-actions-main">
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={onSave}>Enregistrer</button>
+          <button type="button" className="dash-btn" onClick={onExport}>Exporter ce bilan</button>
+        </div>
       </div>
-      <div className="budget-result-strip">
-        <div><span>Total dépenses</span><strong>{currency(expenseTotal)}</strong></div>
-        <div><span>Total recettes</span><strong>{currency(productTotal)}</strong></div>
-        <div><span>Résultat</span><strong className={result >= 0 ? "finance-paid" : "finance-due"}>{currency(result)}</strong></div>
-      </div>
-      <div className="budget-editor-table-wrap">
-        <table className="budget-editor-table">
-          <thead>
-            <tr><th colSpan="3">Dépenses</th><th colSpan="3">Recettes</th></tr>
-            <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
-          </thead>
+      <div className="budget-sheet-editor">
+        <div className="budget-main-labels"><strong>CHARGES</strong><strong>PRODUITS</strong></div>
+        <div className="budget-two-columns">
+          {renderSideEditor("CHARGES DIRECTES", expenses, BUDGET_EXPENSE_LINES, "expenses")}
+          {renderSideEditor("RESSOURCES DIRECTES", products, BUDGET_PRODUCT_LINES, "products")}
+        </div>
+        <table className="budget-total-editor-table">
           <tbody>
-            {Array.from({ length: maxRows }, (_, index) => {
-              const expense = expenses[index] || {};
-              const product = products[index] || {};
-              return (
-                <tr key={`budget-${year}-${index}`}>
-                  <td>{expense.account || ""}</td>
-                  <td>{expense.label || ""}</td>
-                  <td><input type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateSide("expenses", index, event.target.value)} /></td>
-                  <td>{product.account || ""}</td>
-                  <td>{product.label || ""}</td>
-                  <td><input type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateSide("products", index, event.target.value)} /></td>
-                </tr>
-              );
-            })}
             <tr className="total">
-              <td colSpan="2">Total</td>
-              <td>{currency(expenseTotal)}</td>
-              <td colSpan="2">Total</td>
-              <td>{currency(productTotal)}</td>
+              <td>TOTAL DES CHARGES HORS CVN</td>
+              <td>{budgetCurrency(expenseTotal)}</td>
+              <td>TOTAL DES PRODUITS HORS CVN</td>
+              <td>{budgetCurrency(productTotal)}</td>
+            </tr>
+            <tr>
+              <td>Excédent prévisionnel / résultat positif</td>
+              <td className={result >= 0 ? "finance-paid" : ""}>{result >= 0 ? budgetCurrency(result) : "-"}</td>
+              <td>Insuffisance prévisionnelle / déficit</td>
+              <td className={result < 0 ? "finance-due" : ""}>{result < 0 ? budgetCurrency(Math.abs(result)) : "-"}</td>
             </tr>
           </tbody>
         </table>
@@ -2008,6 +2014,7 @@ export default function Finances() {
               section={selectedBalanceSection}
               onChange={(section) => setAccounting((previous) => ({ ...previous, [selectedBalanceSectionKey]: section }))}
               onExport={() => openAccountingPrint(accounting, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}
+              onSave={saveAccounting}
             />
           </>
         )}
