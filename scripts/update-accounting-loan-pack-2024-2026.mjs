@@ -41,8 +41,16 @@ const accountingPatch = {
       { label: "Dons, mécénat et prêts requalifiés en dons", account: "758", amount: 7400 },
     ],
     expenses: [
-      { label: "Fonctionnement", account: "60-62", amount: 10866.6 },
-      { label: "Séjours", account: "60-64", amount: 131595.68 },
+      { label: "Achats alimentation sejours", account: "60", amount: 18774.88 },
+      { label: "Fournitures, materiel, pedagogie, sante et divers sejours", account: "60", amount: 5417.4 },
+      { label: "Essence, entretien vehicule et peages sejours", account: "60", amount: 3308.4 },
+      { label: "Abonnements banque, multimedia, stockage, telephonie et publicite", account: "61", amount: 1189.09 },
+      { label: "Hebergement, activites sportives, entretien et services prestataires", account: "61", amount: 63057.47 },
+      { label: "Fournitures, investissements, courrier et materiel de fonctionnement", account: "61", amount: 2862.69 },
+      { label: "Transports collectifs, fret, bus, essence et peages", account: "62", amount: 22834.63 },
+      { label: "Marketing, emailing, textile, papier et campagne numerique", account: "62", amount: 2366.06 },
+      { label: "Assurance, frais bancaires et amende", account: "62", amount: 203.51 },
+      { label: "Frais de personnel, salaires et vie d'equipe", account: "64", amount: 22448.15 },
     ],
     assets: [
       { label: "Immobilisations", account: "2", amount: 2700 },
