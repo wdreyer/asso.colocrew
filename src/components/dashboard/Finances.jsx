@@ -166,16 +166,20 @@ const DEFAULT_ACCOUNTING = {
       { label: "Apports requalifiés en dons", account: "758", amount: 6000 },
     ],
     expenses: [
-      { label: "Achats alimentation séjours", account: "60", amount: 18774.88 },
-      { label: "Fournitures, matériel, pédagogie, santé et divers séjours", account: "60", amount: 5417.4 },
-      { label: "Essence, entretien véhicule et péages séjours", account: "60", amount: 3308.4 },
-      { label: "Abonnements banque, multimédia, stockage, téléphonie et publicité", account: "61", amount: 1189.09 },
-      { label: "Hébergement, activités sportives, entretien et services prestataires", account: "61", amount: 63057.47 },
-      { label: "Fournitures, investissements, courrier et matériel de fonctionnement", account: "61", amount: 2862.69 },
-      { label: "Transports collectifs, fret, bus, essence et péages", account: "62", amount: 22834.63 },
-      { label: "Marketing, emailing, textile, papier et campagne numérique", account: "62", amount: 2366.06 },
-      { label: "Assurance, frais bancaires et amende", account: "62", amount: 203.51 },
-      { label: "Frais de personnel, salaires et vie d'équipe", account: "64", amount: 22448.15 },
+      { label: "Alimentation des séjours", account: "6061", amount: 18774.88 },
+      { label: "Fournitures, matériel, pédagogie, santé, investissements et fonctionnement", account: "6063", amount: 8280.09 },
+      { label: "Carburant, entretien véhicule et péages séjours", account: "6068", amount: 3308.4 },
+      { label: "Hébergement, activités et prestataires séjours", account: "613", amount: 63057.47 },
+      { label: "Assurance", account: "616", amount: 81.68 },
+      { label: "Multimédia, stockage, vie d'équipe et formation", account: "618", amount: 1318.02 },
+      { label: "Marketing, publicité, emailing, textile et papier", account: "623", amount: 2406.76 },
+      { label: "Transports collectifs, fret et bus séjours", account: "625", amount: 22834.63 },
+      { label: "Déplacements du personnel", account: "6251", amount: 2175.69 },
+      { label: "Repas et hébergement du personnel", account: "6256", amount: 4071.22 },
+      { label: "Téléphonie", account: "626", amount: 204.99 },
+      { label: "Frais bancaires et abonnements banque", account: "627", amount: 400.83 },
+      { label: "Salaires et charges salariales", account: "641", amount: 15472.62 },
+      { label: "Amende", account: "671", amount: 75 },
     ],
   },
   financial2024: {
@@ -206,16 +210,20 @@ const DEFAULT_ACCOUNTING = {
       { label: "Dons, mécénat et prêts requalifiés en dons", account: "758", amount: 7400 },
     ],
     expenses: [
-      { label: "Achats alimentation séjours", account: "60", amount: 18774.88 },
-      { label: "Fournitures, matériel, pédagogie, santé et divers séjours", account: "60", amount: 5417.4 },
-      { label: "Essence, entretien véhicule et péages séjours", account: "60", amount: 3308.4 },
-      { label: "Abonnements banque, multimédia, stockage, téléphonie et publicité", account: "61", amount: 1189.09 },
-      { label: "Hébergement, activités sportives, entretien et services prestataires", account: "61", amount: 63057.47 },
-      { label: "Fournitures, investissements, courrier et matériel de fonctionnement", account: "61", amount: 2862.69 },
-      { label: "Transports collectifs, fret, bus, essence et péages", account: "62", amount: 22834.63 },
-      { label: "Marketing, emailing, textile, papier et campagne numérique", account: "62", amount: 2366.06 },
-      { label: "Assurance, frais bancaires et amende", account: "62", amount: 203.51 },
-      { label: "Frais de personnel, salaires et vie d'équipe", account: "64", amount: 22448.15 },
+      { label: "Alimentation des séjours", account: "6061", amount: 18774.88 },
+      { label: "Fournitures, matériel, pédagogie, santé, investissements et fonctionnement", account: "6063", amount: 8280.09 },
+      { label: "Carburant, entretien véhicule et péages séjours", account: "6068", amount: 3308.4 },
+      { label: "Hébergement, activités et prestataires séjours", account: "613", amount: 63057.47 },
+      { label: "Assurance", account: "616", amount: 81.68 },
+      { label: "Multimédia, stockage, vie d'équipe et formation", account: "618", amount: 1318.02 },
+      { label: "Marketing, publicité, emailing, textile et papier", account: "623", amount: 2406.76 },
+      { label: "Transports collectifs, fret et bus séjours", account: "625", amount: 22834.63 },
+      { label: "Déplacements du personnel", account: "6251", amount: 2175.69 },
+      { label: "Repas et hébergement du personnel", account: "6256", amount: 4071.22 },
+      { label: "Téléphonie", account: "626", amount: 204.99 },
+      { label: "Frais bancaires et abonnements banque", account: "627", amount: 400.83 },
+      { label: "Salaires et charges salariales", account: "641", amount: 15472.62 },
+      { label: "Amende", account: "671", amount: 75 },
     ],
     assets: [
       { label: "Immobilisations", account: "2", amount: 2700 },
@@ -630,8 +638,18 @@ function budgetAccountKey(line) {
   return raw.slice(0, 2) || "";
 }
 
+function sortBudgetLines(lines) {
+  return [...(lines || [])].sort((a, b) => {
+    const keyCompare = budgetAccountKey(a).localeCompare(budgetAccountKey(b), "fr", { numeric: true });
+    if (keyCompare) return keyCompare;
+    const accountCompare = String(a?.account || "").localeCompare(String(b?.account || ""), "fr", { numeric: true });
+    if (accountCompare) return accountCompare;
+    return String(a?.label || "").localeCompare(String(b?.label || ""), "fr", { sensitivity: "base" });
+  });
+}
+
 function groupedBudgetRows(lines, templates, side) {
-  const completed = completeBudgetLines(lines, templates);
+  const completed = sortBudgetLines(completeBudgetLines(lines, templates));
   const rows = [];
   let currentKey = "";
   for (const line of completed) {
