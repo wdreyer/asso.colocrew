@@ -79,15 +79,15 @@ const BUDGET_PRODUCT_LINES = [
 ];
 
 const VOLUNTARY_EXPENSE_LINES = [
-  { account: "86", label: "Secours en nature" },
-  { account: "86", label: "Mise à disposition gratuite de biens et prestations" },
-  { account: "86", label: "Personnel bénévole" },
+  { account: "864", label: "Personnel bénévole" },
+  { account: "861", label: "Mise à disposition gratuite de biens" },
+  { account: "860", label: "Secours en nature" },
 ];
 
 const VOLUNTARY_PRODUCT_LINES = [
-  { account: "87", label: "Bénévolat" },
-  { account: "87", label: "Prestations en nature" },
-  { account: "87", label: "Dons en nature" },
+  { account: "875", label: "Bénévolat" },
+  { account: "871", label: "Prestations en nature" },
+  { account: "870", label: "Dons en nature" },
 ];
 
 const BUDGET_ACCOUNT_LABELS = {
@@ -292,6 +292,16 @@ const DEFAULT_ACCOUNTING = {
     voluntary: [
       { label: "Personnel bénévole", account: "864 / 875", amount: 30000 },
     ],
+    voluntaryExpenses: [
+      { label: "Personnel bénévole", account: "864", amount: 30000 },
+      { label: "Mise à disposition gratuite de biens", account: "861", amount: 0 },
+      { label: "Secours en nature", account: "860", amount: 0 },
+    ],
+    voluntaryProducts: [
+      { label: "Bénévolat", account: "875", amount: 30000 },
+      { label: "Prestations en nature", account: "871", amount: 0 },
+      { label: "Dons en nature", account: "870", amount: 0 },
+    ],
   },
   balance: {
     assets: [
@@ -384,6 +394,8 @@ function mergeAccountingDraft(saved) {
       products: saved.financial2024?.products || DEFAULT_ACCOUNTING.financial2024.products,
       expenses: saved.financial2024?.expenses || DEFAULT_ACCOUNTING.financial2024.expenses,
       voluntary: saved.financial2024?.voluntary || DEFAULT_ACCOUNTING.financial2024.voluntary,
+      voluntaryExpenses: saved.financial2024?.voluntaryExpenses || DEFAULT_ACCOUNTING.financial2024.voluntaryExpenses,
+      voluntaryProducts: saved.financial2024?.voluntaryProducts || DEFAULT_ACCOUNTING.financial2024.voluntaryProducts,
       assets: saved.financial2024?.assets || DEFAULT_ACCOUNTING.financial2024.assets,
       liabilities: saved.financial2024?.liabilities || DEFAULT_ACCOUNTING.financial2024.liabilities,
       note: saved.financial2024?.note || DEFAULT_ACCOUNTING.financial2024.note,
@@ -391,6 +403,9 @@ function mergeAccountingDraft(saved) {
     financial2025: {
       products: saved.financial2025?.products || DEFAULT_ACCOUNTING.financial2025.products,
       expenses: saved.financial2025?.expenses || DEFAULT_ACCOUNTING.financial2025.expenses,
+      voluntary: saved.financial2025?.voluntary || DEFAULT_ACCOUNTING.financial2025.voluntary,
+      voluntaryExpenses: saved.financial2025?.voluntaryExpenses || DEFAULT_ACCOUNTING.financial2025.voluntaryExpenses,
+      voluntaryProducts: saved.financial2025?.voluntaryProducts || DEFAULT_ACCOUNTING.financial2025.voluntaryProducts,
       assets: saved.financial2025?.assets || DEFAULT_ACCOUNTING.financial2025.assets,
       liabilities: saved.financial2025?.liabilities || DEFAULT_ACCOUNTING.financial2025.liabilities,
       note: saved.financial2025?.note || DEFAULT_ACCOUNTING.financial2025.note,
@@ -405,6 +420,8 @@ function mergeAccountingDraft(saved) {
       products: saved.forecast?.products || DEFAULT_ACCOUNTING.forecast.products,
       expenses: saved.forecast?.expenses || DEFAULT_ACCOUNTING.forecast.expenses,
       voluntary: saved.forecast?.voluntary || DEFAULT_ACCOUNTING.forecast.voluntary,
+      voluntaryExpenses: saved.forecast?.voluntaryExpenses || DEFAULT_ACCOUNTING.forecast.voluntaryExpenses,
+      voluntaryProducts: saved.forecast?.voluntaryProducts || DEFAULT_ACCOUNTING.forecast.voluntaryProducts,
     },
     balance: {
       assets: saved.balance?.assets || DEFAULT_ACCOUNTING.balance.assets,
@@ -413,6 +430,9 @@ function mergeAccountingDraft(saved) {
     forecast2027: {
       products: saved.forecast2027?.products || DEFAULT_ACCOUNTING.forecast2027.products,
       expenses: saved.forecast2027?.expenses || DEFAULT_ACCOUNTING.forecast2027.expenses,
+      voluntary: saved.forecast2027?.voluntary || DEFAULT_ACCOUNTING.forecast2027.voluntary,
+      voluntaryExpenses: saved.forecast2027?.voluntaryExpenses || DEFAULT_ACCOUNTING.forecast2027.voluntaryExpenses,
+      voluntaryProducts: saved.forecast2027?.voluntaryProducts || DEFAULT_ACCOUNTING.forecast2027.voluntaryProducts,
     },
     cashPlan2026: saved.cashPlan2026 || DEFAULT_ACCOUNTING.cashPlan2026,
     fundingBreakdown: saved.fundingBreakdown || DEFAULT_ACCOUNTING.fundingBreakdown,
@@ -628,6 +648,33 @@ function budgetSideTable(title, rows) {
   `;
 }
 
+function budgetVoluntaryTable(expenseRows, productRows) {
+  const maxRows = Math.max(expenseRows.length, productRows.length);
+  return `
+    <h3 class="cvn-title">CONTRIBUTIONS VOLONTAIRES EN NATURE (CVN)</h3>
+    <table class="budget-cvn-table">
+      <thead>
+        <tr><th colspan="2">86 - Emplois des contributions volontaires en nature</th><th colspan="2">87 - Contributions volontaires en nature</th></tr>
+      </thead>
+      <tbody>
+        ${Array.from({ length: maxRows }, (_, index) => {
+          const expense = expenseRows[index] || {};
+          const product = productRows[index] || {};
+          return `
+            <tr>
+              <td>${escapeHtml(expense.account ? `${expense.account} - ${expense.label}` : "")}</td>
+              <td class="num">${expenseRows[index] ? escapeHtml(budgetCurrency(expense.amount)) : ""}</td>
+              <td>${escapeHtml(product.account ? `${product.account} - ${product.label}` : "")}</td>
+              <td class="num">${productRows[index] ? escapeHtml(budgetCurrency(product.amount)) : ""}</td>
+            </tr>
+          `;
+        }).join("")}
+        <tr class="total"><td>TOTAL DONT CVN</td><td class="num">${escapeHtml(budgetCurrency(sumLines(expenseRows)))}</td><td>TOTAL DONT CVN</td><td class="num">${escapeHtml(budgetCurrency(sumLines(productRows)))}</td></tr>
+      </tbody>
+    </table>
+  `;
+}
+
 function budgetStatementTable(title, products, expenses, voluntary = []) {
   const expenseRows = groupedBudgetRows(expenses, BUDGET_EXPENSE_LINES, "expenses");
   const productRows = groupedBudgetRows(products, BUDGET_PRODUCT_LINES, "products");
@@ -636,30 +683,7 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
   const result = productsTotal - expensesTotal;
   const voluntaryExpenseRows = completeBudgetLines(voluntary?.expenses || voluntary, VOLUNTARY_EXPENSE_LINES);
   const voluntaryProductRows = completeBudgetLines(voluntary?.products || voluntary, VOLUNTARY_PRODUCT_LINES);
-  const voluntaryMaxRows = Math.max(voluntaryExpenseRows.length, voluntaryProductRows.length);
-  const voluntaryBlock = `
-    <h3 class="cvn-title">CONTRIBUTIONS VOLONTAIRES EN NATURE (CVN)</h3>
-    <table class="budget-table">
-      <thead><tr class="budget-sub-head"><th colspan="3">86 - Emplois des contributions volontaires en nature</th><th colspan="3">87 - Contributions volontaires en nature</th></tr></thead>
-      <tbody>
-        ${Array.from({ length: voluntaryMaxRows }, (_, index) => {
-          const expense = voluntaryExpenseRows[index] || {};
-          const product = voluntaryProductRows[index] || {};
-          return `
-          <tr>
-            <td>${escapeHtml(expense.account)}</td>
-            <td>${escapeHtml(expense.label)}</td>
-            <td class="num">${escapeHtml(budgetCurrency(expense.amount))}</td>
-            <td>${escapeHtml(product.account)}</td>
-            <td>${escapeHtml(product.label)}</td>
-            <td class="num">${escapeHtml(budgetCurrency(product.amount))}</td>
-          </tr>
-          `;
-        }).join("")}
-        <tr class="total"><td colspan="2">TOTAL DONT CVN</td><td class="num">${escapeHtml(budgetCurrency(sumLines(voluntaryExpenseRows)))}</td><td colspan="2">TOTAL DONT CVN</td><td class="num">${escapeHtml(budgetCurrency(sumLines(voluntaryProductRows)))}</td></tr>
-      </tbody>
-    </table>
-  `;
+  const voluntaryBlock = budgetVoluntaryTable(voluntaryExpenseRows, voluntaryProductRows);
 
   return `
     <section class="budget-sheet budget-model-sheet">
@@ -723,7 +747,10 @@ function compactBalanceTable(title, assets, liabilities) {
 function annualBudgetDocument(year, section, options = {}) {
   const products = options.products || section.products;
   const expenses = options.expenses || section.expenses;
-  const voluntary = options.voluntary || section.voluntary;
+  const voluntary = options.voluntary || {
+    expenses: section.voluntaryExpenses || section.voluntary || [],
+    products: section.voluntaryProducts || section.voluntary || [],
+  };
   return budgetStatementTable(`Bilan comptable ${year}`, products, expenses, voluntary);
 }
 
@@ -860,7 +887,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
     financial2024: annualBudgetDocument("2024", accounting.financial2024),
     financial2025: `
       ${financialNarrative2025(accounting)}
-      ${budgetStatementTable("Bilan comptable 2025", accounting.financial2025.products, accounting.financial2025.expenses, accounting.financial2025.voluntary)}
+      ${annualBudgetDocument("2025", accounting.financial2025)}
       <section class="grid">
         <p><span>Produits 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.products)))}</strong></p>
         <p><span>Charges 2025</span><strong>${escapeHtml(currency(sumLines(accounting.financial2025.expenses)))}</strong></p>
@@ -905,8 +932,8 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       p{line-height:1.45} small{color:#6b5f78}
       table{width:100%;border-collapse:collapse;margin-bottom:14px} th,td{border:1px solid #cfd4dc;padding:6px 7px;text-align:left;font-size:10.5px;vertical-align:top}
       th{background:#e5e7eb;color:#111827;text-transform:uppercase;font-size:9px;font-weight:800}.num{text-align:right;white-space:nowrap}.total td{font-weight:800;background:#e5e7eb}
-      .budget-model-sheet{max-width:1000px;margin:0 auto}.budget-main-labels{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 6px;text-align:center;font-size:10px}.budget-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.budget-side-table,.budget-total-table{table-layout:fixed}.budget-side-table td:first-child{width:auto}.budget-side-table td:last-child{width:92px;color:#00f}.budget-side-table .budget-sub-head th{background:#b8d1e6;text-align:center;color:#000}.budget-side-table .account-heading td{background:#d8e0ef;font-weight:800;color:#000}.budget-total-table{margin-top:14px}.budget-total-table td:nth-child(2),.budget-total-table td:nth-child(4){width:92px;color:#00f}.budget-total-table .total td{background:#b8d1e6;color:#000}.budget-table{table-layout:fixed}.budget-table th:nth-child(1),.budget-table td:nth-child(1),.budget-table th:nth-child(4),.budget-table td:nth-child(4){width:48px}.budget-table th:nth-child(3),.budget-table td:nth-child(3),.budget-table th:nth-child(6),.budget-table td:nth-child(6){width:82px}
-      .budget-table .budget-main-head th{background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}.budget-table .budget-sub-head th{background:#d8e0ef;text-align:left;font-size:9px}.budget-table .account-heading{background:#d8e0ef;font-weight:800;color:#111827}.budget-table .result td{font-weight:800;background:#f8fafc}.budget-table .result.is-positive td{background:#ecfdf5}.budget-table .result.is-negative td{background:#fef2f2}.budget-table .result.is-empty td{color:#6b7280}.cvn-title{margin:26px 0 0;padding:7px;border:1px solid #cfd4dc;border-bottom:0;background:#f3c9ad;text-align:center;font-size:10px;letter-spacing:.03em}
+      .budget-model-sheet{max-width:1000px;margin:0 auto}.budget-main-labels{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 6px;text-align:center;font-size:10px}.budget-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.budget-side-table,.budget-total-table,.budget-cvn-table{table-layout:fixed}.budget-side-table td:first-child{width:auto}.budget-side-table td:last-child{width:92px;color:#00f}.budget-side-table .budget-sub-head th{background:#b8d1e6;text-align:center;color:#000}.budget-side-table .account-heading td{background:#d8e0ef;font-weight:800;color:#000}.budget-total-table{margin-top:14px}.budget-total-table td:nth-child(2),.budget-total-table td:nth-child(4),.budget-cvn-table td:nth-child(2),.budget-cvn-table td:nth-child(4){width:92px;color:#00f}.budget-total-table .total td{background:#b8d1e6;color:#000}.budget-cvn-table th{background:#d8e0ef;color:#000;text-align:left}.budget-cvn-table .total td{background:#f3c9ad;color:#000}.budget-table{table-layout:fixed}.budget-table th:nth-child(1),.budget-table td:nth-child(1),.budget-table th:nth-child(4),.budget-table td:nth-child(4){width:48px}.budget-table th:nth-child(3),.budget-table td:nth-child(3),.budget-table th:nth-child(6),.budget-table td:nth-child(6){width:82px}
+      .budget-table .budget-main-head th{background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}.budget-table .budget-sub-head th{background:#d8e0ef;text-align:left;font-size:9px}.budget-table .account-heading{background:#d8e0ef;font-weight:800;color:#111827}.budget-table .result td{font-weight:800;background:#f8fafc}.budget-table .result.is-positive td{background:#ecfdf5}.budget-table .result.is-negative td{background:#fef2f2}.budget-table .result.is-empty td{color:#6b7280}.cvn-title{margin:34px 0 0;padding:7px;border:1px solid #111827;border-bottom:0;background:#f3c9ad;text-align:center;font-size:10px;letter-spacing:.03em}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.grid p,.note{border:1px solid #ddd5e7;padding:12px;background:#faf8fc}
       .grid span{display:block;color:#6b5f78;font-size:10px;text-transform:uppercase}.grid strong{display:block;margin-top:4px}
       .pie-wrap{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;margin:10px 0 18px}.pie-chart{width:170px;height:170px;border-radius:50%;border:1px solid #ddd5e7}.pie-legend{display:grid;gap:7px}.pie-legend p{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;margin:0;font-size:11px}.pie-legend span{width:12px;height:12px;border-radius:3px}.pie-legend em{color:#6b5f78;font-style:normal}
@@ -1227,7 +1254,6 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
     onChange({ ...section, [side]: next });
   };
 
-  const maxVoluntaryRows = Math.max(voluntaryExpenses.length, voluntaryProducts.length);
   const renderSideEditor = (title, lines, templates, side) => {
     const groupedRows = groupedBudgetRows(lines, templates, side);
     let lineIndex = -1;
@@ -1257,6 +1283,50 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
           })}
         </tbody>
       </table>
+    );
+  };
+  const renderVoluntaryEditor = () => {
+    const maxRows = Math.max(voluntaryExpenses.length, voluntaryProducts.length);
+    return (
+      <div className="budget-cvn-editor">
+        <h4>CONTRIBUTIONS VOLONTAIRES EN NATURE (CVN)</h4>
+        <table className="budget-cvn-editor-table">
+          <thead>
+            <tr>
+              <th colSpan="2">86 - Emplois des contributions volontaires en nature</th>
+              <th colSpan="2">87 - Contributions volontaires en nature</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: maxRows }, (_, index) => {
+              const expense = voluntaryExpenses[index] || {};
+              const product = voluntaryProducts[index] || {};
+              return (
+                <tr key={`budget-voluntary-${year}-${index}`}>
+                  <td>{expense.account ? `${expense.account} - ${expense.label}` : ""}</td>
+                  <td>
+                    {voluntaryExpenses[index] && (
+                      <input type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, event.target.value)} />
+                    )}
+                  </td>
+                  <td>{product.account ? `${product.account} - ${product.label}` : ""}</td>
+                  <td>
+                    {voluntaryProducts[index] && (
+                      <input type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, event.target.value)} />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="total">
+              <td>TOTAL DONT CVN</td>
+              <td>{budgetCurrency(sumLines(voluntaryExpenses))}</td>
+              <td>TOTAL DONT CVN</td>
+              <td>{budgetCurrency(sumLines(voluntaryProducts))}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     );
   };
 
@@ -1294,36 +1364,7 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
             </tr>
           </tbody>
         </table>
-      </div>
-      <div className="budget-editor-table-wrap">
-        <table className="budget-editor-table">
-          <thead>
-            <tr><th colSpan="3">86 Emploi des contributions volontaires en nature</th><th colSpan="3">87 Contributions volontaires en nature</th></tr>
-            <tr><th>Compte</th><th>Poste</th><th>Montant</th><th>Compte</th><th>Poste</th><th>Montant</th></tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: maxVoluntaryRows }, (_, index) => {
-              const expense = voluntaryExpenses[index] || {};
-              const product = voluntaryProducts[index] || {};
-              return (
-                <tr key={`budget-voluntary-${year}-${index}`}>
-                  <td>{expense.account || ""}</td>
-                  <td>{expense.label || ""}</td>
-                  <td><input type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, event.target.value)} /></td>
-                  <td>{product.account || ""}</td>
-                  <td>{product.label || ""}</td>
-                  <td><input type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, event.target.value)} /></td>
-                </tr>
-              );
-            })}
-            <tr className="total">
-              <td colSpan="2">Total</td>
-              <td>{currency(sumLines(voluntaryExpenses))}</td>
-              <td colSpan="2">Total</td>
-              <td>{currency(sumLines(voluntaryProducts))}</td>
-            </tr>
-          </tbody>
-        </table>
+        {renderVoluntaryEditor()}
       </div>
     </section>
   );

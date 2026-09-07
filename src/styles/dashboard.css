@@ -1419,6 +1419,75 @@
   font-weight: 900;
 }
 
+.budget-cvn-editor {
+  margin-top: 34px;
+}
+
+.budget-cvn-editor h4 {
+  margin: 0;
+  border: 1px solid #111827;
+  border-bottom: 0;
+  background: #f3c9ad;
+  padding: 7px 8px;
+  color: #000;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.budget-cvn-editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.budget-cvn-editor-table th,
+.budget-cvn-editor-table td {
+  border: 1px solid #111827;
+  padding: 5px 6px;
+  color: #111827;
+  font-size: 11px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.budget-cvn-editor-table th {
+  background: #d8e0ef;
+  color: #000;
+  font-weight: 900;
+  text-align: left;
+}
+
+.budget-cvn-editor-table td:nth-child(2),
+.budget-cvn-editor-table td:nth-child(4) {
+  width: 92px;
+  color: #00f;
+  font-weight: 800;
+  text-align: right;
+}
+
+.budget-cvn-editor-table input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #00f;
+  font: inherit;
+  font-weight: 800;
+  text-align: right;
+}
+
+.budget-cvn-editor-table input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  background: #eff6ff;
+}
+
+.budget-cvn-editor-table .total td {
+  background: #f3c9ad;
+  color: #000;
+  font-weight: 900;
+}
+
 .budget-result-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
