@@ -1277,10 +1277,11 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
   const expenseTotal = sumLines(expenses);
   const result = productTotal - expenseTotal;
 
-  const updateSide = (side, index, value) => {
+  const updateSide = (side, targetLine, value) => {
     const source = side === "expenses" ? expenses : products;
-    const next = source.map((line, lineIndex) => (
-      lineIndex === index ? { ...line, amount: amount(value) } : line
+    const targetKey = normalizeLineKey(targetLine);
+    const next = source.map((line) => (
+      normalizeLineKey(line) === targetKey ? { ...line, amount: amount(value) } : line
     ));
     onChange({ ...section, [side]: next });
   };
@@ -1295,7 +1296,6 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
 
   const renderSideEditor = (title, lines, templates, side) => {
     const groupedRows = groupedBudgetRows(lines, templates, side);
-    let lineIndex = -1;
     return (
       <table className="budget-side-editor-table">
         <thead><tr><th colSpan="2">{title}</th></tr></thead>
@@ -1304,8 +1304,6 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
             if (row.isHeading) {
               return <tr className="account-heading" key={`${side}-heading-${row.account}-${index}`}><td>{row.label}</td><td></td></tr>;
             }
-            lineIndex += 1;
-            const updateIndex = lineIndex;
             return (
               <tr key={`${side}-${row.account}-${index}`}>
                 <td>{row.label}</td>
@@ -1314,7 +1312,7 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
                     type="number"
                     step="0.01"
                     value={row.amount ?? 0}
-                    onChange={(event) => updateSide(side, updateIndex, event.target.value)}
+                    onChange={(event) => updateSide(side, row, event.target.value)}
                   />
                 </td>
               </tr>
