@@ -253,7 +253,8 @@ const DEFAULT_ACCOUNTING = {
     bankCategories: [
       { label: "Ventes de séjours et participations", account: "70", amount: 198527.51 },
       { label: "Subventions et aides", account: "74", amount: 78104.46 },
-      { label: "Dons, apports et prêts neutralisés", account: "75", amount: 81527.75 },
+      { label: "Crédits Qonto non catégorisés à ventiler", account: "75", amount: 64307.75 },
+      { label: "Crédits William classés administratifs à neutraliser", account: "75", amount: 17220 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
     ],
     expenseCategories: [
@@ -292,7 +293,8 @@ const DEFAULT_ACCOUNTING = {
     products: [
       { label: "Ventes de séjours et participations", account: "70", amount: 198527.51 },
       { label: "Subventions et aides", account: "74", amount: 78104.46 },
-      { label: "Dons, apports et prêts neutralisés", account: "75", amount: 81527.75 },
+      { label: "Crédits Qonto non catégorisés à ventiler", account: "75", amount: 64307.75 },
+      { label: "Crédits William classés administratifs à neutraliser", account: "75", amount: 17220 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
     ],
     expenses: [
