@@ -53,7 +53,8 @@ const accountingPatch = {
       { label: "Repas et hebergement du personnel", account: "6256", amount: 4071.22 },
       { label: "Telephonie", account: "626", amount: 204.99 },
       { label: "Frais bancaires et abonnements banque", account: "627", amount: 400.83 },
-      { label: "Salaires et charges salariales", account: "641", amount: 15472.62 },
+      { label: "Salaires bruts", account: "64", amount: 11461.2 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 4011.42 },
       { label: "Amende", account: "671", amount: 75 },
     ],
     assets: [

@@ -15,7 +15,7 @@ const db = getFirestore(app);
 const products2026 = [
   { label: "Ventes de sejours et participations", account: "70", amount: 198527.51 },
   { label: "Subventions et aides", account: "74", amount: 78104.46 },
-  { label: "Autres produits et apports", account: "75", amount: 81527.75 },
+  { label: "Dons, apports et prêts neutralisés", account: "75", amount: 81527.75 },
   { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
 ];
 
@@ -24,7 +24,8 @@ const expenses2026 = [
   { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 194393.38 },
   { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 54810.79 },
   { label: "Impots et taxes", account: "63", amount: 1025.85 },
-  { label: "Personnel, salaires et URSSAF", account: "64", amount: 46317.28 },
+  { label: "Salaires bruts", account: "64", amount: 34309.1 },
+  { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
   { label: "Autres regularisations de cloture", account: "65", amount: 24676 },
 ];
 

@@ -16,7 +16,7 @@ const forecast2027 = {
   products: [
     { label: "Ventes de sejours et participations familles", account: "70", amount: 364297.98 },
     { label: "Subventions, aides CAF/VACAF et partenaires publics", account: "74", amount: 131215.49 },
-    { label: "Autres produits, apports, cotisations et dons", account: "75", amount: 132074.96 },
+    { label: "Dons, apports et réserves de développement", account: "75", amount: 132074.96 },
     { label: "Remboursements et transferts de charges", account: "79", amount: 5872.2 },
   ],
   expenses: [
@@ -24,7 +24,8 @@ const forecast2027 = {
     { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 346020.22 },
     { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 93414.03 },
     { label: "Impots et taxes", account: "63", amount: 1590.07 },
-    { label: "Personnel, salaires et charges sociales", account: "64", amount: 89392.35 },
+    { label: "Salaires bruts", account: "64", amount: 66216.56 },
+    { label: "Charges sociales de l'employeur", account: "64", amount: 23175.79 },
     { label: "Regularisations de cloture et marge de securite", account: "65", amount: 29611.2 },
   ],
   voluntaryExpenses: [

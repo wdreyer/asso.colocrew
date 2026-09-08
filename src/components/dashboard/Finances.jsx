@@ -179,7 +179,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "Repas et hébergement du personnel", account: "6256", amount: 4071.22 },
       { label: "Téléphonie", account: "626", amount: 204.99 },
       { label: "Frais bancaires et abonnements banque", account: "627", amount: 400.83 },
-      { label: "Salaires et charges salariales", account: "641", amount: 15472.62 },
+      { label: "Salaires bruts", account: "64", amount: 11461.2 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 4011.42 },
       { label: "Amende", account: "671", amount: 75 },
     ],
   },
@@ -223,7 +224,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "Repas et hébergement du personnel", account: "6256", amount: 4071.22 },
       { label: "Téléphonie", account: "626", amount: 204.99 },
       { label: "Frais bancaires et abonnements banque", account: "627", amount: 400.83 },
-      { label: "Salaires et charges salariales", account: "641", amount: 15472.62 },
+      { label: "Salaires bruts", account: "64", amount: 11461.2 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 4011.42 },
       { label: "Amende", account: "671", amount: 75 },
     ],
     assets: [
@@ -251,7 +253,7 @@ const DEFAULT_ACCOUNTING = {
     bankCategories: [
       { label: "Ventes de séjours et participations", account: "70", amount: 198527.51 },
       { label: "Subventions et aides", account: "74", amount: 78104.46 },
-      { label: "Autres produits et apports", account: "75", amount: 81527.75 },
+      { label: "Dons, apports et prêts neutralisés", account: "75", amount: 81527.75 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
     ],
     expenseCategories: [
@@ -259,7 +261,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "Hébergements, locations, activités et prestataires", account: "61", amount: 194393.38 },
       { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 54810.79 },
       { label: "Impôts et taxes", account: "63", amount: 1025.85 },
-      { label: "Personnel, salaires et URSSAF", account: "64", amount: 46317.28 },
+      { label: "Salaires bruts", account: "64", amount: 34309.1 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
       { label: "Autres régularisations de clôture", account: "65", amount: 24676 },
     ],
     note: "Atterrissage 2026 retravaillé depuis l'export Qonto au 03/09/2026 et le tableau de clôture transmis. Les flux Qonto exacts représentent 316 389,15 € d'encaissements et 301 861,15 € de décaissements ; le tableau ajoute 45 588,40 € à encaisser et 49 545,50 € à payer après retrait du solde bancaire déjà disponible. Les remboursements de prêts sont intégrés en régularisations de clôture et devront être neutralisés dans la lecture de bilan, sans créer de catégories visibles par personne.",
@@ -289,7 +292,7 @@ const DEFAULT_ACCOUNTING = {
     products: [
       { label: "Ventes de séjours et participations", account: "70", amount: 198527.51 },
       { label: "Subventions et aides", account: "74", amount: 78104.46 },
-      { label: "Autres produits et apports", account: "75", amount: 81527.75 },
+      { label: "Dons, apports et prêts neutralisés", account: "75", amount: 81527.75 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
     ],
     expenses: [
@@ -297,7 +300,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "Hébergements, locations, activités et prestataires", account: "61", amount: 194393.38 },
       { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 54810.79 },
       { label: "Impôts et taxes", account: "63", amount: 1025.85 },
-      { label: "Personnel, salaires et URSSAF", account: "64", amount: 46317.28 },
+      { label: "Salaires bruts", account: "64", amount: 34309.1 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
       { label: "Autres régularisations de clôture", account: "65", amount: 24676 },
     ],
     voluntary: [
@@ -331,7 +335,7 @@ const DEFAULT_ACCOUNTING = {
     products: [
       { label: "Ventes de séjours et participations familles", account: "70", amount: 364297.98 },
       { label: "Subventions, aides CAF/VACAF et partenaires publics", account: "74", amount: 131215.49 },
-      { label: "Autres produits, apports, cotisations et dons", account: "75", amount: 132074.96 },
+      { label: "Dons, apports et réserves de développement", account: "75", amount: 132074.96 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 5872.2 },
     ],
     expenses: [
@@ -339,7 +343,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "Hébergements, locations, activités et prestataires", account: "61", amount: 346020.22 },
       { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 93414.03 },
       { label: "Impôts et taxes", account: "63", amount: 1590.07 },
-      { label: "Personnel, salaires et charges sociales", account: "64", amount: 89392.35 },
+      { label: "Salaires bruts", account: "64", amount: 66216.56 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 23175.79 },
       { label: "Régularisations de clôture et marge de sécurité", account: "65", amount: 29611.2 },
     ],
     voluntaryExpenses: [
@@ -588,14 +593,15 @@ function completeBudgetLines(lines, template) {
   const source = Array.isArray(lines) ? lines : [];
   const byKey = new Map(source.map((line) => [normalizeLineKey(line), line]));
   const templateKeys = new Set(template.map(normalizeLineKey));
-  const completed = template.map((line) => {
+  const completed = template.flatMap((line) => {
     const saved = byKey.get(normalizeLineKey(line));
+    if (saved?.deleted) return [];
     return {
       ...line,
       amount: amount(saved?.amount),
     };
   });
-  const customLines = source.filter((line) => !templateKeys.has(normalizeLineKey(line)));
+  const customLines = source.filter((line) => !line?.deleted && !templateKeys.has(normalizeLineKey(line)));
   return [...completed, ...customLines];
 }
 
@@ -1272,11 +1278,32 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
 
   const updateSide = (side, targetLine, value) => {
     const source = side === "expenses" ? expenses : products;
+    const hiddenLines = (Array.isArray(section?.[side]) ? section[side] : []).filter((line) => line?.deleted);
     const targetKey = normalizeLineKey(targetLine);
     const next = source.map((line) => (
       normalizeLineKey(line) === targetKey ? { ...line, amount: amount(value) } : line
     ));
-    onChange({ ...section, [side]: next });
+    onChange({ ...section, [side]: [...next, ...hiddenLines] });
+  };
+
+  const removeSideLine = (side, targetLine, templates) => {
+    const savedLines = Array.isArray(section?.[side]) ? section[side] : [];
+    const targetKey = normalizeLineKey(targetLine);
+    const isTemplateLine = new Set(templates.map(normalizeLineKey)).has(targetKey);
+    if (isTemplateLine) {
+      const hasSavedLine = savedLines.some((line) => normalizeLineKey(line) === targetKey);
+      const next = hasSavedLine
+        ? savedLines.map((line) => (normalizeLineKey(line) === targetKey ? { ...line, amount: 0, deleted: true } : line))
+        : [...savedLines, { ...targetLine, amount: 0, deleted: true }];
+      onChange({ ...section, [side]: next });
+      return;
+    }
+    onChange({ ...section, [side]: savedLines.filter((line) => normalizeLineKey(line) !== targetKey) });
+  };
+
+  const addSideLine = (side) => {
+    const savedLines = Array.isArray(section?.[side]) ? section[side] : [];
+    onChange({ ...section, [side]: [...savedLines, { account: "", label: "Nouveau poste", amount: 0 }] });
   };
 
   const updateVoluntarySide = (side, index, value) => {
@@ -1290,29 +1317,39 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
   const renderSideEditor = (title, lines, templates, side) => {
     const groupedRows = groupedBudgetRows(lines, templates, side);
     return (
-      <table className="budget-side-editor-table">
-        <thead><tr><th colSpan="2">{title}</th></tr></thead>
-        <tbody>
-          {groupedRows.map((row, index) => {
-            if (row.isHeading) {
-              return <tr className="account-heading" key={`${side}-heading-${row.account}-${index}`}><td>{row.label}</td><td></td></tr>;
-            }
-            return (
-              <tr key={`${side}-${row.account}-${index}`}>
-                <td>{row.label}</td>
-                <td>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={row.amount ?? 0}
-                    onChange={(event) => updateSide(side, row, event.target.value)}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="budget-side-editor-wrap">
+        <table className="budget-side-editor-table">
+          <thead><tr><th colSpan="3">{title}</th></tr></thead>
+          <tbody>
+            {groupedRows.map((row, index) => {
+              if (row.isHeading) {
+                return <tr className="account-heading" key={`${side}-heading-${row.account}-${index}`}><td>{row.label}</td><td></td><td></td></tr>;
+              }
+              return (
+                <tr key={`${side}-${row.account}-${index}`}>
+                  <td>{row.label}</td>
+                  <td>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={row.amount ?? 0}
+                      onChange={(event) => updateSide(side, row, event.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <button type="button" className="budget-line-delete" onClick={() => removeSideLine(side, row, templates)} aria-label="Supprimer la ligne">
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <button type="button" className="dash-btn dash-btn-secondary budget-add-line" onClick={() => addSideLine(side)}>
+          Ajouter une ligne
+        </button>
+      </div>
     );
   };
   const renderVoluntaryEditor = () => {
