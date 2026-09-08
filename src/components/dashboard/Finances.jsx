@@ -251,7 +251,7 @@ const DEFAULT_ACCOUNTING = {
     bankCategories: [
       { label: "Ventes de séjours et participations", account: "70", amount: 198527.51 },
       { label: "Subventions et aides", account: "74", amount: 78104.46 },
-      { label: "Autres produits, apports et trésorerie intégrée", account: "75", amount: 92058.07 },
+      { label: "Autres produits et apports", account: "75", amount: 81527.75 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
     ],
     expenseCategories: [
@@ -262,7 +262,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Personnel, salaires et URSSAF", account: "64", amount: 46317.28 },
       { label: "Autres régularisations de clôture", account: "65", amount: 24676 },
     ],
-    note: "Atterrissage 2026 retravaillé depuis l'export Qonto au 03/09/2026 et le tableau de clôture transmis. Les flux Qonto exacts représentent 316 389,15 € d'encaissements et 301 861,15 € de décaissements ; le tableau ajoute 56 118,72 € à encaisser et 49 545,50 € à payer. Les remboursements de prêts sont intégrés en régularisations de clôture et devront être neutralisés dans la lecture de bilan, sans créer de catégories visibles par personne.",
+    note: "Atterrissage 2026 retravaillé depuis l'export Qonto au 03/09/2026 et le tableau de clôture transmis. Les flux Qonto exacts représentent 316 389,15 € d'encaissements et 301 861,15 € de décaissements ; le tableau ajoute 45 588,40 € à encaisser et 49 545,50 € à payer après retrait du solde bancaire déjà disponible. Les remboursements de prêts sont intégrés en régularisations de clôture et devront être neutralisés dans la lecture de bilan, sans créer de catégories visibles par personne.",
   },
   cashPlan2026: [
     { month: "Janvier", inflows: 7684.13, outflows: 3198.16, note: "Préparation et premiers encaissements" },
@@ -274,7 +274,7 @@ const DEFAULT_ACCOUNTING = {
     { month: "Juillet", inflows: 86432.21, outflows: 80130.02, note: "Pic séjours été" },
     { month: "Août", inflows: 73482.89, outflows: 72838.11, note: "Pic séjours été" },
     { month: "Septembre", inflows: 17632.87, outflows: 15528.21, note: "Encaissements résiduels au 03/09" },
-    { month: "Octobre", inflows: 56118.72, outflows: 49545.5, note: "Reste 2026 - tableau de clôture transmis" },
+    { month: "Octobre", inflows: 45588.4, outflows: 49545.5, note: "Reste 2026 hors solde bancaire déjà disponible" },
     { month: "Novembre", inflows: 0, outflows: 0, note: "À compléter si nouveaux flux" },
     { month: "Décembre", inflows: 0, outflows: 0, note: "À compléter si nouveaux flux" },
   ],
@@ -289,7 +289,7 @@ const DEFAULT_ACCOUNTING = {
     products: [
       { label: "Ventes de séjours et participations", account: "70", amount: 198527.51 },
       { label: "Subventions et aides", account: "74", amount: 78104.46 },
-      { label: "Autres produits, apports et trésorerie intégrée", account: "75", amount: 92058.07 },
+      { label: "Autres produits et apports", account: "75", amount: 81527.75 },
       { label: "Remboursements et transferts de charges", account: "79", amount: 3817.83 },
     ],
     expenses: [
@@ -313,7 +313,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Prestations en nature", account: "871", amount: 0 },
       { label: "Dons en nature", account: "870", amount: 0 },
     ],
-    note: "Budget 2026 repris depuis l'export Qonto complet transmis et le tableau de clôture. Les postes restent rangés dans les catégories du bilan comptable ; les remboursements de prêts sont intégrés en régularisations de clôture afin de ne pas créer de catégories visibles par personne.",
+    note: "Budget 2026 repris depuis l'export Qonto complet transmis et le tableau de clôture. Le solde bancaire déjà disponible n'est pas compté comme un produit supplémentaire ; seuls les encaissements restants hors solde sont ajoutés. Les postes restent rangés dans les catégories du bilan comptable ; les remboursements de prêts sont intégrés en régularisations de clôture afin de ne pas créer de catégories visibles par personne.",
   },
   balance: {
     assets: [
