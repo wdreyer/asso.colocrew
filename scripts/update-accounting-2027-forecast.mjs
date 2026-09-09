@@ -24,8 +24,8 @@ const forecast2027 = {
     { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 346020.22 },
     { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 93414.03 },
     { label: "Impots et taxes", account: "63", amount: 1590.07 },
-    { label: "Salaires bruts", account: "64", amount: 66216.56 },
-    { label: "Charges sociales de l'employeur", account: "64", amount: 23175.79 },
+    { label: "Salaires bruts", account: "64", amount: 77154.74 },
+    { label: "Charges sociales de l'employeur", account: "64", amount: 27004.15 },
     { label: "Regularisations de cloture et marge de securite", account: "65", amount: 29611.2 },
   ],
   voluntaryExpenses: [
@@ -42,18 +42,18 @@ const forecast2027 = {
 };
 
 const cashPlan2027 = [
-  { month: "Janvier", inflows: 12500, outflows: 4800, note: "Preparation administrative et premiers acomptes" },
-  { month: "Fevrier", inflows: 48500, outflows: 56000, note: "Premiere tension de tresorerie : acomptes, transports et lancement des inscriptions" },
-  { month: "Mars", inflows: 15500, outflows: 15400, note: "Suivi inscriptions et depenses courantes" },
-  { month: "Avril", inflows: 17500, outflows: 16000, note: "Preparation operationnelle" },
-  { month: "Mai", inflows: 30000, outflows: 26000, note: "Acomptes fournisseurs et montee en charge" },
-  { month: "Juin", inflows: 122000, outflows: 116000, note: "Lancement saison ete" },
-  { month: "Juillet", inflows: 160500, outflows: 150500, note: "Pic sejours ete" },
-  { month: "Aout", inflows: 135800, outflows: 129000, note: "Pic sejours ete et retours" },
-  { month: "Septembre", inflows: 28500, outflows: 25000, note: "Encaissements residuels et cloture ete" },
-  { month: "Octobre", inflows: 55000, outflows: 61000, note: "Formations, regularisations et preparation Toussaint" },
-  { month: "Novembre", inflows: 6500, outflows: 6000, note: "Basse saison" },
-  { month: "Decembre", inflows: 1160.63, outflows: 9261.57, note: "Cloture annuelle et frais de structure" },
+  { month: "Janvier", inflows: 12500, outflows: 6030.55, note: "Preparation administrative, premiers acomptes et 0,5 ETP" },
+  { month: "Fevrier", inflows: 48500, outflows: 57230.55, note: "Premiere tension de tresorerie : acomptes, transports, inscriptions et 0,5 ETP" },
+  { month: "Mars", inflows: 15500, outflows: 16630.55, note: "Suivi inscriptions, depenses courantes et 0,5 ETP" },
+  { month: "Avril", inflows: 17500, outflows: 17230.55, note: "Preparation operationnelle et 0,5 ETP" },
+  { month: "Mai", inflows: 30000, outflows: 27230.55, note: "Acomptes fournisseurs, montee en charge et 0,5 ETP" },
+  { month: "Juin", inflows: 122000, outflows: 117230.55, note: "Lancement saison ete et 0,5 ETP" },
+  { month: "Juillet", inflows: 160500, outflows: 151730.55, note: "Pic sejours ete et 0,5 ETP" },
+  { month: "Aout", inflows: 135800, outflows: 130230.55, note: "Pic sejours ete, retours et 0,5 ETP" },
+  { month: "Septembre", inflows: 28500, outflows: 26230.55, note: "Encaissements residuels, cloture ete et 0,5 ETP" },
+  { month: "Octobre", inflows: 55000, outflows: 62230.55, note: "Formations, regularisations, Toussaint et 0,5 ETP" },
+  { month: "Novembre", inflows: 6500, outflows: 7230.55, note: "Basse saison et 0,5 ETP" },
+  { month: "Decembre", inflows: 1160.63, outflows: 10492.06, note: "Cloture annuelle, frais de structure et 0,5 ETP" },
 ];
 
 await setDoc(doc(db, "accounting_reports", "colocrew-2026"), {
