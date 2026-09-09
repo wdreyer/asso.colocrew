@@ -105,8 +105,6 @@ const BUDGET_ACCOUNT_LABELS = {
     69: "69 - Impôt sur les bénéfices / participation salariés",
   },
   products: {
-    16: "16 - Avances et prêts reçus à neutraliser",
-    58: "58 - Virements internes",
     70: "70 - Vente de produits finis, marchandises, prestations de services",
     73: "73 - Concours publics",
     74: "74 - Subventions d'exploitation",
@@ -257,8 +255,6 @@ const DEFAULT_ACCOUNTING = {
       { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 42538.4 },
       { label: "Aides, CAF, collectivités et fondations", account: "74", amount: 109480.84 },
       { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
-      { label: "Avances et prêts reçus à neutraliser", account: "16", amount: 33720 },
-      { label: "Virements internes COLOCREW à neutraliser", account: "58", amount: 24590 },
     ],
     expenseCategories: [
       { label: "Achats, alimentation, fournitures et opérations", account: "60", amount: 30183.35 },
@@ -267,9 +263,13 @@ const DEFAULT_ACCOUNTING = {
       { label: "Impôts et taxes", account: "63", amount: 1025.85 },
       { label: "Salaires bruts", account: "64", amount: 34309.1 },
       { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
-      { label: "Remboursements de prêts et avances à neutraliser", account: "16", amount: 24676 },
     ],
-    note: "Atterrissage 2026 retravaillé depuis l'export Qonto au 03/09/2026 et le tableau de clôture transmis. Les flux Qonto exacts représentent 316 389,15 € d'encaissements et 301 861,15 € de décaissements ; le tableau ajoute 45 588,40 € à encaisser et 49 545,50 € à payer après retrait du solde bancaire déjà disponible. Les remboursements de prêts sont intégrés en régularisations de clôture et devront être neutralisés dans la lecture de bilan, sans créer de catégories visibles par personne.",
+    neutralizedFlows: [
+      { label: "Avances et prêts reçus", account: "16", amount: 33720 },
+      { label: "Virements internes entre comptes COLOCREW", account: "58", amount: 24590 },
+      { label: "Remboursements de prêts et avances", account: "16", amount: -24676 },
+    ],
+    note: "Atterrissage 2026 retravaillé depuis l'export Qonto au 03/09/2026 et le tableau de clôture transmis. Les ventes Qonto non catégorisées ont été ventilées en vente de séjours quand la contrepartie correspond à Totemia, Stripe, familles, groupes ou partenaires de séjour. Les aides sont classées en 74 et les remboursements SNCF/autres en 79. Les avances, prêts et virements internes sont isolés hors résultat dans les flux neutralisés.",
   },
   cashPlan2026: [
     { month: "Janvier", inflows: 7684.13, outflows: 3198.16, note: "Préparation et premiers encaissements" },
@@ -298,8 +298,6 @@ const DEFAULT_ACCOUNTING = {
       { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 42538.4 },
       { label: "Aides, CAF, collectivités et fondations", account: "74", amount: 109480.84 },
       { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
-      { label: "Avances et prêts reçus à neutraliser", account: "16", amount: 33720 },
-      { label: "Virements internes COLOCREW à neutraliser", account: "58", amount: 24590 },
     ],
     expenses: [
       { label: "Achats, alimentation, fournitures et opérations", account: "60", amount: 30183.35 },
@@ -308,7 +306,6 @@ const DEFAULT_ACCOUNTING = {
       { label: "Impôts et taxes", account: "63", amount: 1025.85 },
       { label: "Salaires bruts", account: "64", amount: 34309.1 },
       { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
-      { label: "Remboursements de prêts et avances à neutraliser", account: "16", amount: 24676 },
     ],
     voluntary: [
       { label: "Personnel bénévole", account: "864 / 875", amount: 30000 },
@@ -323,7 +320,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Prestations en nature", account: "871", amount: 0 },
       { label: "Dons en nature", account: "870", amount: 0 },
     ],
-    note: "Budget 2026 repris depuis l'export Qonto complet transmis et le tableau de clôture. Le solde bancaire déjà disponible n'est pas compté comme un produit supplémentaire ; seuls les encaissements restants hors solde sont ajoutés. Les postes restent rangés dans les catégories du bilan comptable ; les remboursements de prêts sont intégrés en régularisations de clôture afin de ne pas créer de catégories visibles par personne.",
+    note: "Budget 2026 repris depuis l'export Qonto complet transmis et le tableau de clôture. Le solde bancaire déjà disponible n'est pas compté comme un produit supplémentaire ; seuls les encaissements restants hors solde sont ajoutés. Les postes restent rangés dans les catégories du bilan comptable, avec les avances, prêts et virements internes isolés hors résultat dans l'atterrissage.",
   },
   balance: {
     assets: [
@@ -447,6 +444,7 @@ function mergeAccountingDraft(saved) {
       bankMonthly: saved.landing2026?.bankMonthly || DEFAULT_ACCOUNTING.landing2026.bankMonthly,
       bankCategories: saved.landing2026?.bankCategories || DEFAULT_ACCOUNTING.landing2026.bankCategories,
       expenseCategories: saved.landing2026?.expenseCategories || DEFAULT_ACCOUNTING.landing2026.expenseCategories,
+      neutralizedFlows: saved.landing2026?.neutralizedFlows || DEFAULT_ACCOUNTING.landing2026.neutralizedFlows,
       note: saved.landing2026?.note || DEFAULT_ACCOUNTING.landing2026.note,
     },
     forecast: {
@@ -953,6 +951,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       ${cashPlanTable("Flux Qonto 2026 disponibles", accounting.landing2026.bankMonthly)}
       ${lineTable("Encaissements catégorisés Qonto 2026", accounting.landing2026.bankCategories)}
       ${lineTable("Décaissements catégorisés Qonto 2026", accounting.landing2026.expenseCategories)}
+      ${lineTable("Flux neutralisés hors résultat", accounting.landing2026.neutralizedFlows)}
       <section class="grid">
         <p><span>Encaissements Qonto</span><strong>${escapeHtml(currency(sumLines(accounting.landing2026.bankCategories)))}</strong></p>
         <p><span>Décaissements Qonto</span><strong>${escapeHtml(currency(sumLines(accounting.landing2026.expenseCategories)))}</strong></p>
@@ -2220,6 +2219,7 @@ export default function Finances() {
             <div className="accounting-editor-grid">
               <AccountingLinesEditor title="Encaissements Qonto 2026" lines={accounting.landing2026.bankCategories} onChange={(lines) => updateAccountingSection("landing2026", "bankCategories", lines)} />
               <AccountingLinesEditor title="Décaissements Qonto 2026" lines={accounting.landing2026.expenseCategories} onChange={(lines) => updateAccountingSection("landing2026", "expenseCategories", lines)} />
+              <AccountingLinesEditor title="Flux neutralisés hors résultat" lines={accounting.landing2026.neutralizedFlows} onChange={(lines) => updateAccountingSection("landing2026", "neutralizedFlows", lines)} totalLabel="Solde neutralisé" />
               <AccountingLinesEditor title="Produits réalisés dashboard" lines={accounting.actual.products} onChange={(lines) => updateAccountingSection("actual", "products", lines)} />
               <AccountingLinesEditor title="Charges réalisées dashboard" lines={accounting.actual.expenses} onChange={(lines) => updateAccountingSection("actual", "expenses", lines)} />
               <CashPlanEditor title="Flux mensuels Qonto 2026" rows={accounting.landing2026.bankMonthly} onChange={(lines) => updateAccountingSection("landing2026", "bankMonthly", lines)} />

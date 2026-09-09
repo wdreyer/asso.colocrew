@@ -17,8 +17,6 @@ const products2026 = [
   { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 42538.4 },
   { label: "Aides, CAF, collectivites et fondations", account: "74", amount: 109480.84 },
   { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
-  { label: "Avances et prets recus a neutraliser", account: "16", amount: 33720 },
-  { label: "Virements internes COLOCREW a neutraliser", account: "58", amount: 24590 },
 ];
 
 const expenses2026 = [
@@ -28,10 +26,15 @@ const expenses2026 = [
   { label: "Impots et taxes", account: "63", amount: 1025.85 },
   { label: "Salaires bruts", account: "64", amount: 34309.1 },
   { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
-  { label: "Remboursements de prets et avances a neutraliser", account: "16", amount: 24676 },
 ];
 
-const note2026 = "Atterrissage 2026 repris depuis l'export Qonto au 03/09/2026 et le tableau de cloture transmis. Les flux Qonto exacts representent 316 389,15 EUR d'encaissements et 301 861,15 EUR de decaissements ; le tableau ajoute 45 588,40 EUR a encaisser et 49 545,50 EUR a payer apres retrait du solde bancaire deja disponible. Les remboursements de prets sont integres en regularisations de cloture et devront etre neutralises dans la lecture de bilan, sans creer de categories visibles par personne.";
+const neutralizedFlows2026 = [
+  { label: "Avances et prets recus", account: "16", amount: 33720 },
+  { label: "Virements internes entre comptes COLOCREW", account: "58", amount: 24590 },
+  { label: "Remboursements de prets et avances", account: "16", amount: -24676 },
+];
+
+const note2026 = "Atterrissage 2026 repris depuis l'export Qonto au 03/09/2026 et le tableau de cloture transmis. Les ventes Qonto non categorisees ont ete ventilees en vente de sejours quand la contrepartie correspond a Totemia, Stripe, familles, groupes ou partenaires de sejour. Les aides sont classees en 74 et les remboursements SNCF/autres en 79. Les avances, prets et virements internes sont isoles hors resultat dans les flux neutralises.";
 
 const forecast = {
   products: products2026,
@@ -66,6 +69,7 @@ const landing2026 = {
   ],
   bankCategories: products2026,
   expenseCategories: expenses2026,
+  neutralizedFlows: neutralizedFlows2026,
   note: note2026,
 };
 
