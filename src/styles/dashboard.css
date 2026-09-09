@@ -1411,13 +1411,41 @@
   color: #00f;
   font: inherit;
   font-weight: 800;
-  text-align: right;
+  text-align: left;
 }
 
 .budget-side-editor-table input:focus {
   outline: 2px solid #2563eb;
   outline-offset: 1px;
   background: #eff6ff;
+}
+
+.budget-line-fields {
+  display: grid;
+  grid-template-columns: minmax(42px, 58px) minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.budget-side-editor-table .budget-account-input,
+.budget-cvn-editor-table .budget-account-input {
+  color: #111827;
+  font-weight: 900;
+  text-align: left;
+}
+
+.budget-side-editor-table .budget-label-input,
+.budget-cvn-editor-table .budget-label-input {
+  color: #111827;
+  font-weight: 600;
+  text-align: left;
+}
+
+.budget-side-editor-table .budget-amount-input,
+.budget-cvn-editor-table .budget-amount-input {
+  color: #00f;
+  font-weight: 800;
+  text-align: right;
 }
 
 .budget-line-delete {
@@ -1504,7 +1532,7 @@
   color: #00f;
   font: inherit;
   font-weight: 800;
-  text-align: right;
+  text-align: left;
 }
 
 .budget-cvn-editor-table input:focus {

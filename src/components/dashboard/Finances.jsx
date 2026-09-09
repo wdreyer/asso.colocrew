@@ -595,19 +595,27 @@ function normalizeLineKey(line) {
     .replace(/[^a-z0-9]/g, "")}`;
 }
 
+function editableLineKey(line) {
+  return line?._templateKey || normalizeLineKey(line);
+}
+
 function completeBudgetLines(lines, template) {
   const source = Array.isArray(lines) ? lines : [];
-  const byKey = new Map(source.map((line) => [normalizeLineKey(line), line]));
+  const byKey = new Map(source.map((line) => [editableLineKey(line), line]));
   const templateKeys = new Set(template.map(normalizeLineKey));
   const completed = template.flatMap((line) => {
-    const saved = byKey.get(normalizeLineKey(line));
+    const templateKey = normalizeLineKey(line);
+    const saved = byKey.get(templateKey);
     if (saved?.deleted) return [];
     return {
       ...line,
+      ...saved,
+      _templateKey: templateKey,
+      deleted: false,
       amount: amount(saved?.amount),
     };
   });
-  const customLines = source.filter((line) => !line?.deleted && !templateKeys.has(normalizeLineKey(line)));
+  const customLines = source.filter((line) => !line?.deleted && !templateKeys.has(editableLineKey(line)));
   return [...completed, ...customLines];
 }
 
@@ -1282,29 +1290,29 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
   const expenseTotal = sumLines(expenses);
   const result = productTotal - expenseTotal;
 
-  const updateSide = (side, targetLine, value) => {
+  const updateSide = (side, targetLine, key, value) => {
     const source = side === "expenses" ? expenses : products;
     const hiddenLines = (Array.isArray(section?.[side]) ? section[side] : []).filter((line) => line?.deleted);
-    const targetKey = normalizeLineKey(targetLine);
+    const targetKey = editableLineKey(targetLine);
     const next = source.map((line) => (
-      normalizeLineKey(line) === targetKey ? { ...line, amount: amount(value) } : line
+      editableLineKey(line) === targetKey ? { ...line, [key]: key === "amount" ? amount(value) : value } : line
     ));
     onChange({ ...section, [side]: [...next, ...hiddenLines] });
   };
 
   const removeSideLine = (side, targetLine, templates) => {
     const savedLines = Array.isArray(section?.[side]) ? section[side] : [];
-    const targetKey = normalizeLineKey(targetLine);
+    const targetKey = editableLineKey(targetLine);
     const isTemplateLine = new Set(templates.map(normalizeLineKey)).has(targetKey);
     if (isTemplateLine) {
-      const hasSavedLine = savedLines.some((line) => normalizeLineKey(line) === targetKey);
+      const hasSavedLine = savedLines.some((line) => editableLineKey(line) === targetKey);
       const next = hasSavedLine
-        ? savedLines.map((line) => (normalizeLineKey(line) === targetKey ? { ...line, amount: 0, deleted: true } : line))
-        : [...savedLines, { ...targetLine, amount: 0, deleted: true }];
+        ? savedLines.map((line) => (editableLineKey(line) === targetKey ? { ...line, amount: 0, deleted: true } : line))
+        : [...savedLines, { ...targetLine, _templateKey: targetKey, amount: 0, deleted: true }];
       onChange({ ...section, [side]: next });
       return;
     }
-    onChange({ ...section, [side]: savedLines.filter((line) => normalizeLineKey(line) !== targetKey) });
+    onChange({ ...section, [side]: savedLines.filter((line) => editableLineKey(line) !== targetKey) });
   };
 
   const addSideLine = (side) => {
@@ -1312,10 +1320,10 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
     onChange({ ...section, [side]: [...savedLines, { account: "", label: "Nouveau poste", amount: 0 }] });
   };
 
-  const updateVoluntarySide = (side, index, value) => {
+  const updateVoluntarySide = (side, index, key, value) => {
     const source = side === "voluntaryExpenses" ? voluntaryExpenses : voluntaryProducts;
     const next = source.map((line, lineIndex) => (
-      lineIndex === index ? { ...line, amount: amount(value) } : line
+      lineIndex === index ? { ...line, [key]: key === "amount" ? amount(value) : value } : line
     ));
     onChange({ ...section, [side]: next });
   };
@@ -1332,14 +1340,30 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
                 return <tr className="account-heading" key={`${side}-heading-${row.account}-${index}`}><td>{row.label}</td><td></td><td></td></tr>;
               }
               return (
-                <tr key={`${side}-${row.account}-${index}`}>
-                  <td>{row.label}</td>
+                <tr key={`${side}-${editableLineKey(row)}-${index}`}>
+                  <td>
+                    <div className="budget-line-fields">
+                      <input
+                        className="budget-account-input"
+                        aria-label="Compte"
+                        value={row.account || ""}
+                        onChange={(event) => updateSide(side, row, "account", event.target.value)}
+                      />
+                      <input
+                        className="budget-label-input"
+                        aria-label="Libellé"
+                        value={row.label || ""}
+                        onChange={(event) => updateSide(side, row, "label", event.target.value)}
+                      />
+                    </div>
+                  </td>
                   <td>
                     <input
+                      className="budget-amount-input"
                       type="number"
                       step="0.01"
                       value={row.amount ?? 0}
-                      onChange={(event) => updateSide(side, row, event.target.value)}
+                      onChange={(event) => updateSide(side, row, "amount", event.target.value)}
                     />
                   </td>
                   <td>
@@ -1376,16 +1400,30 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
               const product = voluntaryProducts[index] || {};
               return (
                 <tr key={`budget-voluntary-${year}-${index}`}>
-                  <td>{expense.account ? `${expense.account} - ${expense.label}` : ""}</td>
                   <td>
                     {voluntaryExpenses[index] && (
-                      <input type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, event.target.value)} />
+                      <div className="budget-line-fields">
+                        <input className="budget-account-input" aria-label="Compte CVN charge" value={expense.account || ""} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, "account", event.target.value)} />
+                        <input className="budget-label-input" aria-label="Libellé CVN charge" value={expense.label || ""} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, "label", event.target.value)} />
+                      </div>
                     )}
                   </td>
-                  <td>{product.account ? `${product.account} - ${product.label}` : ""}</td>
+                  <td>
+                    {voluntaryExpenses[index] && (
+                      <input className="budget-amount-input" type="number" step="0.01" value={expense.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryExpenses", index, "amount", event.target.value)} />
+                    )}
+                  </td>
                   <td>
                     {voluntaryProducts[index] && (
-                      <input type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, event.target.value)} />
+                      <div className="budget-line-fields">
+                        <input className="budget-account-input" aria-label="Compte CVN produit" value={product.account || ""} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, "account", event.target.value)} />
+                        <input className="budget-label-input" aria-label="Libellé CVN produit" value={product.label || ""} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, "label", event.target.value)} />
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    {voluntaryProducts[index] && (
+                      <input className="budget-amount-input" type="number" step="0.01" value={product.amount ?? 0} onChange={(event) => updateVoluntarySide("voluntaryProducts", index, "amount", event.target.value)} />
                     )}
                   </td>
                 </tr>
