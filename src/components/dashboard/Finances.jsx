@@ -252,7 +252,7 @@ const DEFAULT_ACCOUNTING = {
       { month: "Septembre", inflows: 17632.87, outflows: 15528.21, note: "Encaissements résiduels au 03/09" },
     ],
     bankCategories: [
-      { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 147077.94 },
+      { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 159241.78 },
       { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 42538.4 },
       { label: "VACAF", account: "74", amount: 87317 },
       { label: "Département", account: "74", amount: 10000 },
@@ -296,7 +296,7 @@ const DEFAULT_ACCOUNTING = {
   ],
   forecast: {
     products: [
-      { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 147077.94 },
+      { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 159241.78 },
       { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 42538.4 },
       { label: "VACAF", account: "74", amount: 87317 },
       { label: "Département", account: "74", amount: 10000 },
@@ -681,6 +681,11 @@ function sortBudgetLines(lines) {
 
 function groupedBudgetRows(lines, templates, side) {
   const completed = sortBudgetLines(completeBudgetLines(lines, templates));
+  return groupedVisibleBudgetRows(completed, side);
+}
+
+function groupedVisibleBudgetRows(lines, side) {
+  const completed = sortBudgetLines((lines || []).filter((line) => !line?.deleted));
   const rows = [];
   let currentKey = "";
   for (const line of completed) {
@@ -1344,7 +1349,7 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
   };
 
   const renderSideEditor = (title, lines, templates, side) => {
-    const groupedRows = groupedBudgetRows(lines, templates, side);
+    const groupedRows = groupedVisibleBudgetRows(lines, side);
     return (
       <div className="budget-side-editor-wrap">
         <table className="budget-side-editor-table">

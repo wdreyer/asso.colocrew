@@ -33,7 +33,7 @@ const hiddenZeroSubsidyProductLines = [
 }));
 
 const products2026Visible = [
-  { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 147077.94 },
+  { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 159241.78 },
   { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 42538.4 },
   { label: "VACAF", account: "74", amount: 87317 },
   { label: "Departement", account: "74", amount: 10000 },
