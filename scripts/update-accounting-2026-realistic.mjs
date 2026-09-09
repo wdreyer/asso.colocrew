@@ -12,12 +12,35 @@ const app = getApps()[0] || initializeApp({
 
 const db = getFirestore(app);
 
-const products2026 = [
+const hiddenZeroSubsidyProductLines = [
+  ["Collectivites territoriales", "74::collectivitesterritoriales"],
+  ["Pantin", "74::pantin"],
+  ["Pantin Contrat de ville", "74::pantincontratdeville"],
+  ["Aubervilliers", "74::aubervilliers"],
+  ["Region", "74::region"],
+  ["Autres subventions a preciser", "74::autressubventionsapreciser"],
+  ["Etat", "74::etat"],
+  ["Fonds Social Europeen", "74::fondssocialeuropeen"],
+  ["Subventions privees", "74::subventionsprivees"],
+  ["Entreprises", "74::entreprises"],
+  ["Autres a preciser - Dons", "74::autresapreciserdons"],
+].map(([label, templateKey]) => ({
+  label,
+  account: "74",
+  _templateKey: templateKey,
+  amount: 0,
+  deleted: true,
+}));
+
+const products2026Visible = [
   { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 147077.94 },
   { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 42538.4 },
-  { label: "Aides, CAF, collectivites et fondations", account: "74", amount: 109480.84 },
+  { label: "VACAF", account: "74", amount: 87317 },
+  { label: "Departement", account: "74", amount: 10000 },
   { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
 ];
+
+const products2026 = [...products2026Visible, ...hiddenZeroSubsidyProductLines];
 
 const expenses2026 = [
   { label: "Achats, alimentation, fournitures et operations", account: "60", amount: 30183.35 },
@@ -67,7 +90,7 @@ const landing2026 = {
     { month: "Novembre", inflows: 0, outflows: 0, note: "A completer si nouveaux flux" },
     { month: "Decembre", inflows: 0, outflows: 0, note: "A completer si nouveaux flux" },
   ],
-  bankCategories: products2026,
+  bankCategories: products2026Visible,
   expenseCategories: expenses2026,
   neutralizedFlows: neutralizedFlows2026,
   note: note2026,

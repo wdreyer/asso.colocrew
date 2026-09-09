@@ -161,7 +161,6 @@ const DEFAULT_ACCOUNTING = {
       { label: "Vente de séjours / participations familles", account: "70", amount: 108857.3 },
       { label: "CAF / VACAF", account: "74", amount: 17079.44 },
       { label: "SDJES 93", account: "74", amount: 9900 },
-      ...hiddenZeroSubsidyProductLines(),
       { label: "Apport exercice 2024", account: "75", amount: 470 },
       { label: "Adhésions", account: "756", amount: 135 },
       { label: "Dons / mécénat", account: "758", amount: 1400 },
@@ -208,6 +207,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Vente de séjours", account: "70", amount: 108857.3 },
       { label: "CAF / VACAF", account: "74", amount: 17079.44 },
       { label: "SDJES 93", account: "74", amount: 9900 },
+      ...hiddenZeroSubsidyProductLines(),
       { label: "Apport exercice 2024", account: "75", amount: 470 },
       { label: "Adhésions", account: "756", amount: 135 },
       { label: "Dons, mécénat et prêts requalifiés en dons", account: "758", amount: 7400 },
@@ -254,7 +254,8 @@ const DEFAULT_ACCOUNTING = {
     bankCategories: [
       { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 147077.94 },
       { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 42538.4 },
-      { label: "Aides, CAF, collectivités et fondations", account: "74", amount: 109480.84 },
+      { label: "VACAF", account: "74", amount: 87317 },
+      { label: "Département", account: "74", amount: 10000 },
       { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
     ],
     expenseCategories: [
@@ -297,7 +298,9 @@ const DEFAULT_ACCOUNTING = {
     products: [
       { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 147077.94 },
       { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 42538.4 },
-      { label: "Aides, CAF, collectivités et fondations", account: "74", amount: 109480.84 },
+      { label: "VACAF", account: "74", amount: 87317 },
+      { label: "Département", account: "74", amount: 10000 },
+      ...hiddenZeroSubsidyProductLines(["Département"]),
       { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
     ],
     expenses: [
@@ -598,9 +601,10 @@ function editableLineKey(line) {
   return line?._templateKey || normalizeLineKey(line);
 }
 
-function hiddenZeroSubsidyProductLines() {
+function hiddenZeroSubsidyProductLines(visibleLabels = []) {
+  const visible = new Set(visibleLabels.map((label) => String(label).toLowerCase()));
   return BUDGET_PRODUCT_LINES
-    .filter((line) => String(line.account) === "74")
+    .filter((line) => String(line.account) === "74" && !visible.has(String(line.label).toLowerCase()))
     .map((line) => ({
       ...line,
       _templateKey: normalizeLineKey(line),
