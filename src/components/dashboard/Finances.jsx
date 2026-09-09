@@ -161,6 +161,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Vente de séjours / participations familles", account: "70", amount: 108857.3 },
       { label: "CAF / VACAF", account: "74", amount: 17079.44 },
       { label: "SDJES 93", account: "74", amount: 9900 },
+      ...hiddenZeroSubsidyProductLines(),
       { label: "Apport exercice 2024", account: "75", amount: 470 },
       { label: "Adhésions", account: "756", amount: 135 },
       { label: "Dons / mécénat", account: "758", amount: 1400 },
@@ -595,6 +596,17 @@ function normalizeLineKey(line) {
 
 function editableLineKey(line) {
   return line?._templateKey || normalizeLineKey(line);
+}
+
+function hiddenZeroSubsidyProductLines() {
+  return BUDGET_PRODUCT_LINES
+    .filter((line) => String(line.account) === "74")
+    .map((line) => ({
+      ...line,
+      _templateKey: normalizeLineKey(line),
+      amount: 0,
+      deleted: true,
+    }));
 }
 
 function completeBudgetLines(lines, template) {

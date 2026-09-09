@@ -12,10 +12,32 @@ const app = getApps()[0] || initializeApp({
 
 const db = getFirestore(app);
 
+const hiddenZeroSubsidyProductLines = [
+  ["Collectivites territoriales", "74::collectivitesterritoriales"],
+  ["Pantin", "74::pantin"],
+  ["Pantin Contrat de ville", "74::pantincontratdeville"],
+  ["Aubervilliers", "74::aubervilliers"],
+  ["Departement", "74::departement"],
+  ["Region", "74::region"],
+  ["Autres subventions a preciser", "74::autressubventionsapreciser"],
+  ["Etat", "74::etat"],
+  ["Fonds Social Europeen", "74::fondssocialeuropeen"],
+  ["Subventions privees", "74::subventionsprivees"],
+  ["Entreprises", "74::entreprises"],
+  ["Autres a preciser - Dons", "74::autresapreciserdons"],
+].map(([label, templateKey]) => ({
+  label,
+  account: "74",
+  _templateKey: templateKey,
+  amount: 0,
+  deleted: true,
+}));
+
 const products2025 = [
   { label: "Vente de séjours", account: "70", amount: 108857.3 },
   { label: "CAF / VACAF", account: "74", amount: 17079.44 },
   { label: "SDJES 93", account: "74", amount: 9900 },
+  ...hiddenZeroSubsidyProductLines,
   { label: "Apport exercice 2024", account: "75", amount: 470 },
   { label: "Adhésions", account: "756", amount: 135 },
   { label: "Dons, mécénat et prêts requalifiés en dons", account: "758", amount: 7400 },
