@@ -668,6 +668,21 @@ function pieGradient(rows) {
   return segments.length ? `background: conic-gradient(${segments.join(", ")})` : "background:#e5e7eb";
 }
 
+function pieSvg(rows) {
+  let cursor = 0;
+  const positiveRows = rows.filter((row) => amount(row.amount) > 0 && amount(row.share) > 0);
+  if (!positiveRows.length) {
+    return `<svg class="pie-chart-svg" viewBox="0 0 100 100" role="img" aria-label="Camembert vide"><circle cx="50" cy="50" r="40" fill="#e5e7eb"></circle></svg>`;
+  }
+  const circles = positiveRows.map((row, index) => {
+    const share = Math.max(0, Math.min(100, amount(row.share)));
+    const circle = `<circle cx="50" cy="50" r="40" fill="transparent" stroke="${PIE_COLORS[index % PIE_COLORS.length]}" stroke-width="32" pathLength="100" stroke-dasharray="${share.toFixed(4)} ${(100 - share).toFixed(4)}" stroke-dashoffset="${(-cursor).toFixed(4)}" transform="rotate(-90 50 50)"></circle>`;
+    cursor += share;
+    return circle;
+  }).join("");
+  return `<svg class="pie-chart-svg" viewBox="0 0 100 100" role="img" aria-label="Camembert">${circles}</svg>`;
+}
+
 function fundingDetailBlock(title, rows, intro) {
   const sharedRows = rowsWithShares(rows);
   const total = sumLines(sharedRows);
@@ -677,7 +692,7 @@ function fundingDetailBlock(title, rows, intro) {
       <h2>${escapeHtml(title)}</h2>
       <p>${escapeHtml(intro)}</p>
       <div class="pie-wrap">
-        <div class="pie-chart" style="${escapeHtml(pieGradient(sharedRows))}"></div>
+        ${pieSvg(sharedRows)}
         <div class="pie-legend">
           ${sharedRows.map((row, index) => `
             <p><span style="background:${PIE_COLORS[index % PIE_COLORS.length]}"></span><strong>${escapeHtml(row.label)}</strong><em>${escapeHtml(row.share.toFixed(1))} % - ${escapeHtml(currency(row.amount))}</em></p>
@@ -709,7 +724,7 @@ function fundingSplitTable(accounting) {
   const details = accounting.fundingDetails || DEFAULT_ACCOUNTING.fundingDetails;
   const chart = `
       <div class="pie-wrap">
-        <div class="pie-chart" style="${escapeHtml(pieGradient(rows))}"></div>
+        ${pieSvg(rows)}
         <div class="pie-legend">
           ${rows.map((row, index) => `
             <p><span style="background:${PIE_COLORS[index % PIE_COLORS.length]}"></span><strong>${escapeHtml(row.label)}</strong><em>${escapeHtml(row.share.toFixed(1))} % - ${escapeHtml(currency(row.amount))}</em></p>
@@ -1163,6 +1178,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
   const html = `<!doctype html>
     <html><head><meta charset="utf-8" /><title>${escapeHtml(titles[kind])} ${escapeHtml(accounting.association.name)}</title>
     <style>
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
       body{font-family:Arial,sans-serif;margin:28px;color:#111827;background:#fff}
       h1{font-size:14px;margin:0 0 10px;text-align:center;font-weight:700}
       h2{font-size:17px;margin:0 0 8px;text-transform:uppercase} h3{font-size:13px;margin:14px 0 5px}
@@ -1173,7 +1189,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       .budget-table .budget-main-head th{background:#d1d5db;text-align:center;font-size:10px;letter-spacing:.03em}.budget-table .budget-sub-head th{background:#d8e0ef;text-align:left;font-size:9px}.budget-table .account-heading{background:#d8e0ef;font-weight:800;color:#111827}.budget-table .result td{font-weight:800;background:#f8fafc}.budget-table .result.is-positive td{background:#ecfdf5}.budget-table .result.is-negative td{background:#fef2f2}.budget-table .result.is-empty td{color:#6b7280}.cvn-title{margin:34px 0 0;padding:7px;border:1px solid #111827;border-bottom:0;background:#f3c9ad;text-align:center;font-size:10px;letter-spacing:.03em}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.grid p,.note{border:1px solid #ddd5e7;padding:12px;background:#faf8fc}
       .grid span{display:block;color:#6b5f78;font-size:10px;text-transform:uppercase}.grid strong{display:block;margin-top:4px}
-      .pie-wrap{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;margin:10px 0 18px}.pie-chart{width:170px;height:170px;border-radius:50%;border:1px solid #ddd5e7}.pie-legend{display:grid;gap:7px}.pie-legend p{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;margin:0;font-size:11px}.pie-legend span{width:12px;height:12px;border-radius:3px}.pie-legend em{color:#6b5f78;font-style:normal}
+      .pie-wrap{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center;margin:10px 0 18px}.pie-chart-svg{width:170px;height:170px;border-radius:50%;border:1px solid #ddd5e7}.pie-legend{display:grid;gap:7px}.pie-legend p{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;margin:0;font-size:11px}.pie-legend span{width:12px;height:12px;border-radius:3px}.pie-legend em{color:#6b5f78;font-style:normal}
       .page-break{break-before:page;page-break-before:always}
       @media print{body{margin:18mm}.no-print{display:none}}
     </style></head><body>
