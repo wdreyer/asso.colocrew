@@ -1368,10 +1368,12 @@
 .budget-side-editor-table td,
 .budget-total-editor-table td {
   border: 1px solid #111827;
+  box-sizing: border-box;
   padding: 5px 6px;
   color: #111827;
   font-size: 11px;
   line-height: 1.2;
+  overflow: hidden;
   vertical-align: middle;
 }
 
@@ -1406,6 +1408,9 @@
 
 .budget-side-editor-table input {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 0;
   background: transparent;
   color: #00f;
@@ -1425,6 +1430,12 @@
   grid-template-columns: minmax(42px, 58px) minmax(0, 1fr);
   gap: 6px;
   align-items: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.budget-line-fields > input {
+  min-width: 0;
 }
 
 .budget-side-editor-table .budget-account-input,
@@ -1503,10 +1514,12 @@
 .budget-cvn-editor-table th,
 .budget-cvn-editor-table td {
   border: 1px solid #111827;
+  box-sizing: border-box;
   padding: 5px 6px;
   color: #111827;
   font-size: 11px;
   line-height: 1.2;
+  overflow: hidden;
   vertical-align: middle;
 }
 
@@ -1527,6 +1540,9 @@
 
 .budget-cvn-editor-table input {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 0;
   background: transparent;
   color: #00f;

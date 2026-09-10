@@ -752,6 +752,8 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
   const productsTotal = sumLines(productRows.filter((line) => !line.isHeading));
   const expensesTotal = sumLines(expenseRows.filter((line) => !line.isHeading));
   const result = productsTotal - expensesTotal;
+  const balancedExpensesTotal = expensesTotal + Math.max(result, 0);
+  const balancedProductsTotal = productsTotal + Math.max(-result, 0);
   const voluntaryExpenseRows = completeBudgetLines(voluntary?.expenses || voluntary, VOLUNTARY_EXPENSE_LINES);
   const voluntaryProductRows = completeBudgetLines(voluntary?.products || voluntary, VOLUNTARY_PRODUCT_LINES);
   const voluntaryBlock = budgetVoluntaryTable(voluntaryExpenseRows, voluntaryProductRows);
@@ -767,6 +769,7 @@ function budgetStatementTable(title, products, expenses, voluntary = []) {
       <table class="budget-total-table">
         <tbody>
           <tr class="total"><td>TOTAL DES CHARGES HORS CVN</td><td class="num">${escapeHtml(budgetCurrency(expensesTotal))}</td><td>TOTAL DES PRODUITS HORS CVN</td><td class="num">${escapeHtml(budgetCurrency(productsTotal))}</td></tr>
+          <tr class="total"><td>TOTAL EQUILIBRE APRES REPORT</td><td class="num">${escapeHtml(budgetCurrency(balancedExpensesTotal))}</td><td>TOTAL EQUILIBRE APRES REPORT</td><td class="num">${escapeHtml(budgetCurrency(balancedProductsTotal))}</td></tr>
           <tr><td>Excédent prévisionnel / résultat positif</td><td class="num">${escapeHtml(result >= 0 ? budgetCurrency(result) : "-")}</td><td>Insuffisance prévisionnelle / déficit</td><td class="num">${escapeHtml(result < 0 ? budgetCurrency(Math.abs(result)) : "-")}</td></tr>
         </tbody>
       </table>
@@ -1309,6 +1312,8 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
   const productTotal = sumLines(products);
   const expenseTotal = sumLines(expenses);
   const result = productTotal - expenseTotal;
+  const balancedExpenseTotal = expenseTotal + Math.max(result, 0);
+  const balancedProductTotal = productTotal + Math.max(-result, 0);
 
   const updateSide = (side, targetLine, key, value) => {
     const source = side === "expenses" ? expenses : products;
@@ -1486,6 +1491,12 @@ function BudgetStatementEditor({ year, section, onChange, onExport, onSave }) {
               <td>{budgetCurrency(expenseTotal)}</td>
               <td>TOTAL DES PRODUITS HORS CVN</td>
               <td>{budgetCurrency(productTotal)}</td>
+            </tr>
+            <tr className="total">
+              <td>TOTAL EQUILIBRE APRES REPORT</td>
+              <td>{budgetCurrency(balancedExpenseTotal)}</td>
+              <td>TOTAL EQUILIBRE APRES REPORT</td>
+              <td>{budgetCurrency(balancedProductTotal)}</td>
             </tr>
             <tr>
               <td>Excédent prévisionnel / résultat positif</td>
