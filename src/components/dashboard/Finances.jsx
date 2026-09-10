@@ -7,6 +7,8 @@ import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
 const ACCOUNTING_DOC_ID = "colocrew-2026";
+const REPORT_2025_TO_2026_KEY = "75::reportexcedent2025";
+const REPORT_2025_TO_2026_LABEL = "Report de l'excédent 2025";
 
 const STAY_LABELS = {
   "my-creative-surf-camp": "MCSC",
@@ -411,9 +413,38 @@ function resultFrom(section) {
   return sumLines(section?.products) - sumLines(section?.expenses);
 }
 
+function accountingWithAutomaticReports(accounting) {
+  const next = deepClone(accounting || DEFAULT_ACCOUNTING);
+  const reportAmount = Math.max(Math.round(resultFrom(next.financial2025) * 100) / 100, 0);
+  const reportLine = {
+    account: "75",
+    label: REPORT_2025_TO_2026_LABEL,
+    amount: reportAmount,
+    _templateKey: REPORT_2025_TO_2026_KEY,
+    _autoReportKey: REPORT_2025_TO_2026_KEY,
+  };
+  const upsertReport = (lines) => {
+    const cleaned = (Array.isArray(lines) ? lines : []).filter((line) => (
+      line?._autoReportKey !== REPORT_2025_TO_2026_KEY
+      && line?._templateKey !== REPORT_2025_TO_2026_KEY
+      && line?.label !== REPORT_2025_TO_2026_LABEL
+    ));
+    return reportAmount > 0 ? [...cleaned, reportLine] : cleaned;
+  };
+  next.forecast = {
+    ...(next.forecast || {}),
+    products: upsertReport(next.forecast?.products),
+  };
+  next.landing2026 = {
+    ...(next.landing2026 || {}),
+    bankCategories: upsertReport(next.landing2026?.bankCategories),
+  };
+  return next;
+}
+
 function mergeAccountingDraft(saved) {
-  if (!saved) return deepClone(DEFAULT_ACCOUNTING);
-  return {
+  if (!saved) return accountingWithAutomaticReports(DEFAULT_ACCOUNTING);
+  return accountingWithAutomaticReports({
     ...deepClone(DEFAULT_ACCOUNTING),
     ...saved,
     association: { ...DEFAULT_ACCOUNTING.association, ...(saved.association || {}) },
@@ -472,7 +503,7 @@ function mergeAccountingDraft(saved) {
     cashPlan2026: saved.cashPlan2026 || DEFAULT_ACCOUNTING.cashPlan2026,
     fundingBreakdown: saved.fundingBreakdown || DEFAULT_ACCOUNTING.fundingBreakdown,
     cashPlan2027: saved.cashPlan2027 || DEFAULT_ACCOUNTING.cashPlan2027,
-  };
+  });
 }
 
 function escapeHtml(value) {
@@ -859,6 +890,7 @@ function landingNarrative2026(accounting, dashboardSnapshot) {
 }
 
 function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) {
+  accounting = accountingWithAutomaticReports(accounting);
   const actualProducts = sumLines(accounting.actual.products);
   const actualExpenses = sumLines(accounting.actual.expenses);
   const forecastProducts = sumLines(accounting.forecast.products);
@@ -1860,21 +1892,22 @@ export default function Finances() {
     },
     { net: 0, gross: 0, paid: 0, remaining: 0, estimatedCharges: 0 },
   ), [staffContracts]);
-  const accountingForecastProducts = sumLines(accounting.forecast.products);
-  const accountingForecastExpenses = sumLines(accounting.forecast.expenses);
-  const accounting2027Products = sumLines(accounting.forecast2027.products);
-  const accounting2027Expenses = sumLines(accounting.forecast2027.expenses);
-  const accountingLandingProducts = sumLines(accounting.landing2026.bankCategories);
-  const accountingLandingExpenses = sumLines(accounting.landing2026.expenseCategories);
-  const accountingFundingTotal = sumLines(accounting.fundingBreakdown);
-  const topFundingShare = Math.max(0, ...fundingRowsFrom(accounting).map((line) => line.share));
+  const accountingForDisplay = useMemo(() => accountingWithAutomaticReports(accounting), [accounting]);
+  const accountingForecastProducts = sumLines(accountingForDisplay.forecast.products);
+  const accountingForecastExpenses = sumLines(accountingForDisplay.forecast.expenses);
+  const accounting2027Products = sumLines(accountingForDisplay.forecast2027.products);
+  const accounting2027Expenses = sumLines(accountingForDisplay.forecast2027.expenses);
+  const accountingLandingProducts = sumLines(accountingForDisplay.landing2026.bankCategories);
+  const accountingLandingExpenses = sumLines(accountingForDisplay.landing2026.expenseCategories);
+  const accountingFundingTotal = sumLines(accountingForDisplay.fundingBreakdown);
+  const topFundingShare = Math.max(0, ...fundingRowsFrom(accountingForDisplay).map((line) => line.share));
   const dashboardSnapshot = {
     reservations: rows.length,
     grossAmount: amount(displayed.grossAmount),
     ticketCost: ticketTotals.cost,
     grossSalary: staffTotals.gross,
   };
-  const selectedBalanceSection = accountingSectionForYear(accounting, selectedBalanceYear);
+  const selectedBalanceSection = accountingSectionForYear(accountingForDisplay, selectedBalanceYear);
   const selectedBalanceSectionKey = accountingSectionKeyForYear(selectedBalanceYear);
 
   const updateAccountingSection = (section, key, value) => {
@@ -1886,10 +1919,12 @@ export default function Finances() {
 
   const saveAccounting = async () => {
     setAccountingStatus("Enregistrement...");
+    const accountingToSave = accountingWithAutomaticReports(accounting);
     await setDoc(doc(db, COLLECTIONS.ACCOUNTING_REPORTS, ACCOUNTING_DOC_ID), {
-      ...accounting,
+      ...accountingToSave,
       updatedAt: serverTimestamp(),
     }, { merge: true });
+    setAccounting(accountingToSave);
     setAccountingStatus("Brouillon comptable enregistré.");
   };
 
@@ -2180,7 +2215,7 @@ export default function Finances() {
               <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
                 Recalculer 2027 depuis 2026
               </button>
-              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}>
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accountingForDisplay, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}>
                 Exporter en PDF
               </button>
             </section>
@@ -2196,7 +2231,7 @@ export default function Finances() {
               year={selectedBalanceYear}
               section={selectedBalanceSection}
               onChange={(section) => setAccounting((previous) => ({ ...previous, [selectedBalanceSectionKey]: section }))}
-              onExport={() => openAccountingPrint(accounting, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}
+              onExport={() => openAccountingPrint(accountingForDisplay, "budgetYear", dashboardSnapshot, { year: selectedBalanceYear })}
               onSave={saveAccounting}
             />
           </>
@@ -2232,7 +2267,7 @@ export default function Finances() {
         {activeAccountingTab === "landing2026" && (
           <>
             <section className="accounting-document-toolbar">
-              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "landing2026", dashboardSnapshot)}>
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accountingForDisplay, "landing2026", dashboardSnapshot)}>
                 Exporter l'atterrissage
               </button>
               <label className="accounting-file-btn">
@@ -2249,7 +2284,7 @@ export default function Finances() {
               />
             </section>
             <div className="accounting-editor-grid">
-              <AccountingLinesEditor title="Encaissements Qonto 2026" lines={accounting.landing2026.bankCategories} onChange={(lines) => updateAccountingSection("landing2026", "bankCategories", lines)} />
+              <AccountingLinesEditor title="Encaissements Qonto 2026" lines={accountingForDisplay.landing2026.bankCategories} onChange={(lines) => updateAccountingSection("landing2026", "bankCategories", lines)} />
               <AccountingLinesEditor title="Décaissements Qonto 2026" lines={accounting.landing2026.expenseCategories} onChange={(lines) => updateAccountingSection("landing2026", "expenseCategories", lines)} />
               <AccountingLinesEditor title="Flux neutralisés hors résultat" lines={accounting.landing2026.neutralizedFlows} onChange={(lines) => updateAccountingSection("landing2026", "neutralizedFlows", lines)} totalLabel="Solde neutralisé" />
               <AccountingLinesEditor title="Produits réalisés dashboard" lines={accounting.actual.products} onChange={(lines) => updateAccountingSection("actual", "products", lines)} />
@@ -2320,7 +2355,7 @@ export default function Finances() {
               <label><span>Trésorerie de clôture</span><input type="number" step="0.01" value={accounting.exercise.closingCash ?? 0} onChange={(event) => updateAccountingSection("exercise", "closingCash", amount(event.target.value))} /></label>
             </div>
             <div className="accounting-editor-grid">
-              <AccountingLinesEditor title="Produits prévisionnels 2026" lines={accounting.forecast.products} onChange={(lines) => updateAccountingSection("forecast", "products", lines)} />
+              <AccountingLinesEditor title="Produits prévisionnels 2026" lines={accountingForDisplay.forecast.products} onChange={(lines) => updateAccountingSection("forecast", "products", lines)} />
               <AccountingLinesEditor title="Charges prévisionnelles 2026" lines={accounting.forecast.expenses} onChange={(lines) => updateAccountingSection("forecast", "expenses", lines)} />
               <AccountingLinesEditor title="Contributions volontaires" lines={accounting.forecast.voluntary} onChange={(lines) => updateAccountingSection("forecast", "voluntary", lines)} />
               <AccountingLinesEditor title="Actif du bilan courant" lines={accounting.balance.assets} onChange={(lines) => updateAccountingSection("balance", "assets", lines)} />
