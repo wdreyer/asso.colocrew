@@ -64,18 +64,18 @@ const forecast2027 = {
 };
 
 const cashPlan2027 = [
-  { month: "Janvier", inflows: 12000, outflows: 78000, note: "Acomptes hebergements, trains et lancement des engagements avant encaissements." },
-  { month: "Fevrier", inflows: 105000, outflows: 24000, note: "Encaissements forts pendant les sejours d'hiver et regularisations familles/partenaires." },
-  { month: "Mars", inflows: 85000, outflows: 16000, note: "Grosses enveloppes post-sejours : soldes groupes, aides et paiements restants." },
-  { month: "Avril", inflows: 12000, outflows: 28000, note: "Preparation ete, frais courants et premiers acomptes fournisseurs." },
-  { month: "Mai", inflows: 18000, outflows: 112000, note: "Tres forte avance de tresorerie : hebergements ete, prestataires et transports." },
-  { month: "Juin", inflows: 22000, outflows: 128000, note: "Deuxieme vague d'acomptes : trains, hebergements, achats et preparation operationnelle." },
-  { month: "Juillet", inflows: 105000, outflows: 56000, note: "Debut du pic d'encaissements ete, avec depenses de sejour encore elevees." },
-  { month: "Aout", inflows: 115000, outflows: 25000, note: "Encaissements lisses pendant les sejours et depenses courantes plus limitees." },
-  { month: "Septembre", inflows: 52000, outflows: 16000, note: "Soldes post-sejours, aides et regularisations apres la saison." },
-  { month: "Octobre", inflows: 4220.94, outflows: 12000, note: "Basse saison, cloture operationnelle et frais de structure." },
-  { month: "Novembre", inflows: 2000, outflows: 6000, note: "Frais fixes et suivi administratif hors saison." },
-  { month: "Decembre", inflows: 0, outflows: 3303.54, note: "Cloture annuelle et derniers frais de structure." },
+  { month: "Janvier", inflows: 31276, outflows: 41000, note: "Solde initial 2026 de 11 276 EUR inclus, puis acomptes hebergements, trains et lancement." },
+  { month: "Fevrier", inflows: 70000, outflows: 42000, note: "Encaissements forts pendant les sejours d'hiver et premiers soldes familles/partenaires." },
+  { month: "Mars", inflows: 60000, outflows: 25000, note: "Grosses enveloppes post-sejours : soldes groupes, aides et paiements restants." },
+  { month: "Avril", inflows: 18000, outflows: 32000, note: "Preparation ete, frais courants et premiers acomptes fournisseurs." },
+  { month: "Mai", inflows: 62000, outflows: 94000, note: "Forte avance de tresorerie : hebergements ete, prestataires et transports, compensee par acomptes familles." },
+  { month: "Juin", inflows: 88000, outflows: 96000, note: "Deuxieme vague d'acomptes trains/hebergements avec encaissements ete deja engages." },
+  { month: "Juillet", inflows: 85000, outflows: 74000, note: "Pic d'encaissements ete, avec depenses de sejour encore elevees." },
+  { month: "Aout", inflows: 60000, outflows: 61000, note: "Encaissements lisses pendant les sejours et depenses operationnelles." },
+  { month: "Septembre", inflows: 40000, outflows: 33000, note: "Soldes post-sejours, aides et regularisations apres la saison." },
+  { month: "Octobre", inflows: 4000, outflows: 3500, note: "Basse saison et frais de structure limites." },
+  { month: "Novembre", inflows: 3000, outflows: 2000, note: "Frais fixes et suivi administratif hors saison." },
+  { month: "Decembre", inflows: 10944.94, outflows: 803.54, note: "Cloture annuelle et derniers ajustements de tresorerie." },
 ];
 
 await setDoc(doc(db, "accounting_reports", "colocrew-2026"), {
