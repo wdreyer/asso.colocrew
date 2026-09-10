@@ -366,19 +366,20 @@ const DEFAULT_ACCOUNTING = {
   },
   forecast2027: {
     products: [
-      { label: "Ventes de séjours et participations familles", account: "70", amount: 364297.98 },
-      { label: "Subventions, aides CAF/VACAF et partenaires publics", account: "74", amount: 131215.49 },
-      { label: "Dons, apports et réserves de développement", account: "75", amount: 132074.96 },
-      { label: "Remboursements et transferts de charges", account: "79", amount: 5872.2 },
+      { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 299307.26 },
+      { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 47680.68 },
+      { label: "VACAF", account: "74", amount: 152804.75 },
+      { label: "Département", account: "74", amount: 17500 },
+      ...hiddenZeroSubsidyProductLines(["Département"]),
+      { label: "Remboursements SNCF et autres", account: "79", amount: 3652.25 },
     ],
     expenses: [
-      { label: "Achats, alimentation, fournitures et opérations", account: "60", amount: 54933.7 },
-      { label: "Hébergements, locations, activités et prestataires", account: "61", amount: 346020.22 },
-      { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 93414.03 },
-      { label: "Impôts et taxes", account: "63", amount: 1590.07 },
-      { label: "Salaires bruts", account: "64", amount: 77154.74 },
-      { label: "Charges sociales de l'employeur", account: "64", amount: 27004.15 },
-      { label: "Régularisations de clôture et marge de sécurité", account: "65", amount: 29611.2 },
+      { label: "Achats, alimentation, fournitures et opérations", account: "60", amount: 43117.11 },
+      { label: "Hébergements, locations, activités et prestataires", account: "61", amount: 247068.66 },
+      { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 115334.42 },
+      { label: "Impôts et taxes", account: "63", amount: 3951.5 },
+      { label: "Salaires bruts", account: "64", amount: 70245.82 },
+      { label: "Charges sociales de l'employeur", account: "64", amount: 24586.03 },
     ],
     voluntaryExpenses: [
       { label: "Personnel bénévole", account: "864", amount: 52500 },
@@ -390,7 +391,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Prestations en nature", account: "871", amount: 0 },
       { label: "Dons en nature", account: "870", amount: 0 },
     ],
-    note: "Projection 2027 construite à partir de l'atterrissage 2026 avec un multiplicateur moyen de 1,75. Les coefficients varient légèrement par poste pour tenir compte d'une hausse plus forte des séjours, hébergements et personnels, et plus mesurée sur les régularisations.",
+    note: "Projection 2027 construite strictement à partir des mêmes postes que le budget 2026, avec un multiplicateur de 1,75 sur chaque ligne. Le report automatique de l'excédent 2026 reste calculé séparément.",
   },
   cashPlan2027: [
     { month: "Janvier", inflows: 12500, outflows: 6030.55, note: "Préparation administrative, premiers acomptes et 0,5 ETP" },
@@ -2010,10 +2011,12 @@ export default function Finances() {
     setAccounting((previous) => ({
       ...previous,
       forecast2027: {
-        products: previous.forecast.products.map((line) => ({
-          ...line,
-          amount: Math.round(amount(line.amount) * 2 * 100) / 100,
-        })),
+        products: accountingWithAutomaticReports(previous).forecast.products
+          .filter((line) => !line?._autoReportKey)
+          .map((line) => ({
+            ...line,
+            amount: Math.round(amount(line.amount) * 1.75 * 100) / 100,
+          })),
         expenses: previous.forecast.expenses.map((line) => ({
           ...line,
           amount: Math.round(amount(line.amount) * 1.75 * 100) / 100,

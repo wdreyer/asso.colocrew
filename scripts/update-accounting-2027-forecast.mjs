@@ -12,21 +12,43 @@ const app = getApps()[0] || initializeApp({
 
 const db = getFirestore(app);
 
+const hiddenZeroSubsidyProductLines = [
+  ["Collectivites territoriales", "74::collectivitesterritoriales"],
+  ["Pantin", "74::pantin"],
+  ["Pantin Contrat de ville", "74::pantincontratdeville"],
+  ["Aubervilliers", "74::aubervilliers"],
+  ["Region", "74::region"],
+  ["Autres subventions a preciser", "74::autressubventionsapreciser"],
+  ["Etat", "74::etat"],
+  ["Fonds Social Europeen", "74::fondssocialeuropeen"],
+  ["Subventions privees", "74::subventionsprivees"],
+  ["Entreprises", "74::entreprises"],
+  ["Autres a preciser - Dons", "74::autresapreciserdons"],
+].map(([label, templateKey]) => ({
+  label,
+  account: "74",
+  _templateKey: templateKey,
+  amount: 0,
+  deleted: true,
+}));
+
 const forecast2027 = {
   products: [
-    { label: "Ventes de sejours et participations familles", account: "70", amount: 364297.98 },
-    { label: "Subventions, aides CAF/VACAF et partenaires publics", account: "74", amount: 131215.49 },
-    { label: "Dons, apports et réserves de développement", account: "75", amount: 132074.96 },
-    { label: "Remboursements et transferts de charges", account: "79", amount: 5872.2 },
+    { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 299307.26 },
+    { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 47680.68 },
+    { label: "VACAF", account: "74", amount: 152804.75 },
+    { label: "Departement", account: "74", amount: 17500 },
+    ...hiddenZeroSubsidyProductLines,
+    { label: "Report de l'excedent 2026", account: "75", amount: 11276, _templateKey: "75::reportexcedent2026", _autoReportKey: "75::reportexcedent2026" },
+    { label: "Remboursements SNCF et autres", account: "79", amount: 3652.25 },
   ],
   expenses: [
-    { label: "Achats, alimentation, fournitures et operations", account: "60", amount: 54933.7 },
-    { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 346020.22 },
-    { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 93414.03 },
-    { label: "Impots et taxes", account: "63", amount: 1590.07 },
-    { label: "Salaires bruts", account: "64", amount: 77154.74 },
-    { label: "Charges sociales de l'employeur", account: "64", amount: 27004.15 },
-    { label: "Regularisations de cloture et marge de securite", account: "65", amount: 29611.2 },
+    { label: "Achats, alimentation, fournitures et operations", account: "60", amount: 43117.11 },
+    { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 247068.66 },
+    { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 115334.42 },
+    { label: "Impots et taxes", account: "63", amount: 3951.5 },
+    { label: "Salaires bruts", account: "64", amount: 70245.82 },
+    { label: "Charges sociales de l'employeur", account: "64", amount: 24586.03 },
   ],
   voluntaryExpenses: [
     { label: "Personnel benevole", account: "864", amount: 52500 },
@@ -38,22 +60,22 @@ const forecast2027 = {
     { label: "Prestations en nature", account: "871", amount: 0 },
     { label: "Dons en nature", account: "870", amount: 0 },
   ],
-  note: "Projection 2027 construite a partir de l'atterrissage 2026 avec un multiplicateur moyen de 1,75. Les coefficients varient legerement par poste pour tenir compte d'une hausse plus forte des sejours, hebergements et personnels, et plus mesuree sur les regularisations.",
+  note: "Projection 2027 construite strictement a partir des memes postes que le budget 2026, avec un multiplicateur de 1,75 sur chaque ligne. Le report automatique de l'excedent 2026 reste calcule separement.",
 };
 
 const cashPlan2027 = [
-  { month: "Janvier", inflows: 12500, outflows: 6030.55, note: "Preparation administrative, premiers acomptes et 0,5 ETP" },
-  { month: "Fevrier", inflows: 48500, outflows: 57230.55, note: "Premiere tension de tresorerie : acomptes, transports, inscriptions et 0,5 ETP" },
-  { month: "Mars", inflows: 15500, outflows: 16630.55, note: "Suivi inscriptions, depenses courantes et 0,5 ETP" },
-  { month: "Avril", inflows: 17500, outflows: 17230.55, note: "Preparation operationnelle et 0,5 ETP" },
-  { month: "Mai", inflows: 30000, outflows: 27230.55, note: "Acomptes fournisseurs, montee en charge et 0,5 ETP" },
-  { month: "Juin", inflows: 122000, outflows: 117230.55, note: "Lancement saison ete et 0,5 ETP" },
-  { month: "Juillet", inflows: 160500, outflows: 151730.55, note: "Pic sejours ete et 0,5 ETP" },
-  { month: "Aout", inflows: 135800, outflows: 130230.55, note: "Pic sejours ete, retours et 0,5 ETP" },
-  { month: "Septembre", inflows: 28500, outflows: 26230.55, note: "Encaissements residuels, cloture ete et 0,5 ETP" },
-  { month: "Octobre", inflows: 55000, outflows: 62230.55, note: "Formations, regularisations, Toussaint et 0,5 ETP" },
-  { month: "Novembre", inflows: 6500, outflows: 7230.55, note: "Basse saison et 0,5 ETP" },
-  { month: "Decembre", inflows: 1160.63, outflows: 10492.06, note: "Cloture annuelle, frais de structure et 0,5 ETP" },
+  { month: "Janvier", inflows: 13447.23, outflows: 5304.53, note: "Base 2026 x1,75" },
+  { month: "Fevrier", inflows: 45835.16, outflows: 52496.12, note: "Base 2026 x1,75" },
+  { month: "Mars", inflows: 16735.64, outflows: 17649.63, note: "Base 2026 x1,75" },
+  { month: "Avril", inflows: 18991.33, outflows: 17456.51, note: "Base 2026 x1,75" },
+  { month: "Mai", inflows: 30458.23, outflows: 25928.88, note: "Base 2026 x1,75" },
+  { month: "Juin", inflows: 117504.49, outflows: 114132.69, note: "Base 2026 x1,75" },
+  { month: "Juillet", inflows: 136293.87, outflows: 127052.33, note: "Base 2026 x1,75" },
+  { month: "Aout", inflows: 101759.96, outflows: 101499.88, note: "Base 2026 x1,75" },
+  { month: "Septembre", inflows: 41291.53, outflows: 42782.99, note: "Base 2026 x1,75" },
+  { month: "Rapprochement", inflows: 1719.11, outflows: 0, note: "Base 2026 x1,75" },
+  { month: "Novembre", inflows: 0, outflows: 0, note: "A completer si nouveaux flux" },
+  { month: "Decembre", inflows: 0, outflows: 0, note: "A completer si nouveaux flux" },
 ];
 
 await setDoc(doc(db, "accounting_reports", "colocrew-2026"), {
