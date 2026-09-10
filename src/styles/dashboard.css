@@ -1777,6 +1777,38 @@
   gap: 8px;
 }
 
+.accounting-inline-field {
+  display: grid;
+  grid-template-columns: 120px minmax(140px, 220px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #d9dee8;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 10px;
+}
+
+.accounting-inline-field label {
+  color: #647084;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.accounting-inline-field input {
+  border: 1px solid #d9dee8;
+  border-radius: 7px;
+  background: #fff;
+  padding: 8px;
+  color: #172033;
+  font: inherit;
+}
+
+.accounting-inline-field span {
+  color: #647084;
+  font-size: 12px;
+}
+
 .accounting-table-remove {
   border: 1px solid #fecaca;
   border-radius: 7px;

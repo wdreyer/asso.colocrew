@@ -64,7 +64,7 @@ const forecast2027 = {
 };
 
 const cashPlan2027 = [
-  { month: "Janvier", inflows: 31276, outflows: 41000, note: "Solde initial 2026 de 11 276 EUR inclus, puis acomptes hebergements, trains et lancement." },
+  { month: "Janvier", inflows: 20000, outflows: 41000, note: "Acomptes hebergements, trains et lancement. Le solde initial 2026 est repris separement." },
   { month: "Fevrier", inflows: 70000, outflows: 42000, note: "Encaissements forts pendant les sejours d'hiver et premiers soldes familles/partenaires." },
   { month: "Mars", inflows: 60000, outflows: 25000, note: "Grosses enveloppes post-sejours : soldes groupes, aides et paiements restants." },
   { month: "Avril", inflows: 18000, outflows: 32000, note: "Preparation ete, frais courants et premiers acomptes fournisseurs." },
@@ -80,6 +80,7 @@ const cashPlan2027 = [
 
 await setDoc(doc(db, "accounting_reports", "colocrew-2026"), {
   forecast2027,
+  openingBalance2027: 11276,
   cashPlan2027,
   updatedAt: serverTimestamp(),
 }, { merge: true });

@@ -417,8 +417,9 @@ const DEFAULT_ACCOUNTING = {
     ],
     note: "Projection 2027 construite strictement à partir des mêmes postes que le budget 2026, avec un multiplicateur de 1,75 sur chaque ligne. Le report automatique de l'excédent 2026 reste calculé séparément.",
   },
+  openingBalance2027: 11276,
   cashPlan2027: [
-    { month: "Janvier", inflows: 31276, outflows: 41000, note: "Solde initial 2026 de 11 276 EUR inclus, puis acomptes hébergements, trains et lancement." },
+    { month: "Janvier", inflows: 20000, outflows: 41000, note: "Acomptes hébergements, trains et lancement. Le solde initial 2026 est repris séparément." },
     { month: "Février", inflows: 70000, outflows: 42000, note: "Encaissements forts pendant les séjours d'hiver et premiers soldes familles/partenaires." },
     { month: "Mars", inflows: 60000, outflows: 25000, note: "Grosses enveloppes post-séjours : soldes groupes, aides et paiements restants." },
     { month: "Avril", inflows: 18000, outflows: 32000, note: "Préparation été, frais courants et premiers acomptes fournisseurs." },
@@ -577,6 +578,7 @@ function mergeAccountingDraft(saved) {
     cashPlan2026: saved.cashPlan2026 || DEFAULT_ACCOUNTING.cashPlan2026,
     fundingBreakdown: saved.fundingBreakdown || DEFAULT_ACCOUNTING.fundingBreakdown,
     fundingDetails: saved.fundingDetails || DEFAULT_ACCOUNTING.fundingDetails,
+    openingBalance2027: amount(saved.openingBalance2027 ?? DEFAULT_ACCOUNTING.openingBalance2027),
     cashPlan2027: saved.cashPlan2027 || DEFAULT_ACCOUNTING.cashPlan2027,
   });
 }
@@ -611,14 +613,24 @@ function lineTable(title, lines) {
   `;
 }
 
-function cashPlanTable(title, rows) {
-  let running = 0;
+function cashPlanTable(title, rows, openingBalance = 0) {
+  let running = amount(openingBalance);
+  const hasOpeningBalance = amount(openingBalance) !== 0;
   return `
     <section>
       <h2>${escapeHtml(title)}</h2>
       <table>
         <thead><tr><th>Mois</th><th>Encaissements</th><th>Décaissements</th><th>Solde mensuel</th><th>Solde cumulé</th><th>Commentaire</th></tr></thead>
         <tbody>
+          ${hasOpeningBalance ? `
+            <tr>
+              <td>Solde initial</td>
+              <td class="num">-</td>
+              <td class="num">-</td>
+              <td class="num">-</td>
+              <td class="num">${escapeHtml(currency(openingBalance))}</td>
+              <td>Report de l'excédent 2026 au début de l'exercice 2027.</td>
+            </tr>` : ""}
           ${(rows || []).map((row) => {
             const monthly = amount(row.inflows) - amount(row.outflows);
             running += monthly;
@@ -1117,7 +1129,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       ${fundingSplitTable(accounting)}
       ${lineTable("Prévisionnel 2027 - produits", accounting.forecast2027.products)}
       ${lineTable("Prévisionnel 2027 - charges", accounting.forecast2027.expenses)}
-      ${cashPlanTable("Plan de trésorerie 2027", accounting.cashPlan2027)}
+      ${cashPlanTable("Plan de trésorerie 2027", accounting.cashPlan2027, accounting.openingBalance2027)}
     `,
     forecast2027: `
       ${lineTable("Produits 2027", accounting.forecast2027.products)}
@@ -1125,7 +1137,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       <section class="note"><strong>Résultat prévisionnel 2027 :</strong> ${escapeHtml(currency(resultFrom(accounting.forecast2027)))}</section>
     `,
     cashPlan2026: cashPlanTable("Plan de trésorerie 2026 - mois par mois", accounting.cashPlan2026),
-    cashPlan2027: cashPlanTable("Plan de trésorerie 2027 - saisonnalité sur 12 mois", accounting.cashPlan2027),
+    cashPlan2027: cashPlanTable("Plan de trésorerie 2027 - saisonnalité sur 12 mois", accounting.cashPlan2027, accounting.openingBalance2027),
     fundingSplit: fundingSplitTable(accounting),
     financingRequest: `
       <section><h2>Objet de la demande</h2><p>${escapeHtml(accounting.financingRequest.purpose)}</p></section>
@@ -1798,33 +1810,41 @@ function importQontoCashPlan(text) {
     }));
 }
 
-function CashPlanEditor({ rows, onChange, title = "Plan de trésorerie 2027" }) {
+function CashPlanEditor({ rows, onChange, title = "Plan de trésorerie 2027", openingBalance = 0, onOpeningBalanceChange }) {
   const safeRows = Array.isArray(rows) ? rows : [];
   const updateRow = (index, key, value) => {
     onChange(safeRows.map((row, i) => (i === index ? { ...row, [key]: key === "inflows" || key === "outflows" ? amount(value) : value } : row)));
   };
   const addRow = () => onChange([...safeRows, { month: "Nouveau mois", inflows: 0, outflows: 0, note: "" }]);
   const removeRow = (index) => onChange(safeRows.filter((_, i) => i !== index));
-  let running = 0;
-  const total = safeRows.reduce((sum, row) => sum + amount(row.inflows) - amount(row.outflows), 0);
+  let running = amount(openingBalance);
+  const monthlyTotal = safeRows.reduce((sum, row) => sum + amount(row.inflows) - amount(row.outflows), 0);
+  const total = amount(openingBalance) + monthlyTotal;
   return (
     <section className="accounting-editor-block accounting-cash-block">
       <div className="accounting-editor-head">
         <div>
           <h3>{title}</h3>
-          <p>Revenus/crédits, dépenses, solde mensuel et solde cumulé se recalculent automatiquement.</p>
+          <p>Encaissements, dépenses, solde mensuel et solde cumulé se recalculent automatiquement.</p>
         </div>
         <strong>{currency(total)}</strong>
       </div>
       <div className="accounting-mini-actions">
         <button type="button" className="dash-btn dash-btn-secondary" onClick={addRow}>Ajouter un mois</button>
       </div>
+      {onOpeningBalanceChange && (
+        <div className="accounting-inline-field">
+          <label>Solde initial</label>
+          <input type="number" step="0.01" value={openingBalance ?? 0} onChange={(event) => onOpeningBalanceChange(amount(event.target.value))} />
+          <span>Report de l'excédent 2026 au début de janvier.</span>
+        </div>
+      )}
       <div className="accounting-cash-table">
         <table>
           <thead>
             <tr>
               <th>Mois</th>
-              <th>Revenus / crédits</th>
+              <th>Encaissements</th>
               <th>Dépenses</th>
               <th>Solde mensuel</th>
               <th>Solde total</th>
@@ -1833,6 +1853,17 @@ function CashPlanEditor({ rows, onChange, title = "Plan de trésorerie 2027" }) 
             </tr>
           </thead>
           <tbody>
+            {amount(openingBalance) !== 0 && (
+              <tr>
+                <td>Solde initial</td>
+                <td>-</td>
+                <td>-</td>
+                <td>-</td>
+                <td>{currency(openingBalance)}</td>
+                <td>Report de l'excédent 2026.</td>
+                <td></td>
+              </tr>
+            )}
             {safeRows.map((row, index) => {
               const monthly = amount(row.inflows) - amount(row.outflows);
               running += monthly;
@@ -1852,7 +1883,7 @@ function CashPlanEditor({ rows, onChange, title = "Plan de trésorerie 2027" }) 
               <td>Total</td>
               <td>{currency(safeRows.reduce((sum, row) => sum + amount(row.inflows), 0))}</td>
               <td>{currency(safeRows.reduce((sum, row) => sum + amount(row.outflows), 0))}</td>
-              <td className={total >= 0 ? "finance-paid" : "finance-due"}>{currency(total)}</td>
+              <td className={monthlyTotal >= 0 ? "finance-paid" : "finance-due"}>{currency(monthlyTotal)}</td>
               <td>{currency(total)}</td>
               <td></td>
               <td></td>
@@ -2472,7 +2503,7 @@ export default function Finances() {
             <section className="accounting-document-toolbar">
               <div>
                 <strong>Plan de trésorerie 2026</strong>
-                <p>Vue mois par mois : revenus/crédits, dépenses, solde mensuel, solde total et commentaire.</p>
+                <p>Vue mois par mois : encaissements, dépenses, solde mensuel, solde total et commentaire.</p>
               </div>
               <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "cashPlan2026", dashboardSnapshot)}>
                 Exporter le plan 2026
@@ -2542,7 +2573,12 @@ export default function Finances() {
             <div className="accounting-editor-grid">
               <AccountingLinesEditor title="Produits prévisionnels 2027" lines={accountingForDisplay.forecast2027.products} onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)} />
               <AccountingLinesEditor title="Charges prévisionnelles 2027" lines={accounting.forecast2027.expenses} onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)} />
-              <CashPlanEditor rows={accounting.cashPlan2027} onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))} />
+              <CashPlanEditor
+                rows={accounting.cashPlan2027}
+                openingBalance={accounting.openingBalance2027}
+                onOpeningBalanceChange={(openingBalance2027) => setAccounting((previous) => ({ ...previous, openingBalance2027 }))}
+                onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))}
+              />
             </div>
             <div className="accounting-forecast-result">
               <span>Prévisionnel : produits {currency(accounting2027Products)} · charges {currency(accounting2027Expenses)}</span>
