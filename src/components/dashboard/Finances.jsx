@@ -463,6 +463,13 @@ function resultFrom(section) {
   return sumLines(section?.products) - sumLines(section?.expenses);
 }
 
+function openingBalance2027From(accounting) {
+  const savedOpening = amount(accounting?.openingBalance2027);
+  if (savedOpening !== 0) return savedOpening;
+  const inferredFrom2026 = Math.round(resultFrom(accounting?.forecast) * 100) / 100;
+  return inferredFrom2026 > 0 ? inferredFrom2026 : DEFAULT_ACCOUNTING.openingBalance2027;
+}
+
 function accountingWithAutomaticReports(accounting) {
   const next = deepClone(accounting || DEFAULT_ACCOUNTING);
   const reportKeys = new Set(AUTOMATIC_SURPLUS_REPORTS.map((report) => report.key));
@@ -1048,6 +1055,7 @@ function landingNarrative2026(accounting, dashboardSnapshot) {
 
 function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) {
   accounting = accountingWithAutomaticReports(accounting);
+  const openingBalance2027 = openingBalance2027From(accounting);
   const actualProducts = sumLines(accounting.actual.products);
   const actualExpenses = sumLines(accounting.actual.expenses);
   const forecastProducts = sumLines(accounting.forecast.products);
@@ -1129,7 +1137,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       ${fundingSplitTable(accounting)}
       ${lineTable("Prévisionnel 2027 - produits", accounting.forecast2027.products)}
       ${lineTable("Prévisionnel 2027 - charges", accounting.forecast2027.expenses)}
-      ${cashPlanTable("Plan de trésorerie 2027", accounting.cashPlan2027, accounting.openingBalance2027)}
+      ${cashPlanTable("Plan de trésorerie 2027", accounting.cashPlan2027, openingBalance2027)}
     `,
     forecast2027: `
       ${lineTable("Produits 2027", accounting.forecast2027.products)}
@@ -1137,7 +1145,7 @@ function openAccountingPrint(accounting, kind, dashboardSnapshot, options = {}) 
       <section class="note"><strong>Résultat prévisionnel 2027 :</strong> ${escapeHtml(currency(resultFrom(accounting.forecast2027)))}</section>
     `,
     cashPlan2026: cashPlanTable("Plan de trésorerie 2026 - mois par mois", accounting.cashPlan2026),
-    cashPlan2027: cashPlanTable("Plan de trésorerie 2027 - saisonnalité sur 12 mois", accounting.cashPlan2027, accounting.openingBalance2027),
+    cashPlan2027: cashPlanTable("Plan de trésorerie 2027 - saisonnalité sur 12 mois", accounting.cashPlan2027, openingBalance2027),
     fundingSplit: fundingSplitTable(accounting),
     financingRequest: `
       <section><h2>Objet de la demande</h2><p>${escapeHtml(accounting.financingRequest.purpose)}</p></section>
@@ -2575,7 +2583,7 @@ export default function Finances() {
               <AccountingLinesEditor title="Charges prévisionnelles 2027" lines={accounting.forecast2027.expenses} onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)} />
               <CashPlanEditor
                 rows={accounting.cashPlan2027}
-                openingBalance={accounting.openingBalance2027}
+                openingBalance={openingBalance2027From(accountingForDisplay)}
                 onOpeningBalanceChange={(openingBalance2027) => setAccounting((previous) => ({ ...previous, openingBalance2027 }))}
                 onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))}
               />
