@@ -1903,6 +1903,29 @@
   text-align: right;
 }
 
+.funding-details-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.funding-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #d9dee8;
+  padding-top: 14px;
+}
+
+.funding-detail-card h4 {
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+}
+
+.funding-detail-table {
+  min-width: 1120px;
+}
+
 @media (max-width: 900px) {
   .funding-summary-strip,
   .funding-editor-layout {

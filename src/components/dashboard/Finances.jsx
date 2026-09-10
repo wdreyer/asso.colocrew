@@ -314,12 +314,36 @@ const DEFAULT_ACCOUNTING = {
     { month: "Décembre", inflows: 0, outflows: 0, note: "À compléter si nouveaux flux" },
   ],
   fundingBreakdown: [
-    { label: "Clients individuels (Stripe, site, Totemia, Juvigo)", type: "Client individuel", amount: 104245.2, children: 147, comment: "Stripe, Totemia, réservations site, Juvigo, bouche-à-oreille, anciens, mailing et inscriptions individuelles." },
-    { label: "Groupes, mairies et centres sociaux", type: "Groupe", amount: 75825, children: 119, comment: "Lignes groupe des fichiers d'inscriptions et gros virements assimilables à des partenaires collectifs." },
-    { label: "Financement CAF / VACAF", type: "Aide sociale", amount: 64023.6, children: 103, comment: "Aides CAF/VACAF repérées dans les colonnes CAF et VACAF." },
-    { label: "Subventions publiques / SDJES", type: "Subvention", amount: 9900, children: 194, comment: "Subventions publiques identifiées, notamment SDJES, rattachées au public accueilli." },
-    { label: "Dons, mécénat et prêts requalifiés", type: "Dons", amount: 7400, children: 0, comment: "Apports et anciens prêts reclassés en dons selon la lecture comptable retenue." },
+    { label: "Clients individuels", type: "Indiv", amount: 96134.88, children: 150, comment: "Stripe, Totemia, Mollie, Juvigo et virements familles/directs. Inclut une ventilation proportionnelle des restes à encaisser 2026." },
+    { label: "Groupes, mairies et centres sociaux", type: "Groupes", amount: 102143.94, children: 120, comment: "Centres sociaux, ASE/MECS, mairies, associations partenaires et gros virements assimilés aux groupes." },
+    { label: "CAF / VACAF", type: "Aide sociale", amount: 87317, children: 103, comment: "Montant VACAF 2026 repris depuis les vrais chiffres transmis." },
+    { label: "Département", type: "Subvention", amount: 10000, children: 0, comment: "Subvention départementale 2026." },
+    { label: "Remboursements SNCF et autres", type: "Remboursement", amount: 2087, children: 0, comment: "Remboursements classés hors ventes de séjours." },
+    { label: "Report excédent 2025", type: "Report", amount: 1766.63, children: 0, comment: "Report automatique de l'excédent 2025 dans le budget 2026." },
   ],
+  fundingDetails: {
+    individuals: [
+      { label: "TOTEMIA", type: "Plateforme individuelle", amount: 29369.36, children: 38, comment: "Encaissements familles via Totemia." },
+      { label: "Stripe", type: "Paiement CB individuel", amount: 10923.82, children: 23, comment: "Stripe Technology Europe + libellés Stripe." },
+      { label: "Stichting Mollie Payments", type: "Paiement en ligne individuel", amount: 4043.93, children: 7, comment: "Paiements individuels Mollie." },
+      { label: "Virements familles <= 1000 EUR", type: "Vente directe individuelle", amount: 24794.13, children: 52, comment: "Virements familles et paiements directs sous le seuil groupe." },
+      { label: "Virements familles 1000-1500 EUR", type: "Vente directe individuelle", amount: 13793.26, children: 17, comment: "Familles identifiées entre 1000 EUR et 1500 EUR." },
+      { label: "Restes à encaisser individuels", type: "Régularisation budget 2026", amount: 13210.38, children: 13, comment: "Part proportionnelle des restes à encaisser rattachée aux individuels." },
+    ],
+    groups: [
+      { label: "Centre Animation Sociale Boilly", type: "Centre social", amount: 24887, children: 26, comment: "Groupe / centre social." },
+      { label: "Fondation Apprentis d'Auteuil", type: "ASE / partenaire social", amount: 9150, children: 10, comment: "Séjours financés par structure partenaire." },
+      { label: "Maison des Jeunes La Clé", type: "Structure jeunesse", amount: 6500, children: 8, comment: "Groupe jeunesse." },
+      { label: "Maison pour Tous Centre Social Abbeville", type: "Centre social", amount: 4550, children: 5, comment: "Centre social." },
+      { label: "FAE", type: "Protection de l'enfance", amount: 4500, children: 5, comment: "Groupe / aide sociale à l'enfance." },
+      { label: "SGC Noisy-le-Grand", type: "Collectivité", amount: 3700, children: 4, comment: "Règlement public / mairie." },
+      { label: "Aquarelle", type: "Structure partenaire", amount: 3250, children: 4, comment: "Groupe." },
+      { label: "Relais Ménilmontant", type: "Structure partenaire", amount: 3200, children: 4, comment: "Groupe." },
+      { label: "ASS des CSC 3 Cités", type: "Centre social", amount: 3132, children: 4, comment: "Centre social." },
+      { label: "Autres groupes et virements > 1500 EUR", type: "Groupes / mairies / ASE", amount: 25239.03, children: 28, comment: "Aubygéoise, Action Enfance, AMAPE, Colosolidaire, structures et gros virements." },
+      { label: "Restes à encaisser groupes", type: "Régularisation budget 2026", amount: 14035.91, children: 22, comment: "Part proportionnelle des restes à encaisser rattachée aux groupes." },
+    ],
+  },
   forecast: {
     products: [
       { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 171032.72 },
@@ -552,6 +576,7 @@ function mergeAccountingDraft(saved) {
     },
     cashPlan2026: saved.cashPlan2026 || DEFAULT_ACCOUNTING.cashPlan2026,
     fundingBreakdown: saved.fundingBreakdown || DEFAULT_ACCOUNTING.fundingBreakdown,
+    fundingDetails: saved.fundingDetails || DEFAULT_ACCOUNTING.fundingDetails,
     cashPlan2027: saved.cashPlan2027 || DEFAULT_ACCOUNTING.cashPlan2027,
   });
 }
@@ -622,6 +647,15 @@ function fundingRowsFrom(accounting) {
   }));
 }
 
+function rowsWithShares(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const total = sumLines(safeRows);
+  return safeRows.map((line) => ({
+    ...line,
+    share: total > 0 ? (amount(line.amount) / total) * 100 : 0,
+  }));
+}
+
 function pieGradient(rows) {
   let cursor = 0;
   const segments = rows
@@ -634,9 +668,45 @@ function pieGradient(rows) {
   return segments.length ? `background: conic-gradient(${segments.join(", ")})` : "background:#e5e7eb";
 }
 
+function fundingDetailBlock(title, rows, intro) {
+  const sharedRows = rowsWithShares(rows);
+  const total = sumLines(sharedRows);
+  const children = sharedRows.reduce((sum, row) => sum + amount(row.children), 0);
+  return `
+    <section>
+      <h2>${escapeHtml(title)}</h2>
+      <p>${escapeHtml(intro)}</p>
+      <div class="pie-wrap">
+        <div class="pie-chart" style="${escapeHtml(pieGradient(sharedRows))}"></div>
+        <div class="pie-legend">
+          ${sharedRows.map((row, index) => `
+            <p><span style="background:${PIE_COLORS[index % PIE_COLORS.length]}"></span><strong>${escapeHtml(row.label)}</strong><em>${escapeHtml(row.share.toFixed(1))} % - ${escapeHtml(currency(row.amount))}</em></p>
+          `).join("")}
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Financeur / source</th><th>Type</th><th>Montant</th><th>% du sous-total</th><th>Enfants</th><th>Commentaire</th></tr></thead>
+        <tbody>
+          ${sharedRows.map((row) => `
+            <tr>
+              <td>${escapeHtml(row.label)}</td>
+              <td>${escapeHtml(row.type)}</td>
+              <td class="num">${escapeHtml(currency(row.amount))}</td>
+              <td class="num">${escapeHtml(row.share.toFixed(1))} %</td>
+              <td class="num">${escapeHtml(row.children || 0)}</td>
+              <td>${escapeHtml(row.comment)}</td>
+            </tr>`).join("")}
+          <tr class="total"><td colspan="2">Total</td><td class="num">${escapeHtml(currency(total))}</td><td class="num">${total > 0 ? "100 %" : "0 %"}</td><td class="num">${escapeHtml(children)}</td><td></td></tr>
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
 function fundingSplitTable(accounting) {
   const rows = fundingRowsFrom(accounting);
   const total = sumLines(rows);
+  const details = accounting.fundingDetails || DEFAULT_ACCOUNTING.fundingDetails;
   const chart = `
       <div class="pie-wrap">
         <div class="pie-chart" style="${escapeHtml(pieGradient(rows))}"></div>
@@ -667,6 +737,16 @@ function fundingSplitTable(accounting) {
       </table>
       <p>Lecture : cette table permet d'identifier le poids relatif des familles, aides publiques, subventions et autres ressources dans le budget prévisionnel.</p>
     </section>
+    ${fundingDetailBlock(
+      "Zoom clients individuels",
+      details.individuals,
+      "Totemia, Stripe, Mollie, Juvigo et ventes directes familles. Les restes à encaisser sont rattachés proportionnellement pour retomber sur le budget 2026."
+    )}
+    ${fundingDetailBlock(
+      "Zoom groupes, mairies et centres sociaux",
+      details.groups,
+      "Centres sociaux, ASE/MECS, mairies, associations partenaires et virements structures, avec les gros virements assimilés aux groupes."
+    )}
   `;
 }
 
@@ -1768,8 +1848,76 @@ function CashPlanEditor({ rows, onChange, title = "Plan de trésorerie 2027" }) 
   );
 }
 
-function FundingBreakdownEditor({ rows, onChange, onExport }) {
+function FundingDetailEditor({ title, intro, rows, onChange }) {
   const safeRows = Array.isArray(rows) ? rows : [];
+  const total = sumLines(safeRows);
+  const children = safeRows.reduce((sum, row) => sum + amount(row.children), 0);
+  const previewRows = rowsWithShares(safeRows);
+  const updateRow = (index, key, value) => {
+    const numericKeys = ["amount", "children"];
+    onChange(safeRows.map((row, i) => (i === index ? { ...row, [key]: numericKeys.includes(key) ? amount(value) : value } : row)));
+  };
+  const addRow = () => onChange([...safeRows, { label: "Nouvelle source", type: "À préciser", amount: 0, children: 0, comment: "" }]);
+  const removeRow = (index) => onChange(safeRows.filter((_, i) => i !== index));
+
+  return (
+    <section className="funding-detail-card">
+      <div className="accounting-editor-head">
+        <div>
+          <h4>{title}</h4>
+          <p>{intro}</p>
+        </div>
+        <strong>{currency(total)}</strong>
+      </div>
+      <div className="funding-editor-layout">
+        <div className="funding-pie-preview" style={{ background: pieGradient(previewRows).replace("background:", "") }} />
+        <div className="funding-editor-table-wrap">
+          <table className="funding-editor-table funding-detail-table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Montant</th>
+                <th>% sous-total</th>
+                <th>Enfants</th>
+                <th>Commentaire</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {safeRows.map((row, index) => {
+                const share = total > 0 ? (amount(row.amount) / total) * 100 : 0;
+                return (
+                  <tr key={`${row.label}-${index}`}>
+                    <td><input value={row.label || ""} onChange={(event) => updateRow(index, "label", event.target.value)} /></td>
+                    <td><input value={row.type || ""} onChange={(event) => updateRow(index, "type", event.target.value)} /></td>
+                    <td><input type="number" step="0.01" value={row.amount ?? 0} onChange={(event) => updateRow(index, "amount", event.target.value)} /></td>
+                    <td>{share.toFixed(1)} %</td>
+                    <td><input type="number" step="1" value={row.children ?? 0} onChange={(event) => updateRow(index, "children", event.target.value)} /></td>
+                    <td><input value={row.comment || ""} onChange={(event) => updateRow(index, "comment", event.target.value)} /></td>
+                    <td><button type="button" className="accounting-table-remove" onClick={() => removeRow(index)}>Supprimer</button></td>
+                  </tr>
+                );
+              })}
+              <tr className="total">
+                <td colSpan="2">Total</td>
+                <td>{currency(total)}</td>
+                <td>{total > 0 ? "100 %" : "0 %"}</td>
+                <td>{children}</td>
+                <td colSpan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <button type="button" className="dash-btn dash-btn-secondary" onClick={addRow}>Ajouter une source</button>
+    </section>
+  );
+}
+
+function FundingBreakdownEditor({ rows, details, onChange, onDetailsChange, onExport }) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeDetails = details || DEFAULT_ACCOUNTING.fundingDetails;
   const total = sumLines(safeRows);
   const children = safeRows.reduce((sum, row) => sum + amount(row.children), 0);
   const updateRow = (index, key, value) => {
@@ -1838,6 +1986,20 @@ function FundingBreakdownEditor({ rows, onChange, onExport }) {
             </tbody>
           </table>
         </div>
+      </div>
+      <div className="funding-details-grid">
+        <FundingDetailEditor
+          title="Zoom clients individuels"
+          intro="Totemia, Stripe, Mollie, Juvigo, ventes directes familles et restes à encaisser individuels."
+          rows={safeDetails.individuals}
+          onChange={(lines) => onDetailsChange({ ...safeDetails, individuals: lines })}
+        />
+        <FundingDetailEditor
+          title="Zoom groupes, mairies et centres sociaux"
+          intro="Centres sociaux, ASE/MECS, mairies, associations partenaires, gros virements et restes à encaisser groupes."
+          rows={safeDetails.groups}
+          onChange={(lines) => onDetailsChange({ ...safeDetails, groups: lines })}
+        />
       </div>
     </section>
   );
@@ -2311,7 +2473,9 @@ export default function Finances() {
         {activeAccountingTab === "fundingSplit" && (
           <FundingBreakdownEditor
             rows={accounting.fundingBreakdown}
+            details={accounting.fundingDetails}
             onChange={(lines) => setAccounting((previous) => ({ ...previous, fundingBreakdown: lines }))}
+            onDetailsChange={(details) => setAccounting((previous) => ({ ...previous, fundingDetails: details }))}
             onExport={() => openAccountingPrint(accounting, "fundingSplit", dashboardSnapshot)}
           />
         )}
