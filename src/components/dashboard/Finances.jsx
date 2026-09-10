@@ -314,7 +314,7 @@ const DEFAULT_ACCOUNTING = {
     { month: "Décembre", inflows: 0, outflows: 0, note: "À compléter si nouveaux flux" },
   ],
   fundingBreakdown: [
-    { label: "Clients individuels", type: "Indiv", amount: 96134.88, children: 150, comment: "Stripe, Totemia, Mollie, Juvigo et virements familles/directs. Inclut une ventilation proportionnelle des restes à encaisser 2026." },
+    { label: "Clients individuels", type: "Individuels", amount: 96134.88, children: 150, comment: "Stripe, Totemia, Mollie, Juvigo et virements familles/directs. Inclut une ventilation proportionnelle des restes à encaisser 2026." },
     { label: "Groupes, mairies et centres sociaux", type: "Groupes", amount: 102143.94, children: 120, comment: "Centres sociaux, ASE/MECS, mairies, associations partenaires et gros virements assimilés aux groupes." },
     { label: "CAF / VACAF", type: "Aide sociale", amount: 87317, children: 103, comment: "Montant VACAF 2026 repris depuis les vrais chiffres transmis." },
     { label: "Département", type: "Subvention", amount: 10000, children: 0, comment: "Subvention départementale 2026." },
@@ -326,8 +326,8 @@ const DEFAULT_ACCOUNTING = {
       { label: "TOTEMIA", type: "Plateforme individuelle", amount: 29369.36, children: 38, comment: "Encaissements familles via Totemia." },
       { label: "Stripe", type: "Paiement CB individuel", amount: 10923.82, children: 23, comment: "Stripe Technology Europe + libellés Stripe." },
       { label: "Stichting Mollie Payments", type: "Paiement en ligne individuel", amount: 4043.93, children: 7, comment: "Paiements individuels Mollie." },
-      { label: "Virements familles <= 1000 EUR", type: "Vente directe individuelle", amount: 24794.13, children: 52, comment: "Virements familles et paiements directs sous le seuil groupe." },
-      { label: "Virements familles 1000-1500 EUR", type: "Vente directe individuelle", amount: 13793.26, children: 17, comment: "Familles identifiées entre 1000 EUR et 1500 EUR." },
+      { label: "Virements familles <= 1 000 €", type: "Vente directe individuelle", amount: 24794.13, children: 52, comment: "Virements familles et paiements directs sous le seuil groupe." },
+      { label: "Virements familles 1 000-1 500 €", type: "Vente directe individuelle", amount: 13793.26, children: 17, comment: "Familles identifiées entre 1 000 € et 1 500 €." },
       { label: "Restes à encaisser individuels", type: "Régularisation budget 2026", amount: 13210.38, children: 13, comment: "Part proportionnelle des restes à encaisser rattachée aux individuels." },
     ],
     groups: [
@@ -340,7 +340,7 @@ const DEFAULT_ACCOUNTING = {
       { label: "Aquarelle", type: "Structure partenaire", amount: 3250, children: 4, comment: "Groupe." },
       { label: "Relais Ménilmontant", type: "Structure partenaire", amount: 3200, children: 4, comment: "Groupe." },
       { label: "ASS des CSC 3 Cités", type: "Centre social", amount: 3132, children: 4, comment: "Centre social." },
-      { label: "Autres groupes et virements > 1500 EUR", type: "Groupes / mairies / ASE", amount: 25239.03, children: 28, comment: "Aubygéoise, Action Enfance, AMAPE, Colosolidaire, structures et gros virements." },
+      { label: "Autres groupes et virements > 1 500 €", type: "Groupes / mairies / ASE", amount: 25239.03, children: 28, comment: "Aubygéoise, Action Enfance, AMAPE, Colosolidaire, structures et gros virements." },
       { label: "Restes à encaisser groupes", type: "Régularisation budget 2026", amount: 14035.91, children: 22, comment: "Part proportionnelle des restes à encaisser rattachée aux groupes." },
     ],
   },

@@ -18,12 +18,12 @@ const hiddenZeroSubsidyProductLines = [
   ["Pantin Contrat de ville", "74::pantincontratdeville"],
   ["Aubervilliers", "74::aubervilliers"],
   ["Region", "74::region"],
-  ["Autres subventions a preciser", "74::autressubventionsapreciser"],
+  ["Autres subventions à préciser", "74::autressubventionsapreciser"],
   ["Etat", "74::etat"],
   ["Fonds Social Europeen", "74::fondssocialeuropeen"],
   ["Subventions privees", "74::subventionsprivees"],
   ["Entreprises", "74::entreprises"],
-  ["Autres a preciser - Dons", "74::autresapreciserdons"],
+  ["Autres à préciser - Dons", "74::autresapreciserdons"],
 ].map(([label, templateKey]) => ({
   label,
   account: "74",
@@ -35,11 +35,11 @@ const hiddenZeroSubsidyProductLines = [
 const forecast2027 = {
   products: [
     { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 299307.26 },
-    { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 47680.68 },
+    { label: "Ventes et restes à encaisser - clôture 2026", account: "70", amount: 47680.68 },
     { label: "VACAF", account: "74", amount: 152804.75 },
-    { label: "Departement", account: "74", amount: 17500 },
+    { label: "Département", account: "74", amount: 17500 },
     ...hiddenZeroSubsidyProductLines,
-    { label: "Report de l'excedent 2026", account: "75", amount: 11276, _templateKey: "75::reportexcedent2026", _autoReportKey: "75::reportexcedent2026" },
+    { label: "Report de l'excédent 2026", account: "75", amount: 11276, _templateKey: "75::reportexcedent2026", _autoReportKey: "75::reportexcedent2026" },
     { label: "Remboursements SNCF et autres", account: "79", amount: 3652.25 },
   ],
   expenses: [
@@ -52,7 +52,7 @@ const forecast2027 = {
   ],
   voluntaryExpenses: [
     { label: "Personnel benevole", account: "864", amount: 52500 },
-    { label: "Mise a disposition gratuite de biens", account: "861", amount: 0 },
+    { label: "Mise à disposition gratuite de biens", account: "861", amount: 0 },
     { label: "Secours en nature", account: "860", amount: 0 },
   ],
   voluntaryProducts: [
@@ -60,22 +60,22 @@ const forecast2027 = {
     { label: "Prestations en nature", account: "871", amount: 0 },
     { label: "Dons en nature", account: "870", amount: 0 },
   ],
-  note: "Projection 2027 construite strictement a partir des memes postes que le budget 2026, avec un multiplicateur de 1,75 sur chaque ligne. Le report automatique de l'excedent 2026 reste calcule separement.",
+  note: "Projection 2027 construite strictement à partir des mêmes postes que le budget 2026, avec un multiplicateur de 1,75 sur chaque ligne. Le report automatique de l'excédent 2026 reste calculé séparément.",
 };
 
 const cashPlan2027 = [
-  { month: "Janvier", inflows: 20000, outflows: 41000, note: "Acomptes hebergements, trains et lancement. Le solde initial 2026 est repris separement." },
-  { month: "Fevrier", inflows: 70000, outflows: 42000, note: "Encaissements forts pendant les sejours d'hiver et premiers soldes familles/partenaires." },
-  { month: "Mars", inflows: 60000, outflows: 25000, note: "Grosses enveloppes post-sejours : soldes groupes, aides et paiements restants." },
-  { month: "Avril", inflows: 18000, outflows: 32000, note: "Preparation ete, frais courants et premiers acomptes fournisseurs." },
-  { month: "Mai", inflows: 62000, outflows: 94000, note: "Forte avance de tresorerie : hebergements ete, prestataires et transports, compensee par acomptes familles." },
-  { month: "Juin", inflows: 88000, outflows: 96000, note: "Deuxieme vague d'acomptes trains/hebergements avec encaissements ete deja engages." },
-  { month: "Juillet", inflows: 85000, outflows: 74000, note: "Pic d'encaissements ete, avec depenses de sejour encore elevees." },
-  { month: "Aout", inflows: 60000, outflows: 61000, note: "Encaissements lisses pendant les sejours et depenses operationnelles." },
-  { month: "Septembre", inflows: 40000, outflows: 33000, note: "Soldes post-sejours, aides et regularisations apres la saison." },
-  { month: "Octobre", inflows: 4000, outflows: 3500, note: "Basse saison et frais de structure limites." },
+  { month: "Janvier", inflows: 20000, outflows: 41000, note: "Acomptes hébergements, trains et lancement. Le solde initial 2026 est repris séparément." },
+  { month: "Février", inflows: 70000, outflows: 42000, note: "Encaissements forts pendant les séjours d'hiver et premiers soldes familles/partenaires." },
+  { month: "Mars", inflows: 60000, outflows: 25000, note: "Grosses enveloppes post-séjours : soldes groupes, aides et paiements restants." },
+  { month: "Avril", inflows: 18000, outflows: 32000, note: "Préparation été, frais courants et premiers acomptes fournisseurs." },
+  { month: "Mai", inflows: 62000, outflows: 94000, note: "Forte avance de trésorerie : hébergements été, prestataires et transports, compensée par acomptes familles." },
+  { month: "Juin", inflows: 88000, outflows: 96000, note: "Deuxième vague d'acomptes trains/hébergements avec encaissements été déjà engagés." },
+  { month: "Juillet", inflows: 85000, outflows: 74000, note: "Pic d'encaissements été, avec dépenses de séjour encore élevées." },
+  { month: "Août", inflows: 60000, outflows: 61000, note: "Encaissements lissés pendant les séjours et dépenses opérationnelles." },
+  { month: "Septembre", inflows: 40000, outflows: 33000, note: "Soldes post-séjours, aides et régularisations après la saison." },
+  { month: "Octobre", inflows: 4000, outflows: 3500, note: "Basse saison et frais de structure limités." },
   { month: "Novembre", inflows: 3000, outflows: 2000, note: "Frais fixes et suivi administratif hors saison." },
-  { month: "Decembre", inflows: 10944.94, outflows: 803.54, note: "Cloture annuelle et derniers ajustements de tresorerie." },
+  { month: "Décembre", inflows: 10944.94, outflows: 803.54, note: "Clôture annuelle et derniers ajustements de trésorerie." },
 ];
 
 await setDoc(doc(db, "accounting_reports", "colocrew-2026"), {
