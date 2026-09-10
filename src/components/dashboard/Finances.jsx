@@ -7,8 +7,31 @@ import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
 const ACCOUNTING_DOC_ID = "colocrew-2026";
-const REPORT_2025_TO_2026_KEY = "75::reportexcedent2025";
-const REPORT_2025_TO_2026_LABEL = "Report de l'excédent 2025";
+const AUTOMATIC_SURPLUS_REPORTS = [
+  {
+    key: "75::reportexcedent2024",
+    label: "Report de l'excédent 2024",
+    source: "financial2024",
+    target: "financial2025",
+    targetKey: "products",
+  },
+  {
+    key: "75::reportexcedent2025",
+    label: "Report de l'excédent 2025",
+    source: "financial2025",
+    target: "forecast",
+    targetKey: "products",
+    mirrorTarget: "landing2026",
+    mirrorKey: "bankCategories",
+  },
+  {
+    key: "75::reportexcedent2026",
+    label: "Report de l'excédent 2026",
+    source: "forecast",
+    target: "forecast2027",
+    targetKey: "products",
+  },
+];
 
 const STAY_LABELS = {
   "my-creative-surf-camp": "MCSC",
@@ -415,30 +438,55 @@ function resultFrom(section) {
 
 function accountingWithAutomaticReports(accounting) {
   const next = deepClone(accounting || DEFAULT_ACCOUNTING);
-  const reportAmount = Math.max(Math.round(resultFrom(next.financial2025) * 100) / 100, 0);
-  const reportLine = {
-    account: "75",
-    label: REPORT_2025_TO_2026_LABEL,
-    amount: reportAmount,
-    _templateKey: REPORT_2025_TO_2026_KEY,
-    _autoReportKey: REPORT_2025_TO_2026_KEY,
-  };
-  const upsertReport = (lines) => {
+  const reportKeys = new Set(AUTOMATIC_SURPLUS_REPORTS.map((report) => report.key));
+  const reportLabels = new Set(AUTOMATIC_SURPLUS_REPORTS.map((report) => report.label));
+  const removeAutomaticReports = (lines) => (
+    (Array.isArray(lines) ? lines : []).filter((line) => (
+      !reportKeys.has(line?._autoReportKey)
+      && !reportKeys.has(line?._templateKey)
+      && !reportLabels.has(line?.label)
+    ))
+  );
+  const upsertReport = (lines, report, reportAmount) => {
     const cleaned = (Array.isArray(lines) ? lines : []).filter((line) => (
-      line?._autoReportKey !== REPORT_2025_TO_2026_KEY
-      && line?._templateKey !== REPORT_2025_TO_2026_KEY
-      && line?.label !== REPORT_2025_TO_2026_LABEL
+      line?._autoReportKey !== report.key
+      && line?._templateKey !== report.key
+      && line?.label !== report.label
     ));
-    return reportAmount > 0 ? [...cleaned, reportLine] : cleaned;
+    if (reportAmount <= 0) return cleaned;
+    return [...cleaned, {
+      account: "75",
+      label: report.label,
+      amount: reportAmount,
+      _templateKey: report.key,
+      _autoReportKey: report.key,
+    }];
   };
-  next.forecast = {
-    ...(next.forecast || {}),
-    products: upsertReport(next.forecast?.products),
-  };
-  next.landing2026 = {
-    ...(next.landing2026 || {}),
-    bankCategories: upsertReport(next.landing2026?.bankCategories),
-  };
+  for (const report of AUTOMATIC_SURPLUS_REPORTS) {
+    next[report.target] = {
+      ...(next[report.target] || {}),
+      [report.targetKey]: removeAutomaticReports(next[report.target]?.[report.targetKey]),
+    };
+    if (report.mirrorTarget) {
+      next[report.mirrorTarget] = {
+        ...(next[report.mirrorTarget] || {}),
+        [report.mirrorKey]: removeAutomaticReports(next[report.mirrorTarget]?.[report.mirrorKey]),
+      };
+    }
+  }
+  for (const report of AUTOMATIC_SURPLUS_REPORTS) {
+    const reportAmount = Math.max(Math.round(resultFrom(next[report.source]) * 100) / 100, 0);
+    next[report.target] = {
+      ...(next[report.target] || {}),
+      [report.targetKey]: upsertReport(next[report.target]?.[report.targetKey], report, reportAmount),
+    };
+    if (report.mirrorTarget) {
+      next[report.mirrorTarget] = {
+        ...(next[report.mirrorTarget] || {}),
+        [report.mirrorKey]: upsertReport(next[report.mirrorTarget]?.[report.mirrorKey], report, reportAmount),
+      };
+    }
+  }
   return next;
 }
 
@@ -2176,11 +2224,11 @@ export default function Finances() {
         {accountingStatus && <p className="accounting-status">{accountingStatus}</p>}
 
         <div className="accounting-kpis">
-          <div><span>Bilan 2024</span><strong className={resultFrom(accounting.financial2024) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.financial2024))}</strong></div>
-          <div><span>Bilan 2025</span><strong className={resultFrom(accounting.financial2025) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.financial2025))}</strong></div>
+          <div><span>Bilan 2024</span><strong className={resultFrom(accountingForDisplay.financial2024) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accountingForDisplay.financial2024))}</strong></div>
+          <div><span>Bilan 2025</span><strong className={resultFrom(accountingForDisplay.financial2025) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accountingForDisplay.financial2025))}</strong></div>
           <div><span>Atterrissage 2026</span><strong className={accountingLandingProducts - accountingLandingExpenses >= 0 ? "finance-paid" : "finance-due"}>{currency(accountingLandingProducts - accountingLandingExpenses)}</strong></div>
           <div><span>Prévisionnel 2026</span><strong className={accountingForecastProducts - accountingForecastExpenses >= 0 ? "finance-paid" : "finance-due"}>{currency(accountingForecastProducts - accountingForecastExpenses)}</strong></div>
-          <div><span>Prévisionnel 2027</span><strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accounting.forecast2027))}</strong></div>
+          <div><span>Prévisionnel 2027</span><strong className={resultFrom(accountingForDisplay.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>{currency(resultFrom(accountingForDisplay.forecast2027))}</strong></div>
           <div><span>Financement</span><strong>{currency(accounting.financingRequest.requestedAmount)}</strong></div>
           <div><span>1er financeur</span><strong>{topFundingShare.toFixed(1)} %</strong></div>
           <div><span>Budget ventilé</span><strong>{currency(accountingFundingTotal)}</strong></div>
@@ -2300,7 +2348,7 @@ export default function Finances() {
               <button type="button" className="dash-btn dash-btn-secondary" onClick={build2027From2026}>
                 Recalculer depuis 2026
               </button>
-              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accounting, "forecast2027", dashboardSnapshot)}>
+              <button type="button" className="dash-btn" onClick={() => openAccountingPrint(accountingForDisplay, "forecast2027", dashboardSnapshot)}>
                 Exporter le prévisionnel
               </button>
               <button type="button" className="dash-btn dash-btn-secondary" onClick={() => openAccountingPrint(accounting, "cashPlan2027", dashboardSnapshot)}>
@@ -2308,14 +2356,14 @@ export default function Finances() {
               </button>
             </section>
             <div className="accounting-editor-grid">
-              <AccountingLinesEditor title="Produits prévisionnels 2027" lines={accounting.forecast2027.products} onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)} />
+              <AccountingLinesEditor title="Produits prévisionnels 2027" lines={accountingForDisplay.forecast2027.products} onChange={(lines) => updateAccountingSection("forecast2027", "products", lines)} />
               <AccountingLinesEditor title="Charges prévisionnelles 2027" lines={accounting.forecast2027.expenses} onChange={(lines) => updateAccountingSection("forecast2027", "expenses", lines)} />
               <CashPlanEditor rows={accounting.cashPlan2027} onChange={(lines) => setAccounting((previous) => ({ ...previous, cashPlan2027: lines }))} />
             </div>
             <div className="accounting-forecast-result">
               <span>Prévisionnel : produits {currency(accounting2027Products)} · charges {currency(accounting2027Expenses)}</span>
-              <strong className={resultFrom(accounting.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>
-                Résultat {currency(resultFrom(accounting.forecast2027))}
+              <strong className={resultFrom(accountingForDisplay.forecast2027) >= 0 ? "finance-paid" : "finance-due"}>
+                Résultat {currency(resultFrom(accountingForDisplay.forecast2027))}
               </strong>
             </div>
           </>

@@ -37,7 +37,7 @@ const products2026Visible = [
   { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 42538.4 },
   { label: "VACAF", account: "74", amount: 87317 },
   { label: "Departement", account: "74", amount: 10000 },
-  { label: "Report de l'excedent 2025", account: "75", amount: 1379.46, _templateKey: "75::reportexcedent2025", _autoReportKey: "75::reportexcedent2025" },
+  { label: "Report de l'excedent 2025", account: "75", amount: 1766.63, _templateKey: "75::reportexcedent2025", _autoReportKey: "75::reportexcedent2025" },
   { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
 ];
 
