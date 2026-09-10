@@ -33,23 +33,23 @@ const hiddenZeroSubsidyProductLines = [
 }));
 
 const products2026Visible = [
-  { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 159241.78 },
-  { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 42538.4 },
+  { label: "Ventes Qonto - Stripe, Totemia, familles et groupes", account: "70", amount: 171032.72 },
+  { label: "Ventes et restes a encaisser - cloture 2026", account: "70", amount: 27246.1 },
   { label: "VACAF", account: "74", amount: 87317 },
   { label: "Departement", account: "74", amount: 10000 },
   { label: "Report de l'excedent 2025", account: "75", amount: 1766.63, _templateKey: "75::reportexcedent2025", _autoReportKey: "75::reportexcedent2025" },
-  { label: "Remboursements SNCF et autres", account: "79", amount: 4570.37 },
+  { label: "Remboursements SNCF et autres", account: "79", amount: 2087 },
 ];
 
 const products2026 = [...products2026Visible, ...hiddenZeroSubsidyProductLines];
 
 const expenses2026 = [
-  { label: "Achats, alimentation, fournitures et operations", account: "60", amount: 30183.35 },
-  { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 194393.38 },
-  { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 54810.79 },
-  { label: "Impots et taxes", account: "63", amount: 1025.85 },
-  { label: "Salaires bruts", account: "64", amount: 34309.1 },
-  { label: "Charges sociales de l'employeur", account: "64", amount: 12008.18 },
+  { label: "Achats, alimentation, fournitures et operations", account: "60", amount: 24638.35 },
+  { label: "Hebergements, locations, activites et prestataires", account: "61", amount: 141182.09 },
+  { label: "Transports, communication, administratif, banque et technologies", account: "62", amount: 65905.38 },
+  { label: "Impots et taxes", account: "63", amount: 2258 },
+  { label: "Salaires bruts", account: "64", amount: 40140.47 },
+  { label: "Charges sociales de l'employeur", account: "64", amount: 14049.16 },
 ];
 
 const neutralizedFlows2026 = [
@@ -58,7 +58,7 @@ const neutralizedFlows2026 = [
   { label: "Remboursements de prets et avances", account: "16", amount: -24676 },
 ];
 
-const note2026 = "Atterrissage 2026 repris depuis l'export Qonto au 03/09/2026 et le tableau de cloture transmis. Les ventes Qonto non categorisees ont ete ventilees en vente de sejours quand la contrepartie correspond a Totemia, Stripe, familles, groupes ou partenaires de sejour. Les aides sont classees en 74 et les remboursements SNCF/autres en 79. Les avances, prets et virements internes sont isoles hors resultat dans les flux neutralises.";
+const note2026 = "Atterrissage 2026 repris depuis l'export Qonto au 10/09/2026 et les arbitrages transmis. Les ventes Qonto sont ventilees en vente de sejours quand la contrepartie correspond a Totemia, Stripe, familles, groupes ou partenaires de sejour. Les aides sont classees en 74, les remboursements SNCF/autres en 79, et le rapprochement bancaire permet de faire ressortir un excedent final de 11 276 EUR. Les avances, prets et virements internes sont isoles hors resultat dans les flux neutralises.";
 
 const forecast = {
   products: products2026,
@@ -73,7 +73,7 @@ const forecast = {
     { label: "Prestations en nature", account: "871", amount: 0 },
     { label: "Dons en nature", account: "870", amount: 0 },
   ],
-  note: "Budget 2026 repris depuis l'export Qonto complet transmis et le tableau de cloture. Le solde bancaire deja disponible n'est pas compte comme un produit supplementaire ; seuls les encaissements restants hors solde sont ajoutes. Les postes restent ranges dans les categories du bilan comptable ; les remboursements de prets sont integres en regularisations de cloture afin de ne pas creer de categories visibles par personne.",
+  note: "Budget 2026 repris depuis l'export Qonto du 10/09/2026, les aides VACAF reelles transmises et le solde bancaire final vise a 11 276 EUR. Les postes restent ranges dans les categories du bilan comptable ; les remboursements de prets sont integres en regularisations de cloture afin de ne pas creer de categories visibles par personne.",
 };
 
 const landing2026 = {
@@ -84,10 +84,10 @@ const landing2026 = {
     { month: "Avril", inflows: 10852.19, outflows: 9936.78, note: "Qonto reel" },
     { month: "Mai", inflows: 17404.7, outflows: 15195.65, note: "Qonto reel" },
     { month: "Juin", inflows: 67145.42, outflows: 65079.57, note: "Qonto reel" },
-    { month: "Juillet", inflows: 86432.21, outflows: 80130.02, note: "Qonto reel" },
-    { month: "Aout", inflows: 73482.89, outflows: 72838.11, note: "Qonto reel" },
-    { month: "Septembre", inflows: 17632.87, outflows: 15528.21, note: "Qonto reel au 03/09" },
-    { month: "Octobre", inflows: 45588.4, outflows: 49545.5, note: "Reste 2026 hors solde bancaire deja disponible" },
+    { month: "Juillet", inflows: 77882.21, outflows: 72601.33, note: "Qonto reel" },
+    { month: "Aout", inflows: 58148.55, outflows: 57999.93, note: "Qonto reel" },
+    { month: "Septembre", inflows: 23595.16, outflows: 24447.42, note: "Qonto reel au 10/09" },
+    { month: "Rapprochement", inflows: 982.35, outflows: 0, note: "Rapprochement avec le solde bancaire final vise" },
     { month: "Novembre", inflows: 0, outflows: 0, note: "A completer si nouveaux flux" },
     { month: "Decembre", inflows: 0, outflows: 0, note: "A completer si nouveaux flux" },
   ],
