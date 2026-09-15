@@ -54,6 +54,8 @@ const DEFAULT_PRODUCTION_PLAN = {
   pricePerChild: 1027.2,
   childCount: 30,
   extraRevenue: 0,
+  startDate: "2026-08-17",
+  endDate: "2026-08-28",
   days: 12,
   nights: 11,
   mealPlan: "full",
@@ -72,6 +74,13 @@ const DEFAULT_PRODUCTION = {
   selectedPlanId: DEFAULT_PRODUCTION_PLAN.id,
   plans: [DEFAULT_PRODUCTION_PLAN],
 };
+
+const PRODUCTION_TABS = [
+  { key: "assumptions", label: "Hypothèses" },
+  { key: "expenses", label: "Dépenses" },
+  { key: "hr", label: "RH" },
+  { key: "summary", label: "Synthèse" },
+];
 
 function amount(value) {
   const parsed = Number(value);
@@ -150,8 +159,21 @@ function productionStayDuration(stay) {
   const firstDate = Array.isArray(stay?.dates) ? stay.dates.find((date) => date?.startDate && date?.endDate) : null;
   const days = daysBetween(firstDate?.startDate, firstDate?.endDate);
   return {
+    startDate: firstDate?.startDate ? String(firstDate.startDate).slice(0, 10) : "",
+    endDate: firstDate?.endDate ? String(firstDate.endDate).slice(0, 10) : "",
     days: days || amount(stay?.days) || DEFAULT_PRODUCTION_PLAN.days,
     nights: days > 1 ? days - 1 : amount(stay?.nights) || DEFAULT_PRODUCTION_PLAN.nights,
+  };
+}
+
+function productionDurationFromDates(plan) {
+  const datedDays = daysBetween(plan?.startDate, plan?.endDate);
+  if (datedDays > 0) {
+    return { days: datedDays, nights: Math.max(datedDays - 1, 0) };
+  }
+  return {
+    days: Math.max(amount(plan?.days), 0),
+    nights: Math.max(amount(plan?.nights), 0),
   };
 }
 
@@ -167,10 +189,13 @@ function normalizeProductionExpense(line) {
 
 function normalizeProductionPlan(plan) {
   const base = deepClone(DEFAULT_PRODUCTION_PLAN);
+  const merged = { ...base, ...(plan || {}) };
+  const duration = productionDurationFromDates(merged);
   return {
-    ...base,
-    ...(plan || {}),
+    ...merged,
     id: String(plan?.id || base.id),
+    days: duration.days,
+    nights: duration.nights,
     expenses: Array.isArray(plan?.expenses) && plan.expenses.length
       ? plan.expenses.map(normalizeProductionExpense)
       : base.expenses.map(normalizeProductionExpense),
@@ -211,6 +236,30 @@ function productionExpenseTotal(line, plan, staffCount) {
   return Math.round(unitAmount * multiplier * foodRatio * 100) / 100;
 }
 
+function productionExpenseFormula(line, plan, staffCount) {
+  const unitAmount = currency(line.unitAmount);
+  const quantity = amount(line.quantity || 1);
+  const children = amount(plan.childCount);
+  const duration = productionDurationFromDates(plan);
+  const people = children + amount(staffCount);
+  const unitLabel = PRODUCTION_UNITS.find((unit) => unit.key === line.unit)?.label || "Forfait";
+  const base = {
+    fixed: `${unitAmount}`,
+    manual: `${quantity} × ${unitAmount}`,
+    perChild: `${children} enfants × ${quantity} × ${unitAmount}`,
+    perStaff: `${amount(staffCount)} staff × ${quantity} × ${unitAmount}`,
+    perPerson: `${people} personnes × ${quantity} × ${unitAmount}`,
+    perDay: `${duration.days} jours × ${quantity} × ${unitAmount}`,
+    perNight: `${duration.nights} nuits × ${quantity} × ${unitAmount}`,
+    perChildDay: `${children} enfants × ${duration.days} jours × ${quantity} × ${unitAmount}`,
+    perPersonDay: `${people} personnes × ${duration.days} jours × ${quantity} × ${unitAmount}`,
+  }[line.unit] || `${unitLabel} · ${unitAmount}`;
+  if (isFoodLine(line) && plan.mealPlan === "half") {
+    return `${base} × demi-pension ${amount(plan.halfBoardRatio || 0.62).toFixed(2)}`;
+  }
+  return base;
+}
+
 function summarizeProductionByCategory(expenses) {
   const groups = new Map();
   expenses.forEach((line) => {
@@ -233,6 +282,7 @@ function computeProduction(planInput, context = {}) {
   const expenseRows = plan.expenses.map((line) => ({
     ...line,
     total: productionExpenseTotal(line, plan, staffCount),
+    formula: productionExpenseFormula(line, plan, staffCount),
     mealAdjusted: isFoodLine(line) && plan.mealPlan === "half",
   }));
   const operationalExpenses = expenseRows.reduce((sum, line) => sum + amount(line.total), 0);
@@ -286,6 +336,7 @@ export default function ProductionSejours() {
   const [production, setProduction] = useState(() => deepClone(DEFAULT_PRODUCTION));
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("assumptions");
 
   useEffect(() => {
     async function load() {
@@ -397,6 +448,8 @@ export default function ProductionSejours() {
       pricePerChild: price || selectedPlan.pricePerChild,
       days: duration.days,
       nights: duration.nights,
+      startDate: duration.startDate || selectedPlan.startDate || "",
+      endDate: duration.endDate || selectedPlan.endDate || "",
     });
   };
 
@@ -469,7 +522,20 @@ export default function ProductionSejours() {
         </aside>
 
         <div className="production-main">
-          <section className="production-card">
+          <nav className="production-tabs" aria-label="Sections production">
+            {PRODUCTION_TABS.map((tab) => (
+              <button
+                type="button"
+                key={tab.key}
+                className={activeTab === tab.key ? "is-active" : ""}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          <section className={activeTab === "assumptions" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
                 <h3>Paramètres du séjour</h3>
@@ -499,8 +565,9 @@ export default function ProductionSejours() {
               <label><span>Prix de vente / enfant</span><input type="number" step="0.01" value={selectedPlan.pricePerChild ?? 0} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} /></label>
               <label><span>Nombre d'enfants</span><input type="number" step="1" value={selectedPlan.childCount ?? 0} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} /></label>
               <label><span>Recettes complémentaires</span><input type="number" step="0.01" value={selectedPlan.extraRevenue ?? 0} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} /></label>
-              <label><span>Jours</span><input type="number" step="1" value={selectedPlan.days ?? 0} onChange={(event) => updatePlan({ days: amount(event.target.value) })} /></label>
-              <label><span>Nuits</span><input type="number" step="1" value={selectedPlan.nights ?? 0} onChange={(event) => updatePlan({ nights: amount(event.target.value) })} /></label>
+              <label><span>Premier jour</span><input type="date" value={selectedPlan.startDate || ""} onChange={(event) => updatePlan({ startDate: event.target.value })} /></label>
+              <label><span>Dernier jour</span><input type="date" value={selectedPlan.endDate || ""} onChange={(event) => updatePlan({ endDate: event.target.value })} /></label>
+              <label><span>Durée calculée</span><input readOnly value={`${selectedPlan.days || 0} jour${selectedPlan.days > 1 ? "s" : ""} · ${selectedPlan.nights || 0} nuit${selectedPlan.nights > 1 ? "s" : ""}`} /></label>
               <label>
                 <span>Restauration</span>
                 <select value={selectedPlan.mealPlan || "full"} onChange={(event) => updatePlan({ mealPlan: event.target.value })}>
@@ -530,7 +597,7 @@ export default function ProductionSejours() {
             <div><span>Prix d'équilibre</span><strong>{currency(computed.breakEvenPrice)}</strong></div>
           </section>
 
-          <section className="production-card">
+          <section className={activeTab === "hr" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
                 <h3>RH</h3>
@@ -556,7 +623,7 @@ export default function ProductionSejours() {
             </div>
           </section>
 
-          <section className="production-card">
+          <section className={activeTab === "expenses" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
                 <h3>Postes de dépenses</h3>
@@ -573,7 +640,8 @@ export default function ProductionSejours() {
                     <th>Unité</th>
                     <th>Qté</th>
                     <th>Prix unit.</th>
-                    <th>Total</th>
+                    <th>Calcul</th>
+                    <th>Total ligne</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -589,6 +657,7 @@ export default function ProductionSejours() {
                       </td>
                       <td><input type="number" step="0.01" value={line.quantity ?? 1} onChange={(event) => updateExpense(index, { quantity: amount(event.target.value) })} /></td>
                       <td><input type="number" step="0.01" value={line.unitAmount ?? 0} onChange={(event) => updateExpense(index, { unitAmount: amount(event.target.value) })} /></td>
+                      <td className="production-formula-cell">{line.formula}</td>
                       <td>
                         <strong>{currency(line.total)}</strong>
                         {line.mealAdjusted && <small className="production-adjust-note">Demi-pension × {amount(selectedPlan.halfBoardRatio || 0.62).toFixed(2)}</small>}
@@ -597,7 +666,7 @@ export default function ProductionSejours() {
                     </tr>
                   ))}
                   <tr className="total">
-                    <td colSpan="5">Total hors RH</td>
+                    <td colSpan="6">Total hors RH</td>
                     <td>{currency(computed.operationalExpenses)}</td>
                     <td></td>
                   </tr>
@@ -606,7 +675,7 @@ export default function ProductionSejours() {
             </div>
           </section>
 
-          <section className="production-card">
+          <section className={activeTab === "summary" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
                 <h3>Synthèse par catégorie</h3>
