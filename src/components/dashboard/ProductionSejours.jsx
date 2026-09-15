@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
@@ -76,10 +77,11 @@ const DEFAULT_PRODUCTION = {
 };
 
 const PRODUCTION_TABS = [
-  { key: "assumptions", label: "Hypothèses" },
-  { key: "expenses", label: "Dépenses" },
   { key: "hr", label: "RH" },
+  { key: "assumptions", label: "Prix & dates" },
+  { key: "expenses", label: "Tableau dépenses" },
   { key: "summary", label: "Synthèse" },
+  { key: "publish", label: "Créer la fiche" },
 ];
 
 function amount(value) {
@@ -153,6 +155,21 @@ function daysBetween(startDate, endDate) {
   if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
   const diff = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
   return diff > 0 ? diff : 0;
+}
+
+function toIsoDate(value) {
+  return value ? `${String(value).slice(0, 10)}T00:00:00.000Z` : "";
+}
+
+function productionStaySlug(value) {
+  const slug = String(value || "sejour")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72);
+  return slug || `sejour-${Date.now()}`;
 }
 
 function productionStayDuration(stay) {
@@ -326,15 +343,18 @@ function productionContextFor(planInput, rows, staffContracts) {
     actualStaffCost: contractRows.reduce((sum, contract) => sum + amount(contract.grossSalary), 0),
     actualStaffNet: contractRows.reduce((sum, contract) => sum + amount(contract.netSalary), 0),
     actualStaffCount: new Set(contractRows.map((contract) => contract.memberId || contract.memberName || contract.id)).size,
+    contractRows,
   };
 }
 
 export default function ProductionSejours() {
+  const router = useRouter();
   const [rows, setRows] = useState([]);
   const [staffContracts, setStaffContracts] = useState([]);
   const [onlineStays, setOnlineStays] = useState([]);
   const [production, setProduction] = useState(() => deepClone(DEFAULT_PRODUCTION));
   const [status, setStatus] = useState("");
+  const [creatingStay, setCreatingStay] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("assumptions");
 
@@ -376,6 +396,14 @@ export default function ProductionSejours() {
   const context = productionContextFor(selectedPlan, rows, staffContracts);
   const computed = computeProduction(selectedPlan, context);
   const linkedStay = onlineStays.find((stay) => stay.id === selectedPlan.linkedStayId);
+  const simulatedDirectorNet = amount(selectedPlan.directorCount) * amount(selectedPlan.directorNetDay) * amount(selectedPlan.days);
+  const simulatedAnimatorNet = amount(selectedPlan.animatorCount) * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days);
+  const simulatedNet = simulatedDirectorNet + simulatedAnimatorNet;
+  const simulatedCharges = Math.max(computed.simulatedStaffCost - simulatedNet, 0);
+  const targetMarginRate = amount(computed.revenue) > 0 ? computed.marginRate : 0;
+  const recommendedPrice = amount(selectedPlan.childCount) > 0
+    ? Math.ceil(((computed.totalExpenses * 1.12) / amount(selectedPlan.childCount)) * 100) / 100
+    : 0;
 
   const writePlans = (nextPlans, nextSelectedId = selectedPlanId) => {
     setProduction({
@@ -476,6 +504,66 @@ export default function ProductionSejours() {
     setStatus("Module production enregistré.");
   };
 
+  const createStayFromProduction = async () => {
+    setCreatingStay(true);
+    setStatus("Création de la fiche séjour...");
+    try {
+      const baseName = selectedPlan.name || "Nouveau séjour";
+      const payload = {
+        name: baseName,
+        slug: productionStaySlug(baseName),
+        heroSubtitle: `${selectedPlan.days || 0} jours · ${selectedPlan.stayCode || "Séjour"} · prix construit en production`,
+        heroImage: "",
+        environment: selectedPlan.stayCode || "",
+        basePrice: amount(selectedPlan.pricePerChild),
+        priceMin: amount(selectedPlan.pricePerChild),
+        priceMax: amount(selectedPlan.pricePerChild),
+        ageGroups: [],
+        dates: [{
+          startDate: toIsoDate(selectedPlan.startDate),
+          endDate: toIsoDate(selectedPlan.endDate),
+          basePrice: amount(selectedPlan.pricePerChild),
+        }],
+        stations: [{ name: "Sur Place", priceExtra: 0 }],
+        summarySubsections: [{
+          title: "Séjour en préparation",
+          text: `Prévision ${selectedPlan.childCount || 0} enfants, marge estimée ${currency(computed.margin)} (${computed.marginRate.toFixed(1)} %).`,
+          imageSrc: "",
+        }],
+        sections: [{
+          subSections: [{
+            title: "Production",
+            text: `Budget construit depuis le module production. Recettes prévues : ${currency(computed.revenue)}. Dépenses prévues : ${currency(computed.totalExpenses)}.`,
+            imageSrc: "",
+          }],
+        }],
+        productionPlanId: selectedPlan.id,
+        productionSnapshot: {
+          plan: normalizeProductionPlan(selectedPlan),
+          computed: {
+            revenue: computed.revenue,
+            operationalExpenses: computed.operationalExpenses,
+            rhCost: computed.rhCost,
+            totalExpenses: computed.totalExpenses,
+            margin: computed.margin,
+            marginRate: computed.marginRate,
+            breakEvenPrice: computed.breakEvenPrice,
+          },
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      const ref = await addDoc(collection(db, COLLECTIONS.SEJOURS), payload);
+      updatePlan({ linkedStayId: ref.id, mode: "linked" });
+      setStatus("Fiche séjour créée depuis la production.");
+      router.push(`/dashboard/sejours/${ref.id}`);
+    } catch (error) {
+      setStatus(`Création impossible : ${error?.message || "erreur inconnue"}`);
+    } finally {
+      setCreatingStay(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="dash-page production-page">
@@ -489,10 +577,10 @@ export default function ProductionSejours() {
       <header className="dash-page-header-row">
         <div className="dash-page-header">
           <h1>Production de séjour</h1>
-          <p>Crée des séjours test, relie les séjours en vente, simule les dépenses et calcule la rentabilité.</p>
+          <p>Construis un séjour avant sa mise en vente : dates, prix, RH, dépenses, marge, puis création de la fiche publique.</p>
         </div>
         <div className="accounting-actions">
-          <button type="button" className="dash-btn dash-btn-secondary" onClick={addPlan}>Créer un séjour test</button>
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={addPlan}>Nouvelle simulation</button>
           <button type="button" className="dash-btn" onClick={saveProduction}>Enregistrer</button>
         </div>
       </header>
@@ -501,7 +589,7 @@ export default function ProductionSejours() {
       <div className="production-layout">
         <aside className="production-sidebar">
           <div className="production-sidebar-head">
-            <strong>Séjours simulés</strong>
+            <strong>Plans de production</strong>
             <span>{plans.length}</span>
           </div>
           {plans.map((plan) => {
@@ -538,8 +626,8 @@ export default function ProductionSejours() {
           <section className={activeTab === "assumptions" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
-                <h3>Paramètres du séjour</h3>
-                <p>Travaille un séjour test ou rattache-le à un séjour en vente pour reprendre le prix et les durées.</p>
+                <h3>Prix, dates et capacité</h3>
+                <p>Commence ici pour fixer le prix de vente. Le rattachement à un séjour existant sert seulement à reprendre ses ventes/RH déjà connues.</p>
               </div>
               <div className="accounting-actions">
                 <button type="button" className="dash-btn dash-btn-secondary" onClick={duplicatePlan}>Dupliquer</button>
@@ -547,11 +635,11 @@ export default function ProductionSejours() {
               </div>
             </div>
             <div className="production-form-grid">
-              <label><span>Nom du séjour test</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
+              <label><span>Nom de la simulation</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
               <label>
-                <span>Séjour en vente lié</span>
+                <span>Reprendre un séjour déjà en vente</span>
                 <select value={selectedPlan.linkedStayId || ""} onChange={(event) => applyOnlineStay(event.target.value)}>
-                  <option value="">Aucun, simulation libre</option>
+                  <option value="">Aucun, construction depuis zéro</option>
                   {onlineStays.map((stay) => <option key={stay.id} value={stay.id}>{stay.name || stay.id}</option>)}
                 </select>
               </label>
@@ -578,7 +666,7 @@ export default function ProductionSejours() {
               <label><span>Ratio demi-pension</span><input type="number" step="0.01" value={selectedPlan.halfBoardRatio ?? 0.62} onChange={(event) => updatePlan({ halfBoardRatio: amount(event.target.value) })} /></label>
             </div>
             <div className="production-linked-strip">
-              <div><span>Séjour lié</span><strong>{linkedStay?.name || "Aucun"}</strong></div>
+              <div><span>Source des données réelles</span><strong>{linkedStay?.name || "Aucune, simulation libre"}</strong></div>
               <div><span>Enfants vendus</span><strong>{context.soldChildren}</strong></div>
               <div><span>CA séjour vendu</span><strong>{currency(context.soldStayRevenue)}</strong></div>
               <div><span>Contrats RH trouvés</span><strong>{context.actualStaffCount}</strong></div>
@@ -595,13 +683,14 @@ export default function ProductionSejours() {
             <div><span>Marge</span><strong className={computed.margin >= 0 ? "finance-paid" : "finance-due"}>{currency(computed.margin)}</strong></div>
             <div><span>Taux de marge</span><strong>{computed.marginRate.toFixed(1)} %</strong></div>
             <div><span>Prix d'équilibre</span><strong>{currency(computed.breakEvenPrice)}</strong></div>
+            <div><span>Prix conseillé 12 %</span><strong>{currency(recommendedPrice)}</strong></div>
           </section>
 
           <section className={activeTab === "hr" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
-                <h3>RH</h3>
-                <p>Reprend les contrats RH enregistrés si disponibles, sinon utilise la simulation DS/anims.</p>
+                <h3>RH détaillée</h3>
+                <p>Compare le budget RH simulé avec les contrats déjà enregistrés pour ce code séjour et cette semaine.</p>
               </div>
               <label className="production-checkbox">
                 <input type="checkbox" checked={selectedPlan.useActualStaffCosts !== false} onChange={(event) => updatePlan({ useActualStaffCosts: event.target.checked })} />
@@ -615,8 +704,65 @@ export default function ProductionSejours() {
               <label><span>Salaire anim net / jour</span><input type="number" step="0.01" value={selectedPlan.animatorNetDay ?? 0} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
               <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
             </div>
+            <div className="production-rh-detail-grid">
+              <div>
+                <h4>Simulation RH</h4>
+                <table className="production-mini-table">
+                  <thead>
+                    <tr><th>Poste</th><th>Calcul net</th><th>Net</th><th>Chargé</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Direction</td>
+                      <td>{amount(selectedPlan.directorCount)} DS × {selectedPlan.days} j × {currency(selectedPlan.directorNetDay)}</td>
+                      <td>{currency(simulatedDirectorNet)}</td>
+                      <td>{currency(simulatedDirectorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
+                    </tr>
+                    <tr>
+                      <td>Animation</td>
+                      <td>{amount(selectedPlan.animatorCount)} anims × {selectedPlan.days} j × {currency(selectedPlan.animatorNetDay)}</td>
+                      <td>{currency(simulatedAnimatorNet)}</td>
+                      <td>{currency(simulatedAnimatorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
+                    </tr>
+                    <tr className="total">
+                      <td>Total simulation</td>
+                      <td>Coefficient chargé {amount(selectedPlan.staffCostMultiplier || 1).toFixed(2)}</td>
+                      <td>{currency(simulatedNet)}</td>
+                      <td>{currency(computed.simulatedStaffCost)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <h4>Contrats RH trouvés</h4>
+                <table className="production-mini-table">
+                  <thead>
+                    <tr><th>Nom</th><th>Rôle</th><th>Net</th><th>Brut/chargé</th></tr>
+                  </thead>
+                  <tbody>
+                    {context.contractRows.length ? context.contractRows.map((contract) => (
+                      <tr key={contract.id}>
+                        <td>{contract.memberName || contract.name || "Contrat RH"}</td>
+                        <td>{contract.role || contract.roleLabel || contract.position || "-"}</td>
+                        <td>{currency(contract.netSalary)}</td>
+                        <td>{currency(contract.grossSalary)}</td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan="4">Aucun contrat ne correspond encore à {selectedPlan.stayCode || "ce séjour"} {selectedPlan.week || ""}.</td></tr>
+                    )}
+                    <tr className="total">
+                      <td>Total contrats</td>
+                      <td>{context.actualStaffCount} personne(s)</td>
+                      <td>{currency(context.actualStaffNet)}</td>
+                      <td>{currency(context.actualStaffCost)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
             <div className="production-rh-summary">
               <div><span>RH simulée chargée</span><strong>{currency(computed.simulatedStaffCost)}</strong></div>
+              <div><span>Charges simulées</span><strong>{currency(simulatedCharges)}</strong></div>
               <div><span>RH réelle brute</span><strong>{currency(context.actualStaffCost)}</strong></div>
               <div><span>RH réelle nette</span><strong>{currency(context.actualStaffNet)}</strong></div>
               <div><span>RH retenue</span><strong>{currency(computed.rhCost)}</strong></div>
@@ -626,13 +772,13 @@ export default function ProductionSejours() {
           <section className={activeTab === "expenses" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
-                <h3>Postes de dépenses</h3>
-                <p>Ajoute, modifie ou supprime les postes. Les lignes nourriture sont automatiquement ajustées selon pension complète ou demi-pension.</p>
+                <h3>Tableau des dépenses</h3>
+                <p>Saisie type Excel : intitulé, catégorie, unité de calcul, quantité, prix unitaire, puis total automatique par ligne.</p>
               </div>
               <button type="button" className="dash-btn dash-btn-secondary" onClick={addExpense}>Ajouter un poste</button>
             </div>
             <div className="production-table-wrap">
-              <table className="production-table">
+              <table className="production-table production-spreadsheet">
                 <thead>
                   <tr>
                     <th>Intitulé</th>
@@ -648,15 +794,15 @@ export default function ProductionSejours() {
                 <tbody>
                   {computed.expenseRows.map((line, index) => (
                     <tr key={`${line.label}-${index}`}>
-                      <td><input value={line.label || ""} onChange={(event) => updateExpense(index, { label: event.target.value })} /></td>
-                      <td><input value={line.category || ""} onChange={(event) => updateExpense(index, { category: event.target.value })} /></td>
+                      <td><input className="production-text-input" value={line.label || ""} placeholder="ex: Hébergement, activités..." onChange={(event) => updateExpense(index, { label: event.target.value })} /></td>
+                      <td><input className="production-text-input" value={line.category || ""} placeholder="Catégorie" onChange={(event) => updateExpense(index, { category: event.target.value })} /></td>
                       <td>
                         <select value={line.unit || "fixed"} onChange={(event) => updateExpense(index, { unit: event.target.value })}>
                           {PRODUCTION_UNITS.map((unit) => <option key={unit.key} value={unit.key}>{unit.label}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" step="0.01" value={line.quantity ?? 1} onChange={(event) => updateExpense(index, { quantity: amount(event.target.value) })} /></td>
-                      <td><input type="number" step="0.01" value={line.unitAmount ?? 0} onChange={(event) => updateExpense(index, { unitAmount: amount(event.target.value) })} /></td>
+                      <td><input className="production-number-input" type="number" step="0.01" value={line.quantity ?? 1} onChange={(event) => updateExpense(index, { quantity: amount(event.target.value) })} /></td>
+                      <td><input className="production-number-input" type="number" step="0.01" value={line.unitAmount ?? 0} onChange={(event) => updateExpense(index, { unitAmount: amount(event.target.value) })} /></td>
                       <td className="production-formula-cell">{line.formula}</td>
                       <td>
                         <strong>{currency(line.total)}</strong>
@@ -672,6 +818,17 @@ export default function ProductionSejours() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div className="production-line-sums">
+              <h4>Somme par intitulé</h4>
+              <div>
+                {computed.expenseRows.map((line, index) => (
+                  <span key={`${line.label}-sum-${index}`}>
+                    <strong>{line.label || "Sans intitulé"}</strong>
+                    {currency(line.total)}
+                  </span>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -695,6 +852,51 @@ export default function ProductionSejours() {
               <span>Notes de production</span>
               <textarea value={selectedPlan.notes || ""} onChange={(event) => updatePlan({ notes: event.target.value })} />
             </label>
+          </section>
+
+          <section className={activeTab === "publish" ? "production-card" : "production-card production-tab-hidden"}>
+            <div className="production-card-head">
+              <div>
+                <h3>Créer la fiche séjour</h3>
+                <p>Quand le prix et le budget sont cohérents, crée une fiche dans “Séjours en vente” avec les dates, le prix et un instantané de production.</p>
+              </div>
+              <button type="button" className="dash-btn" onClick={createStayFromProduction} disabled={creatingStay}>
+                {creatingStay ? "Création..." : "Créer le séjour en vente"}
+              </button>
+            </div>
+            <div className="production-publish-grid">
+              <div>
+                <span>Nom créé</span>
+                <strong>{selectedPlan.name || "Nouveau séjour"}</strong>
+              </div>
+              <div>
+                <span>Dates</span>
+                <strong>{selectedPlan.startDate || "-"} → {selectedPlan.endDate || "-"}</strong>
+              </div>
+              <div>
+                <span>Prix public</span>
+                <strong>{currency(selectedPlan.pricePerChild)}</strong>
+              </div>
+              <div>
+                <span>Prix d'équilibre</span>
+                <strong>{currency(computed.breakEvenPrice)}</strong>
+              </div>
+              <div>
+                <span>Marge actuelle</span>
+                <strong className={computed.margin >= 0 ? "finance-paid" : "finance-due"}>{currency(computed.margin)} · {targetMarginRate.toFixed(1)} %</strong>
+              </div>
+              <div>
+                <span>Prix conseillé 12 %</span>
+                <strong>{currency(recommendedPrice)}</strong>
+                <button type="button" className="dash-btn dash-btn-secondary" onClick={() => updatePlan({ pricePerChild: recommendedPrice })} disabled={!recommendedPrice}>
+                  Utiliser ce prix
+                </button>
+              </div>
+            </div>
+            <div className="production-publish-note">
+              <strong>Flux recommandé</strong>
+              <p>1. Construis le budget ici. 2. Ajuste le prix jusqu'à obtenir la marge voulue. 3. Crée la fiche séjour. 4. Termine les textes, photos, âges et gares dans “Séjours en vente”.</p>
+            </div>
           </section>
         </div>
       </div>
