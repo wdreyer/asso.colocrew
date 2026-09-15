@@ -822,7 +822,7 @@
 
 .finance-section-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1291,6 +1291,14 @@
 .production-table tr.total td {
   background: #f8fafc;
   font-weight: 900;
+}
+
+.production-adjust-note {
+  display: block;
+  margin-top: 3px;
+  color: #647084;
+  font-size: 10.5px;
+  font-weight: 800;
 }
 
 .production-category-grid {

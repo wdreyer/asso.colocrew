@@ -146,7 +146,6 @@ const BUDGET_ACCOUNT_LABELS = {
 const FINANCE_SECTIONS = [
   { key: "dashboard", label: "Dashboard", detail: "CA, encaissements, restes à payer" },
   { key: "stays", label: "Séjours & transports", detail: "Synthèses par séjour, semaine et billets" },
-  { key: "production", label: "Production séjour", detail: "Simulation, coûts, RH et rentabilité" },
   { key: "documents", label: "Documents comptables", detail: "Bilans, prévisionnels et financement" },
 ];
 
