@@ -9354,11 +9354,11 @@ export default function Transport({ focusDate = "" }) {
           <Link href="/dashboard/transport" className="tr-back-link">← Retour</Link>
         )}
         <div className="tr-main-header-row">
-          <h1 className="tr-main-title">Transport été 2026</h1>
+          <h1 className="tr-main-title">Convoyages été 2026</h1>
           <div className="dash-row-actions">
             <button type="button" className="dash-btn" onClick={loadAll}>Actualiser</button>
             <button type="button" className="dash-btn dash-btn-primary" onClick={() => setShowNew(true)}>
-              + Nouveau trajet
+              + Nouveau convoyage
             </button>
           </div>
         </div>

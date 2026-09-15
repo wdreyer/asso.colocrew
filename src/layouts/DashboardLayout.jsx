@@ -8,15 +8,20 @@ import { useAuth } from "@/src/contexts/AuthContext";
 const NAV_STRUCTURE = [
   { label: "Vue d'ensemble", href: "/dashboard", icon: "grid", exact: true },
   {
-    group: "Colonie",
+    group: "Ventes & production",
     items: [
+      { label: "Séjours en vente",    href: "/dashboard/sejours",      icon: "sun" },
+      { label: "Production séjour",   href: "/dashboard/production",   icon: "production" },
       { label: "Réservations",        href: "/dashboard/reservations", icon: "calendar" },
       { label: "Finances",            href: "/dashboard/finances",     icon: "finance" },
       { label: "Abonnements",         href: "/dashboard/abonnements",  icon: "subscription" },
+    ],
+  },
+  {
+    group: "Opérations",
+    items: [
       { label: "Ressources humaines", href: "/dashboard/rh",           icon: "users" },
-      { label: "Transport", href: "/dashboard/transport", icon: "transport" },
-      { label: "Séjours",             href: "/dashboard/sejours",      icon: "sun" },
-      { label: "Production séjour",   href: "/dashboard/production",   icon: "production" },
+      { label: "Convoyages",          href: "/dashboard/transport",    icon: "transport" },
     ],
   },
   {

@@ -42,6 +42,27 @@ function IconFinance() {
     </svg>
   );
 }
+function IconUsers() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function IconTransport() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <rect x="1" y="3" width="15" height="13" rx="2" /><path d="M16 8h4l3 4v4h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  );
+}
+function IconProduction() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 16V9" /><path d="M13 16V7" /><path d="M18 16v-4" /><path d="M7 4h11l2 3-2 3H7z" />
+    </svg>
+  );
+}
 function IconPlus() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
@@ -88,12 +109,60 @@ function resolveStayCode(value) {
 
 /* ─── Quick actions config ───────────────────────────────────────────── */
 const QUICK_ACTIONS = [
-  { label: "Voir les réservations", sub: "Gérer et valider", href: "/dashboard/reservations", icon: <IconCalendar /> },
+  { label: "Séjours en vente", sub: "Créer les fiches publiques", href: "/dashboard/sejours", icon: <IconSun /> },
+  { label: "Production séjour", sub: "Simuler rentabilité et coûts", href: "/dashboard/production", icon: <IconProduction /> },
+  { label: "Réservations", sub: "Gérer et valider", href: "/dashboard/reservations", icon: <IconCalendar /> },
   { label: "Suivi financier", sub: "CA, paiements et restes", href: "/dashboard/finances", icon: <IconFinance /> },
-  { label: "Gérer les séjours", sub: "Créer, éditer, supprimer", href: "/dashboard/sejours", icon: <IconSun /> },
+  { label: "Ressources humaines", sub: "Contrats, équipes, paies", href: "/dashboard/rh", icon: <IconUsers /> },
+  { label: "Convoyages", sub: "Trajets, billets, convocations", href: "/dashboard/transport", icon: <IconTransport /> },
   { label: "Ajouter des médias", sub: "Photos et galeries", href: "/dashboard/medias", icon: <IconImage /> },
   { label: "Témoignages", sub: "Retours qualitatifs", href: "/dashboard/temoignages", icon: <IconQuote /> },
   { label: "Pages du site", sub: "Contenu éditorial", href: "/dashboard/pages", icon: null },
+];
+
+const WORKFLOW_STEPS = [
+  {
+    label: "Séjours",
+    title: "Fiches en vente",
+    text: "Créer les pages publiques, dates, prix et contenus.",
+    href: "/dashboard/sejours",
+    icon: <IconSun />,
+  },
+  {
+    label: "Production",
+    title: "Rentabilité",
+    text: "Tester les prix, enfants, postes de dépenses et marge.",
+    href: "/dashboard/production",
+    icon: <IconProduction />,
+  },
+  {
+    label: "Réservations",
+    title: "Ventes",
+    text: "Valider les familles, paiements et informations séjour.",
+    href: "/dashboard/reservations",
+    icon: <IconCalendar />,
+  },
+  {
+    label: "Finance",
+    title: "Paiements",
+    text: "Suivre CA, restes à payer, abonnements et documents.",
+    href: "/dashboard/finances",
+    icon: <IconFinance />,
+  },
+  {
+    label: "RH",
+    title: "Équipes",
+    text: "Contrats, salaires, documents et affectations.",
+    href: "/dashboard/rh",
+    icon: <IconUsers />,
+  },
+  {
+    label: "Convoyages",
+    title: "Départs / retours",
+    text: "Créer les trajets, billets, quais et convocations.",
+    href: "/dashboard/transport",
+    icon: <IconTransport />,
+  },
 ];
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
@@ -384,7 +453,7 @@ export default function Overview() {
       href: "/dashboard/reservations",
     },
     {
-      label: "Séjours actifs",
+      label: "Séjours en vente",
       value: metrics.totalSejours,
       color: "green",
       icon: <IconSun />,
@@ -413,6 +482,36 @@ export default function Overview() {
         <h1>Tableau de bord</h1>
         <p style={{ textTransform: "capitalize" }}>{today}</p>
       </header>
+
+      <section className="dash-section dash-workflow-section">
+        <div className="dash-section-head">
+          <div>
+            <h2>Parcours de production</h2>
+            <span style={{ fontSize: 11, color: "var(--dash-muted)" }}>
+              Séjours en vente → simulation de rentabilité → réservations → paiements → équipes → convoyages
+            </span>
+          </div>
+        </div>
+        <div className="dash-workflow">
+          {WORKFLOW_STEPS.map((step, index) => (
+            <button
+              key={step.href}
+              type="button"
+              className="dash-workflow-step"
+              onClick={() => router.push(step.href)}
+            >
+              <span className="dash-workflow-index">{index + 1}</span>
+              <span className="dash-workflow-icon">{step.icon}</span>
+              <span className="dash-workflow-copy">
+                <strong>{step.label}</strong>
+                <em>{step.title}</em>
+                <small>{step.text}</small>
+              </span>
+              {index < WORKFLOW_STEPS.length - 1 && <span className="dash-workflow-arrow" aria-hidden="true">→</span>}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Metric cards */}
       <section className="dash-metrics-grid">

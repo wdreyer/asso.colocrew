@@ -306,8 +306,8 @@ export default function Sejours() {
     <div className="dash-page">
       <header className="dash-page-header dash-page-header-row">
         <div>
-          <h1>Séjours</h1>
-          <p>Gère la visibilité, archive et édite chaque séjour.</p>
+          <h1>Séjours en vente</h1>
+          <p>Gère les fiches publiques qui alimentent les réservations et les simulations de production.</p>
         </div>
         <div className="dash-row-actions">
           <button type="button" className="dash-btn" onClick={load}>
@@ -318,7 +318,7 @@ export default function Sejours() {
             className="dash-btn dash-btn-primary"
             onClick={() => router.push("/dashboard/sejours/new")}
           >
-            + Nouveau séjour
+            + Nouveau séjour en vente
           </button>
         </div>
       </header>
@@ -326,7 +326,7 @@ export default function Sejours() {
       <input
         className="dash-input"
         style={{ maxWidth: 420 }}
-        placeholder="Rechercher un séjour…"
+        placeholder="Rechercher un séjour en vente…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
