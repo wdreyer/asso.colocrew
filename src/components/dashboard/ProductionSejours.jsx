@@ -30,6 +30,8 @@ function IconTarget() {
 }
 
 const ACCOUNTING_DOC_ID = "colocrew-2026";
+const DAY_WIDTH = 28;
+const LABEL_WIDTH = 170;
 
 const PRODUCTION_UNITS = [
   { key: "fixed", label: "Forfait séjour" },
@@ -59,6 +61,7 @@ const DEFAULT_PRODUCTION_PLAN = {
   stayCode: "EVCC",
   location: "",
   color: "",
+  ageGroups: [],
   pricePerChild: 1027.2,
   childCount: 30,
   maxChildren: 30,
@@ -75,14 +78,14 @@ const DEFAULT_PRODUCTION_PLAN = {
   animatorRatio: 8,
   directorNetDay: 90,
   animatorNetDay: 60,
-  staffCostMultiplier: 1.3,
+  staffCostMultiplier: 1.35,
   notes: "Modèle de base repris depuis le fichier O vives : 30 enfants, 4 anims, 1 DS, 12 jours / 11 nuits.",
   expenses: DEFAULT_PRODUCTION_EXPENSES,
 };
 
 const DEFAULT_PRODUCTION = {
-  selectedPlanId: DEFAULT_PRODUCTION_PLAN.id,
-  plans: [DEFAULT_PRODUCTION_PLAN],
+  selectedPlanId: "",
+  plans: [],
 };
 
 const PRODUCTION_TABS = [
@@ -101,6 +104,9 @@ const PRICE_TIERS = [
 ];
 
 const SEASONS = ["Été", "Hiver"];
+const AGE_GROUP_OPTIONS = ["6-8 ans", "9-11 ans", "12-14 ans", "15-17 ans"];
+const WEEKDAY_LETTERS_MON_FIRST = ["L", "M", "M", "J", "V", "S", "D"];
+const WIZARD_STEP_COUNT = 3;
 
 function amount(value) {
   const parsed = Number(value);
@@ -127,8 +133,20 @@ function daysBetween(startDate, endDate) {
   return diff > 0 ? diff : 0;
 }
 
+function addDays(dateStr, days) {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function toIsoDate(value) {
   return value ? `${String(value).slice(0, 10)}T00:00:00.000Z` : "";
+}
+
+function formatFr(dateStr) {
+  if (!dateStr) return "-";
+  const [year, month, day] = String(dateStr).slice(0, 10).split("-");
+  return `${day}/${month}`;
 }
 
 function productionStaySlug(value) {
@@ -193,6 +211,7 @@ function normalizeProductionPlan(plan) {
     ...merged,
     id: String(plan?.id || base.id),
     sessions,
+    ageGroups: Array.isArray(merged.ageGroups) ? merged.ageGroups.map(String) : [],
     days: duration.days,
     nights: duration.nights,
     expenses: Array.isArray(plan?.expenses) && plan.expenses.length
@@ -350,73 +369,108 @@ function timelineEntriesFor(plans) {
     })));
 }
 
-function addDays(dateStr, days) {
+function startOfMonth(dateStr) {
   const date = new Date(dateStr);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
 }
 
-function mondayOnOrBefore(dateStr) {
+function endOfMonth(dateStr) {
   const date = new Date(dateStr);
-  const day = date.getDay();
-  const back = day === 0 ? 6 : day - 1;
-  return addDays(dateStr, -back);
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
 
-function weekTicksFor(minDate, maxDate) {
-  if (!minDate || !maxDate) return [];
-  const ticks = [];
-  let cursor = mondayOnOrBefore(minDate);
+function dayInfo(dateStr) {
+  const date = new Date(dateStr);
+  const jsDay = date.getDay();
+  const mondayIndex = jsDay === 0 ? 6 : jsDay - 1;
+  return {
+    date: dateStr,
+    letter: WEEKDAY_LETTERS_MON_FIRST[mondayIndex],
+    dayNumber: date.getDate(),
+    isWeekend: mondayIndex >= 5,
+    monthKey: `${date.getFullYear()}-${date.getMonth()}`,
+    monthLabel: date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+  };
+}
+
+function daysRangeFor(minDate, maxDate) {
+  const days = [];
+  let cursor = minDate;
   let guard = 0;
-  while (cursor <= maxDate && guard < 60) {
-    const date = new Date(cursor);
-    ticks.push({
-      date: cursor,
-      dayNumber: date.getDate(),
-      monthLabel: date.toLocaleDateString("fr-FR", { month: "short" }),
-    });
-    cursor = addDays(cursor, 7);
+  while (cursor <= maxDate && guard < 400) {
+    days.push(dayInfo(cursor));
+    cursor = addDays(cursor, 1);
     guard += 1;
   }
-  return ticks;
+  return days;
 }
 
-function assignTimelineRows(entries) {
-  const sorted = [...entries].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  const rowEnds = [];
-  const placed = sorted.map((entry) => {
-    let rowIndex = rowEnds.findIndex((end) => end < entry.startDate);
-    if (rowIndex === -1) {
-      rowIndex = rowEnds.length;
-      rowEnds.push(entry.endDate);
+function monthGroupsFor(days) {
+  const groups = [];
+  days.forEach((day) => {
+    const last = groups[groups.length - 1];
+    if (last && last.key === day.monthKey) {
+      last.count += 1;
     } else {
-      rowEnds[rowIndex] = entry.endDate;
+      groups.push({ key: day.monthKey, label: day.monthLabel, count: 1 });
     }
-    return { ...entry, row: rowIndex };
   });
-  return { placed, rowCount: rowEnds.length };
+  return groups;
 }
 
-function timelinePercent(dateStr, minDate, maxDate) {
-  const total = daysBetween(minDate, maxDate) || 1;
-  const offset = daysBetween(minDate, dateStr) - 1;
-  return Math.max(0, Math.min(100, (offset / total) * 100));
+function dayIndexOf(days, dateStr) {
+  return days.findIndex((day) => day.date === dateStr);
+}
+
+function planRowsFor(seasonEntries, plans) {
+  const byPlan = new Map();
+  seasonEntries.forEach((entry) => {
+    const list = byPlan.get(entry.planId) || [];
+    list.push(entry);
+    byPlan.set(entry.planId, list);
+  });
+  return [...byPlan.entries()].map(([planId, planSessions]) => {
+    const plan = plans.find((item) => item.id === planId);
+    return {
+      planId,
+      planName: plan?.name || planSessions[0].planName,
+      color: plan?.color || planSessions[0].color,
+      sessions: [...planSessions].sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    };
+  });
 }
 
 function seasonGroupsFor(plans) {
   const entries = timelineEntriesFor(plans);
   return SEASONS.map((season) => {
     const seasonEntries = entries.filter((entry) => entry.season === season);
-    if (!seasonEntries.length) return { season, entries: [], rowCount: 0, minDate: "", maxDate: "", rangeLabel: "", ticks: [] };
+    if (!seasonEntries.length) return { season, rows: [], days: [], months: [], rangeLabel: "" };
     const starts = seasonEntries.map((entry) => entry.startDate).sort();
     const ends = seasonEntries.map((entry) => entry.endDate).sort();
     const rawMin = starts[0];
     const rawMax = ends[ends.length - 1];
-    const minDate = mondayOnOrBefore(rawMin);
-    const maxDate = addDays(mondayOnOrBefore(rawMax), 7);
-    const { placed, rowCount } = assignTimelineRows(seasonEntries);
-    return { season, entries: placed, rowCount, minDate, maxDate, rangeLabel: `${rawMin} → ${rawMax}`, ticks: weekTicksFor(minDate, maxDate) };
+    const minDate = startOfMonth(rawMin);
+    const maxDate = endOfMonth(rawMax);
+    const days = daysRangeFor(minDate, maxDate);
+    const months = monthGroupsFor(days);
+    const rows = planRowsFor(seasonEntries, plans);
+    return { season, rows, days, months, rangeLabel: `${formatFr(rawMin)} → ${formatFr(rawMax)}` };
   });
+}
+
+function emptyWizardData() {
+  return {
+    name: "",
+    stayCode: "",
+    location: "",
+    color: "",
+    childCount: 30,
+    maxChildren: 30,
+    ageGroups: [],
+    startDate: "",
+    endDate: "",
+    mealPlan: "full",
+  };
 }
 
 export default function ProductionSejours() {
@@ -428,6 +482,9 @@ export default function ProductionSejours() {
   const [view, setView] = useState("plan");
   const [activeTab, setActiveTab] = useState("assumptions");
   const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [wizardStep, setWizardStep] = useState(0);
+  const [wizardData, setWizardData] = useState(emptyWizardData);
 
   useEffect(() => {
     async function load() {
@@ -435,8 +492,8 @@ export default function ProductionSejours() {
         const accountingSnapshot = await getDoc(doc(db, COLLECTIONS.ACCOUNTING_REPORTS, ACCOUNTING_DOC_ID));
         const saved = accountingSnapshot.exists() ? accountingSnapshot.data()?.production : null;
         setProduction({
-          selectedPlanId: saved?.selectedPlanId || DEFAULT_PRODUCTION.selectedPlanId,
-          plans: Array.isArray(saved?.plans) && saved.plans.length ? saved.plans : DEFAULT_PRODUCTION.plans,
+          selectedPlanId: saved?.selectedPlanId || "",
+          plans: Array.isArray(saved?.plans) ? saved.plans : [],
         });
       } finally {
         setLoading(false);
@@ -446,38 +503,40 @@ export default function ProductionSejours() {
   }, []);
 
   const plans = useMemo(
-    () => (Array.isArray(production.plans) && production.plans.length ? production.plans : DEFAULT_PRODUCTION.plans).map(normalizeProductionPlan),
+    () => (Array.isArray(production.plans) ? production.plans : []).map(normalizeProductionPlan),
     [production.plans],
   );
-  const selectedPlanId = production.selectedPlanId || plans[0]?.id || DEFAULT_PRODUCTION_PLAN.id;
+  const selectedPlanId = production.selectedPlanId || plans[0]?.id || "";
   const selectedIndex = Math.max(plans.findIndex((plan) => plan.id === selectedPlanId), 0);
-  const selectedPlan = plans[selectedIndex] || normalizeProductionPlan(DEFAULT_PRODUCTION_PLAN);
-  const sessions = selectedPlan.sessions || [];
+  const selectedPlan = plans.length ? (plans[selectedIndex] || plans[0]) : null;
+  const sessions = selectedPlan?.sessions || [];
   const { openDate, closeDate } = sessionsRange(sessions);
-  const computed = computeProduction(selectedPlan);
+  const computed = selectedPlan ? computeProduction(selectedPlan) : null;
 
   useEffect(() => {
-    if (activeTab === "food" && selectedPlan.mealPlan !== "autogestion") {
+    if (activeTab === "food" && selectedPlan && selectedPlan.mealPlan !== "autogestion") {
       setActiveTab("assumptions");
     }
-  }, [activeTab, selectedPlan.mealPlan]);
+  }, [activeTab, selectedPlan?.mealPlan]);
 
-  const visibleTabs = PRODUCTION_TABS.filter((tab) => tab.key !== "food" || selectedPlan.mealPlan === "autogestion");
-  const simulatedDirectorNet = amount(selectedPlan.directorCount) * amount(selectedPlan.directorNetDay) * amount(selectedPlan.days);
-  const simulatedAnimatorNet = computed.animatorCount * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days);
+  const visibleTabs = PRODUCTION_TABS.filter((tab) => tab.key !== "food" || (selectedPlan && selectedPlan.mealPlan === "autogestion"));
+  const simulatedDirectorNet = selectedPlan ? amount(selectedPlan.directorCount) * amount(selectedPlan.directorNetDay) * amount(selectedPlan.days) : 0;
+  const simulatedAnimatorNet = selectedPlan ? computed.animatorCount * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days) : 0;
   const simulatedNet = simulatedDirectorNet + simulatedAnimatorNet;
-  const simulatedCharges = Math.max(computed.simulatedStaffCost - simulatedNet, 0);
-  const targetMarginRate = amount(computed.revenue) > 0 ? computed.marginRate : 0;
-  const recommendedPrice = priceForMargin(computed, 0.12);
-  const breakEvenChildren = useMemo(() => findBreakEvenChildren(selectedPlan), [selectedPlan]);
-  const sensitivityDefaultStart = Math.max(1, Math.min(amount(selectedPlan.childCount), breakEvenChildren || amount(selectedPlan.childCount)) - 5);
-  const sensitivityDefaultEnd = Math.max(amount(selectedPlan.childCount), breakEvenChildren || 0) + 10;
+  const simulatedCharges = selectedPlan ? Math.max(computed.simulatedStaffCost - simulatedNet, 0) : 0;
+  const targetMarginRate = selectedPlan && amount(computed.revenue) > 0 ? computed.marginRate : 0;
+  const recommendedPrice = selectedPlan ? priceForMargin(computed, 0.12) : 0;
+  const breakEvenChildren = useMemo(() => (selectedPlan ? findBreakEvenChildren(selectedPlan) : null), [selectedPlan]);
+  const sensitivityDefaultStart = selectedPlan ? Math.max(1, Math.min(amount(selectedPlan.childCount), breakEvenChildren || amount(selectedPlan.childCount)) - 5) : 1;
+  const sensitivityDefaultEnd = selectedPlan ? Math.max(amount(selectedPlan.childCount), breakEvenChildren || 0) + 10 : 1;
   const sensitivityStart = sensitivityRange.start ?? sensitivityDefaultStart;
   const sensitivityEnd = sensitivityRange.end ?? sensitivityDefaultEnd;
   const sensitivityStep = Math.max(amount(sensitivityRange.step ?? 1), 1);
   const sensitivityRows = [];
-  for (let count = sensitivityStart; count <= sensitivityEnd && sensitivityRows.length < 200; count += sensitivityStep) {
-    sensitivityRows.push(computeProduction(selectedPlan, { childCount: count }));
+  if (selectedPlan) {
+    for (let count = sensitivityStart; count <= sensitivityEnd && sensitivityRows.length < 200; count += sensitivityStep) {
+      sensitivityRows.push(computeProduction(selectedPlan, { childCount: count }));
+    }
   }
   const seasonGroups = useMemo(() => seasonGroupsFor(plans), [plans]);
 
@@ -489,6 +548,7 @@ export default function ProductionSejours() {
   };
 
   const updatePlan = (patch) => {
+    if (!selectedPlan) return;
     writePlans(plans.map((plan, index) => (index === selectedIndex ? normalizeProductionPlan({ ...plan, ...patch }) : plan)));
   };
 
@@ -496,7 +556,14 @@ export default function ProductionSejours() {
     writePlans(plans.map((plan) => (plan.id === planId ? normalizeProductionPlan({ ...plan, ...patch }) : plan)));
   };
 
+  const toggleAgeGroup = (age) => {
+    if (!selectedPlan) return;
+    const current = selectedPlan.ageGroups || [];
+    updatePlan({ ageGroups: current.includes(age) ? current.filter((item) => item !== age) : [...current, age] });
+  };
+
   const updateExpense = (expenseIndex, patch) => {
+    if (!selectedPlan) return;
     updatePlan({
       expenses: selectedPlan.expenses.map((line, index) => (
         index === expenseIndex ? normalizeProductionExpense({ ...line, ...patch }) : line
@@ -504,20 +571,8 @@ export default function ProductionSejours() {
     });
   };
 
-  const addPlan = () => {
-    const id = `production-${Date.now()}`;
-    writePlans([
-      ...plans,
-      normalizeProductionPlan({
-        ...DEFAULT_PRODUCTION_PLAN,
-        id,
-        name: `Séjour test ${plans.length + 1}`,
-        linkedStayId: "",
-      }),
-    ], id);
-  };
-
   const duplicatePlan = () => {
+    if (!selectedPlan) return;
     const id = `production-${Date.now()}`;
     writePlans([...plans, normalizeProductionPlan({ ...selectedPlan, id, name: `${selectedPlan.name || "Simulation"} - copie`, linkedStayId: "" })], id);
   };
@@ -529,27 +584,25 @@ export default function ProductionSejours() {
       ? " Le séjour déjà publié ne sera pas supprimé automatiquement (utilise \"Supprimer le séjour\" dans l'onglet Créer la fiche pour ça)."
       : "";
     if (!window.confirm(`Supprimer la simulation "${target.name || "sans nom"}" ?${warnPublished}`)) return;
-    if (plans.length <= 1) {
-      const id = `production-${Date.now()}`;
-      writePlans([normalizeProductionPlan({ ...DEFAULT_PRODUCTION_PLAN, id, name: "Nouvelle simulation" })], id);
-      return;
-    }
     const nextPlans = plans.filter((plan) => plan.id !== planId);
-    const nextSelectedId = planId === selectedPlanId ? nextPlans[0]?.id : selectedPlanId;
+    const nextSelectedId = planId === selectedPlanId ? (nextPlans[0]?.id || "") : selectedPlanId;
     writePlans(nextPlans, nextSelectedId);
   };
 
   const addExpense = () => {
+    if (!selectedPlan) return;
     updatePlan({
       expenses: [...selectedPlan.expenses, { label: "Nouvelle dépense", category: "Autre", unit: "fixed", quantity: 1, unitAmount: 0 }],
     });
   };
 
   const removeExpense = (expenseIndex) => {
+    if (!selectedPlan) return;
     updatePlan({ expenses: selectedPlan.expenses.filter((_, index) => index !== expenseIndex) });
   };
 
   const setSessionCount = (value) => {
+    if (!selectedPlan) return;
     const target = Math.max(1, Math.round(amount(value)));
     if (target === sessions.length) return;
     if (target > sessions.length) {
@@ -561,16 +614,18 @@ export default function ProductionSejours() {
   };
 
   const addSession = () => {
+    if (!selectedPlan) return;
     const last = sessions[sessions.length - 1];
     updatePlan({ sessions: [...sessions, { startDate: last?.endDate || "", endDate: "" }] });
   };
 
   const removeSession = (index) => {
-    if (sessions.length <= 1) return;
+    if (!selectedPlan || sessions.length <= 1) return;
     updatePlan({ sessions: sessions.filter((_, i) => i !== index) });
   };
 
   const updateSession = (index, patch) => {
+    if (!selectedPlan) return;
     updatePlan({ sessions: sessions.map((session, i) => (i === index ? { ...session, ...patch } : session)) });
   };
 
@@ -581,7 +636,7 @@ export default function ProductionSejours() {
   const saveProduction = async () => {
     setStatus("Enregistrement...");
     const nextProduction = {
-      selectedPlanId: selectedPlan.id,
+      selectedPlanId,
       plans: plans.map(normalizeProductionPlan),
     };
     await setDoc(doc(db, COLLECTIONS.ACCOUNTING_REPORTS, ACCOUNTING_DOC_ID), {
@@ -605,7 +660,7 @@ export default function ProductionSejours() {
   };
 
   const deleteLinkedStay = async () => {
-    if (!selectedPlan.linkedStayId) return;
+    if (!selectedPlan?.linkedStayId) return;
     if (!window.confirm(`Supprimer définitivement le séjour "${selectedPlan.name || "ce séjour"}" ? Cette action est irréversible.`)) return;
     setStatus("Suppression du séjour...");
     try {
@@ -618,6 +673,7 @@ export default function ProductionSejours() {
   };
 
   const publishPlan = async () => {
+    if (!selectedPlan) return;
     setCreatingStay(true);
     setStatus(selectedPlan.linkedStayId ? "Mise à jour du séjour..." : "Création de la fiche séjour...");
     try {
@@ -658,6 +714,7 @@ export default function ProductionSejours() {
           basePrice: priceMin,
           priceMin,
           priceMax,
+          ageGroups: selectedPlan.ageGroups || [],
           ...snapshotFields,
           updatedAt: serverTimestamp(),
         });
@@ -674,7 +731,7 @@ export default function ProductionSejours() {
           basePrice: priceMin,
           priceMin,
           priceMax,
-          ageGroups: [],
+          ageGroups: selectedPlan.ageGroups || [],
           dates: sessionDates,
           stations: [{ name: "Sur Place", priceExtra: 0 }],
           summarySubsections: [{
@@ -705,6 +762,49 @@ export default function ProductionSejours() {
     }
   };
 
+  const openCreateModal = () => {
+    setWizardData(emptyWizardData());
+    setWizardStep(0);
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => setShowCreateModal(false);
+
+  const toggleWizardAge = (age) => {
+    setWizardData((previous) => ({
+      ...previous,
+      ageGroups: previous.ageGroups.includes(age)
+        ? previous.ageGroups.filter((item) => item !== age)
+        : [...previous.ageGroups, age],
+    }));
+  };
+
+  const finishWizard = () => {
+    const id = `production-${Date.now()}`;
+    const newPlan = normalizeProductionPlan({
+      ...DEFAULT_PRODUCTION_PLAN,
+      id,
+      name: wizardData.name || "Nouveau séjour",
+      stayCode: wizardData.stayCode || "",
+      location: wizardData.location || "",
+      color: wizardData.color || "",
+      childCount: amount(wizardData.childCount) || 0,
+      maxChildren: amount(wizardData.maxChildren) || 0,
+      ageGroups: wizardData.ageGroups,
+      sessions: wizardData.startDate && wizardData.endDate
+        ? [{ startDate: wizardData.startDate, endDate: wizardData.endDate }]
+        : [{ startDate: "", endDate: "" }],
+      mealPlan: wizardData.mealPlan,
+      animatorStaffingMode: "manual",
+      animatorRatio: wizardData.mealPlan === "autogestion" ? 5 : 8,
+      linkedStayId: "",
+    });
+    writePlans([...plans, newPlan], id);
+    setShowCreateModal(false);
+    setView("plan");
+    setActiveTab("assumptions");
+  };
+
   if (loading) {
     return (
       <div className="dash-page production-page">
@@ -721,15 +821,99 @@ export default function ProductionSejours() {
           <p>Construis un séjour en simulation : semaines, capacité, RH, dépenses, marge, puis création de la fiche publique.</p>
         </div>
         <div className="accounting-actions">
-          <div className="production-toggle-group">
+          <div className="production-view-switcher">
             <button type="button" className={view === "plan" ? "is-active" : ""} onClick={() => setView("plan")}>Plan</button>
             <button type="button" className={view === "seasons" ? "is-active" : ""} onClick={() => setView("seasons")}>Récap saisons</button>
           </div>
-          {view === "plan" && <button type="button" className="dash-btn dash-btn-secondary" onClick={addPlan}>Nouvelle simulation</button>}
+          {view === "plan" && <button type="button" className="dash-btn dash-btn-secondary" onClick={openCreateModal}>+ Nouveau séjour</button>}
           <button type="button" className="dash-btn" onClick={saveProduction}>Enregistrer</button>
         </div>
       </header>
       {status && <p className="accounting-status">{status}</p>}
+
+      {showCreateModal && (
+        <div className="dash-modal-backdrop" onClick={closeCreateModal}>
+          <div className="dash-modal-card dash-modal-md" onClick={(event) => event.stopPropagation()}>
+            <div className="dash-modal-header">
+              <h3>Nouveau séjour — étape {wizardStep + 1}/{WIZARD_STEP_COUNT}</h3>
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={closeCreateModal}>Fermer</button>
+            </div>
+            <div className="dash-modal-body">
+              {wizardStep === 0 && (
+                <>
+                  <div className="production-subsection-head"><h4>Identité du séjour</h4></div>
+                  <div className="production-form-grid production-form-grid-2">
+                    <label><span>Nom du séjour</span><input value={wizardData.name} onChange={(event) => setWizardData((p) => ({ ...p, name: event.target.value }))} /></label>
+                    <label><span>Code séjour</span><input value={wizardData.stayCode} placeholder="ex : ABC" onChange={(event) => setWizardData((p) => ({ ...p, stayCode: event.target.value }))} /></label>
+                    <label><span>Lieu</span><input value={wizardData.location} placeholder="ex : Dax, Landes" onChange={(event) => setWizardData((p) => ({ ...p, location: event.target.value }))} /></label>
+                    <label>
+                      <span>Couleur</span>
+                      <input
+                        type="color"
+                        className="production-color-input"
+                        value={wizardData.color || categoryColor(wizardData.name || "nouveau")}
+                        onChange={(event) => setWizardData((p) => ({ ...p, color: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+              {wizardStep === 1 && (
+                <>
+                  <div className="production-subsection-head"><h4>Capacité</h4></div>
+                  <div className="production-form-grid production-form-grid-2">
+                    <label><span>Nombre d'enfants (prévision)</span><input type="number" step="1" value={wizardData.childCount} onChange={(event) => setWizardData((p) => ({ ...p, childCount: event.target.value }))} /></label>
+                    <label><span>Capacité max</span><input type="number" step="1" value={wizardData.maxChildren} onChange={(event) => setWizardData((p) => ({ ...p, maxChildren: event.target.value }))} /></label>
+                  </div>
+                  <div className="production-subsection-head"><h4>Tranches d'âge</h4></div>
+                  <div className="production-age-chips">
+                    {AGE_GROUP_OPTIONS.map((age) => (
+                      <button
+                        type="button"
+                        key={age}
+                        className={wizardData.ageGroups.includes(age) ? "is-active" : ""}
+                        onClick={() => toggleWizardAge(age)}
+                      >
+                        {age}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {wizardStep === 2 && (
+                <>
+                  <div className="production-subsection-head"><h4>Première semaine</h4></div>
+                  <div className="production-form-grid production-form-grid-2">
+                    <label><span>Début</span><input type="date" value={wizardData.startDate} onChange={(event) => setWizardData((p) => ({ ...p, startDate: event.target.value }))} /></label>
+                    <label><span>Fin</span><input type="date" value={wizardData.endDate} onChange={(event) => setWizardData((p) => ({ ...p, endDate: event.target.value }))} /></label>
+                  </div>
+                  <div className="production-subsection-head"><h4>Restauration</h4></div>
+                  <div className="production-form-grid production-form-grid-2">
+                    <label>
+                      <span>Formule</span>
+                      <select value={wizardData.mealPlan} onChange={(event) => setWizardData((p) => ({ ...p, mealPlan: event.target.value }))}>
+                        <option value="full">Pension complète</option>
+                        <option value="autogestion">Auto-gestion</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="dash-muted">Tu pourras ajouter d'autres semaines, le tableau de dépenses et le RH juste après.</p>
+                </>
+              )}
+              <div className="dash-modal-actions">
+                {wizardStep > 0 && (
+                  <button type="button" className="dash-btn dash-btn-secondary" onClick={() => setWizardStep((s) => s - 1)}>Précédent</button>
+                )}
+                {wizardStep < WIZARD_STEP_COUNT - 1 ? (
+                  <button type="button" className="dash-btn" onClick={() => setWizardStep((s) => s + 1)}>Suivant</button>
+                ) : (
+                  <button type="button" className="dash-btn" onClick={finishWizard}>Créer le séjour</button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {view === "seasons" ? (
         <div className="production-seasons-recap">
@@ -737,41 +921,58 @@ export default function ProductionSejours() {
             <div className="production-season-card" key={group.season}>
               <div className="production-season-head">
                 <h3>{group.season}</h3>
-                {group.entries.length > 0 && <span>{group.rangeLabel}</span>}
+                {group.rows.length > 0 && <span>{group.rangeLabel}</span>}
               </div>
-              {!group.entries.length ? (
+              {!group.rows.length ? (
                 <p className="dash-muted">Aucune semaine simulée sur cette saison.</p>
               ) : (
-                <>
-                  <div className="production-timeline-axis">
-                    {group.ticks.map((tick) => (
-                      <div key={tick.date} className="production-timeline-tick" style={{ left: `${timelinePercent(tick.date, group.minDate, group.maxDate)}%` }}>
-                        <strong>{tick.dayNumber}</strong>
-                        <span>{tick.monthLabel}</span>
+                <div className="production-timeline-wrap">
+                  <div className="production-timeline-grid" style={{ width: `${LABEL_WIDTH + group.days.length * DAY_WIDTH}px` }}>
+                    <div className="production-timeline-row production-timeline-months-row">
+                      <div className="production-timeline-label-cell" style={{ width: LABEL_WIDTH }} />
+                      {group.months.map((month) => (
+                        <div key={month.key} className="production-timeline-month-cell" style={{ width: month.count * DAY_WIDTH }}>{month.label}</div>
+                      ))}
+                    </div>
+                    <div className="production-timeline-row">
+                      <div className="production-timeline-label-cell" style={{ width: LABEL_WIDTH }} />
+                      {group.days.map((day) => (
+                        <div key={day.date} className={`production-timeline-daycell ${day.isWeekend ? "is-weekend" : ""}`} style={{ width: DAY_WIDTH }}>{day.letter}</div>
+                      ))}
+                    </div>
+                    <div className="production-timeline-row">
+                      <div className="production-timeline-label-cell" style={{ width: LABEL_WIDTH }} />
+                      {group.days.map((day) => (
+                        <div key={day.date} className={`production-timeline-daycell ${day.isWeekend ? "is-weekend" : ""}`} style={{ width: DAY_WIDTH }}>{day.dayNumber}</div>
+                      ))}
+                    </div>
+                    {group.rows.map((row) => (
+                      <div className="production-timeline-row production-timeline-plan-row" key={row.planId}>
+                        <div className="production-timeline-label-cell" style={{ width: LABEL_WIDTH }} title={row.planName}>{row.planName}</div>
+                        <div className="production-timeline-row-track" style={{ width: group.days.length * DAY_WIDTH }}>
+                          {group.days.map((day, index) => day.isWeekend && (
+                            <div key={day.date} className="production-timeline-weekend-col" style={{ left: `${index * DAY_WIDTH}px`, width: `${DAY_WIDTH}px` }} />
+                          ))}
+                          {row.sessions.map((session) => {
+                            const startIndex = Math.max(dayIndexOf(group.days, session.startDate), 0);
+                            const span = Math.max(daysBetween(session.startDate, session.endDate), 1);
+                            const durationLabel = `${formatFr(session.startDate)} → ${formatFr(session.endDate)} (${span}j)`;
+                            return (
+                              <div
+                                key={session.key}
+                                className="production-timeline-bar"
+                                style={{ left: `${startIndex * DAY_WIDTH}px`, width: `${span * DAY_WIDTH}px`, background: row.color }}
+                                title={`${row.planName} · ${durationLabel}`}
+                              >
+                                <span>{durationLabel}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     ))}
                   </div>
-                  <div className="production-timeline" style={{ height: `${group.rowCount * 42 + 8}px` }}>
-                    {group.ticks.map((tick) => (
-                      <div key={tick.date} className="production-timeline-gridline" style={{ left: `${timelinePercent(tick.date, group.minDate, group.maxDate)}%` }} />
-                    ))}
-                    {group.entries.map((entry) => {
-                      const left = timelinePercent(entry.startDate, group.minDate, group.maxDate);
-                      const right = timelinePercent(entry.endDate, group.minDate, group.maxDate);
-                      const width = Math.max(right - left, 3);
-                      return (
-                        <div
-                          key={entry.key}
-                          className="production-timeline-bar"
-                          style={{ left: `${left}%`, width: `${width}%`, top: `${entry.row * 42}px`, background: entry.color }}
-                          title={`${entry.planName} ${entry.label} · ${entry.startDate} → ${entry.endDate}`}
-                        >
-                          <span>{entry.planName} {entry.label} · {entry.startDate} → {entry.endDate}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
+                </div>
               )}
             </div>
           ))}
@@ -781,55 +982,68 @@ export default function ProductionSejours() {
               <h3>Synthèse des simulations</h3>
               <span>{plans.length} plan{plans.length > 1 ? "s" : ""}</span>
             </div>
-            <div className="production-table-wrap">
-              <table className="production-mini-table">
-                <thead>
-                  <tr>
-                    <th>Couleur</th>
-                    <th>Séjour</th>
-                    <th>Lieu</th>
-                    <th>Semaines</th>
-                    <th>Dates</th>
-                    <th>Enfants</th>
-                    <th>Prix/enfant</th>
-                    <th>Marge</th>
-                    <th>Taux</th>
-                    <th>Statut</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {plans.map((plan) => {
-                    const planComputed = computeProduction(plan);
-                    const planRange = sessionsRange(plan.sessions);
-                    const planSessions = plan.sessions || [];
-                    return (
-                      <tr key={plan.id}>
-                        <td>
-                          <input
-                            type="color"
-                            className="production-color-input"
-                            value={plan.color || categoryColor(plan.name || plan.id)}
-                            onChange={(event) => updatePlanById(plan.id, { color: event.target.value })}
-                            title="Couleur de ce séjour dans le récap saisons"
-                          />
-                        </td>
-                        <td>{plan.name || "Sans nom"}</td>
-                        <td>{plan.location || "-"}</td>
-                        <td>{planSessions.length}</td>
-                        <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
-                        <td>{plan.childCount}</td>
-                        <td>{currency(plan.pricePerChild)}</td>
-                        <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
-                        <td>{planComputed.marginRate.toFixed(1)} %</td>
-                        <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
-                        <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {!plans.length ? (
+              <p className="dash-muted">Aucune simulation pour l'instant.</p>
+            ) : (
+              <div className="production-table-wrap">
+                <table className="production-mini-table">
+                  <thead>
+                    <tr>
+                      <th>Couleur</th>
+                      <th>Séjour</th>
+                      <th>Lieu</th>
+                      <th>Âges</th>
+                      <th>Semaines</th>
+                      <th>Dates</th>
+                      <th>Enfants</th>
+                      <th>Prix/enfant</th>
+                      <th>Marge</th>
+                      <th>Taux</th>
+                      <th>Statut</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {plans.map((plan) => {
+                      const planComputed = computeProduction(plan);
+                      const planRange = sessionsRange(plan.sessions);
+                      const planSessions = plan.sessions || [];
+                      return (
+                        <tr key={plan.id}>
+                          <td>
+                            <input
+                              type="color"
+                              className="production-color-input"
+                              value={plan.color || categoryColor(plan.name || plan.id)}
+                              onChange={(event) => updatePlanById(plan.id, { color: event.target.value })}
+                              title="Couleur de ce séjour dans le récap saisons"
+                            />
+                          </td>
+                          <td>{plan.name || "Sans nom"}</td>
+                          <td>{plan.location || "-"}</td>
+                          <td>{(plan.ageGroups || []).join(", ") || "-"}</td>
+                          <td>{planSessions.length}</td>
+                          <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
+                          <td>{plan.childCount}</td>
+                          <td>{currency(plan.pricePerChild)}</td>
+                          <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
+                          <td>{planComputed.marginRate.toFixed(1)} %</td>
+                          <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
+                          <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : !selectedPlan ? (
+        <div className="production-main">
+          <div className="production-empty-state">
+            <p>Aucune simulation de production pour l'instant.</p>
+            <button type="button" className="dash-btn" onClick={openCreateModal}>+ Nouveau séjour</button>
           </div>
         </div>
       ) : (
@@ -915,6 +1129,18 @@ export default function ProductionSejours() {
               <label><span>Capacité max (enfants)</span><input type="number" step="1" value={selectedPlan.maxChildren ?? 0} onChange={(event) => updatePlan({ maxChildren: amount(event.target.value) })} /></label>
               <label><span>Recettes complémentaires</span><input type="number" step="0.01" value={selectedPlan.extraRevenue ?? 0} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} /></label>
             </div>
+            <div className="production-age-chips">
+              {AGE_GROUP_OPTIONS.map((age) => (
+                <button
+                  type="button"
+                  key={age}
+                  className={(selectedPlan.ageGroups || []).includes(age) ? "is-active" : ""}
+                  onClick={() => toggleAgeGroup(age)}
+                >
+                  {age}
+                </button>
+              ))}
+            </div>
 
             <div className="production-subsection-head">
               <h4>Semaines du séjour</h4>
@@ -985,7 +1211,7 @@ export default function ProductionSejours() {
                 <label><span>Nombre anims</span><input type="number" step="1" value={selectedPlan.animatorCount ?? 0} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
               )}
               <label><span>Salaire anim net / jour</span><input type="number" step="0.01" value={selectedPlan.animatorNetDay ?? 0} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
-              <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
+              <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1.35} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
               {selectedPlan.animatorStaffingMode === "ratio" && (
                 <label>
                   <span>Nombre d'animateurs (calculé)</span>
@@ -1258,7 +1484,7 @@ export default function ProductionSejours() {
             </div>
             <div className="production-publish-note">
               <strong>Flux recommandé</strong>
-              <p>1. Construis le budget ici, avec toutes les semaines du séjour. 2. Choisis le prix dans l'onglet Rentabilité. 3. Publie. 4. Termine les textes, photos, âges et gares dans “Séjours en vente”.</p>
+              <p>1. Construis le budget ici, avec toutes les semaines du séjour. 2. Choisis le prix dans l'onglet Rentabilité. 3. Publie. 4. Termine les textes, photos, gares dans “Séjours en vente”.</p>
             </div>
           </section>
         </div>

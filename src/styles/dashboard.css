@@ -1182,61 +1182,113 @@
   font-weight: 700;
 }
 
-.production-timeline-axis {
-  position: relative;
-  height: 26px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid rgba(120, 90, 160, 0.14);
+/* ── Calendar-style Gantt (day grid) ── */
+.production-timeline-wrap {
+  overflow-x: auto;
+  border: var(--dash-border);
+  border-radius: 10px;
 }
 
-.production-timeline-tick {
-  position: absolute;
-  top: 0;
+.production-timeline-grid {
   display: flex;
-  align-items: baseline;
-  gap: 3px;
-  transform: translateX(-50%);
-  white-space: nowrap;
+  flex-direction: column;
 }
 
-.production-timeline-tick strong {
+.production-timeline-row {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.production-timeline-label-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 1px solid rgba(120, 90, 160, 0.16);
+  background: #fff;
+  padding: 0 10px;
   color: var(--dash-text);
   font-size: 12px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.production-timeline-tick span {
+.production-timeline-months-row {
+  height: 26px;
+  background: var(--dash-text);
+}
+
+.production-timeline-months-row .production-timeline-label-cell {
+  background: var(--dash-text);
+}
+
+.production-timeline-month-cell {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.production-timeline-daycell {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  border-right: 1px solid rgba(120, 90, 160, 0.08);
+  border-bottom: 1px solid rgba(120, 90, 160, 0.12);
   color: var(--dash-muted);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  text-transform: capitalize;
 }
 
-.production-timeline {
+.production-timeline-daycell.is-weekend {
+  background: #f3eef6;
+  color: var(--dash-text);
+}
+
+.production-timeline-plan-row {
+  min-height: 42px;
+  border-bottom: 1px solid rgba(120, 90, 160, 0.1);
+}
+
+.production-timeline-row-track {
   position: relative;
+  flex-shrink: 0;
   min-height: 42px;
 }
 
-.production-timeline-gridline {
+.production-timeline-weekend-col {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 1px;
-  background: rgba(120, 90, 160, 0.12);
+  background: rgba(120, 90, 160, 0.06);
 }
 
 .production-timeline-bar {
   position: absolute;
+  top: 4px;
   display: flex;
   align-items: center;
   height: 34px;
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 8px;
+  overflow: hidden;
   color: #fff;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  overflow: visible;
+  text-overflow: ellipsis;
   box-shadow: 0 1px 4px rgba(20, 16, 42, 0.18);
 }
 
@@ -1486,6 +1538,92 @@
   background: #fff;
   color: var(--dash-text);
   box-shadow: 0 1px 4px rgba(20, 16, 42, 0.12);
+}
+
+/* ── View switcher (Plan / Récap saisons) — sits directly on the page
+   background, so it needs its own visible container, unlike
+   .production-toggle-group which is meant to sit inside a white card ── */
+.production-view-switcher {
+  display: flex;
+  gap: 4px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--dash-shadow);
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.production-view-switcher button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 9px 16px;
+  color: var(--dash-muted);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 800;
+  transition: background .15s ease, color .15s ease;
+}
+
+.production-view-switcher button:hover {
+  background: rgba(120, 90, 160, 0.08);
+  color: var(--dash-text);
+}
+
+.production-view-switcher button.is-active {
+  background: var(--dash-accent);
+  color: #fff;
+}
+
+/* ── Age group chips ── */
+.production-age-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px 18px;
+}
+
+.production-age-chips button {
+  border: var(--dash-border);
+  border-radius: 999px;
+  background: #fff;
+  padding: 7px 14px;
+  color: var(--dash-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.production-age-chips button:hover {
+  border-color: rgba(184, 51, 106, 0.3);
+}
+
+.production-age-chips button.is-active {
+  border-color: var(--dash-accent);
+  background: var(--dash-accent);
+  color: #fff;
+}
+
+/* ── Empty state ── */
+.production-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border-radius: var(--dash-radius);
+  background: var(--dash-card-bg);
+  box-shadow: var(--dash-shadow);
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.production-empty-state p {
+  margin: 0;
+  color: var(--dash-muted);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 /* ── Cards ── */
