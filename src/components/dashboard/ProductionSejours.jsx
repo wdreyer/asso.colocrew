@@ -106,7 +106,16 @@ const PRICE_TIERS = [
 const SEASONS = ["Été", "Hiver"];
 const AGE_GROUP_OPTIONS = ["6-8 ans", "9-11 ans", "12-14 ans", "15-17 ans"];
 const WEEKDAY_LETTERS_MON_FIRST = ["L", "M", "M", "J", "V", "S", "D"];
-const WIZARD_STEP_COUNT = 3;
+
+const WIZARD_STEP_DEFS = [
+  { key: "identity", label: "Identité" },
+  { key: "capacity", label: "Capacité & âges" },
+  { key: "weeks", label: "Semaines & restauration" },
+  { key: "rh", label: "RH" },
+  { key: "food", label: "Nourriture" },
+  { key: "expenses", label: "Dépenses" },
+  { key: "pricing", label: "Prix & rentabilité" },
+];
 
 function amount(value) {
   const parsed = Number(value);
@@ -458,21 +467,6 @@ function seasonGroupsFor(plans) {
   });
 }
 
-function emptyWizardData() {
-  return {
-    name: "",
-    stayCode: "",
-    location: "",
-    color: "",
-    childCount: 30,
-    maxChildren: 30,
-    ageGroups: [],
-    startDate: "",
-    endDate: "",
-    mealPlan: "full",
-  };
-}
-
 export default function ProductionSejours() {
   const router = useRouter();
   const [production, setProduction] = useState(() => deepClone(DEFAULT_PRODUCTION));
@@ -484,7 +478,6 @@ export default function ProductionSejours() {
   const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
-  const [wizardData, setWizardData] = useState(emptyWizardData);
 
   useEffect(() => {
     async function load() {
@@ -520,6 +513,10 @@ export default function ProductionSejours() {
   }, [activeTab, selectedPlan?.mealPlan]);
 
   const visibleTabs = PRODUCTION_TABS.filter((tab) => tab.key !== "food" || (selectedPlan && selectedPlan.mealPlan === "autogestion"));
+  const wizardSteps = WIZARD_STEP_DEFS.filter((step) => step.key !== "food" || (selectedPlan && selectedPlan.mealPlan === "autogestion"));
+  const safeWizardStep = Math.min(wizardStep, wizardSteps.length - 1);
+  const currentWizardStep = wizardSteps[safeWizardStep];
+
   const simulatedDirectorNet = selectedPlan ? amount(selectedPlan.directorCount) * amount(selectedPlan.directorNetDay) * amount(selectedPlan.days) : 0;
   const simulatedAnimatorNet = selectedPlan ? computed.animatorCount * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days) : 0;
   const simulatedNet = simulatedDirectorNet + simulatedAnimatorNet;
@@ -763,47 +760,23 @@ export default function ProductionSejours() {
   };
 
   const openCreateModal = () => {
-    setWizardData(emptyWizardData());
-    setWizardStep(0);
-    setShowCreateModal(true);
-  };
-
-  const closeCreateModal = () => setShowCreateModal(false);
-
-  const toggleWizardAge = (age) => {
-    setWizardData((previous) => ({
-      ...previous,
-      ageGroups: previous.ageGroups.includes(age)
-        ? previous.ageGroups.filter((item) => item !== age)
-        : [...previous.ageGroups, age],
-    }));
-  };
-
-  const finishWizard = () => {
     const id = `production-${Date.now()}`;
     const newPlan = normalizeProductionPlan({
       ...DEFAULT_PRODUCTION_PLAN,
       id,
-      name: wizardData.name || "Nouveau séjour",
-      stayCode: wizardData.stayCode || "",
-      location: wizardData.location || "",
-      color: wizardData.color || "",
-      childCount: amount(wizardData.childCount) || 0,
-      maxChildren: amount(wizardData.maxChildren) || 0,
-      ageGroups: wizardData.ageGroups,
-      sessions: wizardData.startDate && wizardData.endDate
-        ? [{ startDate: wizardData.startDate, endDate: wizardData.endDate }]
-        : [{ startDate: "", endDate: "" }],
-      mealPlan: wizardData.mealPlan,
-      animatorStaffingMode: "manual",
-      animatorRatio: wizardData.mealPlan === "autogestion" ? 5 : 8,
+      name: "",
+      stayCode: "",
+      location: "",
+      color: "",
       linkedStayId: "",
     });
     writePlans([...plans, newPlan], id);
-    setShowCreateModal(false);
+    setWizardStep(0);
+    setShowCreateModal(true);
     setView("plan");
-    setActiveTab("assumptions");
   };
+
+  const closeCreateModal = () => setShowCreateModal(false);
 
   if (loading) {
     return (
@@ -812,6 +785,268 @@ export default function ProductionSejours() {
       </div>
     );
   }
+
+  /* ─── Shared budget section renderers (used in both the tabs and the
+     creation wizard, so the wizard covers the whole budget) ─────────── */
+  const renderIdentitySection = () => (
+    <div className="production-form-grid production-form-grid-3">
+      <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
+      <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} placeholder="ex : ABC" onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
+      <label><span>Lieu</span><input value={selectedPlan.location || ""} placeholder="ex : Dax, Landes" onChange={(event) => updatePlan({ location: event.target.value })} /></label>
+      <label>
+        <span>Couleur (récap saisons)</span>
+        <input
+          type="color"
+          className="production-color-input"
+          value={selectedPlan.color || categoryColor(selectedPlan.name || selectedPlan.id)}
+          onChange={(event) => updatePlan({ color: event.target.value })}
+        />
+      </label>
+    </div>
+  );
+
+  const renderCapacitySection = () => (
+    <>
+      <div className="production-form-grid production-form-grid-3">
+        <label><span>Nombre d'enfants (prévision)</span><input type="number" step="1" value={selectedPlan.childCount ?? 0} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} /></label>
+        <label><span>Capacité max (enfants)</span><input type="number" step="1" value={selectedPlan.maxChildren ?? 0} onChange={(event) => updatePlan({ maxChildren: amount(event.target.value) })} /></label>
+        <label><span>Recettes complémentaires</span><input type="number" step="0.01" value={selectedPlan.extraRevenue ?? 0} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} /></label>
+      </div>
+      <div className="production-age-chips">
+        {AGE_GROUP_OPTIONS.map((age) => (
+          <button
+            type="button"
+            key={age}
+            className={(selectedPlan.ageGroups || []).includes(age) ? "is-active" : ""}
+            onClick={() => toggleAgeGroup(age)}
+          >
+            {age}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
+  const renderWeeksSection = () => (
+    <>
+      <div className="production-form-grid production-form-grid-3">
+        <label><span>Nombre de séjours</span><input type="number" min="1" step="1" value={sessions.length} onChange={(event) => setSessionCount(event.target.value)} /></label>
+        <label><span>Durée par séjour</span><input readOnly value={`${selectedPlan.days || 0} jour${selectedPlan.days > 1 ? "s" : ""} · ${selectedPlan.nights || 0} nuit${selectedPlan.nights > 1 ? "s" : ""}`} /></label>
+      </div>
+      <div className="production-session-list">
+        {sessions.map((session, index) => (
+          <div className="production-session-row" key={index}>
+            <span className="production-session-label">S{index + 1}</span>
+            <label><span>Début</span><input type="date" value={session.startDate || ""} onChange={(event) => updateSession(index, { startDate: event.target.value })} /></label>
+            <label><span>Fin</span><input type="date" value={session.endDate || ""} onChange={(event) => updateSession(index, { endDate: event.target.value })} /></label>
+            <button type="button" className="production-session-remove" onClick={() => removeSession(index)} disabled={sessions.length <= 1} title="Retirer cette semaine">×</button>
+          </div>
+        ))}
+        <button type="button" className="dash-btn dash-btn-secondary" onClick={addSession}>+ Ajouter une semaine</button>
+      </div>
+    </>
+  );
+
+  const renderMealPlanSection = () => (
+    <div className="production-form-grid production-form-grid-2">
+      <label>
+        <span>Formule</span>
+        <select value={selectedPlan.mealPlan || "full"} onChange={(event) => setMealPlan(event.target.value)}>
+          <option value="full">Pension complète</option>
+          <option value="autogestion">Auto-gestion</option>
+        </select>
+      </label>
+      <label><span>Note</span><input readOnly value={selectedPlan.mealPlan === "autogestion" ? "Budget nourriture dans l'onglet dédié" : "Repas inclus, pas de suivi nourriture séparé"} /></label>
+    </div>
+  );
+
+  const renderRhSection = () => (
+    <>
+      <div className="production-subsection-head">
+        <h4>Simulation RH</h4>
+        <div className="production-toggle-group">
+          <button
+            type="button"
+            className={selectedPlan.animatorStaffingMode !== "ratio" ? "is-active" : ""}
+            onClick={() => updatePlan({ animatorStaffingMode: "manual" })}
+          >
+            Manuel
+          </button>
+          <button
+            type="button"
+            className={selectedPlan.animatorStaffingMode === "ratio" ? "is-active" : ""}
+            onClick={() => updatePlan({ animatorStaffingMode: "ratio" })}
+          >
+            Quota
+          </button>
+        </div>
+      </div>
+      <div className="production-form-grid production-form-grid-3">
+        <label><span>Nombre DS</span><input type="number" step="1" value={selectedPlan.directorCount ?? 0} onChange={(event) => updatePlan({ directorCount: amount(event.target.value) })} /></label>
+        <label><span>Salaire DS net / jour</span><input type="number" step="0.01" value={selectedPlan.directorNetDay ?? 0} onChange={(event) => updatePlan({ directorNetDay: amount(event.target.value) })} /></label>
+        {selectedPlan.animatorStaffingMode === "ratio" ? (
+          <label>
+            <span>1 animateur pour ___ enfants</span>
+            <input type="number" step="1" min="1" value={selectedPlan.animatorRatio ?? 8} onChange={(event) => updatePlan({ animatorRatio: amount(event.target.value) })} />
+          </label>
+        ) : (
+          <label><span>Nombre anims</span><input type="number" step="1" value={selectedPlan.animatorCount ?? 0} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
+        )}
+        <label><span>Salaire anim net / jour</span><input type="number" step="0.01" value={selectedPlan.animatorNetDay ?? 0} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
+        <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1.35} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
+        {selectedPlan.animatorStaffingMode === "ratio" && (
+          <label>
+            <span>Nombre d'animateurs (calculé)</span>
+            <input readOnly value={`${amount(selectedPlan.childCount)} enfants ÷ ${amount(selectedPlan.animatorRatio || 8)} = ${computed.animatorCount} animateur${computed.animatorCount > 1 ? "s" : ""}`} />
+          </label>
+        )}
+      </div>
+      <div className="production-rh-detail-grid">
+        <table className="production-mini-table">
+          <thead>
+            <tr><th>Poste</th><th>Calcul net</th><th>Net</th><th>Chargé</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Direction</td>
+              <td>{amount(selectedPlan.directorCount)} DS × {selectedPlan.days} j × {currency(selectedPlan.directorNetDay)}</td>
+              <td>{currency(simulatedDirectorNet)}</td>
+              <td>{currency(simulatedDirectorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
+            </tr>
+            <tr>
+              <td>Animation</td>
+              <td>{computed.animatorCount} anims × {selectedPlan.days} j × {currency(selectedPlan.animatorNetDay)}</td>
+              <td>{currency(simulatedAnimatorNet)}</td>
+              <td>{currency(simulatedAnimatorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
+            </tr>
+            <tr className="total">
+              <td>Total simulation</td>
+              <td>Coefficient chargé {amount(selectedPlan.staffCostMultiplier || 1).toFixed(2)}</td>
+              <td>{currency(simulatedNet)}</td>
+              <td>{currency(computed.simulatedStaffCost)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="production-rh-summary">
+        <div><span>Coût RH simulé (chargé)</span><strong>{currency(computed.simulatedStaffCost)}</strong></div>
+        <div><span>Dont charges patronales</span><strong>{currency(simulatedCharges)}</strong></div>
+      </div>
+    </>
+  );
+
+  const renderFoodSection = () => (
+    <>
+      <div className="production-form-grid production-form-grid-3">
+        <label><span>Repas / jour</span><input type="number" step="1" min="0" value={selectedPlan.mealsPerDay ?? 3} onChange={(event) => updatePlan({ mealsPerDay: amount(event.target.value) })} /></label>
+        <label><span>Coût / repas / personne</span><input type="number" step="0.01" value={selectedPlan.mealCostPerPerson ?? 0} onChange={(event) => updatePlan({ mealCostPerPerson: amount(event.target.value) })} /></label>
+        <label><span>Personnes concernées</span><input readOnly value={`${amount(selectedPlan.childCount)} enfants + ${computed.staffCount} staff = ${amount(selectedPlan.childCount) + computed.staffCount}`} /></label>
+      </div>
+      <div className="production-rh-summary">
+        <div>
+          <span>Formule</span>
+          <strong>{amount(selectedPlan.mealsPerDay)} repas × {selectedPlan.days} j × {amount(selectedPlan.childCount) + computed.staffCount} pers. × {currency(selectedPlan.mealCostPerPerson)}</strong>
+        </div>
+        <div><span>Coût nourriture total</span><strong>{currency(computed.foodCost)}</strong></div>
+      </div>
+    </>
+  );
+
+  const renderExpensesSection = () => (
+    <>
+      <div className="production-card-head" style={{ padding: "0 0 12px" }}>
+        <div />
+        <button type="button" className="dash-btn dash-btn-secondary" onClick={addExpense}>Ajouter un poste</button>
+      </div>
+      <div className="production-table-wrap">
+        <table className="production-table production-spreadsheet">
+          <thead>
+            <tr>
+              <th>Intitulé</th>
+              <th>Catégorie</th>
+              <th>Unité</th>
+              <th>Qté</th>
+              <th>Prix unit.</th>
+              <th>Calcul</th>
+              <th>Total ligne</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {computed.expenseRows.map((line, index) => (
+              <tr key={`${line.label}-${index}`}>
+                <td><input className="production-text-input" value={line.label || ""} placeholder="ex: Hébergement, activités..." onChange={(event) => updateExpense(index, { label: event.target.value })} /></td>
+                <td>
+                  <div className="production-category-cell">
+                    <span className="production-cat-dot" style={{ background: categoryColor(line.category) }} />
+                    <input className="production-text-input" value={line.category || ""} placeholder="Catégorie" onChange={(event) => updateExpense(index, { category: event.target.value })} />
+                  </div>
+                </td>
+                <td>
+                  <select value={line.unit || "fixed"} onChange={(event) => updateExpense(index, { unit: event.target.value })}>
+                    {PRODUCTION_UNITS.map((unit) => <option key={unit.key} value={unit.key}>{unit.label}</option>)}
+                  </select>
+                </td>
+                <td><input className="production-number-input" type="number" step="0.01" value={line.quantity ?? 1} onChange={(event) => updateExpense(index, { quantity: amount(event.target.value) })} /></td>
+                <td><input className="production-number-input" type="number" step="0.01" value={line.unitAmount ?? 0} onChange={(event) => updateExpense(index, { unitAmount: amount(event.target.value) })} /></td>
+                <td className="production-formula-cell">{line.formula}</td>
+                <td><strong>{currency(line.total)}</strong></td>
+                <td><button type="button" className="accounting-table-remove" onClick={() => removeExpense(index)}>Supprimer</button></td>
+              </tr>
+            ))}
+            <tr className="total">
+              <td colSpan="6">Total hors RH et nourriture</td>
+              <td>{currency(computed.operationalExpenses)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="production-line-sums">
+        <h4>Somme par intitulé</h4>
+        <div>
+          {computed.expenseRows.map((line, index) => (
+            <span key={`${line.label}-sum-${index}`}>
+              <strong>{line.label || "Sans intitulé"}</strong>
+              {currency(line.total)}
+            </span>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderPricingSection = () => (
+    <>
+      <div className="production-form-grid production-form-grid-2">
+        <label><span>Prix de vente / enfant</span><input type="number" step="0.01" value={selectedPlan.pricePerChild ?? 0} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} /></label>
+      </div>
+      <div className="production-price-tiers">
+        {PRICE_TIERS.map((tier) => {
+          const price = priceForMargin(computed, tier.rate);
+          const isActive = Math.abs(price - amount(selectedPlan.pricePerChild)) < 0.01;
+          return (
+            <div className={`production-price-tier ${isActive ? "is-active" : ""}`} key={tier.key}>
+              <span>{tier.label}</span>
+              <strong>{currency(price)}</strong>
+              <small>marge visée {(tier.rate * 100).toFixed(0)} %</small>
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={() => updatePlan({ pricePerChild: price })}>
+                Utiliser
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="production-breakeven-badge">
+        <IconTarget />
+        <span>
+          {breakEvenChildren != null
+            ? `Seuil de rentabilité : ${breakEvenChildren} enfants (marge ≥ 0 €)`
+            : "Seuil de rentabilité non atteint sur la plage testée (jusqu'à 200 enfants)"}
+        </span>
+      </div>
+    </>
+  );
 
   return (
     <div className="dash-page production-page">
@@ -831,83 +1066,39 @@ export default function ProductionSejours() {
       </header>
       {status && <p className="accounting-status">{status}</p>}
 
-      {showCreateModal && (
+      {showCreateModal && selectedPlan && (
         <div className="dash-modal-backdrop" onClick={closeCreateModal}>
-          <div className="dash-modal-card dash-modal-md" onClick={(event) => event.stopPropagation()}>
+          <div className="dash-modal-card dash-modal-lg" onClick={(event) => event.stopPropagation()}>
             <div className="dash-modal-header">
-              <h3>Nouveau séjour — étape {wizardStep + 1}/{WIZARD_STEP_COUNT}</h3>
+              <h3>Nouveau séjour — {currentWizardStep.label} ({safeWizardStep + 1}/{wizardSteps.length})</h3>
               <button type="button" className="dash-btn dash-btn-secondary" onClick={closeCreateModal}>Fermer</button>
             </div>
             <div className="dash-modal-body">
-              {wizardStep === 0 && (
+              <div className="production-wizard-recap">
+                <span>Recettes <strong>{currency(computed.revenue)}</strong></span>
+                <span>Dépenses totales <strong>{currency(computed.totalExpenses)}</strong></span>
+                <span>Marge <strong className={computed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(computed.margin)} ({computed.marginRate.toFixed(1)} %)</strong></span>
+              </div>
+              {currentWizardStep.key === "identity" && renderIdentitySection()}
+              {currentWizardStep.key === "capacity" && renderCapacitySection()}
+              {currentWizardStep.key === "weeks" && (
                 <>
-                  <div className="production-subsection-head"><h4>Identité du séjour</h4></div>
-                  <div className="production-form-grid production-form-grid-2">
-                    <label><span>Nom du séjour</span><input value={wizardData.name} onChange={(event) => setWizardData((p) => ({ ...p, name: event.target.value }))} /></label>
-                    <label><span>Code séjour</span><input value={wizardData.stayCode} placeholder="ex : ABC" onChange={(event) => setWizardData((p) => ({ ...p, stayCode: event.target.value }))} /></label>
-                    <label><span>Lieu</span><input value={wizardData.location} placeholder="ex : Dax, Landes" onChange={(event) => setWizardData((p) => ({ ...p, location: event.target.value }))} /></label>
-                    <label>
-                      <span>Couleur</span>
-                      <input
-                        type="color"
-                        className="production-color-input"
-                        value={wizardData.color || categoryColor(wizardData.name || "nouveau")}
-                        onChange={(event) => setWizardData((p) => ({ ...p, color: event.target.value }))}
-                      />
-                    </label>
-                  </div>
+                  {renderWeeksSection()}
+                  {renderMealPlanSection()}
                 </>
               )}
-              {wizardStep === 1 && (
-                <>
-                  <div className="production-subsection-head"><h4>Capacité</h4></div>
-                  <div className="production-form-grid production-form-grid-2">
-                    <label><span>Nombre d'enfants (prévision)</span><input type="number" step="1" value={wizardData.childCount} onChange={(event) => setWizardData((p) => ({ ...p, childCount: event.target.value }))} /></label>
-                    <label><span>Capacité max</span><input type="number" step="1" value={wizardData.maxChildren} onChange={(event) => setWizardData((p) => ({ ...p, maxChildren: event.target.value }))} /></label>
-                  </div>
-                  <div className="production-subsection-head"><h4>Tranches d'âge</h4></div>
-                  <div className="production-age-chips">
-                    {AGE_GROUP_OPTIONS.map((age) => (
-                      <button
-                        type="button"
-                        key={age}
-                        className={wizardData.ageGroups.includes(age) ? "is-active" : ""}
-                        onClick={() => toggleWizardAge(age)}
-                      >
-                        {age}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {wizardStep === 2 && (
-                <>
-                  <div className="production-subsection-head"><h4>Première semaine</h4></div>
-                  <div className="production-form-grid production-form-grid-2">
-                    <label><span>Début</span><input type="date" value={wizardData.startDate} onChange={(event) => setWizardData((p) => ({ ...p, startDate: event.target.value }))} /></label>
-                    <label><span>Fin</span><input type="date" value={wizardData.endDate} onChange={(event) => setWizardData((p) => ({ ...p, endDate: event.target.value }))} /></label>
-                  </div>
-                  <div className="production-subsection-head"><h4>Restauration</h4></div>
-                  <div className="production-form-grid production-form-grid-2">
-                    <label>
-                      <span>Formule</span>
-                      <select value={wizardData.mealPlan} onChange={(event) => setWizardData((p) => ({ ...p, mealPlan: event.target.value }))}>
-                        <option value="full">Pension complète</option>
-                        <option value="autogestion">Auto-gestion</option>
-                      </select>
-                    </label>
-                  </div>
-                  <p className="dash-muted">Tu pourras ajouter d'autres semaines, le tableau de dépenses et le RH juste après.</p>
-                </>
-              )}
+              {currentWizardStep.key === "rh" && renderRhSection()}
+              {currentWizardStep.key === "food" && renderFoodSection()}
+              {currentWizardStep.key === "expenses" && renderExpensesSection()}
+              {currentWizardStep.key === "pricing" && renderPricingSection()}
               <div className="dash-modal-actions">
-                {wizardStep > 0 && (
-                  <button type="button" className="dash-btn dash-btn-secondary" onClick={() => setWizardStep((s) => s - 1)}>Précédent</button>
+                {safeWizardStep > 0 && (
+                  <button type="button" className="dash-btn dash-btn-secondary" onClick={() => setWizardStep(safeWizardStep - 1)}>Précédent</button>
                 )}
-                {wizardStep < WIZARD_STEP_COUNT - 1 ? (
-                  <button type="button" className="dash-btn" onClick={() => setWizardStep((s) => s + 1)}>Suivant</button>
+                {safeWizardStep < wizardSteps.length - 1 ? (
+                  <button type="button" className="dash-btn" onClick={() => setWizardStep(safeWizardStep + 1)}>Suivant</button>
                 ) : (
-                  <button type="button" className="dash-btn" onClick={finishWizard}>Créer le séjour</button>
+                  <button type="button" className="dash-btn" onClick={closeCreateModal}>Terminer</button>
                 )}
               </div>
             </div>
@@ -1106,41 +1297,12 @@ export default function ProductionSejours() {
               </div>
             </div>
 
-            <div className="production-form-grid production-form-grid-3">
-              <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
-              <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
-              <label><span>Lieu</span><input value={selectedPlan.location || ""} placeholder="ex : Dax, Landes" onChange={(event) => updatePlan({ location: event.target.value })} /></label>
-              <label>
-                <span>Couleur (récap saisons)</span>
-                <input
-                  type="color"
-                  className="production-color-input"
-                  value={selectedPlan.color || categoryColor(selectedPlan.name || selectedPlan.id)}
-                  onChange={(event) => updatePlan({ color: event.target.value })}
-                />
-              </label>
-            </div>
+            {renderIdentitySection()}
 
             <div className="production-subsection-head">
               <h4>Capacité</h4>
             </div>
-            <div className="production-form-grid production-form-grid-3">
-              <label><span>Nombre d'enfants (prévision)</span><input type="number" step="1" value={selectedPlan.childCount ?? 0} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} /></label>
-              <label><span>Capacité max (enfants)</span><input type="number" step="1" value={selectedPlan.maxChildren ?? 0} onChange={(event) => updatePlan({ maxChildren: amount(event.target.value) })} /></label>
-              <label><span>Recettes complémentaires</span><input type="number" step="0.01" value={selectedPlan.extraRevenue ?? 0} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} /></label>
-            </div>
-            <div className="production-age-chips">
-              {AGE_GROUP_OPTIONS.map((age) => (
-                <button
-                  type="button"
-                  key={age}
-                  className={(selectedPlan.ageGroups || []).includes(age) ? "is-active" : ""}
-                  onClick={() => toggleAgeGroup(age)}
-                >
-                  {age}
-                </button>
-              ))}
-            </div>
+            {renderCapacitySection()}
 
             <div className="production-subsection-head">
               <h4>Semaines du séjour</h4>
@@ -1148,108 +1310,14 @@ export default function ProductionSejours() {
                 Ouverture {openDate || "-"} · Clôture {closeDate || "-"}
               </span>
             </div>
-            <div className="production-form-grid production-form-grid-3">
-              <label><span>Nombre de séjours</span><input type="number" min="1" step="1" value={sessions.length} onChange={(event) => setSessionCount(event.target.value)} /></label>
-            </div>
-            <div className="production-session-list">
-              {sessions.map((session, index) => (
-                <div className="production-session-row" key={index}>
-                  <span className="production-session-label">S{index + 1}</span>
-                  <label><span>Début</span><input type="date" value={session.startDate || ""} onChange={(event) => updateSession(index, { startDate: event.target.value })} /></label>
-                  <label><span>Fin</span><input type="date" value={session.endDate || ""} onChange={(event) => updateSession(index, { endDate: event.target.value })} /></label>
-                  <button type="button" className="production-session-remove" onClick={() => removeSession(index)} disabled={sessions.length <= 1} title="Retirer cette semaine">×</button>
-                </div>
-              ))}
-              <button type="button" className="dash-btn dash-btn-secondary" onClick={addSession}>+ Ajouter une semaine</button>
-            </div>
-            <div className="production-form-grid production-form-grid-3">
-              <label><span>Durée par séjour</span><input readOnly value={`${selectedPlan.days || 0} jour${selectedPlan.days > 1 ? "s" : ""} · ${selectedPlan.nights || 0} nuit${selectedPlan.nights > 1 ? "s" : ""}`} /></label>
-            </div>
+            {renderWeeksSection()}
 
             <div className="production-subsection-head">
               <h4>Restauration</h4>
             </div>
-            <div className="production-form-grid production-form-grid-2">
-              <label>
-                <span>Formule</span>
-                <select value={selectedPlan.mealPlan || "full"} onChange={(event) => setMealPlan(event.target.value)}>
-                  <option value="full">Pension complète</option>
-                  <option value="autogestion">Auto-gestion</option>
-                </select>
-              </label>
-              <label><span>Note</span><input readOnly value={selectedPlan.mealPlan === "autogestion" ? "Budget nourriture dans l'onglet dédié" : "Repas inclus, pas de suivi nourriture séparé"} /></label>
-            </div>
+            {renderMealPlanSection()}
 
-            <div className="production-subsection-head">
-              <h4>Simulation RH</h4>
-              <div className="production-toggle-group">
-                <button
-                  type="button"
-                  className={selectedPlan.animatorStaffingMode !== "ratio" ? "is-active" : ""}
-                  onClick={() => updatePlan({ animatorStaffingMode: "manual" })}
-                >
-                  Manuel
-                </button>
-                <button
-                  type="button"
-                  className={selectedPlan.animatorStaffingMode === "ratio" ? "is-active" : ""}
-                  onClick={() => updatePlan({ animatorStaffingMode: "ratio" })}
-                >
-                  Quota
-                </button>
-              </div>
-            </div>
-            <div className="production-form-grid production-form-grid-3">
-              <label><span>Nombre DS</span><input type="number" step="1" value={selectedPlan.directorCount ?? 0} onChange={(event) => updatePlan({ directorCount: amount(event.target.value) })} /></label>
-              <label><span>Salaire DS net / jour</span><input type="number" step="0.01" value={selectedPlan.directorNetDay ?? 0} onChange={(event) => updatePlan({ directorNetDay: amount(event.target.value) })} /></label>
-              {selectedPlan.animatorStaffingMode === "ratio" ? (
-                <label>
-                  <span>1 animateur pour ___ enfants</span>
-                  <input type="number" step="1" min="1" value={selectedPlan.animatorRatio ?? 8} onChange={(event) => updatePlan({ animatorRatio: amount(event.target.value) })} />
-                </label>
-              ) : (
-                <label><span>Nombre anims</span><input type="number" step="1" value={selectedPlan.animatorCount ?? 0} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
-              )}
-              <label><span>Salaire anim net / jour</span><input type="number" step="0.01" value={selectedPlan.animatorNetDay ?? 0} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
-              <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1.35} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
-              {selectedPlan.animatorStaffingMode === "ratio" && (
-                <label>
-                  <span>Nombre d'animateurs (calculé)</span>
-                  <input readOnly value={`${amount(selectedPlan.childCount)} enfants ÷ ${amount(selectedPlan.animatorRatio || 8)} = ${computed.animatorCount} animateur${computed.animatorCount > 1 ? "s" : ""}`} />
-                </label>
-              )}
-            </div>
-            <div className="production-rh-detail-grid">
-              <table className="production-mini-table">
-                <thead>
-                  <tr><th>Poste</th><th>Calcul net</th><th>Net</th><th>Chargé</th></tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Direction</td>
-                    <td>{amount(selectedPlan.directorCount)} DS × {selectedPlan.days} j × {currency(selectedPlan.directorNetDay)}</td>
-                    <td>{currency(simulatedDirectorNet)}</td>
-                    <td>{currency(simulatedDirectorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
-                  </tr>
-                  <tr>
-                    <td>Animation</td>
-                    <td>{computed.animatorCount} anims × {selectedPlan.days} j × {currency(selectedPlan.animatorNetDay)}</td>
-                    <td>{currency(simulatedAnimatorNet)}</td>
-                    <td>{currency(simulatedAnimatorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
-                  </tr>
-                  <tr className="total">
-                    <td>Total simulation</td>
-                    <td>Coefficient chargé {amount(selectedPlan.staffCostMultiplier || 1).toFixed(2)}</td>
-                    <td>{currency(simulatedNet)}</td>
-                    <td>{currency(computed.simulatedStaffCost)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="production-rh-summary">
-              <div><span>Coût RH simulé (chargé)</span><strong>{currency(computed.simulatedStaffCost)}</strong></div>
-              <div><span>Dont charges patronales</span><strong>{currency(simulatedCharges)}</strong></div>
-            </div>
+            {renderRhSection()}
           </section>
 
           <section className={activeTab === "food" ? "production-card" : "production-card production-tab-hidden"}>
@@ -1259,18 +1327,7 @@ export default function ProductionSejours() {
                 <p>Budget nourriture calculé automatiquement et ajouté à la synthèse et à la marge.</p>
               </div>
             </div>
-            <div className="production-form-grid production-form-grid-3">
-              <label><span>Repas / jour</span><input type="number" step="1" min="0" value={selectedPlan.mealsPerDay ?? 3} onChange={(event) => updatePlan({ mealsPerDay: amount(event.target.value) })} /></label>
-              <label><span>Coût / repas / personne</span><input type="number" step="0.01" value={selectedPlan.mealCostPerPerson ?? 0} onChange={(event) => updatePlan({ mealCostPerPerson: amount(event.target.value) })} /></label>
-              <label><span>Personnes concernées</span><input readOnly value={`${amount(selectedPlan.childCount)} enfants + ${computed.staffCount} staff = ${amount(selectedPlan.childCount) + computed.staffCount}`} /></label>
-            </div>
-            <div className="production-rh-summary">
-              <div>
-                <span>Formule</span>
-                <strong>{amount(selectedPlan.mealsPerDay)} repas × {selectedPlan.days} j × {amount(selectedPlan.childCount) + computed.staffCount} pers. × {currency(selectedPlan.mealCostPerPerson)}</strong>
-              </div>
-              <div><span>Coût nourriture total</span><strong>{currency(computed.foodCost)}</strong></div>
-            </div>
+            {renderFoodSection()}
           </section>
 
           <section className={activeTab === "expenses" ? "production-card" : "production-card production-tab-hidden"}>
@@ -1375,33 +1432,7 @@ export default function ProductionSejours() {
                 <p>Fixe le prix ici. Trois repères de marge, puis le seuil de rentabilité et un tableau précis par effectif — tout se recalcule automatiquement selon le RH, les quotas, la nourriture et le nombre de jours.</p>
               </div>
             </div>
-            <div className="production-form-grid production-form-grid-2">
-              <label><span>Prix de vente / enfant</span><input type="number" step="0.01" value={selectedPlan.pricePerChild ?? 0} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} /></label>
-            </div>
-            <div className="production-price-tiers">
-              {PRICE_TIERS.map((tier) => {
-                const price = priceForMargin(computed, tier.rate);
-                const isActive = Math.abs(price - amount(selectedPlan.pricePerChild)) < 0.01;
-                return (
-                  <div className={`production-price-tier ${isActive ? "is-active" : ""}`} key={tier.key}>
-                    <span>{tier.label}</span>
-                    <strong>{currency(price)}</strong>
-                    <small>marge visée {(tier.rate * 100).toFixed(0)} %</small>
-                    <button type="button" className="dash-btn dash-btn-secondary" onClick={() => updatePlan({ pricePerChild: price })}>
-                      Utiliser
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="production-breakeven-badge">
-              <IconTarget />
-              <span>
-                {breakEvenChildren != null
-                  ? `Seuil de rentabilité : ${breakEvenChildren} enfants (marge ≥ 0 €)`
-                  : "Seuil de rentabilité non atteint sur la plage testée (jusqu'à 200 enfants)"}
-              </span>
-            </div>
+            {renderPricingSection()}
             <div className="production-form-grid production-form-grid-3">
               <label><span>De (enfants)</span><input type="number" step="1" min="0" value={sensitivityStart} onChange={(event) => setSensitivityRange((previous) => ({ ...previous, start: amount(event.target.value) }))} /></label>
               <label><span>À (enfants)</span><input type="number" step="1" min="0" value={sensitivityEnd} onChange={(event) => setSensitivityRange((previous) => ({ ...previous, end: amount(event.target.value) }))} /></label>
