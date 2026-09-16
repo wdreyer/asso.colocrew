@@ -1,24 +1,51 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
+/* ─── KPI icon SVGs ──────────────────────────────────────────────────── */
+function IconCoins() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <path d="M17 7a5 5 0 0 0-4-2c-2.8 0-5 2.5-5 7s2.2 7 5 7a5 5 0 0 0 4-2M4 10h7M4 14h6" />
+    </svg>
+  );
+}
+function IconReceipt() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z" /><path d="M9 7h6M9 11h6M9 15h4" />
+    </svg>
+  );
+}
+function IconUsers() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function IconTrend({ up = true }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      {up ? <path d="M3 17l6-6 4 4 8-8M15 7h6v6" /> : <path d="M3 7l6 6 4-4 8 8M15 17h6v-6" />}
+    </svg>
+  );
+}
+function IconTarget() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" stroke="currentColor">
+      <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />
+    </svg>
+  );
+}
+
 const ACCOUNTING_DOC_ID = "colocrew-2026";
 
-const STAY_LABELS = {
-  "my-creative-surf-camp": "MCSC",
-  "eaux-vives-creative-camp": "EVCC",
-};
-
-const WEEK_LABELS = {
-  "2026-07-06": "S1",
-  "2026-07-20": "S2",
-  "2026-08-03": "S3",
-  "2026-08-17": "S4",
-};
+const GENERIC_WEEK_OPTIONS = ["Toutes", "S1", "S2", "S3", "S4", "S5"];
 
 const PRODUCTION_UNITS = [
   { key: "fixed", label: "Forfait séjour" },
@@ -31,8 +58,6 @@ const PRODUCTION_UNITS = [
   { key: "perChildDay", label: "Par enfant / jour" },
   { key: "perPersonDay", label: "Par personne / jour" },
 ];
-
-const PRODUCTION_WEEK_OPTIONS = ["Toutes", "S1", "S2", "S3", "S4"];
 
 const DEFAULT_PRODUCTION_EXPENSES = [
   { label: "Hébergement gîte", category: "Hébergement", unit: "fixed", quantity: 1, unitAmount: 8550 },
@@ -50,6 +75,8 @@ const DEFAULT_PRODUCTION_PLAN = {
   name: "Simulation O vives",
   mode: "simulation",
   linkedStayId: "",
+  linkedDateStart: "",
+  linkedDateEnd: "",
   stayCode: "EVCC",
   week: "Toutes",
   pricePerChild: 1027.2,
@@ -63,10 +90,11 @@ const DEFAULT_PRODUCTION_PLAN = {
   halfBoardRatio: 0.62,
   directorCount: 1,
   animatorCount: 4,
+  animatorStaffingMode: "manual",
+  animatorRatio: 8,
   directorNetDay: 90,
   animatorNetDay: 60,
   staffCostMultiplier: 1.3,
-  useActualStaffCosts: true,
   notes: "Modèle de base repris depuis le fichier O vives : 30 enfants, 4 anims, 1 DS, 12 jours / 11 nuits.",
   expenses: DEFAULT_PRODUCTION_EXPENSES,
 };
@@ -81,6 +109,7 @@ const PRODUCTION_TABS = [
   { key: "assumptions", label: "Prix & dates" },
   { key: "expenses", label: "Tableau dépenses" },
   { key: "summary", label: "Synthèse" },
+  { key: "profitability", label: "Rentabilité" },
   { key: "publish", label: "Créer la fiche" },
 ];
 
@@ -101,33 +130,55 @@ function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function canonicalStayName(value) {
-  const normalized = String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  return normalized === "mycreativesurfcamp" ? "my-creative-surf-camp" : value;
-}
-
-function mapFinance(snapshot) {
+function mapFinance(snapshot, weekLookup) {
   const data = snapshot.data() || {};
   const finance = data.finance || {};
   const children = Array.isArray(data.minor?.children) ? data.minor.children : [];
   const declaredChildren = Number(data.minor?.numberOfChildren);
   const childCount = children.length || (Number.isFinite(declaredChildren) && declaredChildren > 0 ? declaredChildren : 1);
   const startDate = String(data.sejour?.startDate || "").slice(0, 10);
+  const stayCode = productionStayCodeFrom(data.sejour?.name) || "Non renseigné";
   return {
     id: snapshot.id,
     status: data.status || "",
     validationSource: data.validationSource || "",
     childCount,
-    stay: STAY_LABELS[canonicalStayName(data.sejour?.name)] || canonicalStayName(data.sejour?.name) || "Non renseigné",
-    week: WEEK_LABELS[startDate] || startDate || "Non renseignée",
+    stay: stayCode,
+    week: weekLookup?.get(`${stayCode}|${startDate}`) || startDate || "Non renseignée",
     stayAmount: amount(finance.stayAmount),
     grossAmount: amount(finance.grossAmount),
     hasFinance: Boolean(data.finance),
   };
+}
+
+function weekSlotsForStay(stay) {
+  const validDates = Array.isArray(stay?.dates)
+    ? stay.dates
+        .filter((entry) => entry?.startDate && entry?.endDate)
+        .map((entry) => ({
+          startDate: String(entry.startDate).slice(0, 10),
+          endDate: String(entry.endDate).slice(0, 10),
+          basePrice: amount(entry.basePrice ?? entry.price),
+        }))
+        .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    : [];
+  return validDates.map((entry, index) => ({ ...entry, label: `S${index + 1}` }));
+}
+
+function buildWeekLookup(onlineStaysList) {
+  const datesByCode = new Map();
+  (onlineStaysList || []).forEach((stay) => {
+    const code = productionStayCodeFrom(stay);
+    const existing = datesByCode.get(code) || [];
+    datesByCode.set(code, existing.concat(weekSlotsForStay(stay).map((slot) => slot.startDate)));
+  });
+  const lookup = new Map();
+  datesByCode.forEach((dateList, code) => {
+    [...new Set(dateList)].sort().forEach((startDate, index) => {
+      lookup.set(`${code}|${startDate}`, `S${index + 1}`);
+    });
+  });
+  return lookup;
 }
 
 function productionStayCodeFrom(value) {
@@ -277,6 +328,17 @@ function productionExpenseFormula(line, plan, staffCount) {
   return base;
 }
 
+const CATEGORY_COLORS = ["#f97316", "#10b981", "#6366f1", "#b8336a", "#0ea5e9", "#a855f7"];
+
+function categoryColor(label) {
+  let hash = 0;
+  const text = String(label || "");
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) % CATEGORY_COLORS.length;
+  }
+  return CATEGORY_COLORS[Math.abs(hash)];
+}
+
 function summarizeProductionByCategory(expenses) {
   const groups = new Map();
   expenses.forEach((line) => {
@@ -286,32 +348,42 @@ function summarizeProductionByCategory(expenses) {
   return [...groups.entries()].map(([label, total]) => ({ label, total })).sort((a, b) => b.total - a.total);
 }
 
-function computeProduction(planInput, context = {}) {
+function effectiveAnimatorCount(plan, childCount) {
+  const count = childCount != null ? amount(childCount) : amount(plan.childCount);
+  if (plan.animatorStaffingMode === "ratio" && amount(plan.animatorRatio) > 0) {
+    return Math.ceil(count / amount(plan.animatorRatio));
+  }
+  return amount(plan.animatorCount);
+}
+
+function computeProduction(planInput, options = {}) {
   const plan = normalizeProductionPlan(planInput);
-  const staffCount = amount(plan.directorCount) + amount(plan.animatorCount);
+  const calcPlan = options.childCount != null ? { ...plan, childCount: amount(options.childCount) } : plan;
+  const animatorCount = effectiveAnimatorCount(plan, calcPlan.childCount);
+  const staffCount = amount(plan.directorCount) + animatorCount;
   const simulatedStaffCost = Math.round((
     (amount(plan.directorCount) * amount(plan.directorNetDay) * amount(plan.days))
-    + (amount(plan.animatorCount) * amount(plan.animatorNetDay) * amount(plan.days))
+    + (animatorCount * amount(plan.animatorNetDay) * amount(plan.days))
   ) * amount(plan.staffCostMultiplier || 1) * 100) / 100;
-  const actualStaffCost = amount(context.actualStaffCost);
-  const rhCost = plan.useActualStaffCosts && actualStaffCost > 0 ? actualStaffCost : simulatedStaffCost;
-  const revenue = Math.round(((amount(plan.pricePerChild) * amount(plan.childCount)) + amount(plan.extraRevenue)) * 100) / 100;
-  const expenseRows = plan.expenses.map((line) => ({
+  const rhCost = simulatedStaffCost;
+  const revenue = Math.round(((amount(plan.pricePerChild) * amount(calcPlan.childCount)) + amount(plan.extraRevenue)) * 100) / 100;
+  const expenseRows = calcPlan.expenses.map((line) => ({
     ...line,
-    total: productionExpenseTotal(line, plan, staffCount),
-    formula: productionExpenseFormula(line, plan, staffCount),
-    mealAdjusted: isFoodLine(line) && plan.mealPlan === "half",
+    total: productionExpenseTotal(line, calcPlan, staffCount),
+    formula: productionExpenseFormula(line, calcPlan, staffCount),
+    mealAdjusted: isFoodLine(line) && calcPlan.mealPlan === "half",
   }));
   const operationalExpenses = expenseRows.reduce((sum, line) => sum + amount(line.total), 0);
   const totalExpenses = Math.round((operationalExpenses + rhCost) * 100) / 100;
   const margin = Math.round((revenue - totalExpenses) * 100) / 100;
   const marginRate = revenue > 0 ? (margin / revenue) * 100 : 0;
-  const breakEvenPrice = amount(plan.childCount) > 0 ? totalExpenses / amount(plan.childCount) : 0;
+  const breakEvenPrice = amount(calcPlan.childCount) > 0 ? totalExpenses / amount(calcPlan.childCount) : 0;
   return {
     plan,
+    childCount: amount(calcPlan.childCount),
+    animatorCount,
     staffCount,
     simulatedStaffCost,
-    actualStaffCost,
     rhCost,
     revenue,
     expenseRows,
@@ -324,7 +396,14 @@ function computeProduction(planInput, context = {}) {
   };
 }
 
-function productionContextFor(planInput, rows, staffContracts) {
+function findBreakEvenChildren(plan, maxSearch = 200) {
+  for (let count = 1; count <= maxSearch; count += 1) {
+    if (computeProduction(plan, { childCount: count }).margin >= 0) return count;
+  }
+  return null;
+}
+
+function productionContextFor(planInput, rows) {
   const plan = normalizeProductionPlan(planInput);
   const stayCode = String(plan.stayCode || "").toUpperCase();
   const week = String(plan.week || "Toutes");
@@ -332,48 +411,42 @@ function productionContextFor(planInput, rows, staffContracts) {
     String(row.stay || "").toUpperCase() === stayCode
     && (week === "Toutes" || String(row.week || "") === week)
   ));
-  const contractRows = staffContracts.filter((contract) => (
-    String(contract.stayCode || contract.stay || "").toUpperCase() === stayCode
-    && (week === "Toutes" || String(contract.week || "") === week)
-  ));
   return {
     soldChildren: salesRows.reduce((sum, row) => sum + amount(row.childCount), 0),
     soldStayRevenue: salesRows.reduce((sum, row) => sum + amount(row.stayAmount), 0),
     soldGrossRevenue: salesRows.reduce((sum, row) => sum + amount(row.grossAmount), 0),
-    actualStaffCost: contractRows.reduce((sum, contract) => sum + amount(contract.grossSalary), 0),
-    actualStaffNet: contractRows.reduce((sum, contract) => sum + amount(contract.netSalary), 0),
-    actualStaffCount: new Set(contractRows.map((contract) => contract.memberId || contract.memberName || contract.id)).size,
-    contractRows,
   };
 }
 
 export default function ProductionSejours() {
   const router = useRouter();
   const [rows, setRows] = useState([]);
-  const [staffContracts, setStaffContracts] = useState([]);
   const [onlineStays, setOnlineStays] = useState([]);
   const [production, setProduction] = useState(() => deepClone(DEFAULT_PRODUCTION));
   const [status, setStatus] = useState("");
   const [creatingStay, setCreatingStay] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("assumptions");
+  const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
 
   useEffect(() => {
     async function load() {
       try {
-        const [reservationsSnapshot, contractsSnapshot, onlineStaysSnapshot, accountingSnapshot] = await Promise.all([
+        const [reservationsSnapshot, onlineStaysSnapshot, accountingSnapshot] = await Promise.all([
           getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
-          getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
           getDocs(collection(db, COLLECTIONS.SEJOURS)),
           getDoc(doc(db, COLLECTIONS.ACCOUNTING_REPORTS, ACCOUNTING_DOC_ID)),
         ]);
-        setRows(reservationsSnapshot.docs.map(mapFinance).filter((row) =>
+        const onlineStaysList = onlineStaysSnapshot.docs
+          .map((stay) => ({ id: stay.id, ...stay.data() }))
+          .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), "fr"));
+        const weekLookup = buildWeekLookup(onlineStaysList);
+        setRows(reservationsSnapshot.docs.map((snapshot) => mapFinance(snapshot, weekLookup)).filter((row) =>
           row.hasFinance
           && row.status === "validated"
           && row.validationSource === "ete26_validated_workbook",
         ));
-        setStaffContracts(contractsSnapshot.docs.map((contract) => ({ id: contract.id, ...contract.data() })));
-        setOnlineStays(onlineStaysSnapshot.docs.map((stay) => ({ id: stay.id, ...stay.data() })).sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), "fr")));
+        setOnlineStays(onlineStaysList);
         const saved = accountingSnapshot.exists() ? accountingSnapshot.data()?.production : null;
         setProduction({
           selectedPlanId: saved?.selectedPlanId || DEFAULT_PRODUCTION.selectedPlanId,
@@ -393,17 +466,28 @@ export default function ProductionSejours() {
   const selectedPlanId = production.selectedPlanId || plans[0]?.id || DEFAULT_PRODUCTION_PLAN.id;
   const selectedIndex = Math.max(plans.findIndex((plan) => plan.id === selectedPlanId), 0);
   const selectedPlan = plans[selectedIndex] || normalizeProductionPlan(DEFAULT_PRODUCTION_PLAN);
-  const context = productionContextFor(selectedPlan, rows, staffContracts);
-  const computed = computeProduction(selectedPlan, context);
+  const context = productionContextFor(selectedPlan, rows);
+  const computed = computeProduction(selectedPlan);
   const linkedStay = onlineStays.find((stay) => stay.id === selectedPlan.linkedStayId);
+  const linkedStayWeeks = linkedStay ? weekSlotsForStay(linkedStay) : [];
   const simulatedDirectorNet = amount(selectedPlan.directorCount) * amount(selectedPlan.directorNetDay) * amount(selectedPlan.days);
-  const simulatedAnimatorNet = amount(selectedPlan.animatorCount) * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days);
+  const simulatedAnimatorNet = computed.animatorCount * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days);
   const simulatedNet = simulatedDirectorNet + simulatedAnimatorNet;
   const simulatedCharges = Math.max(computed.simulatedStaffCost - simulatedNet, 0);
   const targetMarginRate = amount(computed.revenue) > 0 ? computed.marginRate : 0;
   const recommendedPrice = amount(selectedPlan.childCount) > 0
     ? Math.ceil(((computed.totalExpenses * 1.12) / amount(selectedPlan.childCount)) * 100) / 100
     : 0;
+  const breakEvenChildren = useMemo(() => findBreakEvenChildren(selectedPlan), [selectedPlan]);
+  const sensitivityDefaultStart = Math.max(1, Math.min(amount(selectedPlan.childCount), breakEvenChildren || amount(selectedPlan.childCount)) - 5);
+  const sensitivityDefaultEnd = Math.max(amount(selectedPlan.childCount), breakEvenChildren || 0) + 10;
+  const sensitivityStart = sensitivityRange.start ?? sensitivityDefaultStart;
+  const sensitivityEnd = sensitivityRange.end ?? sensitivityDefaultEnd;
+  const sensitivityStep = Math.max(amount(sensitivityRange.step ?? 1), 1);
+  const sensitivityRows = [];
+  for (let count = sensitivityStart; count <= sensitivityEnd && sensitivityRows.length < 200; count += sensitivityStep) {
+    sensitivityRows.push(computeProduction(selectedPlan, { childCount: count }));
+  }
 
   const writePlans = (nextPlans, nextSelectedId = selectedPlanId) => {
     setProduction({
@@ -461,11 +545,13 @@ export default function ProductionSejours() {
 
   const applyOnlineStay = (stayId) => {
     if (!stayId) {
-      updatePlan({ linkedStayId: "", mode: "simulation" });
+      updatePlan({ linkedStayId: "", linkedDateStart: "", linkedDateEnd: "", mode: "simulation" });
       return;
     }
     const stay = onlineStays.find((item) => item.id === stayId);
     if (!stay) return;
+    const slots = weekSlotsForStay(stay);
+    const firstSlot = slots[0];
     const duration = productionStayDuration(stay);
     const price = productionStayPrice(stay);
     updatePlan({
@@ -473,11 +559,38 @@ export default function ProductionSejours() {
       linkedStayId: stay.id,
       name: stay.name || selectedPlan.name,
       stayCode: productionStayCodeFrom(stay),
-      pricePerChild: price || selectedPlan.pricePerChild,
+      week: firstSlot?.label || selectedPlan.week,
+      pricePerChild: firstSlot?.basePrice || price || selectedPlan.pricePerChild,
       days: duration.days,
       nights: duration.nights,
-      startDate: duration.startDate || selectedPlan.startDate || "",
-      endDate: duration.endDate || selectedPlan.endDate || "",
+      startDate: firstSlot?.startDate || duration.startDate || selectedPlan.startDate || "",
+      endDate: firstSlot?.endDate || duration.endDate || selectedPlan.endDate || "",
+      linkedDateStart: firstSlot?.startDate || "",
+      linkedDateEnd: firstSlot?.endDate || "",
+    });
+  };
+
+  const applyStayWeek = (weekValue) => {
+    if (!linkedStay) return;
+    if (weekValue === "__new__") {
+      updatePlan({
+        week: `S${linkedStayWeeks.length + 1}`,
+        startDate: "",
+        endDate: "",
+        linkedDateStart: "",
+        linkedDateEnd: "",
+      });
+      return;
+    }
+    const slot = linkedStayWeeks.find((item) => item.label === weekValue);
+    if (!slot) return;
+    updatePlan({
+      week: slot.label,
+      startDate: slot.startDate,
+      endDate: slot.endDate,
+      pricePerChild: slot.basePrice || selectedPlan.pricePerChild,
+      linkedDateStart: slot.startDate,
+      linkedDateEnd: slot.endDate,
     });
   };
 
@@ -504,39 +617,23 @@ export default function ProductionSejours() {
     setStatus("Module production enregistré.");
   };
 
-  const createStayFromProduction = async () => {
+  const persistPlanUpdate = async (patch) => {
+    const updatedPlan = normalizeProductionPlan({ ...selectedPlan, ...patch });
+    const nextPlans = plans.map((plan, index) => (index === selectedIndex ? updatedPlan : plan));
+    const nextProduction = { selectedPlanId: updatedPlan.id, plans: nextPlans };
+    setProduction(nextProduction);
+    await setDoc(doc(db, COLLECTIONS.ACCOUNTING_REPORTS, ACCOUNTING_DOC_ID), {
+      production: nextProduction,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return updatedPlan;
+  };
+
+  const publishPlan = async () => {
     setCreatingStay(true);
-    setStatus("Création de la fiche séjour...");
+    setStatus(selectedPlan.linkedStayId ? "Publication de la semaine..." : "Création de la fiche séjour...");
     try {
-      const baseName = selectedPlan.name || "Nouveau séjour";
-      const payload = {
-        name: baseName,
-        slug: productionStaySlug(baseName),
-        heroSubtitle: `${selectedPlan.days || 0} jours · ${selectedPlan.stayCode || "Séjour"} · prix construit en production`,
-        heroImage: "",
-        environment: selectedPlan.stayCode || "",
-        basePrice: amount(selectedPlan.pricePerChild),
-        priceMin: amount(selectedPlan.pricePerChild),
-        priceMax: amount(selectedPlan.pricePerChild),
-        ageGroups: [],
-        dates: [{
-          startDate: toIsoDate(selectedPlan.startDate),
-          endDate: toIsoDate(selectedPlan.endDate),
-          basePrice: amount(selectedPlan.pricePerChild),
-        }],
-        stations: [{ name: "Sur Place", priceExtra: 0 }],
-        summarySubsections: [{
-          title: "Séjour en préparation",
-          text: `Prévision ${selectedPlan.childCount || 0} enfants, marge estimée ${currency(computed.margin)} (${computed.marginRate.toFixed(1)} %).`,
-          imageSrc: "",
-        }],
-        sections: [{
-          subSections: [{
-            title: "Production",
-            text: `Budget construit depuis le module production. Recettes prévues : ${currency(computed.revenue)}. Dépenses prévues : ${currency(computed.totalExpenses)}.`,
-            imageSrc: "",
-          }],
-        }],
+      const snapshotFields = {
         productionPlanId: selectedPlan.id,
         productionSnapshot: {
           plan: normalizeProductionPlan(selectedPlan),
@@ -550,19 +647,95 @@ export default function ProductionSejours() {
             breakEvenPrice: computed.breakEvenPrice,
           },
         },
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       };
-      const ref = await addDoc(collection(db, COLLECTIONS.SEJOURS), payload);
-      updatePlan({ linkedStayId: ref.id, mode: "linked" });
-      setStatus("Fiche séjour créée depuis la production.");
-      router.push(`/dashboard/sejours/${ref.id}`);
+
+      if (selectedPlan.linkedStayId) {
+        const stayRef = doc(db, COLLECTIONS.SEJOURS, selectedPlan.linkedStayId);
+        const staySnapshot = await getDoc(stayRef);
+        if (!staySnapshot.exists()) throw new Error("Séjour lié introuvable.");
+        const stayData = staySnapshot.data() || {};
+        const existingDates = Array.isArray(stayData.dates) ? stayData.dates : [];
+        const newEntry = {
+          startDate: toIsoDate(selectedPlan.startDate),
+          endDate: toIsoDate(selectedPlan.endDate),
+          basePrice: amount(selectedPlan.pricePerChild),
+        };
+        const matchIndex = existingDates.findIndex((entry) => (
+          selectedPlan.linkedDateStart
+          && String(entry.startDate || "").slice(0, 10) === String(selectedPlan.linkedDateStart).slice(0, 10)
+          && String(entry.endDate || "").slice(0, 10) === String(selectedPlan.linkedDateEnd).slice(0, 10)
+        ));
+        const nextDates = matchIndex >= 0
+          ? existingDates.map((entry, index) => (index === matchIndex ? newEntry : entry))
+          : [...existingDates, newEntry];
+        const prices = nextDates.map((entry) => amount(entry.basePrice)).filter((price) => price > 0);
+        await updateDoc(stayRef, {
+          dates: nextDates,
+          basePrice: prices.length ? Math.min(...prices) : amount(selectedPlan.pricePerChild),
+          priceMin: prices.length ? Math.min(...prices) : amount(selectedPlan.pricePerChild),
+          priceMax: prices.length ? Math.max(...prices) : amount(selectedPlan.pricePerChild),
+          ...snapshotFields,
+          updatedAt: serverTimestamp(),
+        });
+        await persistPlanUpdate({ linkedDateStart: selectedPlan.startDate, linkedDateEnd: selectedPlan.endDate });
+        setStatus(matchIndex >= 0 ? "Semaine mise à jour dans le séjour." : "Semaine ajoutée au séjour.");
+        router.push(`/dashboard/sejours/${selectedPlan.linkedStayId}`);
+      } else {
+        const baseName = selectedPlan.name || "Nouveau séjour";
+        const payload = {
+          name: baseName,
+          slug: productionStaySlug(baseName),
+          heroSubtitle: `${selectedPlan.days || 0} jours · ${selectedPlan.stayCode || "Séjour"} · prix construit en production`,
+          heroImage: "",
+          environment: selectedPlan.stayCode || "",
+          basePrice: amount(selectedPlan.pricePerChild),
+          priceMin: amount(selectedPlan.pricePerChild),
+          priceMax: amount(selectedPlan.pricePerChild),
+          ageGroups: [],
+          dates: [{
+            startDate: toIsoDate(selectedPlan.startDate),
+            endDate: toIsoDate(selectedPlan.endDate),
+            basePrice: amount(selectedPlan.pricePerChild),
+          }],
+          stations: [{ name: "Sur Place", priceExtra: 0 }],
+          summarySubsections: [{
+            title: "Séjour en préparation",
+            text: `Prévision ${selectedPlan.childCount || 0} enfants, marge estimée ${currency(computed.margin)} (${computed.marginRate.toFixed(1)} %).`,
+            imageSrc: "",
+          }],
+          sections: [{
+            subSections: [{
+              title: "Production",
+              text: `Budget construit depuis le module production. Recettes prévues : ${currency(computed.revenue)}. Dépenses prévues : ${currency(computed.totalExpenses)}.`,
+              imageSrc: "",
+            }],
+          }],
+          ...snapshotFields,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        const ref = await addDoc(collection(db, COLLECTIONS.SEJOURS), payload);
+        await persistPlanUpdate({
+          linkedStayId: ref.id,
+          mode: "linked",
+          linkedDateStart: selectedPlan.startDate,
+          linkedDateEnd: selectedPlan.endDate,
+        });
+        setStatus("Fiche séjour créée depuis la production.");
+        router.push(`/dashboard/sejours/${ref.id}`);
+      }
     } catch (error) {
-      setStatus(`Création impossible : ${error?.message || "erreur inconnue"}`);
+      setStatus(`Publication impossible : ${error?.message || "erreur inconnue"}`);
     } finally {
       setCreatingStay(false);
     }
   };
+
+  const publishLabel = !selectedPlan.linkedStayId
+    ? "Créer le séjour en vente"
+    : selectedPlan.linkedDateStart
+      ? "Mettre à jour cette semaine"
+      : "Ajouter cette semaine au séjour";
 
   if (loading) {
     return (
@@ -593,8 +766,7 @@ export default function ProductionSejours() {
             <span>{plans.length}</span>
           </div>
           {plans.map((plan) => {
-            const planContext = productionContextFor(plan, rows, staffContracts);
-            const planComputed = computeProduction(plan, planContext);
+            const planComputed = computeProduction(plan);
             return (
               <button
                 type="button"
@@ -603,7 +775,12 @@ export default function ProductionSejours() {
                 onClick={() => setProduction((previous) => ({ ...previous, selectedPlanId: plan.id }))}
               >
                 <strong>{plan.name}</strong>
-                <span>{plan.stayCode || "Test"} · {plan.week || "Toutes"} · {currency(planComputed.margin)}</span>
+                <span>
+                  {plan.stayCode || "Test"} · {plan.week || "Toutes"} ·{" "}
+                  <span className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>
+                    {currency(planComputed.margin)}
+                  </span>
+                </span>
               </button>
             );
           })}
@@ -627,7 +804,7 @@ export default function ProductionSejours() {
             <div className="production-card-head">
               <div>
                 <h3>Prix, dates et capacité</h3>
-                <p>Commence ici pour fixer le prix de vente. Le rattachement à un séjour existant sert seulement à reprendre ses ventes/RH déjà connues.</p>
+                <p>Commence ici pour fixer le prix de vente. Le rattachement à un séjour existant reprend ses ventes déjà connues et détermine sur quelle semaine ce plan sera publié.</p>
               </div>
               <div className="accounting-actions">
                 <button type="button" className="dash-btn dash-btn-secondary" onClick={duplicatePlan}>Dupliquer</button>
@@ -646,9 +823,20 @@ export default function ProductionSejours() {
               <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
               <label>
                 <span>Semaine</span>
-                <select value={selectedPlan.week || "Toutes"} onChange={(event) => updatePlan({ week: event.target.value })}>
-                  {PRODUCTION_WEEK_OPTIONS.map((week) => <option key={week} value={week}>{week}</option>)}
-                </select>
+                {linkedStay ? (
+                  <select value={selectedPlan.week || ""} onChange={(event) => applyStayWeek(event.target.value)}>
+                    {linkedStayWeeks.map((slot) => (
+                      <option key={slot.label} value={slot.label}>
+                        {slot.label} ({slot.startDate} → {slot.endDate})
+                      </option>
+                    ))}
+                    <option value="__new__">+ Nouvelle semaine pour ce séjour</option>
+                  </select>
+                ) : (
+                  <select value={selectedPlan.week || "Toutes"} onChange={(event) => updatePlan({ week: event.target.value })}>
+                    {GENERIC_WEEK_OPTIONS.map((week) => <option key={week} value={week}>{week}</option>)}
+                  </select>
+                )}
               </label>
               <label><span>Prix de vente / enfant</span><input type="number" step="0.01" value={selectedPlan.pricePerChild ?? 0} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} /></label>
               <label><span>Nombre d'enfants</span><input type="number" step="1" value={selectedPlan.childCount ?? 0} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} /></label>
@@ -669,103 +857,115 @@ export default function ProductionSejours() {
               <div><span>Source des données réelles</span><strong>{linkedStay?.name || "Aucune, simulation libre"}</strong></div>
               <div><span>Enfants vendus</span><strong>{context.soldChildren}</strong></div>
               <div><span>CA séjour vendu</span><strong>{currency(context.soldStayRevenue)}</strong></div>
-              <div><span>Contrats RH trouvés</span><strong>{context.actualStaffCount}</strong></div>
               <button type="button" className="dash-btn dash-btn-secondary" onClick={useActualSales} disabled={!context.soldChildren}>
                 Reprendre les ventes réelles
               </button>
             </div>
           </section>
 
-          <section className="production-kpis">
-            <div><span>Recettes prévues</span><strong>{currency(computed.revenue)}</strong></div>
-            <div><span>Dépenses hors RH</span><strong>{currency(computed.operationalExpenses)}</strong></div>
-            <div><span>Coût RH</span><strong>{currency(computed.rhCost)}</strong></div>
-            <div><span>Marge</span><strong className={computed.margin >= 0 ? "finance-paid" : "finance-due"}>{currency(computed.margin)}</strong></div>
-            <div><span>Taux de marge</span><strong>{computed.marginRate.toFixed(1)} %</strong></div>
-            <div><span>Prix d'équilibre</span><strong>{currency(computed.breakEvenPrice)}</strong></div>
-            <div><span>Prix conseillé 12 %</span><strong>{currency(recommendedPrice)}</strong></div>
+          <section className="dash-metrics-grid production-kpis">
+            <article className="dash-card dash-card-green">
+              <div className="dash-card-icon dash-card-icon-green"><IconCoins /></div>
+              <p>Recettes prévues</p>
+              <strong>{currency(computed.revenue)}</strong>
+            </article>
+            <article className="dash-card dash-card-orange">
+              <div className="dash-card-icon dash-card-icon-orange"><IconReceipt /></div>
+              <p>Dépenses hors RH</p>
+              <strong>{currency(computed.operationalExpenses)}</strong>
+            </article>
+            <article className="dash-card dash-card-indigo">
+              <div className="dash-card-icon dash-card-icon-indigo"><IconUsers /></div>
+              <p>Coût RH simulé</p>
+              <strong>{currency(computed.rhCost)}</strong>
+            </article>
+            <article className={`dash-card production-margin-card ${computed.margin >= 0 ? "is-positive" : "is-negative"}`}>
+              <div className="dash-card-icon"><IconTrend up={computed.margin >= 0} /></div>
+              <p>Marge prévisionnelle</p>
+              <strong>{currency(computed.margin)}</strong>
+              <span className="production-kpi-sub">{computed.marginRate.toFixed(1)} % de marge</span>
+            </article>
+            <article className="dash-card dash-card-pink">
+              <div className="dash-card-icon dash-card-icon-pink"><IconTarget /></div>
+              <p>Prix conseillé (marge 12 %)</p>
+              <strong>{currency(recommendedPrice)}</strong>
+              <span className="production-kpi-sub">Équilibre : {currency(computed.breakEvenPrice)}</span>
+            </article>
           </section>
 
           <section className={activeTab === "hr" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
-                <h3>RH détaillée</h3>
-                <p>Compare le budget RH simulé avec les contrats déjà enregistrés pour ce code séjour et cette semaine.</p>
+                <h3>Simulation RH</h3>
+                <p>Estime le coût staff à partir d'un nombre de postes et d'un salaire net par jour. Purement manuel, sans lien avec les contrats RH réels.</p>
               </div>
-              <label className="production-checkbox">
-                <input type="checkbox" checked={selectedPlan.useActualStaffCosts !== false} onChange={(event) => updatePlan({ useActualStaffCosts: event.target.checked })} />
-                <span>Reprendre les salaires RH enregistrés</span>
-              </label>
+              <div className="production-toggle-group">
+                <button
+                  type="button"
+                  className={selectedPlan.animatorStaffingMode !== "ratio" ? "is-active" : ""}
+                  onClick={() => updatePlan({ animatorStaffingMode: "manual" })}
+                >
+                  Manuel
+                </button>
+                <button
+                  type="button"
+                  className={selectedPlan.animatorStaffingMode === "ratio" ? "is-active" : ""}
+                  onClick={() => updatePlan({ animatorStaffingMode: "ratio" })}
+                >
+                  Quota
+                </button>
+              </div>
             </div>
             <div className="production-form-grid">
               <label><span>Nombre DS</span><input type="number" step="1" value={selectedPlan.directorCount ?? 0} onChange={(event) => updatePlan({ directorCount: amount(event.target.value) })} /></label>
               <label><span>Salaire DS net / jour</span><input type="number" step="0.01" value={selectedPlan.directorNetDay ?? 0} onChange={(event) => updatePlan({ directorNetDay: amount(event.target.value) })} /></label>
-              <label><span>Nombre anims</span><input type="number" step="1" value={selectedPlan.animatorCount ?? 0} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
+              {selectedPlan.animatorStaffingMode === "ratio" ? (
+                <label>
+                  <span>1 animateur pour ___ enfants</span>
+                  <input type="number" step="1" min="1" value={selectedPlan.animatorRatio ?? 8} onChange={(event) => updatePlan({ animatorRatio: amount(event.target.value) })} />
+                </label>
+              ) : (
+                <label><span>Nombre anims</span><input type="number" step="1" value={selectedPlan.animatorCount ?? 0} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
+              )}
               <label><span>Salaire anim net / jour</span><input type="number" step="0.01" value={selectedPlan.animatorNetDay ?? 0} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
               <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
+              {selectedPlan.animatorStaffingMode === "ratio" && (
+                <label>
+                  <span>Nombre d'animateurs (calculé)</span>
+                  <input readOnly value={`${amount(selectedPlan.childCount)} enfants ÷ ${amount(selectedPlan.animatorRatio || 8)} = ${computed.animatorCount} animateur${computed.animatorCount > 1 ? "s" : ""}`} />
+                </label>
+              )}
             </div>
             <div className="production-rh-detail-grid">
-              <div>
-                <h4>Simulation RH</h4>
-                <table className="production-mini-table">
-                  <thead>
-                    <tr><th>Poste</th><th>Calcul net</th><th>Net</th><th>Chargé</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Direction</td>
-                      <td>{amount(selectedPlan.directorCount)} DS × {selectedPlan.days} j × {currency(selectedPlan.directorNetDay)}</td>
-                      <td>{currency(simulatedDirectorNet)}</td>
-                      <td>{currency(simulatedDirectorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
-                    </tr>
-                    <tr>
-                      <td>Animation</td>
-                      <td>{amount(selectedPlan.animatorCount)} anims × {selectedPlan.days} j × {currency(selectedPlan.animatorNetDay)}</td>
-                      <td>{currency(simulatedAnimatorNet)}</td>
-                      <td>{currency(simulatedAnimatorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
-                    </tr>
-                    <tr className="total">
-                      <td>Total simulation</td>
-                      <td>Coefficient chargé {amount(selectedPlan.staffCostMultiplier || 1).toFixed(2)}</td>
-                      <td>{currency(simulatedNet)}</td>
-                      <td>{currency(computed.simulatedStaffCost)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div>
-                <h4>Contrats RH trouvés</h4>
-                <table className="production-mini-table">
-                  <thead>
-                    <tr><th>Nom</th><th>Rôle</th><th>Net</th><th>Brut/chargé</th></tr>
-                  </thead>
-                  <tbody>
-                    {context.contractRows.length ? context.contractRows.map((contract) => (
-                      <tr key={contract.id}>
-                        <td>{contract.memberName || contract.name || "Contrat RH"}</td>
-                        <td>{contract.role || contract.roleLabel || contract.position || "-"}</td>
-                        <td>{currency(contract.netSalary)}</td>
-                        <td>{currency(contract.grossSalary)}</td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan="4">Aucun contrat ne correspond encore à {selectedPlan.stayCode || "ce séjour"} {selectedPlan.week || ""}.</td></tr>
-                    )}
-                    <tr className="total">
-                      <td>Total contrats</td>
-                      <td>{context.actualStaffCount} personne(s)</td>
-                      <td>{currency(context.actualStaffNet)}</td>
-                      <td>{currency(context.actualStaffCost)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <table className="production-mini-table">
+                <thead>
+                  <tr><th>Poste</th><th>Calcul net</th><th>Net</th><th>Chargé</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Direction</td>
+                    <td>{amount(selectedPlan.directorCount)} DS × {selectedPlan.days} j × {currency(selectedPlan.directorNetDay)}</td>
+                    <td>{currency(simulatedDirectorNet)}</td>
+                    <td>{currency(simulatedDirectorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
+                  </tr>
+                  <tr>
+                    <td>Animation</td>
+                    <td>{computed.animatorCount} anims × {selectedPlan.days} j × {currency(selectedPlan.animatorNetDay)}</td>
+                    <td>{currency(simulatedAnimatorNet)}</td>
+                    <td>{currency(simulatedAnimatorNet * amount(selectedPlan.staffCostMultiplier || 1))}</td>
+                  </tr>
+                  <tr className="total">
+                    <td>Total simulation</td>
+                    <td>Coefficient chargé {amount(selectedPlan.staffCostMultiplier || 1).toFixed(2)}</td>
+                    <td>{currency(simulatedNet)}</td>
+                    <td>{currency(computed.simulatedStaffCost)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
             <div className="production-rh-summary">
-              <div><span>RH simulée chargée</span><strong>{currency(computed.simulatedStaffCost)}</strong></div>
-              <div><span>Charges simulées</span><strong>{currency(simulatedCharges)}</strong></div>
-              <div><span>RH réelle brute</span><strong>{currency(context.actualStaffCost)}</strong></div>
-              <div><span>RH réelle nette</span><strong>{currency(context.actualStaffNet)}</strong></div>
-              <div><span>RH retenue</span><strong>{currency(computed.rhCost)}</strong></div>
+              <div><span>Coût RH simulé (chargé)</span><strong>{currency(computed.simulatedStaffCost)}</strong></div>
+              <div><span>Dont charges patronales</span><strong>{currency(simulatedCharges)}</strong></div>
             </div>
           </section>
 
@@ -795,7 +995,12 @@ export default function ProductionSejours() {
                   {computed.expenseRows.map((line, index) => (
                     <tr key={`${line.label}-${index}`}>
                       <td><input className="production-text-input" value={line.label || ""} placeholder="ex: Hébergement, activités..." onChange={(event) => updateExpense(index, { label: event.target.value })} /></td>
-                      <td><input className="production-text-input" value={line.category || ""} placeholder="Catégorie" onChange={(event) => updateExpense(index, { category: event.target.value })} /></td>
+                      <td>
+                        <div className="production-category-cell">
+                          <span className="production-cat-dot" style={{ background: categoryColor(line.category) }} />
+                          <input className="production-text-input" value={line.category || ""} placeholder="Catégorie" onChange={(event) => updateExpense(index, { category: event.target.value })} />
+                        </div>
+                      </td>
                       <td>
                         <select value={line.unit || "fixed"} onChange={(event) => updateExpense(index, { unit: event.target.value })}>
                           {PRODUCTION_UNITS.map((unit) => <option key={unit.key} value={unit.key}>{unit.label}</option>)}
@@ -840,13 +1045,21 @@ export default function ProductionSejours() {
               </div>
               <strong>{currency(computed.totalExpenses)}</strong>
             </div>
-            <div className="production-category-grid">
-              {computed.categories.map((category) => (
-                <div key={category.label}>
-                  <span>{category.label}</span>
-                  <strong>{currency(category.total)}</strong>
-                </div>
-              ))}
+            <div className="production-bar-chart">
+              {computed.categories.map((category) => {
+                const percent = computed.totalExpenses > 0 ? (amount(category.total) / computed.totalExpenses) * 100 : 0;
+                const color = categoryColor(category.label);
+                return (
+                  <div className="production-bar-row" key={category.label}>
+                    <span className="production-bar-label">{category.label}</span>
+                    <div className="production-bar-track">
+                      <div className="production-bar-fill" style={{ width: `${Math.min(percent, 100)}%`, background: color }} />
+                    </div>
+                    <span className="production-bar-value">{currency(category.total)}</span>
+                    <span className="production-bar-percent">{percent.toFixed(1)} %</span>
+                  </div>
+                );
+              })}
             </div>
             <label className="production-notes">
               <span>Notes de production</span>
@@ -854,24 +1067,86 @@ export default function ProductionSejours() {
             </label>
           </section>
 
+          <section className={activeTab === "profitability" ? "production-card" : "production-card production-tab-hidden"}>
+            <div className="production-card-head">
+              <div>
+                <h3>Rentabilité selon le nombre d'enfants</h3>
+                <p>Rejoue tout le budget (RH compris, avec les paliers de quota) pour chaque effectif afin de savoir à partir de combien d'enfants le séjour devient rentable.</p>
+              </div>
+            </div>
+            <div className="dash-metrics-grid" style={{ padding: "16px 18px 0" }}>
+              <article className={`dash-card production-margin-card ${breakEvenChildren != null ? "is-positive" : "is-negative"}`}>
+                <div className="dash-card-icon"><IconTarget /></div>
+                <p>Seuil de rentabilité</p>
+                <strong>{breakEvenChildren != null ? `${breakEvenChildren} enfants` : "Non atteint"}</strong>
+                <span className="production-kpi-sub">
+                  {breakEvenChildren != null
+                    ? `Marge ≥ 0 € à partir de ${breakEvenChildren} enfants (toutes choses égales par ailleurs)`
+                    : "Marge toujours négative sur la plage testée (jusqu'à 200 enfants)"}
+                </span>
+              </article>
+            </div>
+            <div className="production-form-grid">
+              <label><span>De (enfants)</span><input type="number" step="1" min="0" value={sensitivityStart} onChange={(event) => setSensitivityRange((previous) => ({ ...previous, start: amount(event.target.value) }))} /></label>
+              <label><span>À (enfants)</span><input type="number" step="1" min="0" value={sensitivityEnd} onChange={(event) => setSensitivityRange((previous) => ({ ...previous, end: amount(event.target.value) }))} /></label>
+              <label><span>Pas</span><input type="number" step="1" min="1" value={sensitivityStep} onChange={(event) => setSensitivityRange((previous) => ({ ...previous, step: amount(event.target.value) }))} /></label>
+              <label>
+                <span>&nbsp;</span>
+                <button type="button" className="dash-btn dash-btn-secondary" onClick={() => setSensitivityRange({ start: null, end: null, step: 1 })}>
+                  Réinitialiser la plage
+                </button>
+              </label>
+            </div>
+            <div className="production-rh-detail-grid">
+              <table className="production-mini-table">
+                <thead>
+                  <tr><th>Enfants</th><th>Recettes</th><th>Dépenses (dont RH)</th><th>Marge</th><th>Taux</th></tr>
+                </thead>
+                <tbody>
+                  {sensitivityRows.map((row) => {
+                    const isCurrent = row.childCount === amount(selectedPlan.childCount);
+                    const isBreakEven = breakEvenChildren != null && row.childCount === breakEvenChildren;
+                    return (
+                      <tr key={row.childCount} className={isCurrent || isBreakEven ? "total" : ""}>
+                        <td>
+                          {row.childCount}
+                          {isCurrent && " (actuel)"}
+                          {isBreakEven && " (seuil)"}
+                        </td>
+                        <td>{currency(row.revenue)}</td>
+                        <td>{currency(row.totalExpenses)}</td>
+                        <td className={row.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(row.margin)}</td>
+                        <td>{row.marginRate.toFixed(1)} %</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section className={activeTab === "publish" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
-                <h3>Créer la fiche séjour</h3>
-                <p>Quand le prix et le budget sont cohérents, crée une fiche dans “Séjours en vente” avec les dates, le prix et un instantané de production.</p>
+                <h3>Publier ce plan</h3>
+                <p>
+                  {selectedPlan.linkedStayId
+                    ? "Ce plan est lié à un séjour existant : publier met à jour uniquement cette semaine (dates + prix) dans la fiche, sans toucher au reste (textes, photos, sections)."
+                    : "Quand le prix et le budget sont cohérents, crée une fiche dans “Séjours en vente” avec les dates, le prix et un instantané de production."}
+                </p>
               </div>
-              <button type="button" className="dash-btn" onClick={createStayFromProduction} disabled={creatingStay}>
-                {creatingStay ? "Création..." : "Créer le séjour en vente"}
+              <button type="button" className="dash-btn" onClick={publishPlan} disabled={creatingStay}>
+                {creatingStay ? "Publication..." : publishLabel}
               </button>
             </div>
             <div className="production-publish-grid">
               <div>
-                <span>Nom créé</span>
+                <span>Nom</span>
                 <strong>{selectedPlan.name || "Nouveau séjour"}</strong>
               </div>
               <div>
-                <span>Dates</span>
-                <strong>{selectedPlan.startDate || "-"} → {selectedPlan.endDate || "-"}</strong>
+                <span>Semaine</span>
+                <strong>{selectedPlan.week || "-"} · {selectedPlan.startDate || "-"} → {selectedPlan.endDate || "-"}</strong>
               </div>
               <div>
                 <span>Prix public</span>
@@ -895,7 +1170,7 @@ export default function ProductionSejours() {
             </div>
             <div className="production-publish-note">
               <strong>Flux recommandé</strong>
-              <p>1. Construis le budget ici. 2. Ajuste le prix jusqu'à obtenir la marge voulue. 3. Crée la fiche séjour. 4. Termine les textes, photos, âges et gares dans “Séjours en vente”.</p>
+              <p>1. Construis le budget ici, semaine par semaine. 2. Ajuste le prix jusqu'à obtenir la marge voulue. 3. Publie chaque semaine (S1, S2...) vers le même séjour. 4. Termine les textes, photos, âges et gares dans “Séjours en vente”.</p>
             </div>
           </section>
         </div>
