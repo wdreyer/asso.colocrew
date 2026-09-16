@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
@@ -81,6 +81,7 @@ const DEFAULT_PRODUCTION_PLAN = {
   week: "Toutes",
   pricePerChild: 1027.2,
   childCount: 30,
+  maxChildren: 30,
   extraRevenue: 0,
   startDate: "2026-08-17",
   endDate: "2026-08-28",
@@ -105,8 +106,7 @@ const DEFAULT_PRODUCTION = {
 };
 
 const PRODUCTION_TABS = [
-  { key: "hr", label: "RH" },
-  { key: "assumptions", label: "Prix & dates" },
+  { key: "assumptions", label: "Séjour & RH" },
   { key: "expenses", label: "Tableau dépenses" },
   { key: "summary", label: "Synthèse" },
   { key: "profitability", label: "Rentabilité" },
@@ -629,6 +629,20 @@ export default function ProductionSejours() {
     return updatedPlan;
   };
 
+  const deleteLinkedStay = async () => {
+    if (!selectedPlan.linkedStayId) return;
+    if (!window.confirm(`Supprimer définitivement le séjour "${linkedStay?.name || selectedPlan.name}" ? Cette action est irréversible et retire aussi toutes ses semaines.`)) return;
+    setStatus("Suppression du séjour...");
+    try {
+      await deleteDoc(doc(db, COLLECTIONS.SEJOURS, selectedPlan.linkedStayId));
+      setOnlineStays((previous) => previous.filter((stay) => stay.id !== selectedPlan.linkedStayId));
+      await persistPlanUpdate({ linkedStayId: "", linkedDateStart: "", linkedDateEnd: "", mode: "simulation" });
+      setStatus("Séjour supprimé.");
+    } catch (error) {
+      setStatus(`Suppression impossible : ${error?.message || "erreur inconnue"}`);
+    }
+  };
+
   const publishPlan = async () => {
     setCreatingStay(true);
     setStatus(selectedPlan.linkedStayId ? "Publication de la semaine..." : "Création de la fiche séjour...");
@@ -761,6 +775,24 @@ export default function ProductionSejours() {
 
       <div className="production-layout">
         <aside className="production-sidebar">
+          <div className="production-identity-card">
+            <div className="production-identity-head">
+              <strong>{selectedPlan.name || "Séjour"}</strong>
+              {selectedPlan.linkedStayId && (
+                <button type="button" className="production-identity-delete" onClick={deleteLinkedStay} title="Supprimer ce séjour">
+                  Supprimer le séjour
+                </button>
+              )}
+            </div>
+            <div className="production-identity-grid">
+              <div><span>Capacité max</span><strong>{selectedPlan.maxChildren || "-"} enfants</strong></div>
+              <div><span>Durée</span><strong>{selectedPlan.days || 0} j · {selectedPlan.nights || 0} n</strong></div>
+              <div><span>Dates</span><strong>{selectedPlan.startDate || "-"} → {selectedPlan.endDate || "-"}</strong></div>
+              <div><span>Semaines</span><strong>{linkedStay ? linkedStayWeeks.length || 1 : 1}</strong></div>
+              <div><span>Code séjour</span><strong>{selectedPlan.stayCode || "-"}</strong></div>
+              <div><span>Statut</span><strong>{linkedStay ? "Publié" : "Simulation"}</strong></div>
+            </div>
+          </div>
           <div className="production-sidebar-head">
             <strong>Plans de production</strong>
             <span>{plans.length}</span>
@@ -799,6 +831,36 @@ export default function ProductionSejours() {
               </button>
             ))}
           </nav>
+
+          <section className="dash-metrics-grid production-kpis">
+            <article className="dash-card dash-card-green">
+              <div className="dash-card-icon dash-card-icon-green"><IconCoins /></div>
+              <p>Recettes prévues</p>
+              <strong>{currency(computed.revenue)}</strong>
+            </article>
+            <article className="dash-card dash-card-orange">
+              <div className="dash-card-icon dash-card-icon-orange"><IconReceipt /></div>
+              <p>Dépenses hors RH</p>
+              <strong>{currency(computed.operationalExpenses)}</strong>
+            </article>
+            <article className="dash-card dash-card-indigo">
+              <div className="dash-card-icon dash-card-icon-indigo"><IconUsers /></div>
+              <p>Coût RH simulé</p>
+              <strong>{currency(computed.rhCost)}</strong>
+            </article>
+            <article className={`dash-card production-margin-card ${computed.margin >= 0 ? "is-positive" : "is-negative"}`}>
+              <div className="dash-card-icon"><IconTrend up={computed.margin >= 0} /></div>
+              <p>Marge prévisionnelle</p>
+              <strong>{currency(computed.margin)}</strong>
+              <span className="production-kpi-sub">{computed.marginRate.toFixed(1)} % de marge</span>
+            </article>
+            <article className="dash-card dash-card-pink">
+              <div className="dash-card-icon dash-card-icon-pink"><IconTarget /></div>
+              <p>Prix conseillé (marge 12 %)</p>
+              <strong>{currency(recommendedPrice)}</strong>
+              <span className="production-kpi-sub">Équilibre : {currency(computed.breakEvenPrice)}</span>
+            </article>
+          </section>
 
           <section className={activeTab === "assumptions" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
@@ -840,6 +902,7 @@ export default function ProductionSejours() {
               </label>
               <label><span>Prix de vente / enfant</span><input type="number" step="0.01" value={selectedPlan.pricePerChild ?? 0} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} /></label>
               <label><span>Nombre d'enfants</span><input type="number" step="1" value={selectedPlan.childCount ?? 0} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} /></label>
+              <label><span>Capacité max (enfants)</span><input type="number" step="1" value={selectedPlan.maxChildren ?? 0} onChange={(event) => updatePlan({ maxChildren: amount(event.target.value) })} /></label>
               <label><span>Recettes complémentaires</span><input type="number" step="0.01" value={selectedPlan.extraRevenue ?? 0} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} /></label>
               <label><span>Premier jour</span><input type="date" value={selectedPlan.startDate || ""} onChange={(event) => updatePlan({ startDate: event.target.value })} /></label>
               <label><span>Dernier jour</span><input type="date" value={selectedPlan.endDate || ""} onChange={(event) => updatePlan({ endDate: event.target.value })} /></label>
@@ -861,44 +924,9 @@ export default function ProductionSejours() {
                 Reprendre les ventes réelles
               </button>
             </div>
-          </section>
 
-          <section className="dash-metrics-grid production-kpis">
-            <article className="dash-card dash-card-green">
-              <div className="dash-card-icon dash-card-icon-green"><IconCoins /></div>
-              <p>Recettes prévues</p>
-              <strong>{currency(computed.revenue)}</strong>
-            </article>
-            <article className="dash-card dash-card-orange">
-              <div className="dash-card-icon dash-card-icon-orange"><IconReceipt /></div>
-              <p>Dépenses hors RH</p>
-              <strong>{currency(computed.operationalExpenses)}</strong>
-            </article>
-            <article className="dash-card dash-card-indigo">
-              <div className="dash-card-icon dash-card-icon-indigo"><IconUsers /></div>
-              <p>Coût RH simulé</p>
-              <strong>{currency(computed.rhCost)}</strong>
-            </article>
-            <article className={`dash-card production-margin-card ${computed.margin >= 0 ? "is-positive" : "is-negative"}`}>
-              <div className="dash-card-icon"><IconTrend up={computed.margin >= 0} /></div>
-              <p>Marge prévisionnelle</p>
-              <strong>{currency(computed.margin)}</strong>
-              <span className="production-kpi-sub">{computed.marginRate.toFixed(1)} % de marge</span>
-            </article>
-            <article className="dash-card dash-card-pink">
-              <div className="dash-card-icon dash-card-icon-pink"><IconTarget /></div>
-              <p>Prix conseillé (marge 12 %)</p>
-              <strong>{currency(recommendedPrice)}</strong>
-              <span className="production-kpi-sub">Équilibre : {currency(computed.breakEvenPrice)}</span>
-            </article>
-          </section>
-
-          <section className={activeTab === "hr" ? "production-card" : "production-card production-tab-hidden"}>
-            <div className="production-card-head">
-              <div>
-                <h3>Simulation RH</h3>
-                <p>Estime le coût staff à partir d'un nombre de postes et d'un salaire net par jour. Purement manuel, sans lien avec les contrats RH réels.</p>
-              </div>
+            <div className="production-subsection-head">
+              <h4>Simulation RH</h4>
               <div className="production-toggle-group">
                 <button
                   type="button"
