@@ -1096,102 +1096,110 @@
 
 .finance-summary tbody tr:last-child td { border-bottom: 0; }
 
-.production-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+.production-margin-positive { color: #047857; font-weight: 800; }
+.production-margin-negative { color: #dc2626; font-weight: 800; }
 
-.production-layout {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-/* ── Sidebar ── */
-.production-sidebar {
-  position: sticky;
-  top: 86px;
+/* ── Plan switcher (replaces the old lateral sidebar) ── */
+.production-plan-switcher {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   border-radius: var(--dash-radius);
   background: var(--dash-card-bg);
   box-shadow: var(--dash-shadow);
-  padding: 14px;
+  padding: 14px 18px;
 }
 
-.production-sidebar-head {
+.production-plan-switcher label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.production-plan-switcher span {
+  color: var(--dash-muted);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.production-plan-switcher select {
+  border: var(--dash-border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 9px 11px;
+  color: var(--dash-text);
+  font: inherit;
+  font-weight: 700;
+  min-width: 260px;
+}
+
+.production-plan-switcher-stats {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 2px 4px 6px;
-  color: var(--dash-text);
-  font-size: 12px;
-}
-
-.production-sidebar-head span {
-  color: var(--dash-muted);
-  font-weight: 800;
-  background: rgba(120, 90, 160, 0.1);
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-}
-
-.production-sidebar button {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: #faf8fc;
-  padding: 11px 12px;
-  color: var(--dash-text);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color .15s ease, background .15s ease;
-}
-
-.production-sidebar button:hover {
-  border-color: rgba(184, 51, 106, 0.3);
-  background: #fff;
-}
-
-.production-sidebar button.is-active {
-  border-color: var(--dash-accent);
-  background: linear-gradient(135deg, var(--dash-accent), #8a1f4d);
-  color: #fff;
-  box-shadow: var(--dash-shadow);
-}
-
-.production-sidebar button strong,
-.production-sidebar button span {
-  display: block;
-}
-
-.production-sidebar button strong {
-  overflow: hidden;
+  gap: 14px;
   font-size: 13px;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.production-sidebar button span {
-  margin-top: 4px;
   color: var(--dash-muted);
-  font-size: 11px;
 }
 
-.production-sidebar button.is-active span {
-  color: rgba(255, 255, 255, 0.82);
+/* ── Seasons recap (timelapse) ── */
+.production-seasons-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.production-margin-positive { color: #047857; font-weight: 800; }
-.production-margin-negative { color: #dc2626; font-weight: 800; }
-.production-sidebar button.is-active .production-margin-positive,
-.production-sidebar button.is-active .production-margin-negative {
+.production-season-card {
+  border-radius: var(--dash-radius);
+  background: var(--dash-card-bg);
+  box-shadow: var(--dash-shadow);
+  padding: 16px 18px;
+}
+
+.production-season-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.production-season-head h3 {
+  margin: 0;
+  color: var(--dash-text);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.production-season-head span {
+  color: var(--dash-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.production-timeline {
+  position: relative;
+  min-height: 42px;
+}
+
+.production-timeline-bar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  border-radius: 8px;
+  padding: 0 10px;
   color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: visible;
+  box-shadow: 0 1px 4px rgba(20, 16, 42, 0.18);
 }
 
 /* ── Sub-section divider inside a merged card ── */
@@ -1865,14 +1873,6 @@
   margin: 5px 0 0;
 }
 
-.production-adjust-note {
-  display: block;
-  margin-top: 3px;
-  color: var(--dash-muted);
-  font-size: 10.5px;
-  font-weight: 700;
-}
-
 .production-notes {
   border-top: var(--dash-border);
   padding: 16px 18px;
@@ -1881,17 +1881,6 @@
 .production-notes textarea {
   min-height: 86px;
   resize: vertical;
-}
-
-/* ── Responsive: stack the sidebar earlier than the shared 1050px breakpoint
-   so the module stays usable on laptop-width screens without side scrolling ── */
-@media (max-width: 1300px) {
-  .production-layout {
-    grid-template-columns: 1fr;
-  }
-  .production-sidebar {
-    position: static;
-  }
 }
 
 @media (max-width: 1050px) {
@@ -1916,6 +1905,14 @@
   }
   .production-session-row {
     grid-template-columns: 1fr;
+  }
+  .production-plan-switcher {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .production-plan-switcher select {
+    min-width: 0;
+    width: 100%;
   }
 }
 

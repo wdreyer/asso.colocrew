@@ -46,11 +46,9 @@ const PRODUCTION_UNITS = [
 const DEFAULT_PRODUCTION_EXPENSES = [
   { label: "Hébergement gîte", category: "Hébergement", unit: "fixed", quantity: 1, unitAmount: 8550 },
   { label: "Activités prestataires", category: "Activités", unit: "manual", quantity: 32, unitAmount: 200 },
-  { label: "Nourriture", category: "Nourriture", unit: "perPersonDay", quantity: 1, unitAmount: 10 },
   { label: "Pédagogie et petit matériel", category: "Péda et autre", unit: "perPerson", quantity: 1, unitAmount: 30 },
   { label: "Assurance", category: "Péda et autre", unit: "fixed", quantity: 1, unitAmount: 400 },
   { label: "Communication", category: "Péda et autre", unit: "fixed", quantity: 1, unitAmount: 500 },
-  { label: "Frais animateurs", category: "RH", unit: "perStaff", quantity: 1, unitAmount: 200 },
   { label: "Frais divers", category: "Péda et autre", unit: "fixed", quantity: 1, unitAmount: 1000 },
 ];
 
@@ -59,6 +57,7 @@ const DEFAULT_PRODUCTION_PLAN = {
   name: "Simulation O vives",
   linkedStayId: "",
   stayCode: "EVCC",
+  location: "",
   pricePerChild: 1027.2,
   childCount: 30,
   maxChildren: 30,
@@ -67,7 +66,8 @@ const DEFAULT_PRODUCTION_PLAN = {
   days: 12,
   nights: 11,
   mealPlan: "full",
-  halfBoardRatio: 0.62,
+  mealsPerDay: 3,
+  mealCostPerPerson: 8,
   directorCount: 1,
   animatorCount: 4,
   animatorStaffingMode: "manual",
@@ -86,6 +86,7 @@ const DEFAULT_PRODUCTION = {
 
 const PRODUCTION_TABS = [
   { key: "assumptions", label: "Séjour & RH" },
+  { key: "food", label: "Nourriture" },
   { key: "expenses", label: "Tableau dépenses" },
   { key: "summary", label: "Synthèse" },
   { key: "profitability", label: "Rentabilité" },
@@ -97,6 +98,8 @@ const PRICE_TIERS = [
   { key: "mid", label: "Prix moyen", rate: 0.12 },
   { key: "high", label: "Prix haut", rate: 0.2 },
 ];
+
+const SEASONS = ["Été", "Hiver"];
 
 function amount(value) {
   const parsed = Number(value);
@@ -162,6 +165,12 @@ function sessionsRange(sessions) {
   return { openDate: starts[0], closeDate: ends[ends.length - 1] };
 }
 
+function seasonOf(dateStr) {
+  const date = new Date(dateStr);
+  const month = date.getMonth() + 1;
+  return (month <= 3 || month >= 10) ? "Hiver" : "Été";
+}
+
 function normalizeProductionExpense(line) {
   return {
     label: line?.label || "Nouvelle dépense",
@@ -191,18 +200,6 @@ function normalizeProductionPlan(plan) {
   };
 }
 
-function mealRatioFor(plan) {
-  return plan.mealPlan === "half" ? Math.max(amount(plan.halfBoardRatio), 0) : 1;
-}
-
-function isFoodLine(line) {
-  const text = `${line.category || ""} ${line.label || ""}`
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
-  return text.includes("nourriture") || text.includes("repas") || text.includes("aliment");
-}
-
 function productionExpenseTotal(line, plan, staffCount) {
   const unitAmount = amount(line.unitAmount);
   const quantity = amount(line.quantity || 1);
@@ -221,8 +218,7 @@ function productionExpenseTotal(line, plan, staffCount) {
     perChildDay: children * days * quantity,
     perPersonDay: people * days * quantity,
   }[line.unit] ?? 1;
-  const foodRatio = isFoodLine(line) ? mealRatioFor(plan) : 1;
-  return Math.round(unitAmount * multiplier * foodRatio * 100) / 100;
+  return Math.round(unitAmount * multiplier * 100) / 100;
 }
 
 function productionExpenseFormula(line, plan, staffCount) {
@@ -233,7 +229,7 @@ function productionExpenseFormula(line, plan, staffCount) {
   const nights = amount(plan.nights);
   const people = children + amount(staffCount);
   const unitLabel = PRODUCTION_UNITS.find((unit) => unit.key === line.unit)?.label || "Forfait";
-  const base = {
+  return {
     fixed: `${unitAmount}`,
     manual: `${quantity} × ${unitAmount}`,
     perChild: `${children} enfants × ${quantity} × ${unitAmount}`,
@@ -244,10 +240,6 @@ function productionExpenseFormula(line, plan, staffCount) {
     perChildDay: `${children} enfants × ${days} jours × ${quantity} × ${unitAmount}`,
     perPersonDay: `${people} personnes × ${days} jours × ${quantity} × ${unitAmount}`,
   }[line.unit] || `${unitLabel} · ${unitAmount}`;
-  if (isFoodLine(line) && plan.mealPlan === "half") {
-    return `${base} × demi-pension ${amount(plan.halfBoardRatio || 0.62).toFixed(2)}`;
-  }
-  return base;
 }
 
 const CATEGORY_COLORS = ["#f97316", "#10b981", "#6366f1", "#b8336a", "#0ea5e9", "#a855f7"];
@@ -278,6 +270,12 @@ function effectiveAnimatorCount(plan, childCount) {
   return amount(plan.animatorCount);
 }
 
+function foodCostFor(plan, staffCount) {
+  if (plan.mealPlan !== "autogestion") return 0;
+  const people = amount(plan.childCount) + amount(staffCount);
+  return Math.round(amount(plan.mealsPerDay) * amount(plan.mealCostPerPerson) * people * amount(plan.days) * 100) / 100;
+}
+
 function computeProduction(planInput, options = {}) {
   const plan = normalizeProductionPlan(planInput);
   const calcPlan = options.childCount != null ? { ...plan, childCount: amount(options.childCount) } : plan;
@@ -288,15 +286,15 @@ function computeProduction(planInput, options = {}) {
     + (animatorCount * amount(plan.animatorNetDay) * amount(plan.days))
   ) * amount(plan.staffCostMultiplier || 1) * 100) / 100;
   const rhCost = simulatedStaffCost;
+  const foodCost = foodCostFor(calcPlan, staffCount);
   const revenue = Math.round(((amount(plan.pricePerChild) * amount(calcPlan.childCount)) + amount(plan.extraRevenue)) * 100) / 100;
   const expenseRows = calcPlan.expenses.map((line) => ({
     ...line,
     total: productionExpenseTotal(line, calcPlan, staffCount),
     formula: productionExpenseFormula(line, calcPlan, staffCount),
-    mealAdjusted: isFoodLine(line) && calcPlan.mealPlan === "half",
   }));
   const operationalExpenses = expenseRows.reduce((sum, line) => sum + amount(line.total), 0);
-  const totalExpenses = Math.round((operationalExpenses + rhCost) * 100) / 100;
+  const totalExpenses = Math.round((operationalExpenses + rhCost + foodCost) * 100) / 100;
   const margin = Math.round((revenue - totalExpenses) * 100) / 100;
   const marginRate = revenue > 0 ? (margin / revenue) * 100 : 0;
   const breakEvenPrice = amount(calcPlan.childCount) > 0 ? totalExpenses / amount(calcPlan.childCount) : 0;
@@ -307,6 +305,7 @@ function computeProduction(planInput, options = {}) {
     staffCount,
     simulatedStaffCost,
     rhCost,
+    foodCost,
     revenue,
     expenseRows,
     operationalExpenses,
@@ -314,7 +313,11 @@ function computeProduction(planInput, options = {}) {
     margin,
     marginRate,
     breakEvenPrice,
-    categories: summarizeProductionByCategory([...expenseRows, { category: "RH", total: rhCost }]),
+    categories: summarizeProductionByCategory([
+      ...expenseRows,
+      { category: "RH", total: rhCost },
+      ...(foodCost > 0 ? [{ category: "Nourriture", total: foodCost }] : []),
+    ]),
   };
 }
 
@@ -331,12 +334,62 @@ function priceForMargin(computed, marginRate) {
     : 0;
 }
 
+function timelineEntriesFor(plans) {
+  return plans.flatMap((plan) => (plan.sessions || [])
+    .filter((session) => session.startDate && session.endDate)
+    .map((session, index) => ({
+      key: `${plan.id}-${index}`,
+      planName: plan.name || "Séjour",
+      label: `S${index + 1}`,
+      startDate: session.startDate,
+      endDate: session.endDate,
+      season: seasonOf(session.startDate),
+    })));
+}
+
+function assignTimelineRows(entries) {
+  const sorted = [...entries].sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const rowEnds = [];
+  const placed = sorted.map((entry) => {
+    let rowIndex = rowEnds.findIndex((end) => end < entry.startDate);
+    if (rowIndex === -1) {
+      rowIndex = rowEnds.length;
+      rowEnds.push(entry.endDate);
+    } else {
+      rowEnds[rowIndex] = entry.endDate;
+    }
+    return { ...entry, row: rowIndex };
+  });
+  return { placed, rowCount: rowEnds.length };
+}
+
+function timelinePercent(dateStr, minDate, maxDate) {
+  const total = daysBetween(minDate, maxDate) || 1;
+  const offset = daysBetween(minDate, dateStr) - 1;
+  return Math.max(0, Math.min(100, (offset / total) * 100));
+}
+
+function seasonGroupsFor(plans) {
+  const entries = timelineEntriesFor(plans);
+  return SEASONS.map((season) => {
+    const seasonEntries = entries.filter((entry) => entry.season === season);
+    if (!seasonEntries.length) return { season, entries: [], rowCount: 0, minDate: "", maxDate: "" };
+    const starts = seasonEntries.map((entry) => entry.startDate).sort();
+    const ends = seasonEntries.map((entry) => entry.endDate).sort();
+    const minDate = starts[0];
+    const maxDate = ends[ends.length - 1];
+    const { placed, rowCount } = assignTimelineRows(seasonEntries);
+    return { season, entries: placed, rowCount, minDate, maxDate };
+  });
+}
+
 export default function ProductionSejours() {
   const router = useRouter();
   const [production, setProduction] = useState(() => deepClone(DEFAULT_PRODUCTION));
   const [status, setStatus] = useState("");
   const [creatingStay, setCreatingStay] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("plan");
   const [activeTab, setActiveTab] = useState("assumptions");
   const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
 
@@ -366,6 +419,14 @@ export default function ProductionSejours() {
   const sessions = selectedPlan.sessions || [];
   const { openDate, closeDate } = sessionsRange(sessions);
   const computed = computeProduction(selectedPlan);
+
+  useEffect(() => {
+    if (activeTab === "food" && selectedPlan.mealPlan !== "autogestion") {
+      setActiveTab("assumptions");
+    }
+  }, [activeTab, selectedPlan.mealPlan]);
+
+  const visibleTabs = PRODUCTION_TABS.filter((tab) => tab.key !== "food" || selectedPlan.mealPlan === "autogestion");
   const simulatedDirectorNet = amount(selectedPlan.directorCount) * amount(selectedPlan.directorNetDay) * amount(selectedPlan.days);
   const simulatedAnimatorNet = computed.animatorCount * amount(selectedPlan.animatorNetDay) * amount(selectedPlan.days);
   const simulatedNet = simulatedDirectorNet + simulatedAnimatorNet;
@@ -382,6 +443,7 @@ export default function ProductionSejours() {
   for (let count = sensitivityStart; count <= sensitivityEnd && sensitivityRows.length < 200; count += sensitivityStep) {
     sensitivityRows.push(computeProduction(selectedPlan, { childCount: count }));
   }
+  const seasonGroups = useMemo(() => seasonGroupsFor(plans), [plans]);
 
   const writePlans = (nextPlans, nextSelectedId = selectedPlanId) => {
     setProduction({
@@ -461,6 +523,10 @@ export default function ProductionSejours() {
     updatePlan({ sessions: sessions.map((session, i) => (i === index ? { ...session, ...patch } : session)) });
   };
 
+  const setMealPlan = (mode) => {
+    updatePlan({ mealPlan: mode, animatorRatio: mode === "autogestion" ? 5 : 8 });
+  };
+
   const saveProduction = async () => {
     setStatus("Enregistrement...");
     const nextProduction = {
@@ -517,12 +583,14 @@ export default function ProductionSejours() {
       const priceMax = prices.length ? Math.max(...prices) : amount(selectedPlan.pricePerChild);
       const snapshotFields = {
         productionPlanId: selectedPlan.id,
+        location: selectedPlan.location || "",
         productionSnapshot: {
           plan: normalizeProductionPlan(selectedPlan),
           computed: {
             revenue: computed.revenue,
             operationalExpenses: computed.operationalExpenses,
             rhCost: computed.rhCost,
+            foodCost: computed.foodCost,
             totalExpenses: computed.totalExpenses,
             margin: computed.margin,
             marginRate: computed.marginRate,
@@ -530,6 +598,7 @@ export default function ProductionSejours() {
           },
         },
       };
+      const locationSuffix = selectedPlan.location ? ` · ${selectedPlan.location}` : "";
 
       if (selectedPlan.linkedStayId) {
         const stayRef = doc(db, COLLECTIONS.SEJOURS, selectedPlan.linkedStayId);
@@ -548,7 +617,7 @@ export default function ProductionSejours() {
         const payload = {
           name: baseName,
           slug: productionStaySlug(baseName),
-          heroSubtitle: `${selectedPlan.days || 0} jours · ${selectedPlan.stayCode || "Séjour"} · prix construit en production`,
+          heroSubtitle: `${selectedPlan.days || 0} jours · ${selectedPlan.stayCode || "Séjour"}${locationSuffix} · prix construit en production`,
           heroImage: "",
           environment: selectedPlan.stayCode || "",
           basePrice: priceMin,
@@ -601,43 +670,64 @@ export default function ProductionSejours() {
           <p>Construis un séjour en simulation : semaines, capacité, RH, dépenses, marge, puis création de la fiche publique.</p>
         </div>
         <div className="accounting-actions">
-          <button type="button" className="dash-btn dash-btn-secondary" onClick={addPlan}>Nouvelle simulation</button>
+          <div className="production-toggle-group">
+            <button type="button" className={view === "plan" ? "is-active" : ""} onClick={() => setView("plan")}>Plan</button>
+            <button type="button" className={view === "seasons" ? "is-active" : ""} onClick={() => setView("seasons")}>Récap saisons</button>
+          </div>
+          {view === "plan" && <button type="button" className="dash-btn dash-btn-secondary" onClick={addPlan}>Nouvelle simulation</button>}
           <button type="button" className="dash-btn" onClick={saveProduction}>Enregistrer</button>
         </div>
       </header>
       {status && <p className="accounting-status">{status}</p>}
 
-      <div className="production-layout">
-        <aside className="production-sidebar">
-          <div className="production-sidebar-head">
-            <strong>Plans de production</strong>
-            <span>{plans.length}</span>
-          </div>
-          {plans.map((plan) => {
-            const planComputed = computeProduction(plan);
-            const planSessions = plan.sessions || [];
-            return (
-              <button
-                type="button"
-                key={plan.id}
-                className={plan.id === selectedPlan.id ? "is-active" : ""}
-                onClick={() => setProduction((previous) => ({ ...previous, selectedPlanId: plan.id }))}
-              >
-                <strong>{plan.name}</strong>
-                <span>
-                  {plan.stayCode || "Test"} · {planSessions.length} sem. ·{" "}
-                  <span className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>
-                    {currency(planComputed.margin)}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </aside>
-
+      {view === "seasons" ? (
+        <div className="production-seasons-recap">
+          {seasonGroups.map((group) => (
+            <div className="production-season-card" key={group.season}>
+              <div className="production-season-head">
+                <h3>{group.season}</h3>
+                {group.entries.length > 0 && <span>{group.minDate} → {group.maxDate}</span>}
+              </div>
+              {!group.entries.length ? (
+                <p className="dash-muted">Aucune semaine simulée sur cette saison.</p>
+              ) : (
+                <div className="production-timeline" style={{ height: `${group.rowCount * 42 + 8}px` }}>
+                  {group.entries.map((entry) => {
+                    const left = timelinePercent(entry.startDate, group.minDate, group.maxDate);
+                    const right = timelinePercent(entry.endDate, group.minDate, group.maxDate);
+                    const width = Math.max(right - left, 3);
+                    return (
+                      <div
+                        key={entry.key}
+                        className="production-timeline-bar"
+                        style={{ left: `${left}%`, width: `${width}%`, top: `${entry.row * 42}px`, background: categoryColor(entry.planName) }}
+                      >
+                        <span>{entry.planName} {entry.label} · {entry.startDate} → {entry.endDate}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
         <div className="production-main">
+          <div className="production-plan-switcher">
+            <label>
+              <span>Plan de production</span>
+              <select value={selectedPlan.id} onChange={(event) => setProduction((previous) => ({ ...previous, selectedPlanId: event.target.value }))}>
+                {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name || "Sans nom"} — {plan.stayCode || "Test"}</option>)}
+              </select>
+            </label>
+            <div className="production-plan-switcher-stats">
+              <span>{sessions.length} semaine{sessions.length > 1 ? "s" : ""}</span>
+              <span className={computed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(computed.margin)}</span>
+            </div>
+          </div>
+
           <nav className="production-tabs" aria-label="Sections production">
-            {PRODUCTION_TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 type="button"
                 key={tab.key}
@@ -681,9 +771,10 @@ export default function ProductionSejours() {
               </div>
             </div>
 
-            <div className="production-form-grid production-form-grid-2">
+            <div className="production-form-grid production-form-grid-3">
               <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
               <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
+              <label><span>Lieu</span><input value={selectedPlan.location || ""} placeholder="ex : Dax, Landes" onChange={(event) => updatePlan({ location: event.target.value })} /></label>
             </div>
 
             <div className="production-subsection-head">
@@ -725,14 +816,12 @@ export default function ProductionSejours() {
             <div className="production-form-grid production-form-grid-2">
               <label>
                 <span>Formule</span>
-                <select value={selectedPlan.mealPlan || "full"} onChange={(event) => updatePlan({ mealPlan: event.target.value })}>
+                <select value={selectedPlan.mealPlan || "full"} onChange={(event) => setMealPlan(event.target.value)}>
                   <option value="full">Pension complète</option>
-                  <option value="half">Demi-pension</option>
+                  <option value="autogestion">Auto-gestion</option>
                 </select>
               </label>
-              {selectedPlan.mealPlan === "half" && (
-                <label><span>Ratio demi-pension</span><input type="number" step="0.01" value={selectedPlan.halfBoardRatio ?? 0.62} onChange={(event) => updatePlan({ halfBoardRatio: amount(event.target.value) })} /></label>
-              )}
+              <label><span>Note</span><input readOnly value={selectedPlan.mealPlan === "autogestion" ? "Budget nourriture dans l'onglet dédié" : "Repas inclus, pas de suivi nourriture séparé"} /></label>
             </div>
 
             <div className="production-subsection-head">
@@ -807,6 +896,27 @@ export default function ProductionSejours() {
             </div>
           </section>
 
+          <section className={activeTab === "food" ? "production-card" : "production-card production-tab-hidden"}>
+            <div className="production-card-head">
+              <div>
+                <h3>Nourriture (auto-gestion)</h3>
+                <p>Budget nourriture calculé automatiquement et ajouté à la synthèse et à la marge.</p>
+              </div>
+            </div>
+            <div className="production-form-grid production-form-grid-3">
+              <label><span>Repas / jour</span><input type="number" step="1" min="0" value={selectedPlan.mealsPerDay ?? 3} onChange={(event) => updatePlan({ mealsPerDay: amount(event.target.value) })} /></label>
+              <label><span>Coût / repas / personne</span><input type="number" step="0.01" value={selectedPlan.mealCostPerPerson ?? 0} onChange={(event) => updatePlan({ mealCostPerPerson: amount(event.target.value) })} /></label>
+              <label><span>Personnes concernées</span><input readOnly value={`${amount(selectedPlan.childCount)} enfants + ${computed.staffCount} staff = ${amount(selectedPlan.childCount) + computed.staffCount}`} /></label>
+            </div>
+            <div className="production-rh-summary">
+              <div>
+                <span>Formule</span>
+                <strong>{amount(selectedPlan.mealsPerDay)} repas × {selectedPlan.days} j × {amount(selectedPlan.childCount) + computed.staffCount} pers. × {currency(selectedPlan.mealCostPerPerson)}</strong>
+              </div>
+              <div><span>Coût nourriture total</span><strong>{currency(computed.foodCost)}</strong></div>
+            </div>
+          </section>
+
           <section className={activeTab === "expenses" ? "production-card" : "production-card production-tab-hidden"}>
             <div className="production-card-head">
               <div>
@@ -847,15 +957,12 @@ export default function ProductionSejours() {
                       <td><input className="production-number-input" type="number" step="0.01" value={line.quantity ?? 1} onChange={(event) => updateExpense(index, { quantity: amount(event.target.value) })} /></td>
                       <td><input className="production-number-input" type="number" step="0.01" value={line.unitAmount ?? 0} onChange={(event) => updateExpense(index, { unitAmount: amount(event.target.value) })} /></td>
                       <td className="production-formula-cell">{line.formula}</td>
-                      <td>
-                        <strong>{currency(line.total)}</strong>
-                        {line.mealAdjusted && <small className="production-adjust-note">Demi-pension × {amount(selectedPlan.halfBoardRatio || 0.62).toFixed(2)}</small>}
-                      </td>
+                      <td><strong>{currency(line.total)}</strong></td>
                       <td><button type="button" className="accounting-table-remove" onClick={() => removeExpense(index)}>Supprimer</button></td>
                     </tr>
                   ))}
                   <tr className="total">
-                    <td colSpan="6">Total hors RH</td>
+                    <td colSpan="6">Total hors RH et nourriture</td>
                     <td>{currency(computed.operationalExpenses)}</td>
                     <td></td>
                   </tr>
@@ -879,7 +986,7 @@ export default function ProductionSejours() {
             <div className="production-card-head">
               <div>
                 <h3>Synthèse par catégorie</h3>
-                <p>Lecture rapide pour voir ce qui pèse vraiment dans la marge du séjour. Se met à jour automatiquement selon le RH, les quotas et les dépenses.</p>
+                <p>Lecture rapide pour voir ce qui pèse vraiment dans la marge du séjour. Se met à jour automatiquement selon le RH, les quotas, la nourriture et les dépenses.</p>
               </div>
               <strong>{currency(computed.totalExpenses)}</strong>
             </div>
@@ -909,7 +1016,7 @@ export default function ProductionSejours() {
             <div className="production-card-head">
               <div>
                 <h3>Rentabilité & prix de vente</h3>
-                <p>Fixe le prix ici. Trois repères de marge, puis le seuil de rentabilité et un tableau précis par effectif — tout se recalcule automatiquement selon le RH, les quotas et le nombre de jours.</p>
+                <p>Fixe le prix ici. Trois repères de marge, puis le seuil de rentabilité et un tableau précis par effectif — tout se recalcule automatiquement selon le RH, les quotas, la nourriture et le nombre de jours.</p>
               </div>
             </div>
             <div className="production-form-grid production-form-grid-2">
@@ -999,6 +1106,10 @@ export default function ProductionSejours() {
                 <strong>{selectedPlan.name || "Nouveau séjour"}</strong>
               </div>
               <div>
+                <span>Lieu</span>
+                <strong>{selectedPlan.location || "-"}</strong>
+              </div>
+              <div>
                 <span>Semaines</span>
                 <strong>{sessions.length} · {openDate || "-"} → {closeDate || "-"}</strong>
               </div>
@@ -1021,7 +1132,7 @@ export default function ProductionSejours() {
             </div>
           </section>
         </div>
-      </div>
+      )}
     </div>
   );
 }
