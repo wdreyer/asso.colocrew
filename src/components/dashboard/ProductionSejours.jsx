@@ -58,6 +58,7 @@ const DEFAULT_PRODUCTION_PLAN = {
   linkedStayId: "",
   stayCode: "EVCC",
   location: "",
+  color: "",
   pricePerChild: 1027.2,
   childCount: 30,
   maxChildren: 30,
@@ -339,12 +340,45 @@ function timelineEntriesFor(plans) {
     .filter((session) => session.startDate && session.endDate)
     .map((session, index) => ({
       key: `${plan.id}-${index}`,
+      planId: plan.id,
       planName: plan.name || "Séjour",
+      color: plan.color || categoryColor(plan.name || plan.id),
       label: `S${index + 1}`,
       startDate: session.startDate,
       endDate: session.endDate,
       season: seasonOf(session.startDate),
     })));
+}
+
+function addDays(dateStr, days) {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function mondayOnOrBefore(dateStr) {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const back = day === 0 ? 6 : day - 1;
+  return addDays(dateStr, -back);
+}
+
+function weekTicksFor(minDate, maxDate) {
+  if (!minDate || !maxDate) return [];
+  const ticks = [];
+  let cursor = mondayOnOrBefore(minDate);
+  let guard = 0;
+  while (cursor <= maxDate && guard < 60) {
+    const date = new Date(cursor);
+    ticks.push({
+      date: cursor,
+      dayNumber: date.getDate(),
+      monthLabel: date.toLocaleDateString("fr-FR", { month: "short" }),
+    });
+    cursor = addDays(cursor, 7);
+    guard += 1;
+  }
+  return ticks;
 }
 
 function assignTimelineRows(entries) {
@@ -373,13 +407,15 @@ function seasonGroupsFor(plans) {
   const entries = timelineEntriesFor(plans);
   return SEASONS.map((season) => {
     const seasonEntries = entries.filter((entry) => entry.season === season);
-    if (!seasonEntries.length) return { season, entries: [], rowCount: 0, minDate: "", maxDate: "" };
+    if (!seasonEntries.length) return { season, entries: [], rowCount: 0, minDate: "", maxDate: "", rangeLabel: "", ticks: [] };
     const starts = seasonEntries.map((entry) => entry.startDate).sort();
     const ends = seasonEntries.map((entry) => entry.endDate).sort();
-    const minDate = starts[0];
-    const maxDate = ends[ends.length - 1];
+    const rawMin = starts[0];
+    const rawMax = ends[ends.length - 1];
+    const minDate = mondayOnOrBefore(rawMin);
+    const maxDate = addDays(mondayOnOrBefore(rawMax), 7);
     const { placed, rowCount } = assignTimelineRows(seasonEntries);
-    return { season, entries: placed, rowCount, minDate, maxDate };
+    return { season, entries: placed, rowCount, minDate, maxDate, rangeLabel: `${rawMin} → ${rawMax}`, ticks: weekTicksFor(minDate, maxDate) };
   });
 }
 
@@ -456,6 +492,10 @@ export default function ProductionSejours() {
     writePlans(plans.map((plan, index) => (index === selectedIndex ? normalizeProductionPlan({ ...plan, ...patch }) : plan)));
   };
 
+  const updatePlanById = (planId, patch) => {
+    writePlans(plans.map((plan) => (plan.id === planId ? normalizeProductionPlan({ ...plan, ...patch }) : plan)));
+  };
+
   const updateExpense = (expenseIndex, patch) => {
     updatePlan({
       expenses: selectedPlan.expenses.map((line, index) => (
@@ -482,10 +522,21 @@ export default function ProductionSejours() {
     writePlans([...plans, normalizeProductionPlan({ ...selectedPlan, id, name: `${selectedPlan.name || "Simulation"} - copie`, linkedStayId: "" })], id);
   };
 
-  const removePlan = () => {
-    if (plans.length <= 1) return;
-    const nextPlans = plans.filter((_, index) => index !== selectedIndex);
-    writePlans(nextPlans, nextPlans[0]?.id);
+  const deletePlanById = (planId) => {
+    const target = plans.find((plan) => plan.id === planId);
+    if (!target) return;
+    const warnPublished = target.linkedStayId
+      ? " Le séjour déjà publié ne sera pas supprimé automatiquement (utilise \"Supprimer le séjour\" dans l'onglet Créer la fiche pour ça)."
+      : "";
+    if (!window.confirm(`Supprimer la simulation "${target.name || "sans nom"}" ?${warnPublished}`)) return;
+    if (plans.length <= 1) {
+      const id = `production-${Date.now()}`;
+      writePlans([normalizeProductionPlan({ ...DEFAULT_PRODUCTION_PLAN, id, name: "Nouvelle simulation" })], id);
+      return;
+    }
+    const nextPlans = plans.filter((plan) => plan.id !== planId);
+    const nextSelectedId = planId === selectedPlanId ? nextPlans[0]?.id : selectedPlanId;
+    writePlans(nextPlans, nextSelectedId);
   };
 
   const addExpense = () => {
@@ -686,30 +737,100 @@ export default function ProductionSejours() {
             <div className="production-season-card" key={group.season}>
               <div className="production-season-head">
                 <h3>{group.season}</h3>
-                {group.entries.length > 0 && <span>{group.minDate} → {group.maxDate}</span>}
+                {group.entries.length > 0 && <span>{group.rangeLabel}</span>}
               </div>
               {!group.entries.length ? (
                 <p className="dash-muted">Aucune semaine simulée sur cette saison.</p>
               ) : (
-                <div className="production-timeline" style={{ height: `${group.rowCount * 42 + 8}px` }}>
-                  {group.entries.map((entry) => {
-                    const left = timelinePercent(entry.startDate, group.minDate, group.maxDate);
-                    const right = timelinePercent(entry.endDate, group.minDate, group.maxDate);
-                    const width = Math.max(right - left, 3);
-                    return (
-                      <div
-                        key={entry.key}
-                        className="production-timeline-bar"
-                        style={{ left: `${left}%`, width: `${width}%`, top: `${entry.row * 42}px`, background: categoryColor(entry.planName) }}
-                      >
-                        <span>{entry.planName} {entry.label} · {entry.startDate} → {entry.endDate}</span>
+                <>
+                  <div className="production-timeline-axis">
+                    {group.ticks.map((tick) => (
+                      <div key={tick.date} className="production-timeline-tick" style={{ left: `${timelinePercent(tick.date, group.minDate, group.maxDate)}%` }}>
+                        <strong>{tick.dayNumber}</strong>
+                        <span>{tick.monthLabel}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                  <div className="production-timeline" style={{ height: `${group.rowCount * 42 + 8}px` }}>
+                    {group.ticks.map((tick) => (
+                      <div key={tick.date} className="production-timeline-gridline" style={{ left: `${timelinePercent(tick.date, group.minDate, group.maxDate)}%` }} />
+                    ))}
+                    {group.entries.map((entry) => {
+                      const left = timelinePercent(entry.startDate, group.minDate, group.maxDate);
+                      const right = timelinePercent(entry.endDate, group.minDate, group.maxDate);
+                      const width = Math.max(right - left, 3);
+                      return (
+                        <div
+                          key={entry.key}
+                          className="production-timeline-bar"
+                          style={{ left: `${left}%`, width: `${width}%`, top: `${entry.row * 42}px`, background: entry.color }}
+                          title={`${entry.planName} ${entry.label} · ${entry.startDate} → ${entry.endDate}`}
+                        >
+                          <span>{entry.planName} {entry.label} · {entry.startDate} → {entry.endDate}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           ))}
+
+          <div className="production-season-card">
+            <div className="production-season-head">
+              <h3>Synthèse des simulations</h3>
+              <span>{plans.length} plan{plans.length > 1 ? "s" : ""}</span>
+            </div>
+            <div className="production-table-wrap">
+              <table className="production-mini-table">
+                <thead>
+                  <tr>
+                    <th>Couleur</th>
+                    <th>Séjour</th>
+                    <th>Lieu</th>
+                    <th>Semaines</th>
+                    <th>Dates</th>
+                    <th>Enfants</th>
+                    <th>Prix/enfant</th>
+                    <th>Marge</th>
+                    <th>Taux</th>
+                    <th>Statut</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map((plan) => {
+                    const planComputed = computeProduction(plan);
+                    const planRange = sessionsRange(plan.sessions);
+                    const planSessions = plan.sessions || [];
+                    return (
+                      <tr key={plan.id}>
+                        <td>
+                          <input
+                            type="color"
+                            className="production-color-input"
+                            value={plan.color || categoryColor(plan.name || plan.id)}
+                            onChange={(event) => updatePlanById(plan.id, { color: event.target.value })}
+                            title="Couleur de ce séjour dans le récap saisons"
+                          />
+                        </td>
+                        <td>{plan.name || "Sans nom"}</td>
+                        <td>{plan.location || "-"}</td>
+                        <td>{planSessions.length}</td>
+                        <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
+                        <td>{plan.childCount}</td>
+                        <td>{currency(plan.pricePerChild)}</td>
+                        <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
+                        <td>{planComputed.marginRate.toFixed(1)} %</td>
+                        <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
+                        <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="production-main">
@@ -767,7 +888,7 @@ export default function ProductionSejours() {
               </div>
               <div className="accounting-actions">
                 <button type="button" className="dash-btn dash-btn-secondary" onClick={duplicatePlan}>Dupliquer</button>
-                <button type="button" className="dash-btn dash-btn-secondary" onClick={removePlan} disabled={plans.length <= 1}>Supprimer</button>
+                <button type="button" className="dash-btn dash-btn-secondary" onClick={() => deletePlanById(selectedPlan.id)}>Supprimer</button>
               </div>
             </div>
 
@@ -775,6 +896,15 @@ export default function ProductionSejours() {
               <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
               <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
               <label><span>Lieu</span><input value={selectedPlan.location || ""} placeholder="ex : Dax, Landes" onChange={(event) => updatePlan({ location: event.target.value })} /></label>
+              <label>
+                <span>Couleur (récap saisons)</span>
+                <input
+                  type="color"
+                  className="production-color-input"
+                  value={selectedPlan.color || categoryColor(selectedPlan.name || selectedPlan.id)}
+                  onChange={(event) => updatePlan({ color: event.target.value })}
+                />
+              </label>
             </div>
 
             <div className="production-subsection-head">

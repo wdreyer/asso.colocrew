@@ -1182,9 +1182,47 @@
   font-weight: 700;
 }
 
+.production-timeline-axis {
+  position: relative;
+  height: 26px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(120, 90, 160, 0.14);
+}
+
+.production-timeline-tick {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.production-timeline-tick strong {
+  color: var(--dash-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.production-timeline-tick span {
+  color: var(--dash-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
 .production-timeline {
   position: relative;
   min-height: 42px;
+}
+
+.production-timeline-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(120, 90, 160, 0.12);
 }
 
 .production-timeline-bar {
@@ -1200,6 +1238,16 @@
   white-space: nowrap;
   overflow: visible;
   box-shadow: 0 1px 4px rgba(20, 16, 42, 0.18);
+}
+
+.production-color-input {
+  width: 34px;
+  height: 28px;
+  border: var(--dash-border);
+  border-radius: 6px;
+  background: #fff;
+  padding: 2px;
+  cursor: pointer;
 }
 
 /* ── Sub-section divider inside a merged card ── */
