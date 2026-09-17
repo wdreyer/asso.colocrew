@@ -108,12 +108,9 @@ const AGE_GROUP_OPTIONS = ["6-8 ans", "9-11 ans", "12-14 ans", "15-17 ans"];
 const WEEKDAY_LETTERS_MON_FIRST = ["L", "M", "M", "J", "V", "S", "D"];
 
 const WIZARD_STEP_DEFS = [
-  { key: "identity", label: "Identité" },
-  { key: "capacity", label: "Capacité & âges" },
-  { key: "weeks", label: "Semaines & restauration" },
-  { key: "rh", label: "RH" },
-  { key: "food", label: "Nourriture" },
-  { key: "expenses", label: "Dépenses" },
+  { key: "identity", label: "Séjour" },
+  { key: "weeks", label: "Semaines & RH" },
+  { key: "expenses", label: "Budget" },
   { key: "pricing", label: "Prix & rentabilité" },
 ];
 
@@ -513,7 +510,7 @@ export default function ProductionSejours() {
   }, [activeTab, selectedPlan?.mealPlan]);
 
   const visibleTabs = PRODUCTION_TABS.filter((tab) => tab.key !== "food" || (selectedPlan && selectedPlan.mealPlan === "autogestion"));
-  const wizardSteps = WIZARD_STEP_DEFS.filter((step) => step.key !== "food" || (selectedPlan && selectedPlan.mealPlan === "autogestion"));
+  const wizardSteps = WIZARD_STEP_DEFS;
   const safeWizardStep = Math.min(wizardStep, wizardSteps.length - 1);
   const currentWizardStep = wizardSteps[safeWizardStep];
 
@@ -1114,7 +1111,7 @@ export default function ProductionSejours() {
       {status && <p className="accounting-status">{status}</p>}
 
       {showCreateModal && selectedPlan && (
-        <div className="dash-modal-backdrop" onClick={closeCreateModal}>
+        <div className="dash-modal-backdrop production-wizard-modal" onClick={closeCreateModal}>
           <div className="dash-modal-card dash-modal-lg" onClick={(event) => event.stopPropagation()}>
             <div className="dash-modal-header">
               <h3>Nouveau séjour — {currentWizardStep.label} ({safeWizardStep + 1}/{wizardSteps.length})</h3>
@@ -1126,17 +1123,32 @@ export default function ProductionSejours() {
                 <span>Dépenses totales <strong>{currency(computed.totalExpenses)}</strong></span>
                 <span>Marge <strong className={computed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(computed.margin)} ({computed.marginRate.toFixed(1)} %)</strong></span>
               </div>
-              {currentWizardStep.key === "identity" && renderIdentitySection()}
-              {currentWizardStep.key === "capacity" && renderCapacitySection()}
+              {currentWizardStep.key === "identity" && (
+                <>
+                  {renderIdentitySection()}
+                  <div className="production-subsection-head"><h4>Capacité</h4></div>
+                  {renderCapacitySection()}
+                </>
+              )}
               {currentWizardStep.key === "weeks" && (
                 <>
                   {renderWeeksSection()}
                   {renderMealPlanSection()}
+                  {renderRhSection()}
                 </>
               )}
-              {currentWizardStep.key === "rh" && renderRhSection()}
-              {currentWizardStep.key === "food" && renderFoodSection()}
-              {currentWizardStep.key === "expenses" && renderExpensesSection()}
+              {currentWizardStep.key === "expenses" && (
+                <>
+                  {selectedPlan.mealPlan === "autogestion" && (
+                    <>
+                      <div className="production-subsection-head"><h4>Nourriture</h4></div>
+                      {renderFoodSection()}
+                    </>
+                  )}
+                  <div className="production-subsection-head"><h4>Dépenses</h4></div>
+                  {renderExpensesSection()}
+                </>
+              )}
               {currentWizardStep.key === "pricing" && renderPricingSection()}
               <div className="dash-modal-actions">
                 {safeWizardStep > 0 && (
