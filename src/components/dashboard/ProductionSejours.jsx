@@ -473,7 +473,7 @@ export default function ProductionSejours() {
   const [status, setStatus] = useState("");
   const [creatingStay, setCreatingStay] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("plan");
+  const [view, setView] = useState("seasons");
   const [activeTab, setActiveTab] = useState("assumptions");
   const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -795,6 +795,11 @@ export default function ProductionSejours() {
 
   const closeCreateModal = () => setShowCreateModal(false);
 
+  const openPlan = (planId) => {
+    setProduction((previous) => ({ ...previous, selectedPlanId: planId }));
+    setView("plan");
+  };
+
   if (loading) {
     return (
       <div className="dash-page production-page">
@@ -1102,7 +1107,7 @@ export default function ProductionSejours() {
             <button type="button" className={view === "plan" ? "is-active" : ""} onClick={() => setView("plan")}>Plan</button>
             <button type="button" className={view === "seasons" ? "is-active" : ""} onClick={() => setView("seasons")}>Récap saisons</button>
           </div>
-          {view === "plan" && <button type="button" className="dash-btn dash-btn-secondary" onClick={openCreateModal}>+ Nouveau séjour</button>}
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={openCreateModal}>+ Nouveau séjour</button>
           <button type="button" className="dash-btn" onClick={saveProduction}>Enregistrer</button>
         </div>
       </header>
@@ -1234,6 +1239,7 @@ export default function ProductionSejours() {
                       <th>Taux</th>
                       <th>Statut</th>
                       <th></th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1252,7 +1258,7 @@ export default function ProductionSejours() {
                               title="Couleur de ce séjour dans le récap saisons"
                             />
                           </td>
-                          <td>{plan.name || "Sans nom"}</td>
+                          <td><button type="button" className="production-link-button" onClick={() => openPlan(plan.id)}>{plan.name || "Sans nom"}</button></td>
                           <td>{plan.location || "-"}</td>
                           <td>{(plan.ageGroups || []).join(", ") || "-"}</td>
                           <td>{planSessions.length}</td>
@@ -1262,6 +1268,7 @@ export default function ProductionSejours() {
                           <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
                           <td>{planComputed.marginRate.toFixed(1)} %</td>
                           <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
+                          <td><button type="button" className="dash-btn dash-btn-secondary" onClick={() => openPlan(plan.id)}>Ouvrir</button></td>
                           <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
                         </tr>
                       );

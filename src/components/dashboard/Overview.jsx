@@ -120,51 +120,6 @@ const QUICK_ACTIONS = [
   { label: "Pages du site", sub: "Contenu éditorial", href: "/dashboard/pages", icon: null },
 ];
 
-const WORKFLOW_STEPS = [
-  {
-    label: "Séjours",
-    title: "Fiches en vente",
-    text: "Créer les pages publiques, dates, prix et contenus.",
-    href: "/dashboard/sejours",
-    icon: <IconSun />,
-  },
-  {
-    label: "Production",
-    title: "Rentabilité",
-    text: "Tester les prix, enfants, postes de dépenses et marge.",
-    href: "/dashboard/production",
-    icon: <IconProduction />,
-  },
-  {
-    label: "Réservations",
-    title: "Ventes",
-    text: "Valider les familles, paiements et informations séjour.",
-    href: "/dashboard/reservations",
-    icon: <IconCalendar />,
-  },
-  {
-    label: "Finance",
-    title: "Paiements",
-    text: "Suivre CA, restes à payer, abonnements et documents.",
-    href: "/dashboard/finances",
-    icon: <IconFinance />,
-  },
-  {
-    label: "RH",
-    title: "Équipes",
-    text: "Contrats, salaires, documents et affectations.",
-    href: "/dashboard/rh",
-    icon: <IconUsers />,
-  },
-  {
-    label: "Convoyages",
-    title: "Départs / retours",
-    text: "Créer les trajets, billets, quais et convocations.",
-    href: "/dashboard/transport",
-    icon: <IconTransport />,
-  },
-];
-
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 function tsToMs(value) {
   if (value?.toMillis) return value.toMillis();
@@ -482,36 +437,6 @@ export default function Overview() {
         <h1>Tableau de bord</h1>
         <p style={{ textTransform: "capitalize" }}>{today}</p>
       </header>
-
-      <section className="dash-section dash-workflow-section">
-        <div className="dash-section-head">
-          <div>
-            <h2>Parcours de production</h2>
-            <span style={{ fontSize: 11, color: "var(--dash-muted)" }}>
-              Séjours en vente → simulation de rentabilité → réservations → paiements → équipes → convoyages
-            </span>
-          </div>
-        </div>
-        <div className="dash-workflow">
-          {WORKFLOW_STEPS.map((step, index) => (
-            <button
-              key={step.href}
-              type="button"
-              className="dash-workflow-step"
-              onClick={() => router.push(step.href)}
-            >
-              <span className="dash-workflow-index">{index + 1}</span>
-              <span className="dash-workflow-icon">{step.icon}</span>
-              <span className="dash-workflow-copy">
-                <strong>{step.label}</strong>
-                <em>{step.title}</em>
-                <small>{step.text}</small>
-              </span>
-              {index < WORKFLOW_STEPS.length - 1 && <span className="dash-workflow-arrow" aria-hidden="true">→</span>}
-            </button>
-          ))}
-        </div>
-      </section>
 
       {/* Metric cards */}
       <section className="dash-metrics-grid">

@@ -622,103 +622,6 @@
   border: 1px solid rgba(120, 90, 160, 0.12);
 }
 
-.dash-workflow-section {
-  border-color: #d9dee8;
-}
-
-.dash-workflow {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.dash-workflow-step {
-  position: relative;
-  display: grid;
-  min-height: 142px;
-  grid-template-rows: auto auto 1fr;
-  gap: 8px;
-  border: 1px solid #d9dee8;
-  border-radius: 8px;
-  background: #fff;
-  padding: 11px;
-  color: #172033;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.dash-workflow-step:hover {
-  border-color: #172033;
-  background: #fbfcfe;
-}
-
-.dash-workflow-index {
-  display: inline-flex;
-  width: 22px;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #172033;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.dash-workflow-icon {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #d9dee8;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #172033;
-}
-
-.dash-workflow-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.dash-workflow-copy strong {
-  font-size: 13px;
-}
-
-.dash-workflow-copy em {
-  color: #334155;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 800;
-}
-
-.dash-workflow-copy small {
-  color: #647084;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.dash-workflow-arrow {
-  position: absolute;
-  top: 14px;
-  right: -13px;
-  z-index: 1;
-  display: inline-flex;
-  width: 18px;
-  height: 18px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #d9dee8;
-  border-radius: 999px;
-  background: #fff;
-  color: #647084;
-  font-size: 12px;
-  font-weight: 900;
-}
-
 /* ─── Buttons ────────────────────────────────────────────────────────── */
 .dash-btn {
   border: 1px solid rgba(120, 90, 160, 0.18);
@@ -1098,6 +1001,24 @@
 
 .production-margin-positive { color: #047857; font-weight: 800; }
 .production-margin-negative { color: #dc2626; font-weight: 800; }
+
+.production-link-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--dash-accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color .15s ease;
+}
+
+.production-link-button:hover {
+  text-decoration-color: var(--dash-accent);
+}
 
 /* ── Plan switcher (replaces the old lateral sidebar) ── */
 .production-plan-switcher {
@@ -7710,8 +7631,6 @@
 @media (max-width: 1100px) {
   .dash-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-quick-grid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dash-workflow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dash-workflow-arrow { display: none; }
   .dash-media-grid   { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dash-sejour-grid  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-table-tools  { grid-template-columns: 1fr 1fr; }
@@ -7727,13 +7646,6 @@
   .dash-list-card .dash-inline-status,
   .dash-list-card .dash-row-actions { grid-column: 2; }
   .dash-media-grid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dash-workflow { grid-template-columns: 1fr; }
-  .dash-workflow-step {
-    min-height: 0;
-    grid-template-columns: auto auto minmax(0, 1fr);
-    grid-template-rows: auto;
-    align-items: center;
-  }
   .dash-sejour-grid  { grid-template-columns: 1fr; }
   .dash-homepage-spotlight { flex-direction: column; align-items: flex-start; }
   .dash-table-tools  { grid-template-columns: 1fr; }
