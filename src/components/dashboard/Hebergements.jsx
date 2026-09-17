@@ -8,6 +8,7 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import {
   ACCOMMODATION_FIT_OPTIONS,
   ACCOMMODATION_RESEARCH_DOC_ID,
+  ACCOMMODATION_RESEARCH_VERSION,
   ACCOMMODATION_SEED,
   ACCOMMODATION_STATUS_OPTIONS,
 } from "@/src/lib/accommodationSeed";
@@ -70,7 +71,14 @@ export default function Hebergements() {
         const snapshot = await getDoc(doc(db, COLLECTIONS.ACCOMMODATION_RESEARCH, ACCOMMODATION_RESEARCH_DOC_ID));
         if (!mounted) return;
         if (snapshot.exists() && Array.isArray(snapshot.data()?.rows) && snapshot.data().rows.length) {
-          setRows(snapshot.data().rows);
+          const savedRows = snapshot.data().rows;
+          const savedIds = new Set(savedRows.map((row) => row.id));
+          const savedVersion = Number(snapshot.data()?.researchVersion || 0);
+          const newResearchRows = ACCOMMODATION_SEED.filter((row) => (
+            Number(row.researchVersion || 0) > savedVersion && !savedIds.has(row.id)
+          ));
+          setRows([...savedRows, ...clone(newResearchRows)]);
+          if (newResearchRows.length) setDirty(true);
           const savedAt = snapshot.data()?.updatedAt?.toDate?.();
           if (savedAt) setLastSavedAt(savedAt.toLocaleString("fr-FR"));
         }
@@ -123,7 +131,11 @@ export default function Hebergements() {
   const save = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, COLLECTIONS.ACCOMMODATION_RESEARCH, ACCOMMODATION_RESEARCH_DOC_ID), { rows, updatedAt: serverTimestamp() });
+      await setDoc(doc(db, COLLECTIONS.ACCOMMODATION_RESEARCH, ACCOMMODATION_RESEARCH_DOC_ID), {
+        rows,
+        researchVersion: ACCOMMODATION_RESEARCH_VERSION,
+        updatedAt: serverTimestamp(),
+      });
       setDirty(false);
       setLastSavedAt(new Date().toLocaleString("fr-FR"));
       showToast("Liste des hébergements enregistrée.", "success");
