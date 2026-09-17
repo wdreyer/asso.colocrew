@@ -1362,9 +1362,21 @@
   border: var(--dash-border);
   border-radius: 10px;
   background: #fff;
-  padding: 9px 11px;
+  padding: 10px 12px;
   color: var(--dash-text);
   font: inherit;
+  font-size: 13.5px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.production-session-row input:hover {
+  border-color: rgba(184, 51, 106, 0.35);
+}
+
+.production-session-row input:focus {
+  outline: none;
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px rgba(184, 51, 106, 0.15);
 }
 
 .production-session-label {
@@ -1704,7 +1716,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .production-form-grid span,
@@ -1714,6 +1726,16 @@
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.production-field-hint {
+  margin-top: -2px;
+  color: var(--dash-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .production-form-grid input,
@@ -1726,10 +1748,24 @@
   border: var(--dash-border);
   border-radius: 10px;
   background: #fff;
-  padding: 9px 11px;
+  padding: 10px 12px;
   color: var(--dash-text);
   font: inherit;
-  transition: border-color .15s ease, box-shadow .15s ease;
+  font-size: 13.5px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.production-form-grid input::placeholder,
+.production-table input::placeholder,
+.production-notes textarea::placeholder {
+  color: #b9b0c9;
+}
+
+.production-form-grid input:hover,
+.production-form-grid select:hover,
+.production-table input:hover,
+.production-table select:hover {
+  border-color: rgba(184, 51, 106, 0.35);
 }
 
 .production-form-grid input:focus,
@@ -1740,6 +1776,25 @@
   outline: none;
   border-color: var(--dash-accent);
   box-shadow: 0 0 0 3px rgba(184, 51, 106, 0.15);
+}
+
+.production-form-grid input[readonly] {
+  background: #fbf9fc;
+  color: var(--dash-muted);
+  cursor: default;
+}
+
+.production-form-grid select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237a6d94' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  padding-right: 32px;
+}
+
+.production-form-grid input[type="number"] {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── KPI cards (reuse .dash-card / .dash-metrics-grid) ── */

@@ -180,8 +180,8 @@ function sessionsDuration(sessions) {
   const first = Array.isArray(sessions) ? sessions.find((session) => session?.startDate && session?.endDate) : null;
   const days = daysBetween(first?.startDate, first?.endDate);
   return {
-    days: days || DEFAULT_PRODUCTION_PLAN.days,
-    nights: days > 1 ? days - 1 : DEFAULT_PRODUCTION_PLAN.nights,
+    days,
+    nights: Math.max(days - 1, 0),
   };
 }
 
@@ -223,7 +223,7 @@ function normalizeProductionPlan(plan) {
     ageGroups: Array.isArray(merged.ageGroups) ? merged.ageGroups.map(String) : [],
     days: duration.days,
     nights: duration.nights,
-    expenses: Array.isArray(plan?.expenses) && plan.expenses.length
+    expenses: Array.isArray(plan?.expenses)
       ? plan.expenses.map(normalizeProductionExpense)
       : base.expenses.map(normalizeProductionExpense),
   };
@@ -762,13 +762,30 @@ export default function ProductionSejours() {
   const openCreateModal = () => {
     const id = `production-${Date.now()}`;
     const newPlan = normalizeProductionPlan({
-      ...DEFAULT_PRODUCTION_PLAN,
       id,
       name: "",
       stayCode: "",
       location: "",
       color: "",
+      ageGroups: [],
       linkedStayId: "",
+      pricePerChild: 0,
+      childCount: 0,
+      maxChildren: 0,
+      extraRevenue: 0,
+      sessions: [{ startDate: "", endDate: "" }],
+      mealPlan: "full",
+      mealsPerDay: 3,
+      mealCostPerPerson: 0,
+      directorCount: 0,
+      animatorCount: 0,
+      animatorStaffingMode: "manual",
+      animatorRatio: 8,
+      directorNetDay: 0,
+      animatorNetDay: 0,
+      staffCostMultiplier: 1.35,
+      notes: "",
+      expenses: [],
     });
     writePlans([...plans, newPlan], id);
     setWizardStep(0);
@@ -790,7 +807,7 @@ export default function ProductionSejours() {
      creation wizard, so the wizard covers the whole budget) ─────────── */
   const renderIdentitySection = () => (
     <div className="production-form-grid production-form-grid-3">
-      <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} onChange={(event) => updatePlan({ name: event.target.value })} /></label>
+      <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} placeholder="ex : Colo Surf Camp" onChange={(event) => updatePlan({ name: event.target.value })} /></label>
       <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} placeholder="ex : ABC" onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
       <label><span>Lieu</span><input value={selectedPlan.location || ""} placeholder="ex : Dax, Landes" onChange={(event) => updatePlan({ location: event.target.value })} /></label>
       <label>
@@ -801,6 +818,7 @@ export default function ProductionSejours() {
           value={selectedPlan.color || categoryColor(selectedPlan.name || selectedPlan.id)}
           onChange={(event) => updatePlan({ color: event.target.value })}
         />
+        <small className="production-field-hint">Sert à repérer ce séjour dans le récap saisons.</small>
       </label>
     </div>
   );
@@ -808,9 +826,21 @@ export default function ProductionSejours() {
   const renderCapacitySection = () => (
     <>
       <div className="production-form-grid production-form-grid-3">
-        <label><span>Nombre d'enfants (prévision)</span><input type="number" step="1" value={selectedPlan.childCount ?? 0} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} /></label>
-        <label><span>Capacité max (enfants)</span><input type="number" step="1" value={selectedPlan.maxChildren ?? 0} onChange={(event) => updatePlan({ maxChildren: amount(event.target.value) })} /></label>
-        <label><span>Recettes complémentaires</span><input type="number" step="0.01" value={selectedPlan.extraRevenue ?? 0} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} /></label>
+        <label>
+          <span>Nombre d'enfants (prévision)</span>
+          <input type="number" step="1" min="0" placeholder="ex : 30" value={selectedPlan.childCount || ""} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} />
+          <small className="production-field-hint">L'effectif utilisé pour tous les calculs de budget.</small>
+        </label>
+        <label>
+          <span>Capacité max (enfants)</span>
+          <input type="number" step="1" min="0" placeholder="ex : 35" value={selectedPlan.maxChildren || ""} onChange={(event) => updatePlan({ maxChildren: amount(event.target.value) })} />
+          <small className="production-field-hint">Le maximum que le lieu peut accueillir, pour info.</small>
+        </label>
+        <label>
+          <span>Recettes complémentaires</span>
+          <input type="number" step="0.01" min="0" placeholder="ex : 0" value={selectedPlan.extraRevenue || ""} onChange={(event) => updatePlan({ extraRevenue: amount(event.target.value) })} />
+          <small className="production-field-hint">Subventions, sponsors ou autres revenus hors prix de vente.</small>
+        </label>
       </div>
       <div className="production-age-chips">
         {AGE_GROUP_OPTIONS.map((age) => (
@@ -830,7 +860,11 @@ export default function ProductionSejours() {
   const renderWeeksSection = () => (
     <>
       <div className="production-form-grid production-form-grid-3">
-        <label><span>Nombre de séjours</span><input type="number" min="1" step="1" value={sessions.length} onChange={(event) => setSessionCount(event.target.value)} /></label>
+        <label>
+          <span>Nombre de séjours</span>
+          <input type="number" min="1" step="1" value={sessions.length} onChange={(event) => setSessionCount(event.target.value)} />
+          <small className="production-field-hint">Une semaine par séjour identique (S1, S2...). Change les dates de chacune ci-dessous.</small>
+        </label>
         <label><span>Durée par séjour</span><input readOnly value={`${selectedPlan.days || 0} jour${selectedPlan.days > 1 ? "s" : ""} · ${selectedPlan.nights || 0} nuit${selectedPlan.nights > 1 ? "s" : ""}`} /></label>
       </div>
       <div className="production-session-list">
@@ -882,18 +916,22 @@ export default function ProductionSejours() {
         </div>
       </div>
       <div className="production-form-grid production-form-grid-3">
-        <label><span>Nombre DS</span><input type="number" step="1" value={selectedPlan.directorCount ?? 0} onChange={(event) => updatePlan({ directorCount: amount(event.target.value) })} /></label>
-        <label><span>Salaire DS net / jour</span><input type="number" step="0.01" value={selectedPlan.directorNetDay ?? 0} onChange={(event) => updatePlan({ directorNetDay: amount(event.target.value) })} /></label>
+        <label><span>Nombre DS</span><input type="number" step="1" min="0" placeholder="ex : 1" value={selectedPlan.directorCount || ""} onChange={(event) => updatePlan({ directorCount: amount(event.target.value) })} /></label>
+        <label><span>Salaire DS net / jour</span><input type="number" step="0.01" min="0" placeholder="ex : 90" value={selectedPlan.directorNetDay || ""} onChange={(event) => updatePlan({ directorNetDay: amount(event.target.value) })} /></label>
         {selectedPlan.animatorStaffingMode === "ratio" ? (
           <label>
             <span>1 animateur pour ___ enfants</span>
             <input type="number" step="1" min="1" value={selectedPlan.animatorRatio ?? 8} onChange={(event) => updatePlan({ animatorRatio: amount(event.target.value) })} />
           </label>
         ) : (
-          <label><span>Nombre anims</span><input type="number" step="1" value={selectedPlan.animatorCount ?? 0} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
+          <label><span>Nombre anims</span><input type="number" step="1" min="0" placeholder="ex : 4" value={selectedPlan.animatorCount || ""} onChange={(event) => updatePlan({ animatorCount: amount(event.target.value) })} /></label>
         )}
-        <label><span>Salaire anim net / jour</span><input type="number" step="0.01" value={selectedPlan.animatorNetDay ?? 0} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
-        <label><span>Coefficient chargé</span><input type="number" step="0.01" value={selectedPlan.staffCostMultiplier ?? 1.35} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} /></label>
+        <label><span>Salaire anim net / jour</span><input type="number" step="0.01" min="0" placeholder="ex : 60" value={selectedPlan.animatorNetDay || ""} onChange={(event) => updatePlan({ animatorNetDay: amount(event.target.value) })} /></label>
+        <label>
+          <span>Coefficient chargé</span>
+          <input type="number" step="0.01" min="1" value={selectedPlan.staffCostMultiplier ?? 1.35} onChange={(event) => updatePlan({ staffCostMultiplier: amount(event.target.value) })} />
+          <small className="production-field-hint">Multiplie le salaire net pour estimer le coût employeur (1,35 = +35 % de charges).</small>
+        </label>
         {selectedPlan.animatorStaffingMode === "ratio" && (
           <label>
             <span>Nombre d'animateurs (calculé)</span>
@@ -939,7 +977,7 @@ export default function ProductionSejours() {
     <>
       <div className="production-form-grid production-form-grid-3">
         <label><span>Repas / jour</span><input type="number" step="1" min="0" value={selectedPlan.mealsPerDay ?? 3} onChange={(event) => updatePlan({ mealsPerDay: amount(event.target.value) })} /></label>
-        <label><span>Coût / repas / personne</span><input type="number" step="0.01" value={selectedPlan.mealCostPerPerson ?? 0} onChange={(event) => updatePlan({ mealCostPerPerson: amount(event.target.value) })} /></label>
+        <label><span>Coût / repas / personne</span><input type="number" step="0.01" min="0" placeholder="ex : 8" value={selectedPlan.mealCostPerPerson || ""} onChange={(event) => updatePlan({ mealCostPerPerson: amount(event.target.value) })} /></label>
         <label><span>Personnes concernées</span><input readOnly value={`${amount(selectedPlan.childCount)} enfants + ${computed.staffCount} staff = ${amount(selectedPlan.childCount) + computed.staffCount}`} /></label>
       </div>
       <div className="production-rh-summary">
@@ -1019,7 +1057,11 @@ export default function ProductionSejours() {
   const renderPricingSection = () => (
     <>
       <div className="production-form-grid production-form-grid-2">
-        <label><span>Prix de vente / enfant</span><input type="number" step="0.01" value={selectedPlan.pricePerChild ?? 0} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} /></label>
+        <label>
+          <span>Prix de vente / enfant</span>
+          <input type="number" step="0.01" min="0" placeholder="ex : 250" value={selectedPlan.pricePerChild || ""} onChange={(event) => updatePlan({ pricePerChild: amount(event.target.value) })} />
+          <small className="production-field-hint">Utilise un des repères ci-dessous, ou saisis ton propre prix.</small>
+        </label>
       </div>
       <div className="production-price-tiers">
         {PRICE_TIERS.map((tier) => {
