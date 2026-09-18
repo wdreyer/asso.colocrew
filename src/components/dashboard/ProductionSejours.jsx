@@ -44,7 +44,7 @@ const PRODUCTION_UNITS = [
   { key: "perNight", label: "Par nuit" },
   { key: "perChildDay", label: "Par enfant / jour" },
   { key: "perPersonDay", label: "Par personne / jour" },
-  { key: "perPersonNight", label: "Par personne / nuit" },
+  { key: "perPersonNight", label: "Par personne par nuit" },
   { key: "perStaffNight", label: "Par membre du staff / nuit" },
 ];
 
