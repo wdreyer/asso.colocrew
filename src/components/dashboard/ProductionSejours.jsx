@@ -1412,6 +1412,10 @@ export default function ProductionSejours() {
                       const planComputed = computeProduction(plan);
                       const planRange = sessionsRange(plan.sessions);
                       const planSessions = plan.sessions || [];
+                      const sessionCount = Math.max(planSessions.length, 1);
+                      const totalRevenue = planComputed.revenue * sessionCount;
+                      const totalExpenses = planComputed.totalExpenses * sessionCount;
+                      const totalMargin = planComputed.margin * sessionCount;
                       return (
                         <Fragment key={plan.id}>
                           <tr className="production-plan-summary-row">
@@ -1429,13 +1433,13 @@ export default function ProductionSejours() {
                             <td>{(plan.ageGroups || []).join(", ") || "-"}</td>
                             <td>{planSessions.length}</td>
                             <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
-                            <td>{plan.childCount}</td>
+                            <td><strong>{amount(plan.childCount) * sessionCount}</strong><small className="production-budget-context">{plan.childCount} × {sessionCount}</small></td>
                             <td>{currency(plan.pricePerChild)}</td>
-                            <td><strong>{currency(planComputed.revenue)}</strong><small className="production-budget-context">par séjour</small></td>
-                            <td><strong>{currency(planComputed.totalExpenses)}</strong><small className="production-budget-context">par séjour</small></td>
-                            <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}><strong>{currency(planComputed.margin)}</strong><small className="production-budget-context">par séjour</small></td>
+                            <td><strong>{currency(totalRevenue)}</strong><small className="production-budget-context">total × {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
+                            <td><strong>{currency(totalExpenses)}</strong><small className="production-budget-context">total × {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
+                            <td className={totalMargin >= 0 ? "production-margin-positive" : "production-margin-negative"}><strong>{currency(totalMargin)}</strong><small className="production-budget-context">marge totale × {sessionCount}</small></td>
                             <td>{planComputed.marginRate.toFixed(1)} %</td>
-                            <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
+                            <td>{plan.linkedStayId ? "Publié" : "Simulation"} · total</td>
                             <td><button type="button" className="dash-btn dash-btn-secondary" onClick={() => openPlan(plan.id)}>Ouvrir</button></td>
                             <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
                           </tr>
@@ -1458,7 +1462,7 @@ export default function ProductionSejours() {
                               <td>{currency(planComputed.totalExpenses)}</td>
                               <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
                               <td>{planComputed.marginRate.toFixed(1)} %</td>
-                              <td>Budget identique</td>
+                              <td>Budget unitaire</td>
                               <td></td>
                               <td></td>
                             </tr>
