@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
@@ -475,6 +476,11 @@ export default function ProductionSejours() {
   const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
+  const [portalMounted, setPortalMounted] = useState(false);
+
+  useEffect(() => {
+    setPortalMounted(true);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -1110,8 +1116,8 @@ export default function ProductionSejours() {
       </header>
       {status && <p className="accounting-status">{status}</p>}
 
-      {showCreateModal && selectedPlan && (
-        <div className="dash-modal-backdrop production-wizard-modal" onClick={closeCreateModal}>
+      {showCreateModal && selectedPlan && portalMounted && createPortal(
+        <div className="dash-modal-backdrop" onClick={closeCreateModal}>
           <div className="dash-modal-card dash-modal-lg" onClick={(event) => event.stopPropagation()}>
             <div className="dash-modal-header">
               <h3>Nouveau séjour — {currentWizardStep.label} ({safeWizardStep + 1}/{wizardSteps.length})</h3>
@@ -1162,7 +1168,8 @@ export default function ProductionSejours() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {view === "seasons" ? (

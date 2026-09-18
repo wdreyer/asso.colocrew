@@ -1579,16 +1579,6 @@
   color: var(--dash-text);
 }
 
-/* The shared .dash-modal-backdrop sits at inset:0 / z-index:300, which the
-   site's fixed top header (112px tall) can cover — same fix as .pp-overlay. */
-.dash-modal-backdrop.production-wizard-modal {
-  top: 112px;
-  z-index: 400;
-}
-
-@media (max-width: 1023px) { .dash-modal-backdrop.production-wizard-modal { top: 104px; } }
-@media (max-width: 719px)  { .dash-modal-backdrop.production-wizard-modal { top: 96px; } }
-
 /* ── Cards ── */
 .production-card {
   min-width: 0;
