@@ -44,6 +44,8 @@ const PRODUCTION_UNITS = [
   { key: "perNight", label: "Par nuit" },
   { key: "perChildDay", label: "Par enfant / jour" },
   { key: "perPersonDay", label: "Par personne / jour" },
+  { key: "perPersonNight", label: "Par personne / nuit" },
+  { key: "perStaffNight", label: "Par membre du staff / nuit" },
 ];
 
 const DEFAULT_PRODUCTION_EXPENSES = [
@@ -285,6 +287,8 @@ function productionExpenseTotal(line, plan, staffCount) {
     perNight: nights * quantity,
     perChildDay: children * days * quantity,
     perPersonDay: people * days * quantity,
+    perPersonNight: people * nights * quantity,
+    perStaffNight: amount(staffCount) * nights * quantity,
   }[line.unit] ?? 1;
   return Math.round(unitAmount * multiplier * 100) / 100;
 }
@@ -307,6 +311,8 @@ function productionExpenseFormula(line, plan, staffCount) {
     perNight: `${nights} nuits × ${quantity} × ${unitAmount}`,
     perChildDay: `${children} enfants × ${days} jours × ${quantity} × ${unitAmount}`,
     perPersonDay: `${people} personnes × ${days} jours × ${quantity} × ${unitAmount}`,
+    perPersonNight: `${people} personnes × ${nights} nuits × ${quantity} × ${unitAmount}`,
+    perStaffNight: `${amount(staffCount)} staff × ${nights} nuits × ${quantity} × ${unitAmount}`,
   }[line.unit] || `${unitLabel} · ${unitAmount}`;
 }
 
