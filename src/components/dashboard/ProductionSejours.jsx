@@ -530,6 +530,9 @@ export default function ProductionSejours() {
   const [sensitivityRange, setSensitivityRange] = useState({ start: null, end: null, step: 1 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
+  const [wizardError, setWizardError] = useState("");
+  const [savingWizard, setSavingWizard] = useState(false);
+  const [createModalContext, setCreateModalContext] = useState(null);
   const [portalMounted, setPortalMounted] = useState(false);
 
   useEffect(() => {
@@ -895,13 +898,89 @@ export default function ProductionSejours() {
       notes: "",
       expenses: deepClone(DEFAULT_PRODUCTION_EXPENSES),
     });
+    setCreateModalContext({
+      planId: id,
+      previousSelectedPlanId: selectedPlanId,
+      previousView: view,
+    });
     writePlans([...plans, newPlan], id);
     setWizardStep(0);
+    setWizardError("");
     setShowCreateModal(true);
     setView("plan");
   };
 
-  const closeCreateModal = () => setShowCreateModal(false);
+  const cancelCreateModal = () => {
+    const draftId = createModalContext?.planId;
+    const nextPlans = draftId ? plans.filter((plan) => plan.id !== draftId) : plans;
+    const previousSelectedId = createModalContext?.previousSelectedPlanId;
+    const nextSelectedId = nextPlans.some((plan) => plan.id === previousSelectedId)
+      ? previousSelectedId
+      : (nextPlans[0]?.id || "");
+
+    writePlans(nextPlans, nextSelectedId);
+    setView(createModalContext?.previousView || "seasons");
+    setShowCreateModal(false);
+    setCreateModalContext(null);
+    setWizardError("");
+  };
+
+  const validateWizardStep = (step) => {
+    if (!selectedPlan) return "Le brouillon du séjour est introuvable.";
+    if (step === 0) {
+      if (!String(selectedPlan.name || "").trim()) return "Renseigne le nom du séjour.";
+      if (amount(selectedPlan.childCount) <= 0) return "Renseigne un nombre d’enfants supérieur à zéro.";
+    }
+    if (step === 1) {
+      const firstSession = selectedPlan.sessions?.[0];
+      if (!firstSession?.startDate || !firstSession?.endDate) return "Renseigne les dates de début et de fin de S1.";
+      if (amount(selectedPlan.directorCount) + amount(computed?.animatorCount) <= 0) return "Ajoute au moins un membre dans l’équipe RH.";
+    }
+    if (step === 3 && amount(selectedPlan.pricePerChild) <= 0) return "Renseigne un prix de vente par enfant.";
+    return "";
+  };
+
+  const goToNextWizardStep = () => {
+    const error = validateWizardStep(safeWizardStep);
+    if (error) {
+      setWizardError(error);
+      return;
+    }
+    setWizardError("");
+    setWizardStep(Math.min(safeWizardStep + 1, wizardSteps.length - 1));
+  };
+
+  const finishCreateModal = async () => {
+    for (const step of [0, 1, 3]) {
+      const error = validateWizardStep(step);
+      if (error) {
+        setWizardStep(step);
+        setWizardError(error);
+        return;
+      }
+    }
+
+    setSavingWizard(true);
+    setWizardError("");
+    try {
+      const nextProduction = {
+        selectedPlanId,
+        plans: plans.map(normalizeProductionPlan),
+      };
+      await setDoc(doc(db, COLLECTIONS.ACCOUNTING_REPORTS, ACCOUNTING_DOC_ID), {
+        production: nextProduction,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setProduction(nextProduction);
+      setShowCreateModal(false);
+      setCreateModalContext(null);
+      setStatus(`Séjour « ${selectedPlan.name} » créé et enregistré.`);
+    } catch (error) {
+      setWizardError(`Enregistrement impossible : ${error?.message || "erreur inconnue"}`);
+    } finally {
+      setSavingWizard(false);
+    }
+  };
 
   const openPlan = (planId) => {
     setProduction((previous) => ({ ...previous, selectedPlanId: planId }));
@@ -1261,11 +1340,11 @@ export default function ProductionSejours() {
       {status && <p className="accounting-status">{status}</p>}
 
       {showCreateModal && selectedPlan && portalMounted && createPortal(
-        <div className="dash-modal-backdrop" onClick={closeCreateModal}>
+        <div className="dash-modal-backdrop">
           <div className="dash-modal-card dash-modal-lg" onClick={(event) => event.stopPropagation()}>
             <div className="dash-modal-header">
               <h3>Nouveau séjour — {currentWizardStep.label} ({safeWizardStep + 1}/{wizardSteps.length})</h3>
-              <button type="button" className="dash-btn dash-btn-secondary" onClick={closeCreateModal}>Fermer</button>
+              <button type="button" className="dash-btn dash-btn-secondary" onClick={cancelCreateModal} disabled={savingWizard}>Annuler</button>
             </div>
             <div className="dash-modal-body">
               <div className="production-wizard-recap">
@@ -1273,6 +1352,7 @@ export default function ProductionSejours() {
                 <span>Dépenses totales <strong>{currency(computed.totalExpenses)}</strong></span>
                 <span>Marge <strong className={computed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(computed.margin)} ({computed.marginRate.toFixed(1)} %)</strong></span>
               </div>
+              {wizardError && <p className="production-wizard-error" role="alert">{wizardError}</p>}
               {currentWizardStep.key === "identity" && (
                 <>
                   {renderIdentitySection()}
@@ -1300,16 +1380,16 @@ export default function ProductionSejours() {
                 </>
               )}
               {currentWizardStep.key === "pricing" && renderPricingSection()}
-              <div className="dash-modal-actions">
-                {safeWizardStep > 0 && (
-                  <button type="button" className="dash-btn dash-btn-secondary" onClick={() => setWizardStep(safeWizardStep - 1)}>Précédent</button>
-                )}
-                {safeWizardStep < wizardSteps.length - 1 ? (
-                  <button type="button" className="dash-btn" onClick={() => setWizardStep(safeWizardStep + 1)}>Suivant</button>
-                ) : (
-                  <button type="button" className="dash-btn" onClick={closeCreateModal}>Terminer</button>
-                )}
-              </div>
+            </div>
+            <div className="dash-modal-actions production-wizard-actions">
+              {safeWizardStep > 0 && (
+                <button type="button" className="dash-btn dash-btn-secondary" onClick={() => { setWizardError(""); setWizardStep(safeWizardStep - 1); }} disabled={savingWizard}>Précédent</button>
+              )}
+              {safeWizardStep < wizardSteps.length - 1 ? (
+                <button type="button" className="dash-btn" onClick={goToNextWizardStep} disabled={savingWizard}>Suivant</button>
+              ) : (
+                <button type="button" className="dash-btn" onClick={finishCreateModal} disabled={savingWizard}>{savingWizard ? "Enregistrement..." : "Créer et enregistrer"}</button>
+              )}
             </div>
           </div>
         </div>,
