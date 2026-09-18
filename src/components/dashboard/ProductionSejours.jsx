@@ -105,7 +105,7 @@ const PRICE_TIERS = [
   { key: "high", label: "Prix haut", rate: 0.2 },
 ];
 
-const SEASONS = ["Été", "Hiver"];
+const SEASONS = ["Hiver", "Été"];
 const AGE_GROUP_OPTIONS = ["6-8 ans", "9-11 ans", "12-14 ans", "15-17 ans"];
 const WEEKDAY_LETTERS_MON_FIRST = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -430,16 +430,6 @@ function timelineEntriesFor(plans) {
     })));
 }
 
-function startOfMonth(dateStr) {
-  const date = new Date(dateStr);
-  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-function endOfMonth(dateStr) {
-  const date = new Date(dateStr);
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
-}
-
 function dayInfo(dateStr) {
   const date = new Date(dateStr);
   const jsDay = date.getDay();
@@ -490,15 +480,17 @@ function planRowsFor(seasonEntries, plans) {
     list.push(entry);
     byPlan.set(entry.planId, list);
   });
-  return [...byPlan.entries()].map(([planId, planSessions]) => {
-    const plan = plans.find((item) => item.id === planId);
-    return {
-      planId,
-      planName: plan?.name || planSessions[0].planName,
-      color: plan?.color || planSessions[0].color,
-      sessions: [...planSessions].sort((a, b) => a.startDate.localeCompare(b.startDate)),
-    };
-  });
+  return [...byPlan.entries()]
+    .map(([planId, planSessions]) => {
+      const plan = plans.find((item) => item.id === planId);
+      return {
+        planId,
+        planName: plan?.name || planSessions[0].planName,
+        color: plan?.color || planSessions[0].color,
+        sessions: [...planSessions].sort((a, b) => a.startDate.localeCompare(b.startDate)),
+      };
+    })
+    .sort((a, b) => a.sessions[0].startDate.localeCompare(b.sessions[0].startDate));
 }
 
 function seasonGroupsFor(plans) {
@@ -510,9 +502,7 @@ function seasonGroupsFor(plans) {
     const ends = seasonEntries.map((entry) => entry.endDate).sort();
     const rawMin = starts[0];
     const rawMax = ends[ends.length - 1];
-    const minDate = startOfMonth(rawMin);
-    const maxDate = endOfMonth(rawMax);
-    const days = daysRangeFor(minDate, maxDate);
+    const days = daysRangeFor(rawMin, rawMax);
     const months = monthGroupsFor(days);
     const rows = planRowsFor(seasonEntries, plans);
     return { season, rows, days, months, rangeLabel: `${formatFr(rawMin)} → ${formatFr(rawMax)}` };
@@ -598,6 +588,14 @@ export default function ProductionSejours() {
     }
   }
   const seasonGroups = useMemo(() => seasonGroupsFor(plans), [plans]);
+  const orderedSeasonPlans = useMemo(() => [...plans].sort((a, b) => {
+    const startA = sessionsRange(a.sessions).openDate;
+    const startB = sessionsRange(b.sessions).openDate;
+    const rankA = startA ? SEASONS.indexOf(seasonOf(startA)) : SEASONS.length;
+    const rankB = startB ? SEASONS.indexOf(seasonOf(startB)) : SEASONS.length;
+    if (rankA !== rankB) return rankA - rankB;
+    return String(startA || "9999-12-31").localeCompare(String(startB || "9999-12-31"));
+  }), [plans]);
 
   const writePlans = (nextPlans, nextSelectedId = selectedPlanId) => {
     setProduction({
@@ -1488,16 +1486,25 @@ export default function ProductionSejours() {
                     </tr>
                   </thead>
                   <tbody>
-                    {plans.map((plan) => {
+                    {orderedSeasonPlans.map((plan, planIndex) => {
                       const planComputed = computeProduction(plan);
                       const planRange = sessionsRange(plan.sessions);
                       const planSessions = plan.sessions || [];
+                      const planSeason = planRange.openDate ? seasonOf(planRange.openDate) : "Sans date";
+                      const previousRange = planIndex > 0 ? sessionsRange(orderedSeasonPlans[planIndex - 1].sessions) : null;
+                      const previousSeason = previousRange?.openDate ? seasonOf(previousRange.openDate) : "Sans date";
+                      const showSeasonDivider = planIndex === 0 || planSeason !== previousSeason;
                       const sessionCount = Math.max(planSessions.length, 1);
                       const totalRevenue = planComputed.revenue * sessionCount;
                       const totalExpenses = planComputed.totalExpenses * sessionCount;
                       const totalMargin = planComputed.margin * sessionCount;
                       return (
                         <Fragment key={plan.id}>
+                          {showSeasonDivider && (
+                            <tr className="production-season-divider">
+                              <td colSpan="15">{planSeason}</td>
+                            </tr>
+                          )}
                           <tr className="production-plan-summary-row">
                             <td>
                               <input
