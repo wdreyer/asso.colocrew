@@ -1257,7 +1257,7 @@
 
 .production-session-row {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 32px;
+  grid-template-columns: 32px minmax(150px, 1fr) minmax(150px, 1fr) minmax(90px, 0.45fr) 32px;
   align-items: end;
   gap: 10px;
 }
@@ -1987,6 +1987,62 @@
 .production-mini-table th:nth-child(n+3),
 .production-mini-table td:nth-child(n+3) {
   text-align: right;
+}
+
+.production-summary-table {
+  min-width: 1160px;
+  table-layout: fixed;
+}
+
+.production-summary-table th,
+.production-summary-table td {
+  padding: 8px 7px;
+}
+
+.production-summary-table th:nth-child(1),
+.production-summary-table td:nth-child(1) { width: 48px; }
+.production-summary-table th:nth-child(2),
+.production-summary-table td:nth-child(2) { width: 132px; }
+.production-summary-table th:nth-child(3),
+.production-summary-table td:nth-child(3) { width: 96px; }
+.production-summary-table th:nth-child(4),
+.production-summary-table td:nth-child(4) { width: 70px; }
+.production-summary-table th:nth-child(5),
+.production-summary-table td:nth-child(5) { width: 62px; }
+.production-summary-table th:nth-child(6),
+.production-summary-table td:nth-child(6) { width: 92px; }
+.production-summary-table th:nth-child(7),
+.production-summary-table td:nth-child(7) { width: 72px; }
+.production-summary-table th:nth-child(8),
+.production-summary-table td:nth-child(8) { width: 82px; }
+.production-summary-table th:nth-child(9),
+.production-summary-table td:nth-child(9),
+.production-summary-table th:nth-child(10),
+.production-summary-table td:nth-child(10),
+.production-summary-table th:nth-child(11),
+.production-summary-table td:nth-child(11) { width: 92px; }
+.production-summary-table th:nth-child(12),
+.production-summary-table td:nth-child(12) { width: 58px; }
+.production-summary-table th:nth-child(13),
+.production-summary-table td:nth-child(13) { width: 86px; }
+.production-summary-table th:nth-child(14),
+.production-summary-table td:nth-child(14) { width: 72px; }
+.production-summary-table th:nth-child(15),
+.production-summary-table td:nth-child(15) { width: 82px; }
+
+.production-summary-table .production-link-button,
+.production-summary-table td {
+  overflow-wrap: anywhere;
+}
+
+.production-summary-table .dash-btn,
+.production-summary-table .accounting-table-remove {
+  padding: 7px 8px;
+  font-size: 11px;
+}
+
+.production-summary-parent-empty {
+  color: #94a3b8;
 }
 
 .production-mini-table tr:last-child td {

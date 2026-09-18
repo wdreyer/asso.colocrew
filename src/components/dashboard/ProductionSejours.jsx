@@ -172,9 +172,15 @@ function productionStaySlug(value) {
 }
 
 function normalizeSession(session) {
+  const expenseOverrides = session?.expenseOverrides && typeof session.expenseOverrides === "object"
+    ? Object.fromEntries(Object.entries(session.expenseOverrides).map(([key, value]) => [key, amount(value)]))
+    : {};
   return {
     startDate: session?.startDate ? String(session.startDate).slice(0, 10) : "",
     endDate: session?.endDate ? String(session.endDate).slice(0, 10) : "",
+    childCount: session?.childCount == null || session.childCount === "" ? null : amount(session.childCount),
+    expenseOverrides,
+    sourceQuote: session?.sourceQuote ? String(session.sourceQuote) : "",
   };
 }
 
@@ -340,7 +346,19 @@ function foodCostFor(plan, staffCount) {
 
 function computeProduction(planInput, options = {}) {
   const plan = normalizeProductionPlan(planInput);
-  const calcPlan = options.childCount != null ? { ...plan, childCount: amount(options.childCount) } : plan;
+  const expenseOverrides = options.expenseOverrides && typeof options.expenseOverrides === "object"
+    ? options.expenseOverrides
+    : {};
+  const expenses = plan.expenses.map((line) => (
+    line.key && Object.prototype.hasOwnProperty.call(expenseOverrides, line.key)
+      ? { ...line, unitAmount: amount(expenseOverrides[line.key]) }
+      : line
+  ));
+  const calcPlan = {
+    ...plan,
+    childCount: options.childCount != null ? amount(options.childCount) : amount(plan.childCount),
+    expenses,
+  };
   const animatorCount = effectiveAnimatorCount(plan, calcPlan.childCount);
   const staffCount = amount(plan.directorCount) + animatorCount;
   const simulatedStaffCost = Math.round((
@@ -400,6 +418,17 @@ function computeProduction(planInput, options = {}) {
     breakEvenPrice,
     categories: summarizeProductionByCategory(allExpenseRows),
   };
+}
+
+function sessionChildCount(plan, session) {
+  return session?.childCount == null ? amount(plan.childCount) : amount(session.childCount);
+}
+
+function computeProductionSession(plan, session) {
+  return computeProduction(plan, {
+    childCount: sessionChildCount(plan, session),
+    expenseOverrides: session?.expenseOverrides || {},
+  });
 }
 
 function findBreakEvenChildren(plan, maxSearch = 200) {
@@ -554,7 +583,7 @@ export default function ProductionSejours() {
   const selectedPlan = plans.length ? (plans[selectedIndex] || plans[0]) : null;
   const sessions = selectedPlan?.sessions || [];
   const { openDate, closeDate } = sessionsRange(sessions);
-  const computed = selectedPlan ? computeProduction(selectedPlan) : null;
+  const computed = selectedPlan ? computeProductionSession(selectedPlan, sessions[0]) : null;
   const accommodationExpense = selectedPlan?.expenses?.find(isAccommodationExpense);
   const accommodationCost = amount(accommodationExpense?.unitAmount);
 
@@ -713,7 +742,11 @@ export default function ProductionSejours() {
     const target = Math.max(1, Math.round(amount(value)));
     if (target === sessions.length) return;
     if (target > sessions.length) {
-      const additions = Array.from({ length: target - sessions.length }, () => ({ startDate: "", endDate: "" }));
+      const additions = Array.from({ length: target - sessions.length }, () => ({
+        startDate: "",
+        endDate: "",
+        childCount: amount(selectedPlan.childCount),
+      }));
       updatePlan({ sessions: [...sessions, ...additions] });
     } else {
       updatePlan({ sessions: sessions.slice(0, target) });
@@ -722,7 +755,9 @@ export default function ProductionSejours() {
 
   const addSession = () => {
     if (!selectedPlan) return;
-    updatePlan({ sessions: [...sessions, { startDate: "", endDate: "" }] });
+    updatePlan({
+      sessions: [...sessions, { startDate: "", endDate: "", childCount: amount(selectedPlan.childCount) }],
+    });
   };
 
   const removeSession = (index) => {
@@ -733,6 +768,28 @@ export default function ProductionSejours() {
   const updateSession = (index, patch) => {
     if (!selectedPlan) return;
     updatePlan({ sessions: sessions.map((session, i) => (i === index ? { ...session, ...patch } : session)) });
+  };
+
+  const setPlanChildCount = (value) => {
+    if (!selectedPlan) return;
+    const childCount = amount(value);
+    updatePlan({
+      childCount,
+      sessions: sessions.map((session, index) => (
+        index === 0 ? { ...session, childCount } : session
+      )),
+    });
+  };
+
+  const setSessionChildCount = (index, value) => {
+    if (!selectedPlan) return;
+    const childCount = amount(value);
+    updatePlan({
+      childCount: index === 0 ? childCount : selectedPlan.childCount,
+      sessions: sessions.map((session, sessionIndex) => (
+        sessionIndex === index ? { ...session, childCount } : session
+      )),
+    });
   };
 
   const setMealPlan = (mode) => {
@@ -882,7 +939,7 @@ export default function ProductionSejours() {
       childCount: 0,
       maxChildren: 0,
       extraRevenue: 0,
-      sessions: [{ startDate: "", endDate: "" }],
+      sessions: [{ startDate: "", endDate: "", childCount: 0 }],
       mealPlan: "full",
       mealsPerDay: 3,
       mealCostPerPerson: 8,
@@ -1022,9 +1079,9 @@ export default function ProductionSejours() {
     <>
       <div className="production-form-grid production-form-grid-3">
         <label>
-          <span>Nombre d'enfants (prévision)</span>
-          <input type="number" step="1" min="0" placeholder="ex : 30" value={selectedPlan.childCount || ""} onChange={(event) => updatePlan({ childCount: amount(event.target.value) })} />
-          <small className="production-field-hint">L'effectif utilisé pour tous les calculs de budget.</small>
+          <span>Nombre d'enfants en S1</span>
+          <input type="number" step="1" min="0" placeholder="ex : 30" value={selectedPlan.childCount || ""} onChange={(event) => setPlanChildCount(event.target.value)} />
+          <small className="production-field-hint">Chaque autre session peut avoir son propre effectif dans la section Semaines.</small>
         </label>
         <label>
           <span>Capacité max (enfants)</span>
@@ -1079,6 +1136,16 @@ export default function ProductionSejours() {
                 <strong>{session.endDate ? formatFr(session.endDate) : "Après la saisie du début"}</strong>
               </div>
             )}
+            <label>
+              <span>Enfants</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={sessionChildCount(selectedPlan, session) || ""}
+                onChange={(event) => setSessionChildCount(index, event.target.value)}
+              />
+            </label>
             <button type="button" className="production-session-remove" onClick={() => removeSession(index)} disabled={sessions.length <= 1} title="Retirer ce séjour">×</button>
           </div>
         ))}
@@ -1465,7 +1532,7 @@ export default function ProductionSejours() {
               <p className="dash-muted">Aucune simulation pour l'instant.</p>
             ) : (
               <div className="production-table-wrap">
-                <table className="production-mini-table">
+                <table className="production-mini-table production-summary-table">
                   <thead>
                     <tr>
                       <th>Couleur</th>
@@ -1487,7 +1554,6 @@ export default function ProductionSejours() {
                   </thead>
                   <tbody>
                     {orderedSeasonPlans.map((plan, planIndex) => {
-                      const planComputed = computeProduction(plan);
                       const planRange = sessionsRange(plan.sessions);
                       const planSessions = plan.sessions || [];
                       const planSeason = planRange.openDate ? seasonOf(planRange.openDate) : "Sans date";
@@ -1495,9 +1561,22 @@ export default function ProductionSejours() {
                       const previousSeason = previousRange?.openDate ? seasonOf(previousRange.openDate) : "Sans date";
                       const showSeasonDivider = planIndex === 0 || planSeason !== previousSeason;
                       const sessionCount = Math.max(planSessions.length, 1);
-                      const totalRevenue = planComputed.revenue * sessionCount;
-                      const totalExpenses = planComputed.totalExpenses * sessionCount;
-                      const totalMargin = planComputed.margin * sessionCount;
+                      const sessionComputations = planSessions.map((session) => ({
+                        session,
+                        computed: computeProductionSession(plan, session),
+                      }));
+                      const fallbackComputation = computeProduction(plan);
+                      const totalRevenue = sessionComputations.length
+                        ? sessionComputations.reduce((sum, item) => sum + item.computed.revenue, 0)
+                        : fallbackComputation.revenue;
+                      const totalExpenses = sessionComputations.length
+                        ? sessionComputations.reduce((sum, item) => sum + item.computed.totalExpenses, 0)
+                        : fallbackComputation.totalExpenses;
+                      const totalMargin = totalRevenue - totalExpenses;
+                      const totalChildren = sessionComputations.length
+                        ? sessionComputations.reduce((sum, item) => sum + item.computed.childCount, 0)
+                        : fallbackComputation.childCount;
+                      const totalMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
                       return (
                         <Fragment key={plan.id}>
                           {showSeasonDivider && (
@@ -1519,18 +1598,18 @@ export default function ProductionSejours() {
                             <td>{plan.location || "-"}</td>
                             <td>{(plan.ageGroups || []).join(", ") || "-"}</td>
                             <td>{planSessions.length}</td>
-                            <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
-                            <td><strong>{amount(plan.childCount) * sessionCount}</strong><small className="production-budget-context">{plan.childCount} × {sessionCount}</small></td>
+                            <td className="production-summary-parent-empty">—</td>
+                            <td><strong>{totalChildren}</strong><small className="production-budget-context">total sur {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
                             <td>{currency(plan.pricePerChild)}</td>
-                            <td><strong>{currency(totalRevenue)}</strong><small className="production-budget-context">total × {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
-                            <td><strong>{currency(totalExpenses)}</strong><small className="production-budget-context">total × {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
-                            <td className={totalMargin >= 0 ? "production-margin-positive" : "production-margin-negative"}><strong>{currency(totalMargin)}</strong><small className="production-budget-context">marge totale × {sessionCount}</small></td>
-                            <td>{planComputed.marginRate.toFixed(1)} %</td>
+                            <td><strong>{currency(totalRevenue)}</strong><small className="production-budget-context">somme des {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
+                            <td><strong>{currency(totalExpenses)}</strong><small className="production-budget-context">somme des {sessionCount} séjour{sessionCount > 1 ? "s" : ""}</small></td>
+                            <td className={totalMargin >= 0 ? "production-margin-positive" : "production-margin-negative"}><strong>{currency(totalMargin)}</strong><small className="production-budget-context">marge cumulée</small></td>
+                            <td>{totalMarginRate.toFixed(1)} %</td>
                             <td>{plan.linkedStayId ? "Publié" : "Simulation"} · total</td>
                             <td><button type="button" className="dash-btn dash-btn-secondary" onClick={() => openPlan(plan.id)}>Ouvrir</button></td>
                             <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
                           </tr>
-                          {planSessions.map((session, sessionIndex) => (
+                          {sessionComputations.map(({ session, computed: sessionComputed }, sessionIndex) => (
                             <tr className="production-plan-session-row" key={`${plan.id}-session-${sessionIndex}`}>
                               <td><span className="production-session-branch">↳</span></td>
                               <td>
@@ -1543,13 +1622,13 @@ export default function ProductionSejours() {
                               <td>—</td>
                               <td>1</td>
                               <td>{session.startDate ? formatFr(session.startDate) : "-"} → {session.endDate ? formatFr(session.endDate) : "-"}</td>
-                              <td>{plan.childCount}</td>
+                              <td>{sessionComputed.childCount}</td>
                               <td>{currency(plan.pricePerChild)}</td>
-                              <td>{currency(planComputed.revenue)}</td>
-                              <td>{currency(planComputed.totalExpenses)}</td>
-                              <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
-                              <td>{planComputed.marginRate.toFixed(1)} %</td>
-                              <td>Budget unitaire</td>
+                              <td>{currency(sessionComputed.revenue)}</td>
+                              <td>{currency(sessionComputed.totalExpenses)}</td>
+                              <td className={sessionComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(sessionComputed.margin)}</td>
+                              <td>{sessionComputed.marginRate.toFixed(1)} %</td>
+                              <td>{session.sourceQuote ? `Devis ${session.sourceQuote}` : "Budget unitaire"}</td>
                               <td></td>
                               <td></td>
                             </tr>
