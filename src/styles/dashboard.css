@@ -1980,6 +1980,45 @@
   font-weight: 800;
 }
 
+.production-plan-summary-row td {
+  border-top: 2px solid rgba(120, 90, 160, 0.14);
+  background: #fff;
+}
+
+.production-plan-summary-row:first-child td {
+  border-top: 0;
+}
+
+.production-plan-session-row td {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.production-plan-session-row:hover td {
+  background: #f1f5f9;
+}
+
+.production-session-branch {
+  color: var(--dash-accent);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.production-session-budget-label strong,
+.production-session-budget-label small,
+.production-budget-context {
+  display: block;
+}
+
+.production-session-budget-label small,
+.production-budget-context {
+  margin-top: 2px;
+  color: var(--dash-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .production-line-sums {
   border-top: var(--dash-border);
   background: #fbf9fc;

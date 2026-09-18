@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { Fragment, useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -1398,6 +1398,8 @@ export default function ProductionSejours() {
                       <th>Dates</th>
                       <th>Enfants</th>
                       <th>Prix/enfant</th>
+                      <th>Recettes</th>
+                      <th>Dépenses</th>
                       <th>Marge</th>
                       <th>Taux</th>
                       <th>Statut</th>
@@ -1411,29 +1413,57 @@ export default function ProductionSejours() {
                       const planRange = sessionsRange(plan.sessions);
                       const planSessions = plan.sessions || [];
                       return (
-                        <tr key={plan.id}>
-                          <td>
-                            <input
-                              type="color"
-                              className="production-color-input"
-                              value={plan.color || categoryColor(plan.name || plan.id)}
-                              onChange={(event) => updatePlanById(plan.id, { color: event.target.value })}
-                              title="Couleur de ce séjour dans le récap saisons"
-                            />
-                          </td>
-                          <td><button type="button" className="production-link-button" onClick={() => openPlan(plan.id)}>{plan.name || "Sans nom"}</button></td>
-                          <td>{plan.location || "-"}</td>
-                          <td>{(plan.ageGroups || []).join(", ") || "-"}</td>
-                          <td>{planSessions.length}</td>
-                          <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
-                          <td>{plan.childCount}</td>
-                          <td>{currency(plan.pricePerChild)}</td>
-                          <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
-                          <td>{planComputed.marginRate.toFixed(1)} %</td>
-                          <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
-                          <td><button type="button" className="dash-btn dash-btn-secondary" onClick={() => openPlan(plan.id)}>Ouvrir</button></td>
-                          <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
-                        </tr>
+                        <Fragment key={plan.id}>
+                          <tr className="production-plan-summary-row">
+                            <td>
+                              <input
+                                type="color"
+                                className="production-color-input"
+                                value={plan.color || categoryColor(plan.name || plan.id)}
+                                onChange={(event) => updatePlanById(plan.id, { color: event.target.value })}
+                                title="Couleur de ce séjour dans le récap saisons"
+                              />
+                            </td>
+                            <td><button type="button" className="production-link-button" onClick={() => openPlan(plan.id)}>{plan.name || "Sans nom"}</button></td>
+                            <td>{plan.location || "-"}</td>
+                            <td>{(plan.ageGroups || []).join(", ") || "-"}</td>
+                            <td>{planSessions.length}</td>
+                            <td>{planRange.openDate || "-"} → {planRange.closeDate || "-"}</td>
+                            <td>{plan.childCount}</td>
+                            <td>{currency(plan.pricePerChild)}</td>
+                            <td><strong>{currency(planComputed.revenue)}</strong><small className="production-budget-context">par séjour</small></td>
+                            <td><strong>{currency(planComputed.totalExpenses)}</strong><small className="production-budget-context">par séjour</small></td>
+                            <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}><strong>{currency(planComputed.margin)}</strong><small className="production-budget-context">par séjour</small></td>
+                            <td>{planComputed.marginRate.toFixed(1)} %</td>
+                            <td>{plan.linkedStayId ? "Publié" : "Simulation"}</td>
+                            <td><button type="button" className="dash-btn dash-btn-secondary" onClick={() => openPlan(plan.id)}>Ouvrir</button></td>
+                            <td><button type="button" className="accounting-table-remove" onClick={() => deletePlanById(plan.id)}>Supprimer</button></td>
+                          </tr>
+                          {planSessions.map((session, sessionIndex) => (
+                            <tr className="production-plan-session-row" key={`${plan.id}-session-${sessionIndex}`}>
+                              <td><span className="production-session-branch">↳</span></td>
+                              <td>
+                                <span className="production-session-budget-label">
+                                  <strong>S{sessionIndex + 1}</strong>
+                                  <small>{session.startDate ? seasonOf(session.startDate) : "À dater"}</small>
+                                </span>
+                              </td>
+                              <td>{plan.location || "-"}</td>
+                              <td>—</td>
+                              <td>1</td>
+                              <td>{session.startDate ? formatFr(session.startDate) : "-"} → {session.endDate ? formatFr(session.endDate) : "-"}</td>
+                              <td>{plan.childCount}</td>
+                              <td>{currency(plan.pricePerChild)}</td>
+                              <td>{currency(planComputed.revenue)}</td>
+                              <td>{currency(planComputed.totalExpenses)}</td>
+                              <td className={planComputed.margin >= 0 ? "production-margin-positive" : "production-margin-negative"}>{currency(planComputed.margin)}</td>
+                              <td>{planComputed.marginRate.toFixed(1)} %</td>
+                              <td>Budget identique</td>
+                              <td></td>
+                              <td></td>
+                            </tr>
+                          ))}
+                        </Fragment>
                       );
                     })}
                   </tbody>
