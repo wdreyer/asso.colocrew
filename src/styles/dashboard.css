@@ -1894,6 +1894,39 @@
   font-weight: 800;
 }
 
+.production-table .production-system-expense td {
+  background: #f4f7fb;
+}
+
+.production-table .production-system-expense:hover td {
+  background: #eef3f9;
+}
+
+.production-system-expense td:first-child strong,
+.production-system-expense td:first-child small {
+  display: block;
+}
+
+.production-system-expense td:first-child small {
+  margin-top: 3px;
+  color: var(--dash-muted);
+  font-size: 10.5px;
+}
+
+.production-system-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 8px;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 /* ── RH simulation detail table ── */
 .production-rh-detail-grid {
   padding: 0 18px 18px;

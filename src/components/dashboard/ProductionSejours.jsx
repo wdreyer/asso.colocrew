@@ -47,11 +47,12 @@ const PRODUCTION_UNITS = [
 ];
 
 const DEFAULT_PRODUCTION_EXPENSES = [
-  { label: "Hébergement gîte", category: "Hébergement", unit: "fixed", quantity: 1, unitAmount: 8550 },
+  { key: "accommodation", label: "Hébergement gîte", category: "Hébergement", unit: "fixed", quantity: 1, unitAmount: 8550 },
   { label: "Activités prestataires", category: "Activités", unit: "manual", quantity: 32, unitAmount: 200 },
   { label: "Pédagogie et petit matériel", category: "Péda et autre", unit: "perPerson", quantity: 1, unitAmount: 30 },
   { label: "Assurance", category: "Péda et autre", unit: "fixed", quantity: 1, unitAmount: 400 },
   { label: "Communication", category: "Péda et autre", unit: "fixed", quantity: 1, unitAmount: 500 },
+  { label: "Frais animateurs", category: "RH", unit: "perStaff", quantity: 1, unitAmount: 200 },
   { label: "Frais divers", category: "Péda et autre", unit: "fixed", quantity: 1, unitAmount: 1000 },
 ];
 
@@ -218,12 +219,26 @@ function seasonOf(dateStr) {
 
 function normalizeProductionExpense(line) {
   return {
+    key: line?.key || "",
     label: line?.label || "Nouvelle dépense",
     category: line?.category || "Autre",
     unit: PRODUCTION_UNITS.some((unit) => unit.key === line?.unit) ? line.unit : "fixed",
     quantity: amount(line?.quantity ?? 1),
     unitAmount: amount(line?.unitAmount),
   };
+}
+
+function comparableExpenseLabel(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function isAccommodationExpense(line) {
+  const searchable = comparableExpenseLabel(`${line?.label || ""} ${line?.category || ""}`);
+  return line?.key === "accommodation" || searchable.includes("hebergement");
 }
 
 function normalizeProductionPlan(plan) {
@@ -342,6 +357,27 @@ function computeProduction(planInput, options = {}) {
   }));
   const operationalExpenses = expenseRows.reduce((sum, line) => sum + amount(line.total), 0);
   const totalExpenses = Math.round((operationalExpenses + rhCost + foodCost) * 100) / 100;
+  const calculatedExpenseRows = [
+    {
+      key: "calculated-rh",
+      label: "Salaires et charges RH",
+      category: "RH",
+      formula: `${staffCount} staff × ${amount(plan.days)} jours · coefficient ${amount(plan.staffCostMultiplier || 1).toFixed(2)}`,
+      total: rhCost,
+      calculated: true,
+    },
+    {
+      key: "calculated-food",
+      label: "Nourriture",
+      category: "Nourriture",
+      formula: plan.mealPlan === "autogestion"
+        ? `${amount(plan.mealsPerDay)} repas × ${amount(plan.days)} jours × ${amount(calcPlan.childCount) + staffCount} personnes × ${currency(plan.mealCostPerPerson)}`
+        : "Pension complète incluse dans l’hébergement",
+      total: foodCost,
+      calculated: true,
+    },
+  ];
+  const allExpenseRows = [...expenseRows, ...calculatedExpenseRows];
   const margin = Math.round((revenue - totalExpenses) * 100) / 100;
   const marginRate = revenue > 0 ? (margin / revenue) * 100 : 0;
   const breakEvenPrice = amount(calcPlan.childCount) > 0 ? totalExpenses / amount(calcPlan.childCount) : 0;
@@ -355,16 +391,14 @@ function computeProduction(planInput, options = {}) {
     foodCost,
     revenue,
     expenseRows,
+    calculatedExpenseRows,
+    allExpenseRows,
     operationalExpenses,
     totalExpenses,
     margin,
     marginRate,
     breakEvenPrice,
-    categories: summarizeProductionByCategory([
-      ...expenseRows,
-      { category: "RH", total: rhCost },
-      ...(foodCost > 0 ? [{ category: "Nourriture", total: foodCost }] : []),
-    ]),
+    categories: summarizeProductionByCategory(allExpenseRows),
   };
 }
 
@@ -528,6 +562,8 @@ export default function ProductionSejours() {
   const sessions = selectedPlan?.sessions || [];
   const { openDate, closeDate } = sessionsRange(sessions);
   const computed = selectedPlan ? computeProduction(selectedPlan) : null;
+  const accommodationExpense = selectedPlan?.expenses?.find(isAccommodationExpense);
+  const accommodationCost = amount(accommodationExpense?.unitAmount);
 
   useEffect(() => {
     if (activeTab === "food" && selectedPlan && selectedPlan.mealPlan !== "autogestion") {
@@ -613,6 +649,56 @@ export default function ProductionSejours() {
     if (!selectedPlan) return;
     updatePlan({
       expenses: [...selectedPlan.expenses, { label: "Nouvelle dépense", category: "Autre", unit: "fixed", quantity: 1, unitAmount: 0 }],
+    });
+  };
+
+  const addDefaultExpenses = () => {
+    if (!selectedPlan) return;
+    const additions = DEFAULT_PRODUCTION_EXPENSES.filter((template) => (
+      !selectedPlan.expenses.some((line) => (
+        (template.key && line.key === template.key)
+        || comparableExpenseLabel(line.label) === comparableExpenseLabel(template.label)
+      ))
+    ));
+
+    if (!additions.length) {
+      setStatus("Tous les postes du modèle EVCC sont déjà présents.");
+      return;
+    }
+
+    updatePlan({ expenses: [...selectedPlan.expenses, ...deepClone(additions)] });
+    setStatus(`${additions.length} poste${additions.length > 1 ? "s" : ""} du modèle EVCC ajouté${additions.length > 1 ? "s" : ""}.`);
+  };
+
+  const setAccommodationCost = (value) => {
+    if (!selectedPlan) return;
+    const unitAmount = amount(value);
+    const expenseIndex = selectedPlan.expenses.findIndex(isAccommodationExpense);
+
+    if (expenseIndex === -1) {
+      updatePlan({
+        expenses: [
+          normalizeProductionExpense({ ...DEFAULT_PRODUCTION_EXPENSES[0], unitAmount }),
+          ...selectedPlan.expenses,
+        ],
+      });
+      return;
+    }
+
+    updatePlan({
+      expenses: selectedPlan.expenses.map((line, index) => (
+        index === expenseIndex
+          ? normalizeProductionExpense({
+            ...line,
+            key: "accommodation",
+            label: line.label || "Hébergement gîte",
+            category: line.category || "Hébergement",
+            unit: "fixed",
+            quantity: 1,
+            unitAmount,
+          })
+          : line
+      )),
     });
   };
 
@@ -798,16 +884,16 @@ export default function ProductionSejours() {
       sessions: [{ startDate: "", endDate: "" }],
       mealPlan: "full",
       mealsPerDay: 3,
-      mealCostPerPerson: 0,
-      directorCount: 0,
-      animatorCount: 0,
+      mealCostPerPerson: 8,
+      directorCount: 1,
+      animatorCount: 4,
       animatorStaffingMode: "manual",
       animatorRatio: 8,
-      directorNetDay: 0,
-      animatorNetDay: 0,
+      directorNetDay: 90,
+      animatorNetDay: 60,
       staffCostMultiplier: 1.35,
       notes: "",
-      expenses: [],
+      expenses: deepClone(DEFAULT_PRODUCTION_EXPENSES),
     });
     writePlans([...plans, newPlan], id);
     setWizardStep(0);
@@ -837,6 +923,11 @@ export default function ProductionSejours() {
       <label><span>Nom du séjour</span><input value={selectedPlan.name || ""} placeholder="ex : Colo Surf Camp" onChange={(event) => updatePlan({ name: event.target.value })} /></label>
       <label><span>Code séjour</span><input value={selectedPlan.stayCode || ""} placeholder="ex : ABC" onChange={(event) => updatePlan({ stayCode: event.target.value })} /></label>
       <label><span>Lieu</span><input value={selectedPlan.location || ""} placeholder="ex : Dax, Landes" onChange={(event) => updatePlan({ location: event.target.value })} /></label>
+      <label>
+        <span>Prix total de l’hébergement</span>
+        <input type="number" step="0.01" min="0" placeholder="ex : 8 550" value={accommodationCost || ""} onChange={(event) => setAccommodationCost(event.target.value)} />
+        <small className="production-field-hint">Ce montant alimente automatiquement la ligne Hébergement du tableau des dépenses.</small>
+      </label>
       <label>
         <span>Couleur (récap saisons)</span>
         <input
@@ -1032,7 +1123,10 @@ export default function ProductionSejours() {
     <>
       <div className="production-card-head" style={{ padding: "0 0 12px" }}>
         <div />
-        <button type="button" className="dash-btn dash-btn-secondary" onClick={addExpense}>Ajouter un poste</button>
+        <div className="accounting-actions">
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={addDefaultExpenses}>Ajouter le modèle EVCC</button>
+          <button type="button" className="dash-btn dash-btn-secondary" onClick={addExpense}>Ajouter un poste</button>
+        </div>
       </div>
       <div className="production-table-wrap">
         <table className="production-table production-spreadsheet">
@@ -1070,9 +1164,29 @@ export default function ProductionSejours() {
                 <td><button type="button" className="accounting-table-remove" onClick={() => removeExpense(index)}>Supprimer</button></td>
               </tr>
             ))}
+            {computed.calculatedExpenseRows.map((line) => (
+              <tr className="production-system-expense" key={line.key}>
+                <td>
+                  <strong>{line.label}</strong>
+                  <small>Calcul automatique</small>
+                </td>
+                <td>
+                  <div className="production-category-cell">
+                    <span className="production-cat-dot" style={{ background: categoryColor(line.category) }} />
+                    <strong>{line.category}</strong>
+                  </div>
+                </td>
+                <td><span className="production-system-badge">Calculé</span></td>
+                <td>—</td>
+                <td>—</td>
+                <td className="production-formula-cell">{line.formula}</td>
+                <td><strong>{currency(line.total)}</strong></td>
+                <td><span className="production-system-badge">Auto</span></td>
+              </tr>
+            ))}
             <tr className="total">
-              <td colSpan="6">Total hors RH et nourriture</td>
-              <td>{currency(computed.operationalExpenses)}</td>
+              <td colSpan="6">Total des dépenses</td>
+              <td>{currency(computed.totalExpenses)}</td>
               <td></td>
             </tr>
           </tbody>
@@ -1081,8 +1195,8 @@ export default function ProductionSejours() {
       <div className="production-line-sums">
         <h4>Somme par intitulé</h4>
         <div>
-          {computed.expenseRows.map((line, index) => (
-            <span key={index}>
+          {computed.allExpenseRows.map((line, index) => (
+            <span key={line.key || `${line.label}-${index}`}>
               <strong>{line.label || "Sans intitulé"}</strong>
               {currency(line.total)}
             </span>
@@ -1432,7 +1546,7 @@ export default function ProductionSejours() {
             <div className="production-card-head">
               <div>
                 <h3>Tableau des dépenses</h3>
-                <p>Saisie type Excel : intitulé, catégorie, unité de calcul, quantité, prix unitaire, puis total automatique par ligne.</p>
+                <p>Tous les coûts du séjour au même endroit : hébergement, postes éditables, nourriture et RH calculés automatiquement.</p>
               </div>
             </div>
             {renderExpensesSection()}
