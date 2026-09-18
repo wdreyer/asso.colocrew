@@ -141,8 +141,11 @@ function daysBetween(startDate, endDate) {
 }
 
 function addDays(dateStr, days) {
-  const date = new Date(dateStr);
-  date.setDate(date.getDate() + days);
+  if (!dateStr) return "";
+  const [year, month, day] = String(dateStr).slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
@@ -174,8 +177,24 @@ function normalizeSession(session) {
   };
 }
 
+function syncSessionEndDates(sessions) {
+  const normalized = (Array.isArray(sessions) ? sessions : []).map(normalizeSession);
+  const firstSession = normalized[0];
+  const durationDays = daysBetween(firstSession?.startDate, firstSession?.endDate);
+
+  return normalized.map((session, index) => {
+    if (index === 0) return session;
+    return {
+      ...session,
+      endDate: durationDays > 0 && session.startDate
+        ? addDays(session.startDate, durationDays - 1)
+        : "",
+    };
+  });
+}
+
 function sessionsDuration(sessions) {
-  const first = Array.isArray(sessions) ? sessions.find((session) => session?.startDate && session?.endDate) : null;
+  const first = Array.isArray(sessions) ? sessions[0] : null;
   const days = daysBetween(first?.startDate, first?.endDate);
   return {
     days,
@@ -210,9 +229,10 @@ function normalizeProductionExpense(line) {
 function normalizeProductionPlan(plan) {
   const base = deepClone(DEFAULT_PRODUCTION_PLAN);
   const merged = { ...base, ...(plan || {}) };
-  const sessions = Array.isArray(merged.sessions) && merged.sessions.length
+  const rawSessions = Array.isArray(merged.sessions) && merged.sessions.length
     ? merged.sessions.map(normalizeSession)
     : base.sessions.map(normalizeSession);
+  const sessions = syncSessionEndDates(rawSessions);
   const duration = sessionsDuration(sessions);
   return {
     ...merged,
@@ -615,8 +635,7 @@ export default function ProductionSejours() {
 
   const addSession = () => {
     if (!selectedPlan) return;
-    const last = sessions[sessions.length - 1];
-    updatePlan({ sessions: [...sessions, { startDate: last?.endDate || "", endDate: "" }] });
+    updatePlan({ sessions: [...sessions, { startDate: "", endDate: "" }] });
   };
 
   const removeSession = (index) => {
@@ -871,20 +890,31 @@ export default function ProductionSejours() {
         <label>
           <span>Nombre de séjours</span>
           <input type="number" min="1" step="1" value={sessions.length} onChange={(event) => setSessionCount(event.target.value)} />
-          <small className="production-field-hint">Une semaine par séjour identique (S1, S2...). Change les dates de chacune ci-dessous.</small>
+          <small className="production-field-hint">S1 fixe la durée. Pour les suivants, renseigne uniquement leur date de début.</small>
         </label>
-        <label><span>Durée par séjour</span><input readOnly value={`${selectedPlan.days || 0} jour${selectedPlan.days > 1 ? "s" : ""} · ${selectedPlan.nights || 0} nuit${selectedPlan.nights > 1 ? "s" : ""}`} /></label>
+        <label>
+          <span>Durée calculée depuis S1</span>
+          <input readOnly value={`${selectedPlan.days || 0} jour${selectedPlan.days > 1 ? "s" : ""} · ${selectedPlan.nights || 0} nuit${selectedPlan.nights > 1 ? "s" : ""}`} />
+          <small className="production-field-hint">Cette durée est automatiquement appliquée à tous les séjours.</small>
+        </label>
       </div>
       <div className="production-session-list">
         {sessions.map((session, index) => (
           <div className="production-session-row" key={index}>
             <span className="production-session-label">S{index + 1}</span>
             <label><span>Début</span><input type="date" value={session.startDate || ""} onChange={(event) => updateSession(index, { startDate: event.target.value })} /></label>
-            <label><span>Fin</span><input type="date" value={session.endDate || ""} onChange={(event) => updateSession(index, { endDate: event.target.value })} /></label>
-            <button type="button" className="production-session-remove" onClick={() => removeSession(index)} disabled={sessions.length <= 1} title="Retirer cette semaine">×</button>
+            {index === 0 ? (
+              <label><span>Fin</span><input type="date" min={session.startDate || undefined} value={session.endDate || ""} onChange={(event) => updateSession(index, { endDate: event.target.value })} /></label>
+            ) : (
+              <div className={`production-session-end${session.endDate ? "" : " is-pending"}`}>
+                <span>Fin calculée</span>
+                <strong>{session.endDate ? formatFr(session.endDate) : "Après la saisie du début"}</strong>
+              </div>
+            )}
+            <button type="button" className="production-session-remove" onClick={() => removeSession(index)} disabled={sessions.length <= 1} title="Retirer ce séjour">×</button>
           </div>
         ))}
-        <button type="button" className="dash-btn dash-btn-secondary" onClick={addSession}>+ Ajouter une semaine</button>
+        <button type="button" className="dash-btn dash-btn-secondary" onClick={addSession}>+ Ajouter un séjour</button>
       </div>
     </>
   );
@@ -1020,7 +1050,7 @@ export default function ProductionSejours() {
           </thead>
           <tbody>
             {computed.expenseRows.map((line, index) => (
-              <tr key={`${line.label}-${index}`}>
+              <tr key={index}>
                 <td><input className="production-text-input" value={line.label || ""} placeholder="ex: Hébergement, activités..." onChange={(event) => updateExpense(index, { label: event.target.value })} /></td>
                 <td>
                   <div className="production-category-cell">
@@ -1052,7 +1082,7 @@ export default function ProductionSejours() {
         <h4>Somme par intitulé</h4>
         <div>
           {computed.expenseRows.map((line, index) => (
-            <span key={`${line.label}-sum-${index}`}>
+            <span key={index}>
               <strong>{line.label || "Sans intitulé"}</strong>
               {currency(line.total)}
             </span>
@@ -1404,63 +1434,8 @@ export default function ProductionSejours() {
                 <h3>Tableau des dépenses</h3>
                 <p>Saisie type Excel : intitulé, catégorie, unité de calcul, quantité, prix unitaire, puis total automatique par ligne.</p>
               </div>
-              <button type="button" className="dash-btn dash-btn-secondary" onClick={addExpense}>Ajouter un poste</button>
             </div>
-            <div className="production-table-wrap">
-              <table className="production-table production-spreadsheet">
-                <thead>
-                  <tr>
-                    <th>Intitulé</th>
-                    <th>Catégorie</th>
-                    <th>Unité</th>
-                    <th>Qté</th>
-                    <th>Prix unit.</th>
-                    <th>Calcul</th>
-                    <th>Total ligne</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {computed.expenseRows.map((line, index) => (
-                    <tr key={`${line.label}-${index}`}>
-                      <td><input className="production-text-input" value={line.label || ""} placeholder="ex: Hébergement, activités..." onChange={(event) => updateExpense(index, { label: event.target.value })} /></td>
-                      <td>
-                        <div className="production-category-cell">
-                          <span className="production-cat-dot" style={{ background: categoryColor(line.category) }} />
-                          <input className="production-text-input" value={line.category || ""} placeholder="Catégorie" onChange={(event) => updateExpense(index, { category: event.target.value })} />
-                        </div>
-                      </td>
-                      <td>
-                        <select value={line.unit || "fixed"} onChange={(event) => updateExpense(index, { unit: event.target.value })}>
-                          {PRODUCTION_UNITS.map((unit) => <option key={unit.key} value={unit.key}>{unit.label}</option>)}
-                        </select>
-                      </td>
-                      <td><input className="production-number-input" type="number" step="0.01" value={line.quantity ?? 1} onChange={(event) => updateExpense(index, { quantity: amount(event.target.value) })} /></td>
-                      <td><input className="production-number-input" type="number" step="0.01" value={line.unitAmount ?? 0} onChange={(event) => updateExpense(index, { unitAmount: amount(event.target.value) })} /></td>
-                      <td className="production-formula-cell">{line.formula}</td>
-                      <td><strong>{currency(line.total)}</strong></td>
-                      <td><button type="button" className="accounting-table-remove" onClick={() => removeExpense(index)}>Supprimer</button></td>
-                    </tr>
-                  ))}
-                  <tr className="total">
-                    <td colSpan="6">Total hors RH et nourriture</td>
-                    <td>{currency(computed.operationalExpenses)}</td>
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="production-line-sums">
-              <h4>Somme par intitulé</h4>
-              <div>
-                {computed.expenseRows.map((line, index) => (
-                  <span key={`${line.label}-sum-${index}`}>
-                    <strong>{line.label || "Sans intitulé"}</strong>
-                    {currency(line.total)}
-                  </span>
-                ))}
-              </div>
-            </div>
+            {renderExpensesSection()}
           </section>
 
           <section className={activeTab === "summary" ? "production-card" : "production-card production-tab-hidden"}>
