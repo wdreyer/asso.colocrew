@@ -34,6 +34,39 @@ const ACCOUNTING_DOC_ID = "colocrew-2026";
 const DAY_WIDTH = 28;
 const LABEL_WIDTH = 170;
 
+const WINTER_SCHOOL_HOLIDAYS_2027 = [
+  {
+    zone: "C",
+    startDate: "2027-02-06",
+    endDate: "2027-02-21",
+    returnDate: "2027-02-22",
+    color: "#b4234b",
+    background: "#fce8ee",
+    academies: "Créteil, Montpellier, Paris, Toulouse et Versailles",
+    cities: "Créteil, Montpellier, Paris, Toulouse et Versailles",
+  },
+  {
+    zone: "A",
+    startDate: "2027-02-13",
+    endDate: "2027-02-28",
+    returnDate: "2027-03-01",
+    color: "#0f766e",
+    background: "#dff6f1",
+    academies: "Besançon, Bordeaux, Clermont-Ferrand, Dijon, Grenoble, Limoges, Lyon et Poitiers",
+    cities: "Besançon, Bordeaux, Clermont-Ferrand, Dijon, Grenoble, Limoges, Lyon et Poitiers",
+  },
+  {
+    zone: "B",
+    startDate: "2027-02-20",
+    endDate: "2027-03-07",
+    returnDate: "2027-03-08",
+    color: "#9a6700",
+    background: "#fff1c2",
+    academies: "Aix-Marseille, Amiens, Lille, Nancy-Metz, Nantes, Nice, Normandie, Orléans-Tours, Reims, Rennes et Strasbourg",
+    cities: "Aix-en-Provence, Marseille, Amiens, Lille, Nancy, Metz, Nantes, Nice, Caen, Rouen, Orléans, Tours, Reims, Rennes et Strasbourg",
+  },
+];
+
 const PRODUCTION_UNITS = [
   { key: "fixed", label: "Forfait séjour" },
   { key: "manual", label: "Quantité libre" },
@@ -532,15 +565,18 @@ function seasonGroupsFor(plans) {
   const entries = timelineEntriesFor(plans);
   return SEASONS.map((season) => {
     const seasonEntries = entries.filter((entry) => entry.season === season);
-    if (!seasonEntries.length) return { season, rows: [], days: [], months: [], rangeLabel: "" };
+    if (!seasonEntries.length) return { season, rows: [], days: [], months: [], holidayZones: [], rangeLabel: "" };
     const starts = seasonEntries.map((entry) => entry.startDate).sort();
     const ends = seasonEntries.map((entry) => entry.endDate).sort();
-    const rawMin = starts[0];
-    const rawMax = ends[ends.length - 1];
+    const holidayZones = season === "Hiver" ? WINTER_SCHOOL_HOLIDAYS_2027 : [];
+    const rangeStarts = [...starts, ...holidayZones.map((zone) => zone.startDate)].sort();
+    const rangeEnds = [...ends, ...holidayZones.map((zone) => zone.endDate)].sort();
+    const rawMin = rangeStarts[0];
+    const rawMax = rangeEnds[rangeEnds.length - 1];
     const days = daysRangeFor(rawMin, rawMax);
     const months = monthGroupsFor(days);
     const rows = planRowsFor(seasonEntries, plans);
-    return { season, rows, days, months, rangeLabel: `${formatFr(rawMin)} → ${formatFr(rawMax)}` };
+    return { season, rows, days, months, holidayZones, rangeLabel: `${formatFr(rawMin)} → ${formatFr(rawMax)}` };
   });
 }
 
@@ -1498,6 +1534,36 @@ export default function ProductionSejours() {
                         <div key={day.date} className={`production-timeline-daycell ${day.isWeekend ? "is-weekend" : ""}`} style={{ width: DAY_WIDTH }}>{day.dayNumber}</div>
                       ))}
                     </div>
+                    {group.holidayZones.map((holiday) => {
+                      const startIndex = Math.max(dayIndexOf(group.days, holiday.startDate), 0);
+                      const span = Math.max(daysBetween(holiday.startDate, holiday.endDate), 1);
+                      const holidayTitle = `Zone ${holiday.zone} · ${formatFr(holiday.startDate)} → ${formatFr(holiday.endDate)} · Reprise le ${formatFr(holiday.returnDate)} · Académies : ${holiday.academies} · Villes repères : ${holiday.cities}`;
+                      return (
+                        <div className="production-timeline-row production-timeline-holiday-row" key={holiday.zone}>
+                          <div className="production-timeline-label-cell" style={{ width: LABEL_WIDTH }}>Vacances · zone {holiday.zone}</div>
+                          <div className="production-timeline-row-track" style={{ width: group.days.length * DAY_WIDTH }}>
+                            {group.days.map((day, index) => day.isWeekend && (
+                              <div key={day.date} className="production-timeline-weekend-col" style={{ left: `${index * DAY_WIDTH}px`, width: `${DAY_WIDTH}px` }} />
+                            ))}
+                            <div
+                              className="production-timeline-holiday-bar"
+                              style={{
+                                left: `${startIndex * DAY_WIDTH}px`,
+                                width: `${span * DAY_WIDTH}px`,
+                                background: holiday.background,
+                                borderColor: holiday.color,
+                                color: holiday.color,
+                              }}
+                              title={holidayTitle}
+                              aria-label={holidayTitle}
+                              tabIndex={0}
+                            >
+                              Zone {holiday.zone} · {formatFr(holiday.startDate)} → {formatFr(holiday.endDate)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                     {group.rows.map((row) => (
                       <div className="production-timeline-row production-timeline-plan-row" key={row.planId}>
                         <div className="production-timeline-label-cell" style={{ width: LABEL_WIDTH }} title={row.planName}>{row.planName}</div>
@@ -1524,6 +1590,29 @@ export default function ProductionSejours() {
                       </div>
                     ))}
                   </div>
+                  {group.holidayZones.length > 0 && (
+                    <div className="production-holiday-details">
+                      {group.holidayZones.map((holiday) => (
+                        <div className="production-holiday-detail" key={holiday.zone}>
+                          <div className="production-holiday-detail-head">
+                            <span className="production-holiday-swatch" style={{ background: holiday.color }} />
+                            <strong>Zone {holiday.zone}</strong>
+                            <span>{formatFr(holiday.startDate)} → {formatFr(holiday.endDate)} · reprise {formatFr(holiday.returnDate)}</span>
+                          </div>
+                          <p><strong>Académies :</strong> {holiday.academies}</p>
+                          <p><strong>Villes repères :</strong> {holiday.cities}</p>
+                        </div>
+                      ))}
+                      <a
+                        className="production-holiday-source"
+                        href="https://www.legifrance.gouv.fr/loda/id/JORFTEXT000052416058"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Calendrier scolaire officiel 2026-2027
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

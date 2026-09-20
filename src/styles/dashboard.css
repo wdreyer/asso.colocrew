@@ -1183,6 +1183,21 @@
   border-bottom: 1px solid rgba(120, 90, 160, 0.1);
 }
 
+.production-timeline-holiday-row {
+  min-height: 32px;
+  border-bottom: 1px solid rgba(120, 90, 160, 0.1);
+  background: #fff;
+}
+
+.production-timeline-holiday-row .production-timeline-row-track {
+  min-height: 32px;
+}
+
+.production-timeline-holiday-row .production-timeline-label-cell {
+  color: #4b3d59;
+  font-size: 11px;
+}
+
 .production-timeline-row-track {
   position: relative;
   flex-shrink: 0;
@@ -1194,6 +1209,28 @@
   top: 0;
   bottom: 0;
   background: rgba(120, 90, 160, 0.06);
+}
+
+.production-timeline-holiday-bar {
+  position: absolute;
+  top: 4px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 0 8px;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.production-timeline-holiday-bar:focus-visible {
+  outline: 2px solid #18131f;
+  outline-offset: 2px;
 }
 
 .production-timeline-bar {
@@ -1211,6 +1248,81 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   box-shadow: 0 1px 4px rgba(20, 16, 42, 0.18);
+}
+
+.production-holiday-details {
+  position: sticky;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  width: min(100%, 1100px);
+  border-top: 1px solid rgba(120, 90, 160, 0.14);
+  background: #fff;
+}
+
+.production-holiday-detail {
+  min-width: 0;
+  border-right: 1px solid rgba(120, 90, 160, 0.14);
+  padding: 10px 12px;
+}
+
+.production-holiday-detail:last-of-type {
+  border-right: 0;
+}
+
+.production-holiday-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  color: var(--dash-text);
+  font-size: 11px;
+}
+
+.production-holiday-detail-head span:last-child {
+  color: var(--dash-muted);
+  font-weight: 700;
+}
+
+.production-holiday-swatch {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 2px;
+}
+
+.production-holiday-detail p {
+  margin: 2px 0 0;
+  color: var(--dash-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.production-holiday-detail p strong {
+  color: #4b3d59;
+}
+
+.production-holiday-source {
+  grid-column: 1 / -1;
+  border-top: 1px solid rgba(120, 90, 160, 0.12);
+  padding: 7px 12px;
+  color: #62516f;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .production-holiday-details {
+    grid-template-columns: 1fr;
+  }
+
+  .production-holiday-detail {
+    border-right: 0;
+    border-bottom: 1px solid rgba(120, 90, 160, 0.12);
+  }
 }
 
 .production-color-input {
