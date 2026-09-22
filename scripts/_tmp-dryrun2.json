@@ -1,0 +1,269 @@
+{
+  "mode": "dry-run",
+  "source": "ETE 26 - Inscriptions validées (4).xlsx",
+  "withdrawnMarkedDeleted": [
+    "grO8hCe1aq9BptmFh8e9",
+    "IljqXj0yVVnfcQt6sRYY"
+  ],
+  "duplicatesMarkedDeleted": [
+    "pcSIVBR05GlZGhBbBZoZ"
+  ],
+  "workbookRows": 166,
+  "matchedReservations": 140,
+  "matchedRows": 151,
+  "createdReservations": 2,
+  "createdRefs": [
+    "MCSC-S4-163-LER (Antonin LEROY)",
+    "EVCC-S3-164-DIA (Lea Diallo)"
+  ],
+  "currentlyPending": 1,
+  "skippedAsAlreadyExisting": [
+    {
+      "excelRow": 49,
+      "child": "Typhaine Rippling"
+    },
+    {
+      "excelRow": 110,
+      "child": "Denzel"
+    },
+    {
+      "excelRow": 115,
+      "child": "xxx Nagib 1"
+    },
+    {
+      "excelRow": 116,
+      "child": "xxx Nagib 2"
+    },
+    {
+      "excelRow": 117,
+      "child": "xxx Nagib 3"
+    },
+    {
+      "excelRow": 118,
+      "child": "xxx Nagib 4"
+    },
+    {
+      "excelRow": 119,
+      "child": "xxx Nagib 5"
+    },
+    {
+      "excelRow": 120,
+      "child": "xxx Nagib 6"
+    },
+    {
+      "excelRow": 121,
+      "child": "xxx Nagib 7"
+    },
+    {
+      "excelRow": 122,
+      "child": "xxx Nagib 8"
+    },
+    {
+      "excelRow": 123,
+      "child": "xxx Nagib 9"
+    },
+    {
+      "excelRow": 124,
+      "child": "xxx Nagib 10"
+    },
+    {
+      "excelRow": 142,
+      "child": "Léa COLONETTE"
+    }
+  ],
+  "ambiguousCount": 0,
+  "matchMethods": {
+    "reference": 36,
+    "email_child": 78,
+    "child_birth_stay_week": 37
+  },
+  "totals": {
+    "stayAmount": 141390.04,
+    "transportAmount": 18059.56,
+    "grossAmount": 159449.6,
+    "cafAidAmount": 45253,
+    "netAmount": 114196.6,
+    "paidAmount": 25419.77,
+    "remainingAmount": 88776.83
+  },
+  "ambiguous": [],
+  "creates": [
+    {
+      "reference": "MCSC-S4-163-LER",
+      "child": "Antonin LEROY",
+      "finance": {
+        "stayAmount": 1056,
+        "transportAmount": 0,
+        "grossAmount": 1056,
+        "cafAidAmount": 0,
+        "netAmount": 1056,
+        "paidAmount": 0,
+        "remainingAmount": 1056,
+        "source": "ETE 26 - Inscriptions validées (4).xlsx",
+        "entries": [
+          {
+            "excelRow": 163,
+            "source": "juvigo",
+            "childFirstName": "Antonin",
+            "childLastName": "LEROY",
+            "birthDate": "2014-04-19",
+            "reference": "MCSC-S4-163-LER",
+            "stayCode": "MCSC",
+            "week": "S4",
+            "departureCity": "Sur Place",
+            "returnCity": "Sur Place",
+            "grossAmount": 1056,
+            "netAmount": 1056,
+            "stayAmount": 1056,
+            "transportAmount": 0,
+            "cafAidAmount": 0,
+            "paidAmount": 0,
+            "invoiceIssued": false,
+            "registrationConfirmed": false,
+            "matchMethod": "created_from_workbook"
+          }
+        ]
+      },
+      "transport": {
+        "departureCity": "Sur Place",
+        "returnCity": "Sur Place",
+        "fee": 0
+      }
+    },
+    {
+      "reference": "EVCC-S3-164-DIA",
+      "child": "Lea Diallo",
+      "finance": {
+        "stayAmount": 853.2,
+        "transportAmount": 150,
+        "grossAmount": 1003.2,
+        "cafAidAmount": 0,
+        "netAmount": 1003.2,
+        "paidAmount": 0,
+        "remainingAmount": 1003.2,
+        "source": "ETE 26 - Inscriptions validées (4).xlsx",
+        "entries": [
+          {
+            "excelRow": 164,
+            "source": "juvigo",
+            "childFirstName": "Lea",
+            "childLastName": "Diallo",
+            "birthDate": "2012-11-05",
+            "reference": "EVCC-S3-164-DIA",
+            "stayCode": "EVCC",
+            "week": "S3",
+            "departureCity": "Paris",
+            "returnCity": "Paris",
+            "grossAmount": 1003.2,
+            "netAmount": 1003.2,
+            "stayAmount": 853.2,
+            "transportAmount": 150,
+            "cafAidAmount": 0,
+            "paidAmount": 0,
+            "invoiceIssued": false,
+            "registrationConfirmed": false,
+            "matchMethod": "created_from_workbook"
+          }
+        ]
+      },
+      "transport": {
+        "departureCity": "Paris",
+        "returnCity": "Paris",
+        "fee": 150
+      }
+    }
+  ],
+  "statusChanges": [
+    {
+      "id": "gPmC9QxEVg0rKDXTU0i2",
+      "reference": "RES-0705VID",
+      "previousStatus": "pending",
+      "nextStatus": "validated",
+      "responsible": "SOPHIE VIDAL",
+      "finance": {
+        "stayAmount": 2000,
+        "transportAmount": 0,
+        "grossAmount": 2000,
+        "cafAidAmount": 0,
+        "netAmount": 2000,
+        "paidAmount": 0,
+        "remainingAmount": 2000,
+        "source": "ETE 26 - Inscriptions validées (4).xlsx",
+        "entries": [
+          {
+            "excelRow": 161,
+            "source": "résa site",
+            "childFirstName": "Victor",
+            "childLastName": "Vidal",
+            "birthDate": "2010-02-18",
+            "reference": "",
+            "stayCode": "MCSC",
+            "week": "S3",
+            "departureCity": "Sur Place",
+            "returnCity": "Sur Place",
+            "grossAmount": 1000,
+            "netAmount": 1000,
+            "stayAmount": 1000,
+            "transportAmount": 0,
+            "cafAidAmount": 0,
+            "paidAmount": 0,
+            "invoiceIssued": false,
+            "registrationConfirmed": false,
+            "matchMethod": "email_child"
+          },
+          {
+            "excelRow": 162,
+            "source": "résa site",
+            "childFirstName": "Joséphine",
+            "childLastName": "Vidal",
+            "birthDate": "",
+            "reference": "",
+            "stayCode": "MCSC",
+            "week": "S3",
+            "departureCity": "Sur Place",
+            "returnCity": "Sur Place",
+            "grossAmount": 1000,
+            "netAmount": 1000,
+            "stayAmount": 1000,
+            "transportAmount": 0,
+            "cafAidAmount": 0,
+            "paidAmount": 0,
+            "invoiceIssued": false,
+            "registrationConfirmed": false,
+            "matchMethod": "email_child"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "excelRow": 161,
+          "reference": "",
+          "child": "Victor Vidal",
+          "email": "vidal.sojea@gmail.com",
+          "stay": "MCSC",
+          "week": "S3",
+          "transport": "Sur Place / Sur Place",
+          "grossAmount": 1000,
+          "transportAmount": 0,
+          "netAmount": 1000,
+          "paidAmount": 0,
+          "matchMethod": "email_child"
+        },
+        {
+          "excelRow": 162,
+          "reference": "",
+          "child": "Joséphine Vidal",
+          "email": "vidal.sojea@gmail.com",
+          "stay": "MCSC",
+          "week": "S3",
+          "transport": "Sur Place / Sur Place",
+          "grossAmount": 1000,
+          "transportAmount": 0,
+          "netAmount": 1000,
+          "paidAmount": 0,
+          "matchMethod": "email_child"
+        }
+      ]
+    }
+  ]
+}

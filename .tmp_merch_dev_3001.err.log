@@ -1,0 +1,78 @@
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ⨯ ./src/lib/merchConfig.js
+Error: Failed to read source code from C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\src\lib\merchConfig.js
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/lib/merchConfig.js
+./app/merch/MerchClient.jsx
+ ⨯ ./src/lib/merchConfig.js
+Error: Failed to read source code from C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\src\lib\merchConfig.js
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/lib/merchConfig.js
+./app/merch/MerchClient.jsx
+ ⨯ ./app/merch/MerchClient.jsx
+Error: Failed to read source code from C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\app\merch\MerchClient.jsx
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./app/merch/MerchClient.jsx
+./app/merch/page.js
+ ⨯ ./app/merch/MerchClient.jsx
+Error: Failed to read source code from C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\app\merch\MerchClient.jsx
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./app/merch/MerchClient.jsx
+./app/merch/page.js
+ ⨯ ./app/merch/MerchClient.module.css:9:1
+Syntax error: Selector ":global(body:has(.merchStandalone) header),
+:global(body:has(.merchStandalone) footer),
+:global(body:has(.merchStandalone) .fixed.bottom-20.right-5)" is not pure (pure selectors must contain at least one local class or id)
+
+ [90m  7 | [39m[33m}[39m
+ [90m  8 | [39m
+[1m[31m>[39m[22m[90m  9 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m header[36m)[39m,
+ [90m    | [39m[1m[31m^[39m[22m
+ [90m 10 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m footer[36m)[39m,
+ [90m 11 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m [33m.fixed.bottom-20.right-5[39m[36m)[39m [33m{[39m
+ ⨯ ./app/merch/MerchClient.module.css:9:1
+Syntax error: Selector ":global(body:has(.merchStandalone) header),
+:global(body:has(.merchStandalone) footer),
+:global(body:has(.merchStandalone) .fixed.bottom-20.right-5)" is not pure (pure selectors must contain at least one local class or id)
+
+ [90m  7 | [39m[33m}[39m
+ [90m  8 | [39m
+[1m[31m>[39m[22m[90m  9 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m header[36m)[39m,
+ [90m    | [39m[1m[31m^[39m[22m
+ [90m 10 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m footer[36m)[39m,
+ [90m 11 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m [33m.fixed.bottom-20.right-5[39m[36m)[39m [33m{[39m
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|javascript/auto|C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\next-flight-css-loader.js??ruleSet[1].rules[13].oneOf[5].use[0]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[13].oneOf[5].use[1]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[13].oneOf[5].use[2]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\app\merch\MerchClient.module.css|ssr': No serializer registered for CssSyntaxError
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> webpack/lib/ModuleBuildError -> CssSyntaxError
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[13].oneOf[5].use[2]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[13].oneOf[5].use[3]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\app\merch\MerchClient.module.css': No serializer registered for CssSyntaxError
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> webpack/lib/ModuleBuildError -> CssSyntaxError
+ ⨯ ./app/merch/MerchClient.module.css:9:1
+Syntax error: Selector ":global(body:has(.merchStandalone) header),
+:global(body:has(.merchStandalone) footer),
+:global(body:has(.merchStandalone) .fixed.bottom-20.right-5)" is not pure (pure selectors must contain at least one local class or id)
+
+ [90m  7 | [39m[33m}[39m
+ [90m  8 | [39m
+[1m[31m>[39m[22m[90m  9 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m header[36m)[39m,
+ [90m    | [39m[1m[31m^[39m[22m
+ [90m 10 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m footer[36m)[39m,
+ [90m 11 | [39m[33m:[39m[36mglobal[39m[36m([39mbody[33m:[39m[36mhas[39m[36m(.merchStandalone)[39m [33m.fixed.bottom-20.right-5[39m[36m)[39m [33m{[39m
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[13].oneOf[5].use[2]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[13].oneOf[5].use[3]!C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\app\merch\MerchClient.module.css': No serializer registered for CssSyntaxError
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> webpack/lib/ModuleBuildError -> CssSyntaxError

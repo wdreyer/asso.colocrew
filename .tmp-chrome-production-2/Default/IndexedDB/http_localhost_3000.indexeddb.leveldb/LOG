@@ -1,0 +1,6 @@
+2026/09/18-15:58:38.135 55a8 Creating DB C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\.tmp-chrome-production-2\Default\IndexedDB\http_localhost_3000.indexeddb.leveldb since it was missing.
+2026/09/18-15:58:38.153 55a8 Reusing MANIFEST C:\Users\dreye\Desktop\ProWebSite\asso.colocrew\.tmp-chrome-production-2\Default\IndexedDB\http_localhost_3000.indexeddb.leveldb/MANIFEST-000001
+2026/09/18-15:58:38.431 12cc Level-0 table #5: started
+2026/09/18-15:58:38.507 12cc Level-0 table #5: 1262 bytes OK
+2026/09/18-15:58:38.512 12cc Delete type=0 #3
+2026/09/18-15:58:38.513 12cc Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)
