@@ -21,6 +21,124 @@ const TABS = [
 
 const TEMPLATES = [
   {
+    key: "rentree-sejours-2027",
+    label: "Rentrée · séjours 2027",
+    subject: "Bonne rentrée - séjours hiver et été 2027",
+    html: `<p>Bonjour,</p>
+
+<p>Nous vous souhaitons une très bonne rentrée.</p>
+
+<p>Voici les séjours ColoCrew prévus pour l'hiver 2027 :</p>
+
+<table border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Séjour</th>
+      <th>Dates</th>
+      <th>Vacances scolaires</th>
+      <th>Ski</th>
+      <th>Prix</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Ski Camp Passion</td>
+      <td>13 au 19 février 2027</td>
+      <td>Zones A et C</td>
+      <td>5 séances</td>
+      <td>1 200 €</td>
+    </tr>
+    <tr>
+      <td>Ski Camp Évasion - S1</td>
+      <td>13 au 20 février 2027</td>
+      <td>Zones A et C</td>
+      <td>4 séances, dont 1 cours ESF</td>
+      <td>990 €</td>
+    </tr>
+    <tr>
+      <td>Ski Camp Évasion - S2</td>
+      <td>20 au 27 février 2027</td>
+      <td>Zones A et B</td>
+      <td>4 séances, dont 1 cours ESF</td>
+      <td>990 €</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Transport aller-retour en option : Grenoble 80 €, Lyon ou Marseille 150 €, Paris 200 €, Bordeaux 250 €.</p>
+
+<p>Nos séjours ouvrent droit aux aides CAF. Pour un quotient familial inférieur à 950, la réduction est généralement comprise entre 250 € et 350 €, selon votre CAF.</p>
+
+<p>À la Toussaint, nous organisons également des formations BAFA : formation générale et approfondissement. Les informations sont disponibles sur https://bafa.murathenes.org/</p>
+
+<p>Voici les séjours prévus pour l'été 2027 :</p>
+
+<table border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Séjour</th>
+      <th>Dates</th>
+      <th>Durée</th>
+      <th>Prix</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MCSC Origine - S1</td>
+      <td>12 au 20 juillet 2027</td>
+      <td>9 jours / 8 nuits</td>
+      <td>940 €</td>
+    </tr>
+    <tr>
+      <td>MCSC Origine - S2</td>
+      <td>21 au 29 juillet 2027</td>
+      <td>9 jours / 8 nuits</td>
+      <td>940 €</td>
+    </tr>
+    <tr>
+      <td>Hendaye Surf Camp - S1</td>
+      <td>16 au 23 juillet 2027</td>
+      <td>8 jours / 7 nuits</td>
+      <td>955 €</td>
+    </tr>
+    <tr>
+      <td>Hendaye Surf Camp - S2</td>
+      <td>24 au 31 juillet 2027</td>
+      <td>8 jours / 7 nuits</td>
+      <td>955 €</td>
+    </tr>
+    <tr>
+      <td>Cap Océan Surf - S1</td>
+      <td>23 juillet au 2 août 2027</td>
+      <td>11 jours / 10 nuits</td>
+      <td>1 140 €</td>
+    </tr>
+    <tr>
+      <td>Cap Océan Surf - S2</td>
+      <td>4 au 14 août 2027</td>
+      <td>11 jours / 10 nuits</td>
+      <td>1 140 €</td>
+    </tr>
+    <tr>
+      <td>Cap Océan Surf - S3</td>
+      <td>16 au 26 août 2027</td>
+      <td>11 jours / 10 nuits</td>
+      <td>1 140 €</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Transport aller-retour en option : Bordeaux ou Toulouse 60 € ; Paris, Lyon ou Montpellier 150 €.</p>
+
+<p>Pour toute question ou inscription, vous pouvez répondre à ce mail ou appeler le 06 87 91 68 97.</p>
+
+<p>Bonne rentrée à toutes et à tous,</p>
+
+<p>William<br>Association ColoCrew<br>https://www.colocrew.com</p>
+
+<p>Répondez « STOP » si vous ne souhaitez plus recevoir nos informations.</p>`,
+  },
+  {
     key: "bafa-toussaint-2026",
     label: "BAFA Toussaint 2026",
     subject: "Bonne rentrée — dernières places BAFA à la Toussaint",
