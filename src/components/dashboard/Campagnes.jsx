@@ -24,119 +24,124 @@ const TEMPLATES = [
     key: "rentree-sejours-2027",
     label: "Rentrée · séjours 2027",
     subject: "Bonne rentrée - séjours hiver et été 2027",
-    html: `<p>Bonjour,</p>
+    html: `<div style="max-width:760px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#24303f;line-height:1.55">
+  <h1 style="margin:0 0 18px;color:#8f1d2c;font-size:25px;line-height:1.2">Bonne rentrée 2026/2027</h1>
 
-<p>Nous vous souhaitons une très bonne rentrée.</p>
+  <p style="margin:0 0 14px">Bonjour à toutes et à tous,</p>
+  <p style="margin:0 0 22px">Nous vous souhaitons une très bonne rentrée. Voici les séjours ColoCrew prévus pour l'hiver et l'été 2027.</p>
 
-<p>Voici les séjours ColoCrew prévus pour l'hiver 2027 :</p>
+  <h2 style="margin:24px 0 10px;color:#8f1d2c;font-size:19px">Séjours d'hiver 2027</h2>
+  <div style="overflow-x:auto">
+    <table role="presentation" cellpadding="8" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#8f1d2c;color:#ffffff;text-align:left">
+          <th style="border:1px solid #d7dde5">Séjour</th>
+          <th style="border:1px solid #d7dde5">Lieu</th>
+          <th style="border:1px solid #d7dde5">Dates</th>
+          <th style="border:1px solid #d7dde5">Zones</th>
+          <th style="border:1px solid #d7dde5">Programme</th>
+          <th style="border:1px solid #d7dde5">Prix</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border:1px solid #d7dde5"><strong>Ski Camp Passion</strong></td>
+          <td style="border:1px solid #d7dde5">Les Contamines-Montjoie<br>Haute-Savoie (74)</td>
+          <td style="border:1px solid #d7dde5">13 au 19 février 2027</td>
+          <td style="border:1px solid #d7dde5">A et C</td>
+          <td style="border:1px solid #d7dde5">5 sorties ski</td>
+          <td style="border:1px solid #d7dde5"><strong>1 200 €</strong></td>
+        </tr>
+        <tr style="background:#f7f8fa">
+          <td style="border:1px solid #d7dde5"><strong>Ski Camp Évasion</strong></td>
+          <td style="border:1px solid #d7dde5">Saint-Michel-de-Chaillol<br>Hautes-Alpes (05)</td>
+          <td style="border:1px solid #d7dde5">13 au 20 février 2027<br>20 au 27 février 2027</td>
+          <td style="border:1px solid #d7dde5">A, B et C</td>
+          <td style="border:1px solid #d7dde5">4 sorties ski, dont 1 cours ESF</td>
+          <td style="border:1px solid #d7dde5"><strong>990 €</strong></td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d7dde5"><strong>Ski &amp; Musique</strong></td>
+          <td style="border:1px solid #d7dde5">Lanobre<br>Cantal (15)</td>
+          <td style="border:1px solid #d7dde5">21 au 27 février 2027<br>28 février au 6 mars 2027</td>
+          <td style="border:1px solid #d7dde5">A et B</td>
+          <td style="border:1px solid #d7dde5">Ski et projet musical</td>
+          <td style="border:1px solid #d7dde5"><strong>755 €</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
-<table border="1" cellpadding="6" cellspacing="0">
-  <thead>
-    <tr>
-      <th>Séjour</th>
-      <th>Dates</th>
-      <th>Vacances scolaires</th>
-      <th>Ski</th>
-      <th>Prix</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Ski Camp Passion</td>
-      <td>13 au 19 février 2027</td>
-      <td>Zones A et C</td>
-      <td>5 séances</td>
-      <td>1 200 €</td>
-    </tr>
-    <tr>
-      <td>Ski Camp Évasion - S1</td>
-      <td>13 au 20 février 2027</td>
-      <td>Zones A et C</td>
-      <td>4 séances, dont 1 cours ESF</td>
-      <td>990 €</td>
-    </tr>
-    <tr>
-      <td>Ski Camp Évasion - S2</td>
-      <td>20 au 27 février 2027</td>
-      <td>Zones A et B</td>
-      <td>4 séances, dont 1 cours ESF</td>
-      <td>990 €</td>
-    </tr>
-  </tbody>
-</table>
+  <p style="margin:14px 0 8px"><strong>Transport aller-retour en option :</strong> Grenoble 80 €, Lyon ou Marseille 150 €, Paris 200 €, Bordeaux 250 €.</p>
+  <p style="margin:0 0 20px;padding:12px 14px;background:#f7f8fa;border-left:4px solid #8f1d2c"><strong>Aides CAF :</strong> pour un quotient familial inférieur à 950, la réduction est généralement comprise entre 250 € et 350 €, selon votre CAF.</p>
 
-<p>Transport aller-retour en option : Grenoble 80 €, Lyon ou Marseille 150 €, Paris 200 €, Bordeaux 250 €.</p>
+  <p style="margin:0 0 24px"><strong>À la Toussaint, les formations BAFA continuent :</strong> formation générale et approfondissement. Toutes les informations sont disponibles sur <a href="https://bafa.murathenes.org/" style="color:#8f1d2c">bafa.murathenes.org</a>.</p>
 
-<p>Nos séjours ouvrent droit aux aides CAF. Pour un quotient familial inférieur à 950, la réduction est généralement comprise entre 250 € et 350 €, selon votre CAF.</p>
+  <h2 style="margin:24px 0 10px;color:#8f1d2c;font-size:19px">Séjours d'été 2027</h2>
+  <div style="overflow-x:auto">
+    <table role="presentation" cellpadding="8" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#8f1d2c;color:#ffffff;text-align:left">
+          <th style="border:1px solid #d7dde5">Séjour</th>
+          <th style="border:1px solid #d7dde5">Lieu</th>
+          <th style="border:1px solid #d7dde5">Dates</th>
+          <th style="border:1px solid #d7dde5">Durée</th>
+          <th style="border:1px solid #d7dde5">Prix</th>
+          <th style="border:1px solid #d7dde5">Aide CAF*</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border:1px solid #d7dde5"><strong>MCSC Origine</strong></td>
+          <td style="border:1px solid #d7dde5">Bidart<br>Pyrénées-Atlantiques (64)</td>
+          <td style="border:1px solid #d7dde5">12 au 20 juillet 2027<br>21 au 29 juillet 2027</td>
+          <td style="border:1px solid #d7dde5">9 jours / 8 nuits</td>
+          <td style="border:1px solid #d7dde5"><strong>940 €</strong></td>
+          <td style="border:1px solid #d7dde5">400 €</td>
+        </tr>
+        <tr style="background:#f7f8fa">
+          <td style="border:1px solid #d7dde5"><strong>Hendaye Surf Camp</strong></td>
+          <td style="border:1px solid #d7dde5">Hendaye<br>Pyrénées-Atlantiques (64)</td>
+          <td style="border:1px solid #d7dde5">16 au 23 juillet 2027<br>24 au 31 juillet 2027</td>
+          <td style="border:1px solid #d7dde5">8 jours / 7 nuits</td>
+          <td style="border:1px solid #d7dde5"><strong>955 €</strong></td>
+          <td style="border:1px solid #d7dde5">350 €</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #d7dde5"><strong>Cap Océan Surf</strong></td>
+          <td style="border:1px solid #d7dde5">Seignosse<br>Landes (40)</td>
+          <td style="border:1px solid #d7dde5">23 juillet au 2 août 2027<br>4 au 14 août 2027<br>16 au 26 août 2027</td>
+          <td style="border:1px solid #d7dde5">11 jours / 10 nuits</td>
+          <td style="border:1px solid #d7dde5"><strong>1 140 €</strong></td>
+          <td style="border:1px solid #d7dde5">500 €</td>
+        </tr>
+        <tr style="background:#f7f8fa">
+          <td style="border:1px solid #d7dde5"><strong>Eaux Vives Pyrénées</strong></td>
+          <td style="border:1px solid #d7dde5">Bidarray<br>Pyrénées-Atlantiques (64)</td>
+          <td style="border:1px solid #d7dde5">6 au 15 juillet 2027<br>17 au 26 juillet 2027<br>28 juillet au 6 août 2027<br>8 au 17 août 2027</td>
+          <td style="border:1px solid #d7dde5">10 jours / 9 nuits</td>
+          <td style="border:1px solid #d7dde5"><strong>950 €</strong></td>
+          <td style="border:1px solid #d7dde5">450 €</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 
-<p>À la Toussaint, nous organisons également des formations BAFA : formation générale et approfondissement. Les informations sont disponibles sur https://bafa.murathenes.org/</p>
+  <p style="margin:10px 0 8px;font-size:12px;color:#5f6b7a">* Aide CAF indicative pour un quotient familial inférieur à 950 : 50 € × (nombre de jours - 1), sous réserve de validation par votre CAF.</p>
+  <p style="margin:0 0 22px"><strong>Transport aller-retour en option :</strong> Bordeaux ou Toulouse 60 € ; Paris, Lyon ou Montpellier 150 €.</p>
 
-<p>Voici les séjours prévus pour l'été 2027 :</p>
+  <div style="margin:22px 0;padding:16px 18px;background:#f7f8fa;border:1px solid #d7dde5">
+    <h2 style="margin:0 0 10px;color:#8f1d2c;font-size:17px">Vous inscrivez un groupe ?</h2>
+    <p style="margin:0 0 7px">Nous accueillons les groupes constitués et proposons un <strong>tarif réduit à partir de 5 jeunes</strong>, sur devis.</p>
+    <p style="margin:0 0 7px">Vos animateurs peuvent participer au séjour : ils sont intégrés à l'équipe et nous préparons ensemble l'encadrement.</p>
+    <p style="margin:0">Nous pouvons également organiser le transport et vous accompagner dans les démarches CAF.</p>
+  </div>
 
-<table border="1" cellpadding="6" cellspacing="0">
-  <thead>
-    <tr>
-      <th>Séjour</th>
-      <th>Dates</th>
-      <th>Durée</th>
-      <th>Prix</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>MCSC Origine - S1</td>
-      <td>12 au 20 juillet 2027</td>
-      <td>9 jours / 8 nuits</td>
-      <td>940 €</td>
-    </tr>
-    <tr>
-      <td>MCSC Origine - S2</td>
-      <td>21 au 29 juillet 2027</td>
-      <td>9 jours / 8 nuits</td>
-      <td>940 €</td>
-    </tr>
-    <tr>
-      <td>Hendaye Surf Camp - S1</td>
-      <td>16 au 23 juillet 2027</td>
-      <td>8 jours / 7 nuits</td>
-      <td>955 €</td>
-    </tr>
-    <tr>
-      <td>Hendaye Surf Camp - S2</td>
-      <td>24 au 31 juillet 2027</td>
-      <td>8 jours / 7 nuits</td>
-      <td>955 €</td>
-    </tr>
-    <tr>
-      <td>Cap Océan Surf - S1</td>
-      <td>23 juillet au 2 août 2027</td>
-      <td>11 jours / 10 nuits</td>
-      <td>1 140 €</td>
-    </tr>
-    <tr>
-      <td>Cap Océan Surf - S2</td>
-      <td>4 au 14 août 2027</td>
-      <td>11 jours / 10 nuits</td>
-      <td>1 140 €</td>
-    </tr>
-    <tr>
-      <td>Cap Océan Surf - S3</td>
-      <td>16 au 26 août 2027</td>
-      <td>11 jours / 10 nuits</td>
-      <td>1 140 €</td>
-    </tr>
-  </tbody>
-</table>
-
-<p>Transport aller-retour en option : Bordeaux ou Toulouse 60 € ; Paris, Lyon ou Montpellier 150 €.</p>
-
-<p>Pour toute question ou inscription, vous pouvez répondre à ce mail ou appeler le 06 87 91 68 97.</p>
-
-<p>Bonne rentrée à toutes et à tous,</p>
-
-<p>William<br>Association ColoCrew<br>https://www.colocrew.com</p>
-
-<p>Répondez « STOP » si vous ne souhaitez plus recevoir nos informations.</p>`,
+  <p style="margin:0 0 14px">Pour toute question, devis ou inscription, vous pouvez répondre à ce mail ou appeler le <strong>06 87 91 68 97</strong>.</p>
+  <p style="margin:0 0 18px">Bonne rentrée à toutes et à tous,</p>
+  <p style="margin:0"><strong>William</strong><br>Association ColoCrew<br><a href="https://www.colocrew.com" style="color:#8f1d2c">www.colocrew.com</a></p>
+  <p style="margin:24px 0 0;font-size:11px;color:#6b7280">Répondez « STOP » si vous ne souhaitez plus recevoir nos informations.</p>
+</div>`,
   },
   {
     key: "bafa-toussaint-2026",
@@ -770,6 +775,221 @@ const SPEED_OPTIONS = [
   { label: "Rapide — 1s entre chaque (petites listes)", value: 1000  },
 ];
 
+function EmailWysiwygEditor({ value, onChange }) {
+  const iframeRef = useRef(null);
+  const cleanupRef = useRef(() => {});
+  const onChangeRef = useRef(onChange);
+  const loadedValueRef = useRef("");
+  const lastEmittedValueRef = useRef("");
+  const savedRangeRef = useRef(null);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const serializeDocument = useCallback((doc) => {
+    const root = doc.documentElement.cloneNode(true);
+    root.querySelectorAll("[data-email-editor-only]").forEach((node) => node.remove());
+    const body = root.querySelector("body");
+    body?.removeAttribute("contenteditable");
+    body?.removeAttribute("spellcheck");
+    return `<!DOCTYPE html>\n${root.outerHTML}`;
+  }, []);
+
+  const loadDocument = useCallback((nextValue) => {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc) return;
+
+    cleanupRef.current();
+    doc.open();
+    doc.write(nextValue || "<p>Commencez à écrire votre email…</p>");
+    doc.close();
+
+    const body = doc.body;
+    if (!body) return;
+
+    body.contentEditable = "true";
+    body.spellcheck = true;
+
+    const editorStyle = doc.createElement("style");
+    editorStyle.setAttribute("data-email-editor-only", "true");
+    editorStyle.textContent = `
+      html { background: #f8fafc; }
+      body { min-height: 400px; outline: none; cursor: text; }
+      body:focus { outline: none; }
+      a { cursor: text; }
+    `;
+    doc.head.appendChild(editorStyle);
+
+    const saveSelection = () => {
+      const selection = iframe.contentWindow?.getSelection();
+      if (selection?.rangeCount) savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+    };
+
+    const emitChange = () => {
+      const nextHtml = serializeDocument(doc);
+      lastEmittedValueRef.current = nextHtml;
+      onChangeRef.current(nextHtml);
+    };
+
+    body.addEventListener("input", emitChange);
+    body.addEventListener("keyup", saveSelection);
+    body.addEventListener("mouseup", saveSelection);
+    doc.addEventListener("selectionchange", saveSelection);
+    cleanupRef.current = () => {
+      body.removeEventListener("input", emitChange);
+      body.removeEventListener("keyup", saveSelection);
+      body.removeEventListener("mouseup", saveSelection);
+      doc.removeEventListener("selectionchange", saveSelection);
+    };
+    loadedValueRef.current = nextValue;
+    lastEmittedValueRef.current = nextValue;
+  }, [serializeDocument]);
+
+  useEffect(() => {
+    if (value === lastEmittedValueRef.current || value === loadedValueRef.current) return;
+    loadDocument(value);
+  }, [loadDocument, value]);
+
+  useEffect(() => () => cleanupRef.current(), []);
+
+  function restoreSelection() {
+    const iframe = iframeRef.current;
+    const selection = iframe?.contentWindow?.getSelection();
+    if (!selection || !savedRangeRef.current) return;
+    selection.removeAllRanges();
+    selection.addRange(savedRangeRef.current);
+  }
+
+  function runCommand(command, commandValue = null) {
+    const iframe = iframeRef.current;
+    const doc = iframe?.contentDocument;
+    if (!doc) return;
+    iframe.contentWindow?.focus();
+    restoreSelection();
+    doc.execCommand(command, false, commandValue);
+    const nextHtml = serializeDocument(doc);
+    lastEmittedValueRef.current = nextHtml;
+    onChangeRef.current(nextHtml);
+  }
+
+  function addLink() {
+    const rawUrl = window.prompt("Adresse du lien :", "https://");
+    if (!rawUrl) return;
+    const url = /^(https?:|mailto:|tel:)/i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+    runCommand("createLink", url);
+  }
+
+  const toolButtonStyle = {
+    width: 34,
+    height: 34,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid #d7dde5",
+    borderRadius: 6,
+    background: "#fff",
+    color: "#24303f",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 700,
+  };
+
+  const commandButton = (label, title, command, commandValue = null, extraStyle = {}) => (
+    <button
+      key={title}
+      type="button"
+      title={title}
+      aria-label={title}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => runCommand(command, commandValue)}
+      style={{ ...toolButtonStyle, ...extraStyle }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: 8, borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+        <select
+          aria-label="Style du texte"
+          title="Style du texte"
+          defaultValue="p"
+          onChange={(event) => runCommand("formatBlock", event.target.value)}
+          style={{ height: 34, minWidth: 112, border: "1px solid #d7dde5", borderRadius: 6, background: "#fff", padding: "0 8px", color: "#24303f" }}
+        >
+          <option value="p">Paragraphe</option>
+          <option value="h1">Titre 1</option>
+          <option value="h2">Titre 2</option>
+          <option value="h3">Titre 3</option>
+        </select>
+        <select
+          aria-label="Police"
+          title="Police"
+          defaultValue="Arial"
+          onChange={(event) => runCommand("fontName", event.target.value)}
+          style={{ height: 34, minWidth: 100, border: "1px solid #d7dde5", borderRadius: 6, background: "#fff", padding: "0 8px", color: "#24303f" }}
+        >
+          <option value="Arial">Arial</option>
+          <option value="Verdana">Verdana</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Trebuchet MS">Trebuchet</option>
+        </select>
+        <select
+          aria-label="Taille du texte"
+          title="Taille du texte"
+          defaultValue="3"
+          onChange={(event) => runCommand("fontSize", event.target.value)}
+          style={{ height: 34, width: 74, border: "1px solid #d7dde5", borderRadius: 6, background: "#fff", padding: "0 8px", color: "#24303f" }}
+        >
+          <option value="2">Petit</option>
+          <option value="3">Normal</option>
+          <option value="4">Grand</option>
+          <option value="5">Très grand</option>
+        </select>
+        <span style={{ width: 1, height: 24, background: "#d7dde5", margin: "0 2px" }} />
+        {commandButton("B", "Gras", "bold")}
+        {commandButton("I", "Italique", "italic", null, { fontFamily: "Georgia, serif", fontStyle: "italic" })}
+        {commandButton("U", "Souligné", "underline", null, { textDecoration: "underline" })}
+        <label title="Couleur du texte" aria-label="Couleur du texte" style={{ ...toolButtonStyle, position: "relative" }}>
+          <span style={{ borderBottom: "3px solid #8f1d2c", lineHeight: 1 }}>A</span>
+          <input
+            type="color"
+            defaultValue="#8f1d2c"
+            onChange={(event) => runCommand("foreColor", event.target.value)}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+          />
+        </label>
+        <span style={{ width: 1, height: 24, background: "#d7dde5", margin: "0 2px" }} />
+        {commandButton("•", "Liste à puces", "insertUnorderedList", null, { fontSize: 21 })}
+        {commandButton("1.", "Liste numérotée", "insertOrderedList")}
+        {commandButton("≡", "Aligner à gauche", "justifyLeft", null, { fontSize: 18 })}
+        {commandButton("≡", "Centrer", "justifyCenter", null, { fontSize: 18, textAlign: "center" })}
+        {commandButton("≡", "Aligner à droite", "justifyRight", null, { fontSize: 18, textAlign: "right" })}
+        <span style={{ width: 1, height: 24, background: "#d7dde5", margin: "0 2px" }} />
+        <button type="button" title="Ajouter un lien" aria-label="Ajouter un lien" onMouseDown={(event) => event.preventDefault()} onClick={addLink} style={toolButtonStyle}>↗</button>
+        {commandButton("×", "Retirer le lien", "unlink", null, { fontSize: 18 })}
+        {commandButton("Tx", "Effacer la mise en forme", "removeFormat", null, { fontSize: 12 })}
+        {commandButton("↶", "Annuler", "undo", null, { fontSize: 18 })}
+        {commandButton("↷", "Rétablir", "redo", null, { fontSize: 18 })}
+        <span style={{ width: 1, height: 24, background: "#d7dde5", margin: "0 2px" }} />
+        <button type="button" title="Insérer le prénom" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("insertText", "{{params.PRENOM}}")}
+          style={{ ...toolButtonStyle, width: "auto", padding: "0 9px", fontSize: 11 }}>Prénom</button>
+        <button type="button" title="Insérer le nom" onMouseDown={(event) => event.preventDefault()} onClick={() => runCommand("insertText", "{{params.NOM}}")}
+          style={{ ...toolButtonStyle, width: "auto", padding: "0 9px", fontSize: 11 }}>Nom</button>
+      </div>
+      <iframe
+        ref={iframeRef}
+        title="Éditeur visuel de l'email"
+        sandbox="allow-same-origin"
+        style={{ display: "block", width: "100%", height: 480, border: 0, background: "#fff" }}
+      />
+    </div>
+  );
+}
+
 function TabCampagne({ lists }) {
   const { showToast } = useToast();
 
@@ -778,7 +998,7 @@ function TabCampagne({ lists }) {
   const [subject,     setSubject]     = useState(TEMPLATES[0].subject);
   const [html,        setHtml]        = useState(TEMPLATES[0].html);
   const [replyTo,     setReplyTo]     = useState("equipe@colocrew.com");
-  const [preview,     setPreview]     = useState(false);
+  const [editorMode,  setEditorMode]  = useState("visual");
   const [delayMs,     setDelayMs]     = useState(3000);
 
   // Source contacts
@@ -859,7 +1079,7 @@ function TabCampagne({ lists }) {
       setActiveTemplateKey(t.key);
       setSubject(t.subject);
       setHtml(t.html);
-      setPreview(true);
+      setEditorMode("visual");
     }
   }
 
@@ -888,7 +1108,7 @@ function TabCampagne({ lists }) {
     if (list) setListId(list.id);
     setSelectedSenders(SENDERS.map((_, i) => i));
     setDelayMs(3000);
-    setPreview(true);
+    setEditorMode("visual");
     showToast(
       list
         ? `Offre juillet 2026 prete avec la liste "${list.name}"`
@@ -1150,19 +1370,52 @@ function TabCampagne({ lists }) {
         </div>
       </div>
 
-      {/* Contenu HTML */}
+      {/* Editeur du contenu */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <label style={{ ...S.label, margin: 0 }}>Contenu HTML</label>
-          <Btn variant="ghost" size="sm" onClick={() => setPreview(p => !p)}>{preview ? "← Éditer" : "Prévisualiser →"}</Btn>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+          <label style={{ ...S.label, margin: 0 }}>Contenu du mail</label>
+          <div role="tablist" aria-label="Mode d'édition" style={{ display: "inline-flex", padding: 3, border: "1px solid #d7dde5", borderRadius: 7, background: "#f8fafc" }}>
+            {[
+              { key: "visual", label: "Éditeur visuel" },
+              { key: "html", label: "HTML" },
+              { key: "preview", label: "Aperçu" },
+            ].map((mode) => {
+              const active = editorMode === mode.key;
+              return (
+                <button
+                  key={mode.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setEditorMode(mode.key)}
+                  style={{
+                    minHeight: 32,
+                    padding: "0 11px",
+                    border: 0,
+                    borderRadius: 5,
+                    background: active ? "#24303f" : "transparent",
+                    color: active ? "#fff" : "#526071",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {preview ? (
+        {editorMode === "preview" ? (
           <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", height: 440 }}>
             <iframe srcDoc={html} style={{ width: "100%", height: "100%", border: "none" }} sandbox="allow-same-origin" title="Aperçu" />
           </div>
-        ) : (
+        ) : editorMode === "html" ? (
           <textarea value={html} onChange={e => setHtml(e.target.value)}
-            style={{ ...S.inputFull, height: 300, fontFamily: "monospace", fontSize: 12, resize: "vertical", lineHeight: 1.5 }} />
+            spellCheck={false}
+            style={{ ...S.inputFull, height: 420, fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", fontSize: 12, resize: "vertical", lineHeight: 1.5 }} />
+        ) : (
+          <EmailWysiwygEditor value={html} onChange={setHtml} />
         )}
         <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 5 }}>
           Perso : <code>{"{{params.PRENOM}}"}</code> · <code>{"{{params.NOM}}"}</code>
