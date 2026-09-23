@@ -28,7 +28,9 @@ const TEMPLATES = [
   <h1 style="margin:0 0 18px;color:#8f1d2c;font-size:25px;line-height:1.2">Bonne rentrée 2026/2027</h1>
 
   <p style="margin:0 0 14px">Bonjour à toutes et à tous,</p>
-  <p style="margin:0 0 22px">Nous vous souhaitons une très bonne rentrée. Voici les séjours ColoCrew prévus pour l'hiver et l'été 2027.</p>
+  <p style="margin:0 0 12px">Nous vous souhaitons une très bonne rentrée. <strong>ColoCrew est une association d'éducation populaire</strong> qui organise des séjours où se rencontrent sport, projets artistiques, autonomie et vie collective.</p>
+  <p style="margin:0 0 12px">Nous tenons à proposer un encadrement attentif et renforcé, avec des équipes préparées en amont. Les jeunes gardent une vraie place dans les décisions et deviennent acteurs de leurs vacances.</p>
+  <p style="margin:0 0 22px">Basés en Haute-Savoie, nous pouvons aussi nous déplacer dans votre structure pour vous rencontrer et présenter le projet aux jeunes.</p>
 
   <h2 style="margin:24px 0 10px;color:#8f1d2c;font-size:19px">Séjours d'hiver 2027</h2>
   <div style="overflow-x:auto">
@@ -45,12 +47,12 @@ const TEMPLATES = [
       </thead>
       <tbody>
         <tr>
-          <td style="border:1px solid #d7dde5"><strong>Ski Camp Passion</strong></td>
-          <td style="border:1px solid #d7dde5">Les Contamines-Montjoie<br>Haute-Savoie (74)</td>
-          <td style="border:1px solid #d7dde5">13 au 19 février 2027</td>
-          <td style="border:1px solid #d7dde5">A et C</td>
-          <td style="border:1px solid #d7dde5">5 sorties ski</td>
-          <td style="border:1px solid #d7dde5"><strong>1 200 €</strong></td>
+          <td style="border:1px solid #d7dde5"><strong>Ski &amp; Musique</strong></td>
+          <td style="border:1px solid #d7dde5">Lanobre<br>Cantal (15)</td>
+          <td style="border:1px solid #d7dde5">21 au 27 février 2027<br>28 février au 6 mars 2027</td>
+          <td style="border:1px solid #d7dde5">A et B</td>
+          <td style="border:1px solid #d7dde5">Ski et projet musical</td>
+          <td style="border:1px solid #d7dde5"><strong>755 €</strong></td>
         </tr>
         <tr style="background:#f7f8fa">
           <td style="border:1px solid #d7dde5"><strong>Ski Camp Évasion</strong></td>
@@ -61,12 +63,12 @@ const TEMPLATES = [
           <td style="border:1px solid #d7dde5"><strong>990 €</strong></td>
         </tr>
         <tr>
-          <td style="border:1px solid #d7dde5"><strong>Ski &amp; Musique</strong></td>
-          <td style="border:1px solid #d7dde5">Lanobre<br>Cantal (15)</td>
-          <td style="border:1px solid #d7dde5">21 au 27 février 2027<br>28 février au 6 mars 2027</td>
-          <td style="border:1px solid #d7dde5">A et B</td>
-          <td style="border:1px solid #d7dde5">Ski et projet musical</td>
-          <td style="border:1px solid #d7dde5"><strong>755 €</strong></td>
+          <td style="border:1px solid #d7dde5"><strong>Ski Camp Passion</strong></td>
+          <td style="border:1px solid #d7dde5">Les Contamines-Montjoie<br>Haute-Savoie (74)</td>
+          <td style="border:1px solid #d7dde5">13 au 19 février 2027</td>
+          <td style="border:1px solid #d7dde5">A et C</td>
+          <td style="border:1px solid #d7dde5">5 sorties ski</td>
+          <td style="border:1px solid #d7dde5"><strong>1 200 €</strong></td>
         </tr>
       </tbody>
     </table>
@@ -100,6 +102,14 @@ const TEMPLATES = [
           <td style="border:1px solid #d7dde5">400 €</td>
         </tr>
         <tr style="background:#f7f8fa">
+          <td style="border:1px solid #d7dde5"><strong>Eaux Vives Pyrénées</strong></td>
+          <td style="border:1px solid #d7dde5">Bidarray<br>Pyrénées-Atlantiques (64)</td>
+          <td style="border:1px solid #d7dde5">6 au 15 juillet 2027<br>17 au 26 juillet 2027<br>28 juillet au 6 août 2027<br>8 au 17 août 2027</td>
+          <td style="border:1px solid #d7dde5">10 jours / 9 nuits</td>
+          <td style="border:1px solid #d7dde5"><strong>950 €</strong></td>
+          <td style="border:1px solid #d7dde5">450 €</td>
+        </tr>
+        <tr>
           <td style="border:1px solid #d7dde5"><strong>Hendaye Surf Camp</strong></td>
           <td style="border:1px solid #d7dde5">Hendaye<br>Pyrénées-Atlantiques (64)</td>
           <td style="border:1px solid #d7dde5">16 au 23 juillet 2027<br>24 au 31 juillet 2027</td>
@@ -107,21 +117,13 @@ const TEMPLATES = [
           <td style="border:1px solid #d7dde5"><strong>955 €</strong></td>
           <td style="border:1px solid #d7dde5">350 €</td>
         </tr>
-        <tr>
+        <tr style="background:#f7f8fa">
           <td style="border:1px solid #d7dde5"><strong>Cap Océan Surf</strong></td>
           <td style="border:1px solid #d7dde5">Seignosse<br>Landes (40)</td>
           <td style="border:1px solid #d7dde5">23 juillet au 2 août 2027<br>4 au 14 août 2027<br>16 au 26 août 2027</td>
           <td style="border:1px solid #d7dde5">11 jours / 10 nuits</td>
           <td style="border:1px solid #d7dde5"><strong>1 140 €</strong></td>
           <td style="border:1px solid #d7dde5">500 €</td>
-        </tr>
-        <tr style="background:#f7f8fa">
-          <td style="border:1px solid #d7dde5"><strong>Eaux Vives Pyrénées</strong></td>
-          <td style="border:1px solid #d7dde5">Bidarray<br>Pyrénées-Atlantiques (64)</td>
-          <td style="border:1px solid #d7dde5">6 au 15 juillet 2027<br>17 au 26 juillet 2027<br>28 juillet au 6 août 2027<br>8 au 17 août 2027</td>
-          <td style="border:1px solid #d7dde5">10 jours / 9 nuits</td>
-          <td style="border:1px solid #d7dde5"><strong>950 €</strong></td>
-          <td style="border:1px solid #d7dde5">450 €</td>
         </tr>
       </tbody>
     </table>
@@ -134,7 +136,7 @@ const TEMPLATES = [
     <h2 style="margin:0 0 10px;color:#8f1d2c;font-size:17px">Vous inscrivez un groupe ?</h2>
     <p style="margin:0 0 7px">Nous accueillons les groupes constitués et proposons un <strong>tarif réduit à partir de 5 jeunes</strong>, sur devis.</p>
     <p style="margin:0 0 7px">Vos animateurs peuvent participer au séjour : ils sont intégrés à l'équipe et nous préparons ensemble l'encadrement.</p>
-    <p style="margin:0">Nous pouvons également organiser le transport et vous accompagner dans les démarches CAF.</p>
+    <p style="margin:0">Nous pouvons présenter et co-préparer le séjour avec votre public, organiser le transport et vous accompagner dans les démarches CAF.</p>
   </div>
 
   <p style="margin:0 0 14px">Pour toute question, devis ou inscription, vous pouvez répondre à ce mail ou appeler le <strong>06 87 91 68 97</strong>.</p>
