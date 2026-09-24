@@ -992,6 +992,33 @@ function EmailWysiwygEditor({ value, onChange }) {
   );
 }
 
+async function consumeNdjson(response, onMessage) {
+  if (!response.ok || !response.body) {
+    const raw = await response.text().catch(() => "");
+    let message = raw;
+    try { message = JSON.parse(raw).error || raw; } catch { /* plain-text response */ }
+    throw new Error(message || `Erreur HTTP ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      onMessage(JSON.parse(line));
+    }
+    if (done) break;
+  }
+
+  if (buffer.trim()) onMessage(JSON.parse(buffer));
+}
+
 function TabCampagne({ lists }) {
   const { showToast } = useToast();
 
@@ -1002,6 +1029,10 @@ function TabCampagne({ lists }) {
   const [replyTo,     setReplyTo]     = useState("equipe@colocrew.com");
   const [editorMode,  setEditorMode]  = useState("visual");
   const [delayMs,     setDelayMs]     = useState(3000);
+  const [drafts,      setDrafts]      = useState([]);
+  const [activeDraftId, setActiveDraftId] = useState(null);
+  const [draftName,   setDraftName]   = useState(TEMPLATES[0].label);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   // Source contacts
   const [sourceMode,  setSourceMode]  = useState("list"); // "list" | "csv"
@@ -1050,7 +1081,18 @@ function TabCampagne({ lists }) {
     }
   }, [loadRun]);
 
+  const loadDrafts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/brevo/drafts");
+      const data = await response.json();
+      if (response.ok) setDrafts(data.drafts || []);
+    } catch {
+      // Draft loading must not prevent campaign editing.
+    }
+  }, []);
+
   useEffect(() => { loadLatestRun(); }, [loadLatestRun]);
+  useEffect(() => { loadDrafts(); }, [loadDrafts]);
 
   useEffect(() => {
     if (!activeRunId) return;
@@ -1079,9 +1121,53 @@ function TabCampagne({ lists }) {
     const t = TEMPLATES.find(t => t.key === key);
     if (t) {
       setActiveTemplateKey(t.key);
+      setActiveDraftId(null);
+      setDraftName(t.label);
       setSubject(t.subject);
       setHtml(t.html);
       setEditorMode("visual");
+    }
+  }
+
+  function pickDraft(draft) {
+    setActiveTemplateKey("");
+    setActiveDraftId(draft.id);
+    setDraftName(draft.name || draft.subject || "Brouillon");
+    setSubject(draft.subject || "");
+    setHtml(draft.html || "");
+    setReplyTo(draft.replyTo || "equipe@colocrew.com");
+    setEditorMode("visual");
+  }
+
+  async function saveDraft() {
+    if (!subject.trim() || !html.trim() || !replyTo.trim()) {
+      return showToast("Objet, contenu et adresse de reponse requis", "error");
+    }
+
+    setSavingDraft(true);
+    try {
+      const response = await fetch("/api/brevo/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: activeDraftId,
+          name: draftName.trim() || subject.trim(),
+          subject,
+          html,
+          replyTo,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Impossible d'enregistrer le brouillon");
+      setActiveDraftId(data.id);
+      setActiveTemplateKey("");
+      setDraftName(draftName.trim() || subject.trim());
+      await loadDrafts();
+      showToast("Mail enregistre", "success");
+    } catch (error) {
+      showToast(error.message || "Impossible d'enregistrer le brouillon", "error");
+    } finally {
+      setSavingDraft(false);
     }
   }
 
@@ -1148,123 +1234,81 @@ function TabCampagne({ lists }) {
     if (!replyTo) return showToast("L'adresse Reply-to est obligatoire — c'est là que vous recevrez les réponses", "error");
     if (!selectedSenders.length) return showToast("Sélectionnez au moins un expéditeur", "error");
 
-    let contacts = [];
+    let contacts;
     let selectedListName = "";
+    let estimatedTotal = 0;
     if (sourceMode === "list") {
       if (!listId) return showToast("Sélectionnez une liste", "error");
-      const r = await fetch(`/api/brevo/contacts?listId=${listId}`).then(r => r.json());
-      contacts = r.contacts || [];
-      selectedListName = lists.find(l => l.id === listId)?.name || "";
+      selectedListName = selectedList?.name || "";
+      estimatedTotal = Number(selectedList?.count || 0);
     } else {
       if (!csvContacts?.length) return showToast("Chargez un fichier CSV", "error");
       contacts = csvContacts;
+      estimatedTotal = csvContacts.length;
     }
-    if (!contacts.length) return showToast("Aucun contact à envoyer", "error");
 
     const senders = selectedSenders.map(i => SENDERS[i]);
+    const batchSize = delayMs >= 10000 ? 4 : delayMs >= 3000 ? 10 : 20;
     setDispatching(true);
-    setProgress({ sent: 0, errors: 0, total: contacts.length, current: null });
+    setProgress({ sent: 0, errors: 0, total: estimatedTotal, current: null });
     setDispatchDone(null);
 
     try {
       const res = await fetch("/api/brevo/dispatch", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName, maxPerRequest: 2 }),
+        body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName, maxPerRequest: batchSize }),
       });
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
       let runIdToResume = "";
       let shouldResume = false;
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value).split("\n").filter(Boolean);
-        for (const line of lines) {
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === "start") {
-              runIdToResume = msg.runId;
-              setActiveRunId(msg.runId);
-              setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
-              loadRun(msg.runId);
-            }
-            if (msg.type === "ok" || msg.type === "err") {
-              setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: msg.email });
-              if (msg.runId) loadRun(msg.runId);
-            }
-            if (msg.type === "batchDone") {
-              runIdToResume = msg.runId;
-              shouldResume = true;
-              setActiveRunId(msg.runId);
-              setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
-              if (msg.runId) loadRun(msg.runId);
-            }
-            if (msg.type === "done") {
-              setDispatchDone(msg);
-              if (msg.runId) loadRun(msg.runId);
-              showToast(`Terminé ! ${msg.sent}/${msg.total} emails envoyés`, "success");
-            }
-          } catch {/* ligne incomplète */}
+      const handleMessage = (msg) => {
+        if (msg.type === "start") {
+          runIdToResume = msg.runId;
+          setActiveRunId(msg.runId);
+          setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
         }
-      }
+        if (msg.type === "ok" || msg.type === "err") {
+          setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: msg.email });
+        }
+        if (msg.type === "batchDone") {
+          runIdToResume = msg.runId;
+          shouldResume = true;
+          setActiveRunId(msg.runId);
+          setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
+        }
+        if (msg.type === "paused" || msg.type === "stopped") {
+          shouldResume = false;
+          setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
+        }
+        if (msg.type === "done") {
+          shouldResume = false;
+          setDispatchDone(msg);
+          setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
+          showToast(`Terminé ! ${msg.sent}/${msg.total} emails envoyés`, "success");
+        }
+      };
+
+      await consumeNdjson(res, handleMessage);
+      if (runIdToResume) loadRun(runIdToResume);
 
       while (shouldResume && runIdToResume) {
         shouldResume = false;
         await new Promise(resolve => setTimeout(resolve, 800));
         const resumeRes = await fetch(`/api/brevo/runs/${runIdToResume}/resume`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ maxPerRequest: 2 }),
+          body: JSON.stringify({ maxPerRequest: batchSize }),
         });
-        if (!resumeRes.ok || !resumeRes.body) {
-          const data = await resumeRes.json().catch(() => ({}));
-          throw new Error(data.error || "Erreur pendant la reprise de l'envoi");
-        }
-
-        const resumeReader = resumeRes.body.getReader();
-        const resumeDecoder = new TextDecoder();
-        while (true) {
-          const { value, done } = await resumeReader.read();
-          if (done) break;
-          const lines = resumeDecoder.decode(value).split("\n").filter(Boolean);
-          for (const line of lines) {
-            try {
-              const msg = JSON.parse(line);
-              if (msg.type === "start") {
-                runIdToResume = msg.runId;
-                setActiveRunId(msg.runId);
-                setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
-                loadRun(msg.runId);
-              }
-              if (msg.type === "ok" || msg.type === "err") {
-                setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: msg.email });
-                if (msg.runId) loadRun(msg.runId);
-              }
-              if (msg.type === "batchDone") {
-                runIdToResume = msg.runId;
-                shouldResume = true;
-                setActiveRunId(msg.runId);
-                setProgress({ sent: msg.sent, errors: msg.errors, total: msg.total, current: null });
-                if (msg.runId) loadRun(msg.runId);
-              }
-              if (msg.type === "done") {
-                setDispatchDone(msg);
-                if (msg.runId) loadRun(msg.runId);
-                showToast(`TerminÃ© ! ${msg.sent}/${msg.total} emails envoyÃ©s`, "success");
-                shouldResume = false;
-              }
-            } catch {/* ligne incomplÃ¨te */}
-          }
-        }
+        await consumeNdjson(resumeRes, handleMessage);
       }
+      if (runIdToResume) loadRun(runIdToResume);
     } catch (err) {
-      showToast("Erreur de connexion pendant l'envoi", "error");
+      showToast(err.message || "Erreur de connexion pendant l'envoi", "error");
     }
     setDispatching(false);
   }
 
-  const pct = progress ? Math.round((progress.sent / progress.total) * 100) : 0;
+  const pct = progress?.total ? Math.round((progress.sent / progress.total) * 100) : 0;
   const savedPct = savedRun?.total ? Math.round(((savedRun.sent || 0) / savedRun.total) * 100) : 0;
 
   return (
@@ -1315,11 +1359,48 @@ function TabCampagne({ lists }) {
         </button>
       </div>
 
+      {drafts.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ ...S.label, marginBottom: 8 }}>Mails enregistrés</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {drafts.map(draft => {
+              const active = draft.id === activeDraftId;
+              return (
+                <button
+                  key={draft.id}
+                  type="button"
+                  onClick={() => pickDraft(draft)}
+                  style={{
+                    maxWidth: 280,
+                    padding: "9px 12px",
+                    borderRadius: 7,
+                    border: `1.5px solid ${active ? "#111827" : "#d7dde5"}`,
+                    background: active ? "#111827" : "#fff",
+                    color: active ? "#fff" : "#24303f",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                  title={draft.subject}
+                >
+                  {draft.name || draft.subject}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 22 }}>
         <div style={{ ...S.card, padding: 12 }}>
           <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>Modèle</div>
           <div style={{ fontSize: 14, color: "#111827", fontWeight: 800, marginTop: 4 }}>
-            {TEMPLATES.find((t) => t.key === activeTemplateKey)?.label || "Personnalisé"}
+            {drafts.find((draft) => draft.id === activeDraftId)?.name
+              || TEMPLATES.find((t) => t.key === activeTemplateKey)?.label
+              || "Personnalisé"}
           </div>
         </div>
         <div style={{ ...S.card, padding: 12 }}>
@@ -1370,6 +1451,21 @@ function TabCampagne({ lists }) {
             </p>
           )}
         </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+        <div style={{ flex: "1 1 320px" }}>
+          <label style={S.label}>Nom du mail enregistré</label>
+          <input
+            style={S.inputFull}
+            value={draftName}
+            onChange={event => setDraftName(event.target.value)}
+            placeholder="Ex. Séjours 2027 - version groupes"
+          />
+        </div>
+        <Btn onClick={saveDraft} loading={savingDraft}>
+          {activeDraftId ? "Enregistrer les modifications" : "Enregistrer ce mail"}
+        </Btn>
       </div>
 
       {/* Editeur du contenu */}
@@ -2044,55 +2140,38 @@ function TabHistoriqueFirebase() {
     setResuming(true);
     try {
       let keepGoing = true;
+      const runDelay = Number(selectedRun?.id === runId ? selectedRun.delayMs : 3000);
+      const batchSize = runDelay >= 10000 ? 4 : runDelay >= 3000 ? 10 : 20;
 
       while (keepGoing) {
         keepGoing = false;
         const res = await fetch(`/api/brevo/runs/${runId}/resume`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ maxPerRequest: 2 }),
+          body: JSON.stringify({ maxPerRequest: batchSize }),
         });
-        if (!res.ok || !res.body) {
-          const data = await res.json().catch(() => ({}));
-          showToast(data.error || "Impossible de reprendre cette campagne", "error");
-          setResuming(false);
-          return;
-        }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const lines = decoder.decode(value).split("\n").filter(Boolean);
-          for (const line of lines) {
-            try {
-              const msg = JSON.parse(line);
-              if (["start", "ok", "err", "batchDone", "done"].includes(msg.type)) {
-                await loadRun(runId);
-              }
-              if (msg.type === "batchDone") {
-                keepGoing = true;
-              }
-              if (msg.type === "done") {
-                showToast(`Reprise terminee : ${msg.sent}/${msg.total} emails envoyes`, "success");
-                keepGoing = false;
-              }
-              if (msg.type === "paused" || msg.type === "stopped") {
-                keepGoing = false;
-              }
-            } catch {/* ligne incomplete */}
+        await consumeNdjson(res, msg => {
+          if (msg.type === "batchDone") {
+            keepGoing = true;
           }
-        }
+          if (msg.type === "done") {
+            showToast(`Reprise terminee : ${msg.sent}/${msg.total} emails envoyes`, "success");
+            keepGoing = false;
+          }
+          if (msg.type === "paused" || msg.type === "stopped") {
+            keepGoing = false;
+          }
+        });
+        await loadRun(runId);
 
         if (keepGoing) {
           await new Promise(resolve => setTimeout(resolve, 800));
         }
       }
       await loadRuns();
-    } catch {
-      showToast("Erreur pendant la reprise de campagne", "error");
+    } catch (error) {
+      showToast(error.message || "Erreur pendant la reprise de campagne", "error");
     }
     setResuming(false);
   }

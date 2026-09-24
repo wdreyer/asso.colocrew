@@ -33,7 +33,7 @@ async function serialize(docSnap) {
     ...data,
     status: stale ? "interrupted" : data.status,
     lastError: stale ? "Envoi interrompu ou serveur redemarre" : data.lastError,
-    canResume: !!(data.listId && data.htmlContent),
+    canResume: data.queueVersion === 2 && !!data.htmlContent,
     createdAt: data.createdAt?.toMillis?.() ?? null,
     updatedAt: data.updatedAt?.toMillis?.() ?? null,
     finishedAt: data.finishedAt?.toMillis?.() ?? null,
