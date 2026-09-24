@@ -777,6 +777,8 @@ const SPEED_OPTIONS = [
   { label: "Rapide — 1s entre chaque (petites listes)", value: 1000  },
 ];
 
+const EMPTY_EMAIL_DOCUMENT = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>";
+
 function EmailWysiwygEditor({ value, onChange }) {
   const iframeRef = useRef(null);
   const cleanupRef = useRef(() => {});
@@ -784,6 +786,7 @@ function EmailWysiwygEditor({ value, onChange }) {
   const loadedValueRef = useRef("");
   const lastEmittedValueRef = useRef("");
   const savedRangeRef = useRef(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -985,6 +988,12 @@ function EmailWysiwygEditor({ value, onChange }) {
       <iframe
         ref={iframeRef}
         title="Éditeur visuel de l'email"
+        srcDoc={EMPTY_EMAIL_DOCUMENT}
+        onLoad={() => {
+          if (initializedRef.current) return;
+          initializedRef.current = true;
+          loadDocument(value);
+        }}
         sandbox="allow-same-origin"
         style={{ display: "block", width: "100%", height: 480, border: 0, background: "#fff" }}
       />
@@ -1506,7 +1515,7 @@ function TabCampagne({ lists }) {
         </div>
         {editorMode === "preview" ? (
           <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", height: 440 }}>
-            <iframe srcDoc={html} style={{ width: "100%", height: "100%", border: "none" }} sandbox="allow-same-origin" title="Aperçu" />
+            <iframe srcDoc={html} style={{ width: "100%", height: "100%", border: "none" }} sandbox="" title="Aperçu" />
           </div>
         ) : editorMode === "html" ? (
           <textarea value={html} onChange={e => setHtml(e.target.value)}
