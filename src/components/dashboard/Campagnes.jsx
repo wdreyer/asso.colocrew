@@ -1109,16 +1109,18 @@ function TabCampagne({ lists }) {
     return () => clearInterval(timer);
   }, [activeRunId, loadRun]);
 
-  async function controlRun(runId, action) {
+  async function controlRun(runId, action, values = {}) {
     if (!runId) return;
     setControllingRun(true);
     try {
       const r = await fetch(`/api/brevo/runs/${runId}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...values }),
       }).then(r => r.json());
-      showToast(r.ok ? `Demande ${action} envoyee` : (r.error || "Erreur"), r.ok ? "success" : "error");
+      if (r.ok && action === "speed") setDelayMs(r.delayMs);
+      const successMessage = action === "speed" ? "Vitesse modifiée" : `Demande ${action} envoyée`;
+      showToast(r.ok ? successMessage : (r.error || "Erreur"), r.ok ? "success" : "error");
       await loadRun(runId);
     } catch {
       showToast("Impossible d'envoyer la demande", "error");
@@ -1698,6 +1700,26 @@ function TabCampagne({ lists }) {
               <div style={{ fontSize: 14, fontWeight: 700 }}>{savedPct}%</div>
             </div>
           </div>
+          {!['done', 'stopped', 'failed'].includes(savedRun.status) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginRight: 4 }}>Vitesse en cours</span>
+              {SPEED_OPTIONS.map(option => {
+                const active = Number(savedRun.delayMs) === option.value;
+                return (
+                  <Btn
+                    key={option.value}
+                    variant={active ? "primary" : "ghost"}
+                    size="sm"
+                    disabled={controllingRun}
+                    onClick={() => controlRun(savedRun.id, "speed", { delayMs: option.value })}
+                  >
+                    {option.label.split(" — ")[0]} · {option.value / 1000} s
+                  </Btn>
+                );
+              })}
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>Appliquée au prochain email.</span>
+            </div>
+          )}
           <div style={{ background: "#e2e8f0", borderRadius: 6, height: 10, overflow: "hidden", marginBottom: 10 }}>
             <div style={{ height: "100%", background: savedRun.status === "done" ? "#10b981" : "#7c3aed", width: `${savedPct}%`, transition: "width .4s ease" }} />
           </div>
@@ -2185,16 +2207,17 @@ function TabHistoriqueFirebase() {
     setResuming(false);
   }
 
-  async function controlRun(runId, action) {
+  async function controlRun(runId, action, values = {}) {
     if (!runId) return;
     setControlling(true);
     try {
       const r = await fetch(`/api/brevo/runs/${runId}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...values }),
       }).then(r => r.json());
-      showToast(r.ok ? `Demande ${action} envoyee` : (r.error || "Erreur"), r.ok ? "success" : "error");
+      const successMessage = action === "speed" ? "Vitesse modifiée" : `Demande ${action} envoyée`;
+      showToast(r.ok ? successMessage : (r.error || "Erreur"), r.ok ? "success" : "error");
       await loadRun(runId);
     } catch {
       showToast("Impossible d'envoyer la demande", "error");
@@ -2300,6 +2323,27 @@ function TabHistoriqueFirebase() {
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{pct}%</div>
                 </div>
               </div>
+
+              {selectedRun.canResume && !['done', 'stopped', 'failed'].includes(selectedRun.status) && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginRight: 4 }}>Vitesse en cours</span>
+                  {SPEED_OPTIONS.map(option => {
+                    const active = Number(selectedRun.delayMs) === option.value;
+                    return (
+                      <Btn
+                        key={option.value}
+                        variant={active ? "primary" : "ghost"}
+                        size="sm"
+                        disabled={controlling}
+                        onClick={() => controlRun(selectedRun.id, "speed", { delayMs: option.value })}
+                      >
+                        {option.label.split(" — ")[0]} · {option.value / 1000} s
+                      </Btn>
+                    );
+                  })}
+                  <span style={{ fontSize: 11, color: "#94a3b8" }}>Appliquée au prochain email.</span>
+                </div>
+              )}
 
               <div style={{ background: "#e2e8f0", borderRadius: 6, height: 10, overflow: "hidden", marginBottom: 12 }}>
                 <div style={{ height: "100%", background: selectedRun.status === "done" ? "#10b981" : "#7c3aed", width: `${pct}%`, transition: "width .4s ease" }} />

@@ -62,10 +62,12 @@ async function recordEvent(runRef, event) {
   });
 }
 
-async function shouldHalt(runRef, sent, errors, total) {
+async function readRunState(runRef, sent, errors, total, fallbackDelayMs) {
   const snapshot = await getDoc(runRef);
-  const action = snapshot.data()?.controlAction;
-  if (!["pause", "stop"].includes(action)) return false;
+  const runData = snapshot.data() || {};
+  const action = runData.controlAction;
+  const currentDelayMs = Number(runData.delayMs || fallbackDelayMs || 3000);
+  if (!["pause", "stop"].includes(action)) return { delayMs: currentDelayMs };
   const status = action === "pause" ? "paused" : "stopped";
   await updateDoc(runRef, {
     status,
@@ -78,7 +80,7 @@ async function shouldHalt(runRef, sent, errors, total) {
     ...(status === "stopped" ? { finishedAt: serverTimestamp() } : {}),
   });
   await recordEvent(runRef, { type: status, sent, errors, total });
-  return { status };
+  return { status, delayMs: currentDelayMs };
 }
 
 async function readQueue(runRef, startIndex, count, chunkSize) {
@@ -193,9 +195,9 @@ export async function POST(request, context) {
       send({ type: "start", runId: id, sent, errors, total, remaining: total - startIndex });
 
       for (let position = 0; position < queued.length; position++) {
-        const halt = await shouldHalt(runRef, sent, errors, total);
-        if (halt) {
-          send({ type: halt.status, runId: id, sent, errors, total });
+        const runState = await readRunState(runRef, sent, errors, total, delayMs);
+        if (runState.status) {
+          send({ type: runState.status, runId: id, sent, errors, total });
           controller.close();
           return;
         }
@@ -245,7 +247,7 @@ export async function POST(request, context) {
         }
 
         if (position < queued.length - 1) {
-          const delay = jitteredDelay(delayMs);
+          const delay = jitteredDelay(runState.delayMs);
           send({ type: "wait", delay, nextAt: Date.now() + delay });
           await sleep(delay);
         }

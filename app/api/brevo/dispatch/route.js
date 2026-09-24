@@ -242,8 +242,10 @@ export async function POST(request) {
 
   async function shouldHalt(sent, errors) {
     const snapshot = await getDoc(runRef);
-    const action = snapshot.data()?.controlAction;
-    if (!["pause", "stop"].includes(action)) return false;
+    const runData = snapshot.data() || {};
+    const action = runData.controlAction;
+    const currentDelayMs = Number(runData.delayMs || delayMs || 3000);
+    if (!["pause", "stop"].includes(action)) return { delayMs: currentDelayMs };
     const status = action === "pause" ? "paused" : "stopped";
     await updateDoc(runRef, {
       status,
@@ -256,7 +258,7 @@ export async function POST(request) {
       ...(status === "stopped" ? { finishedAt: serverTimestamp() } : {}),
     });
     await recordEvent({ type: status, sent, errors, total });
-    return { status };
+    return { status, delayMs: currentDelayMs };
   }
 
   const stream = new ReadableStream({
@@ -268,9 +270,9 @@ export async function POST(request) {
       send({ type: "start", runId: runRef.id, sent, errors, total });
 
       for (let index = 0; index < filteredContacts.length; index++) {
-        const halt = await shouldHalt(sent, errors);
-        if (halt) {
-          send({ type: halt.status, runId: runRef.id, sent, errors, total });
+        const runState = await shouldHalt(sent, errors);
+        if (runState.status) {
+          send({ type: runState.status, runId: runRef.id, sent, errors, total });
           controller.close();
           return;
         }
@@ -334,7 +336,7 @@ export async function POST(request) {
         }
 
         if (index < filteredContacts.length - 1) {
-          const delay = jitteredDelay(delayMs);
+          const delay = jitteredDelay(runState.delayMs);
           send({ type: "wait", delay, nextAt: Date.now() + delay });
           await sleep(delay);
         }

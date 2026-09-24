@@ -12,9 +12,9 @@ const RUNS = "campagne_runs";
 
 export async function POST(request, context) {
   const { id } = await context.params;
-  const { action } = await request.json();
+  const { action, delayMs } = await request.json();
 
-  if (!["pause", "stop"].includes(action)) {
+  if (!["pause", "stop", "speed"].includes(action)) {
     return Response.json({ error: "Action invalide" }, { status: 400 });
   }
 
@@ -22,6 +22,24 @@ export async function POST(request, context) {
   const runSnap = await getDoc(runRef);
   if (!runSnap.exists()) {
     return Response.json({ error: "Campagne introuvable" }, { status: 404 });
+  }
+
+  if (action === "speed") {
+    const nextDelay = Number(delayMs);
+    if (![1000, 3000, 10000].includes(nextDelay)) {
+      return Response.json({ error: "Vitesse invalide" }, { status: 400 });
+    }
+
+    await updateDoc(runRef, {
+      delayMs: nextDelay,
+      updatedAt: serverTimestamp(),
+    });
+    await addDoc(collection(runRef, "events"), {
+      type: "speed_changed",
+      delayMs: nextDelay,
+      createdAt: serverTimestamp(),
+    });
+    return Response.json({ ok: true, delayMs: nextDelay });
   }
 
   await updateDoc(runRef, {
