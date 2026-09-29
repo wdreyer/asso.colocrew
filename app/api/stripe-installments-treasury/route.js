@@ -150,7 +150,9 @@ async function countPaidInvoices(stripe, subscriptionId, maxInvoices = 12) {
     status: "paid",
     limit: Math.max(Math.min(maxInvoices, 100), 1),
   });
-  return invoices.data.filter((invoice) => invoice.paid).length;
+  return invoices.data.filter(
+    (invoice) => invoice.paid && Number(invoice.amount_paid || 0) > 0,
+  ).length;
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {

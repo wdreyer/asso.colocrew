@@ -26,7 +26,7 @@ export function installmentCountFromSubscription(subscription) {
 export async function countPaidInvoicesForSubscription(stripe, subscriptionId) {
   let count = 0;
   for await (const invoice of stripe.invoices.list({ subscription: subscriptionId, status: "paid", limit: 100 })) {
-    if (invoice.paid) count += 1;
+    if (invoice.paid && Number(invoice.amount_paid || 0) > 0) count += 1;
   }
   return count;
 }
