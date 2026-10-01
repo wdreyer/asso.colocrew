@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Image from "next/image";
 import { FaCalendarAlt, FaEuroSign, FaTrain, FaUserFriends } from "react-icons/fa";
 import { formatPriceNumber, formatPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { ageLabel } from "@/src/lib/ages";
 
 export default function RecapReservation({
   sejour,
@@ -92,7 +93,7 @@ export default function RecapReservation({
           <FaUserFriends className="text-[#B8336A] mr-2" />
           <p>
             <span className="font-semibold">Tranche d’âge :</span>{" "}
-            {urlAgeGroup ? `${urlAgeGroup} ans` : "—"}
+            {urlAgeGroup ? ageLabel(urlAgeGroup) : "—"}
           </p>
         </div>
 

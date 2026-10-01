@@ -110,6 +110,15 @@ export function resolveSejourPriceRange(sejour, selectedStartDate = "") {
   return entryRange;
 }
 
+/** Range covering every given session (lowest "from" to highest "to"); the séjour's own range when none has a price. */
+export function resolveSessionsPriceRange(sejour, sessions = sejour?.dates) {
+  const ranges = (Array.isArray(sessions) ? sessions : [])
+    .map((entry) => extractPriceRange(entry))
+    .filter((range) => range.min > 0 || range.max > 0);
+  if (!ranges.length) return extractPriceRange(sejour);
+  return clampRange(Math.min(...ranges.map((range) => range.min)), Math.max(...ranges.map((range) => range.max)));
+}
+
 export function resolveLowestSejourPriceRange(sejour) {
   const fallback = extractPriceRange(sejour);
   const ranges = Array.isArray(sejour?.dates)
@@ -203,6 +212,6 @@ export function formatPriceNumber(value) {
 export function formatPriceRange(range, suffix = "€") {
   const safe = extractPriceRange(range);
   if (safe.min === safe.max) return `${formatPriceNumber(safe.min)} ${suffix}`.trim();
-  return `${formatPriceNumber(safe.min)} - ${formatPriceNumber(safe.max)} ${suffix}`.trim();
+  return `${formatPriceNumber(safe.min)} – ${formatPriceNumber(safe.max)} ${suffix}`.trim();
 }
 

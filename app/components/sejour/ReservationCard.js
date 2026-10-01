@@ -4,6 +4,7 @@ import React from "react";
 import { FaCalendarAlt, FaChild, FaCity, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
 import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { ageLabel } from "@/src/lib/ages";
 
 const SUR_PLACE_LABEL = "Sur place";
 
@@ -211,7 +212,7 @@ export default function ReservationCard({
           >
             {sejour?.ageGroups?.map((ageGroup, idx) => (
               <option key={`age-${idx}`} value={ageGroup}>
-                {ageGroup} ans
+                {ageLabel(ageGroup)}
               </option>
             ))}
           </select>

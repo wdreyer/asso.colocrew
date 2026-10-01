@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { FaArrowRight, FaCalendarAlt, FaClock, FaUserFriends } from "react-icons/fa";
 import { db } from "@/app/firebase";
-import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { formatPriceNumber, formatPriceRange, resolveLowestSejourPriceRange, resolveSessionsPriceRange } from "@/src/lib/pricing";
 import { isPublicSejour, upcomingSessions } from "@/src/lib/availability";
+import { ageGroupsLabel, normalizeAge } from "@/src/lib/ages";
 import Spinner from "../components/layout/Spinner";
 
 
@@ -47,8 +48,6 @@ function getEnvironment(rawEnvironment, id, name) {
   return "campagne";
 }
 
-/** "14-17 ans", "14-17" and "14 - 17" are the same age group: "14-17". */
-const normalizeAge = (value) => String(value || "").replace(/\s*ans\s*$/i, "").replace(/\s*-\s*/g, "-").trim();
 const ageStart = (age) => Number.parseInt(age, 10) || 0;
 
 function getDuration(datesArray) {
@@ -84,12 +83,10 @@ function normalizeSejour(docSnap) {
     period,
     environment,
     ageGroups: (Array.isArray(data.ageGroups) ? data.ageGroups : []).map(normalizeAge).filter(Boolean),
-    ageGroup: Array.isArray(data.ageGroups) && data.ageGroups.length
-      ? `${data.ageGroups.map(normalizeAge).filter(Boolean).join(" / ")} ans`
-      : "",
+    ageGroup: ageGroupsLabel(data.ageGroups),
     image: data.heroImage || "/load.png",
     description: data.heroSubtitle || "",
-    priceRange: data?.promotion?.active ? resolveLowestSejourPriceRange(data) : resolveSejourPriceRange(data),
+    priceRange: data?.promotion?.active ? resolveLowestSejourPriceRange(data) : resolveSessionsPriceRange(data),
   };
 }
 
@@ -97,8 +94,8 @@ function getPriceBadgeLabel(sejour) {
   const range = sejour?.priceRange || { min: 0, max: 0 };
   if (!(range.min > 0 || range.max > 0)) return "Tarif sur demande";
   if (sejour?.promotion?.active) return `✦ Offre spéciale`;
-  if (range.min === range.max) return `Dès ${formatPriceRange(range)}`;
-  return formatPriceRange(range);
+  if (range.min === range.max) return formatPriceRange(range);
+  return `De ${formatPriceNumber(range.min)} à ${formatPriceNumber(range.max)} €`;
 }
 
 export default function SejoursList() {
@@ -132,7 +129,7 @@ export default function SejoursList() {
               dates,
               displayMonths,
               period: [...new Set(displayMonths)].join(", "),
-              priceRange: resolveSejourPriceRange(item, dates[0]?.startDate),
+              priceRange: item?.promotion?.active ? resolveLowestSejourPriceRange({ ...item, dates }) : resolveSessionsPriceRange(item, dates),
             };
           });
         const monthsSet = new Set();

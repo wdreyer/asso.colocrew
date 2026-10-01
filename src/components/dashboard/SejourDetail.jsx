@@ -102,7 +102,7 @@ function move(arr, from, to) {
 
 const EMPTY = {
   name: "", heroSubtitle: "", heroImage: "", environment: "", basePrice: 0, priceMin: 0, priceMax: 0,
-  ageGroups: [], dates: [{ startDate: "", endDate: "", basePrice: 0 }],
+  ageGroups: [], dates: [{ startDate: "", endDate: "", priceMin: 0, priceMax: 0 }],
   stations: [{ name: "Sur Place", priceExtra: 0 }],
   summarySubsections: [{ title: "", text: "", imageSrc: "" }],
   sections: [{ subSections: [{ title: "", text: "", imageSrc: "" }] }],
@@ -123,8 +123,18 @@ function normalize(raw) {
     priceMax: Number(raw?.priceMax || 0),
     ageGroups: (raw?.ageGroups || []).map(String).filter(Boolean),
     dates: Array.isArray(raw?.dates) && raw.dates.length
-      ? raw.dates.map((d) => ({ startDate: d.startDate || "", endDate: d.endDate || "", basePrice: Number(d.basePrice || d.price || 0) }))
-      : [{ startDate: "", endDate: "", basePrice: 0 }],
+      // Other session settings (full, limited places...) are kept as they are; the price is a range "from ... to ...".
+      ? raw.dates.map((d) => {
+        const single = Number(d.basePrice || d.price || 0);
+        return {
+          ...d,
+          startDate: d.startDate || "",
+          endDate: d.endDate || "",
+          priceMin: Number(d.priceMin || single || 0),
+          priceMax: Number(d.priceMax || single || d.priceMin || 0),
+        };
+      })
+      : [{ startDate: "", endDate: "", priceMin: 0, priceMax: 0 }],
     stations: Array.isArray(raw?.stations) && raw.stations.length
       ? raw.stations.map((s) => ({ name: s.name || "", priceExtra: Number(s.priceExtra || 0) }))
       : [{ name: "Sur Place", priceExtra: 0 }],
@@ -266,7 +276,7 @@ export default function SejourDetail({ sejourId }) {
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
 
   const updDate = (i, k, v) => setForm((p) => { const n = [...p.dates]; n[i] = { ...n[i], [k]: v }; return { ...p, dates: n }; });
-  const addDate = () => setForm((p) => ({ ...p, dates: [...p.dates, { startDate: "", endDate: "", basePrice: 0 }] }));
+  const addDate = () => setForm((p) => ({ ...p, dates: [...p.dates, { startDate: "", endDate: "", priceMin: 0, priceMax: 0 }] }));
   const rmDate = (i) => setForm((p) => ({ ...p, dates: p.dates.filter((_, j) => j !== i) }));
   const mvDate = (i, d) => setForm((p) => ({ ...p, dates: move(p.dates, i, i + d) }));
 
@@ -355,11 +365,19 @@ export default function SejourDetail({ sejourId }) {
       priceMin: Number(form.priceMin || 0),
       priceMax: Number(form.priceMax || 0),
       ageGroups: form.ageGroups,
-      dates: form.dates.map((d) => ({
-        startDate: toIsoDate(formatDateInput(d.startDate)),
-        endDate: toIsoDate(formatDateInput(d.endDate)),
-        basePrice: Number(d.basePrice || 0),
-      })),
+      dates: form.dates.map(({ price: _legacyPrice, ...d }) => {
+        const min = Number(d.priceMin || 0);
+        const max = Number(d.priceMax || 0) || min;
+        return {
+          ...d,
+          startDate: toIsoDate(formatDateInput(d.startDate)),
+          endDate: toIsoDate(formatDateInput(d.endDate)),
+          priceMin: Math.min(min || max, max),
+          priceMax: Math.max(min, max),
+          // Single price kept for older screens: the top of the range.
+          basePrice: Math.max(min, max),
+        };
+      }),
       stations: form.stations,
       summarySubsections: form.summarySubsections,
       sections: form.sections,
@@ -441,11 +459,12 @@ export default function SejourDetail({ sejourId }) {
             <label>Environnement
               <input className="dash-input" value={form.environment} onChange={(e) => set("environment", e.target.value)} placeholder="ex: Surf, Ski, Musique..." />
             </label>
-            <label>Prix minimum (€)
-              <input type="number" className="dash-input" value={form.priceMin} onChange={(e) => set("priceMin", Number(e.target.value))} placeholder="ex: 800" />
+            <label>Fourchette du séjour : de (€)
+              <input type="number" min="0" className="dash-input" value={form.priceMin} onChange={(e) => set("priceMin", Number(e.target.value))} placeholder="ex: 340" />
             </label>
-            <label>Prix maximum (€)
-              <input type="number" className="dash-input" value={form.priceMax} onChange={(e) => set("priceMax", Number(e.target.value))} placeholder="ex: 1400" />
+            <label>à (€)
+              <input type="number" min="0" className="dash-input" value={form.priceMax} onChange={(e) => set("priceMax", Number(e.target.value))} placeholder="ex: 1050" />
+              <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "var(--dash-muted, #7a6f8a)" }}>Utilisée quand une période n’a pas de prix. Même valeur des deux côtés = prix unique.</span>
             </label>
             <label className="dash-span-2">Image héros (URL)
               <div className="dash-copy-field">
@@ -496,7 +515,8 @@ export default function SejourDetail({ sejourId }) {
                 <div className="dash-form-grid">
                   <label>Début<input type="date" className="dash-input" value={formatDateInput(d.startDate)} onChange={(e) => updDate(i, "startDate", e.target.value)} /></label>
                   <label>Fin<input type="date" className="dash-input" value={formatDateInput(d.endDate)} onChange={(e) => updDate(i, "endDate", e.target.value)} /></label>
-                  <label>Prix (€)<input type="number" className="dash-input" value={d.basePrice} onChange={(e) => updDate(i, "basePrice", Number(e.target.value))} /></label>
+                  <label>Prix de (€)<input type="number" min="0" className="dash-input" value={d.priceMin} onChange={(e) => updDate(i, "priceMin", Number(e.target.value))} placeholder="ex: 340" /></label>
+                  <label>à (€)<input type="number" min="0" className="dash-input" value={d.priceMax} onChange={(e) => updDate(i, "priceMax", Number(e.target.value))} placeholder="ex: 1050" /></label>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 6, flexWrap: "wrap" }}>
                     <button type="button" className="dash-btn" onClick={() => mvDate(i, -1)} disabled={i === 0}>↑</button>
                     <button type="button" className="dash-btn" onClick={() => mvDate(i, 1)} disabled={i === form.dates.length - 1}>↓</button>

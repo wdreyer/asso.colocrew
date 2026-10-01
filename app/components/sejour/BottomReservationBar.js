@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 import { FaCalendarAlt, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
 import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { ageLabel } from "@/src/lib/ages";
 
 const SUR_PLACE_LABEL = "Sur place";
 
@@ -158,7 +159,7 @@ export default function BottomReservationBar({
           aria-label="Âge"
         >
           {sejour?.ageGroups?.map((ageGroup, idx) => (
-            <option key={`bottom-age-${idx}`} value={ageGroup}>{ageGroup} ans</option>
+            <option key={`bottom-age-${idx}`} value={ageGroup}>{ageLabel(ageGroup)}</option>
           ))}
         </select>
 

@@ -21,6 +21,7 @@ import {
   siblingDiscountFactor,
 } from "@/src/lib/pricing";
 import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
+import { ageLabel } from "@/src/lib/ages";
 import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
 
 
@@ -373,7 +374,7 @@ function LandingSelector() {
                     >
                       <option value="">— Choisissez une tranche d'âge —</option>
                       {(sejour.ageGroups || []).map((age, i) => (
-                        <option key={i} value={age}>{age}</option>
+                        <option key={i} value={age}>{ageLabel(age)}</option>
                       ))}
                     </select>
                   </div>

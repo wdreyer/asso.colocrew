@@ -3,8 +3,9 @@
 import React from "react";
 import Image from "next/image";
 import { FaCalendarAlt, FaChild, FaMapMarkerAlt, FaMoneyBillWave, FaRegStar, FaStar, FaStarHalfAlt } from "react-icons/fa";
-import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
+import { formatPriceRange, resolveLowestSejourPriceRange, resolveSessionsPriceRange } from "@/src/lib/pricing";
 import { bookableSessions, isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { ageGroupsLabel } from "@/src/lib/ages";
 
 function InfoPill({ icon: Icon, text }) {
   if (!text) return null;
@@ -63,7 +64,7 @@ export default function GenericSejour({ sejourData, feedback }) {
   const availableDates = bookableSessions(dates);
   const months = formatMonthRange(availableDates);
   const duration = formatDuration(availableDates);
-  const priceRange = resolveSejourPriceRange(sejourData);
+  const priceRange = resolveSessionsPriceRange(sejourData);
   const promo = sejourData.promotion && typeof sejourData.promotion === "object" ? sejourData.promotion : null;
   const promoSession = (dates || []).find((session) =>
     String(session?.startDate || "").slice(0, 10) === String(promo?.startDate || "").slice(0, 10),
@@ -77,9 +78,7 @@ export default function GenericSejour({ sejourData, feedback }) {
       : "";
   const priceLabel =
     priceRange.min > 0 || priceRange.max > 0 ? formatPriceRange(priceRange) : "";
-  const ages = ageGroups?.length
-    ? `${ageGroups[0]}${ageGroups[1] ? ` - ${ageGroups[1]}` : ""} ans`
-    : "";
+  const ages = ageGroupsLabel(ageGroups);
   const featuredQuote = feedback?.featuredTestimonial;
   const averageRating = toRatingLabel(feedback?.avgGlobal);
   const reviewsCount = feedback?.reviewsCount || 0;
