@@ -24,7 +24,7 @@ export default function Footer() {
             <p className="text-gray-400">RNA : W931028397</p>
             <p className="text-gray-400">ORG : 093ORG0470</p>
             <p className="text-gray-400">SIRET : 93217143200010</p>
-            <p className="mt-3 text-gray-400">&copy; 2026 ColoCrew. Tous droits réservés.</p>
+            <p className="mt-3 text-gray-400">&copy; {new Date().getFullYear()} ColoCrew. Tous droits réservés.</p>
           </div>
 
           <div>

@@ -175,7 +175,7 @@ export default function ReservationCard({
                     )}
                     {isPromo && (
                       <span className="mb-1.5 inline-block rounded-full bg-[#B8336A] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-white">
-                        ✦ Offre juillet
+                        ✦ Offre spéciale
                       </span>
                     )}
                     <p className="text-sm font-semibold leading-snug text-[#24173d]">{toDateLabel(dateOption)}</p>

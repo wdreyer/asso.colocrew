@@ -681,7 +681,6 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openKey, setOpenKey] = useState("");
   const [isAdminSession, setIsAdminSession] = useState(false);
-  const catalogHref = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
 
   useEffect(() => {
     let mounted = true;
@@ -718,16 +717,14 @@ export default function Header() {
         <div style={{ background: "#B8336A" }}>
           <div className="relative mx-auto flex max-w-[1240px] items-center justify-center px-4 py-1 sm:h-8 sm:py-0">
             <div className="flex flex-col items-center gap-0.5 text-white sm:flex-row sm:gap-2" style={{ margin: 0, fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.14em", lineHeight: 1.2 }}>
-              <span>SAISON ÉTÉ 2026 • RÉSERVATIONS OUVERTES</span>
+              <span>SAISON 2027 • RÉSERVATIONS OUVERTES</span>
               <span className="hidden opacity-70 sm:inline">|</span>
-              <a
-                href={catalogHref}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/sejours"
                 className="underline underline-offset-2 transition-opacity hover:opacity-80"
               >
-                LE CATALOGUE 2026 EST SORTI
-              </a>
+                DÉCOUVRIR LES SÉJOURS 2027
+              </Link>
             </div>
             {isAdminSession ? (
               <Link
@@ -749,7 +746,7 @@ export default function Header() {
               className="hdr-logo-img" priority />
             <div className="hidden sm:block" style={{ lineHeight: 1 }}>
               <p className="hdr-logo-name">ColoCrew</p>
-              <p className="hdr-logo-sub">SAISON 2026</p>
+              <p className="hdr-logo-sub">SAISON 2027</p>
             </div>
           </Link>
 

@@ -121,12 +121,12 @@ export default function GenericSejour({ sejourData, feedback }) {
             <div className="mb-5 flex flex-wrap gap-2">
               {hasLimitedSessions ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd58a]/55 bg-[#d88700]/25 px-3 py-1.5 text-xs font-bold text-[#ffe4af] backdrop-blur-sm md:text-sm">
-                  Quelques places restantes en août
+                  Quelques places restantes
                 </span>
               ) : null}
               {showPromo && promoPriceLabel ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd7e8]/45 bg-[#ffd7e8]/12 px-3 py-1.5 text-xs font-bold text-[#ffd7e8] backdrop-blur-sm md:text-sm">
-                  ✦ Offre juillet · {promoPriceLabel}
+                  ✦ Offre spéciale · {promoPriceLabel}
                 </span>
               ) : null}
               <InfoPill icon={FaCalendarAlt} text={months} />
@@ -160,12 +160,12 @@ export default function GenericSejour({ sejourData, feedback }) {
             ) : null}
             {hasLimitedSessions ? (
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-relaxed text-[#ffe4af] md:text-[15px]">
-                Les sessions de juillet sont complètes. Dépêchez-vous pour les dernières places d'août.
+                Certaines sessions sont déjà complètes : dépêchez-vous pour les dernières places.
               </p>
             ) : showPromo && (promo?.headline || promo?.body) ? (
               <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-white/65 md:text-[15px]">
                 <span className="mr-1.5 font-black uppercase tracking-[0.1em] text-[#ffd7e8]/80">
-                  Offre juillet —
+                  Offre spéciale —
                 </span>
                 {promo.headline || promo.body}
               </p>

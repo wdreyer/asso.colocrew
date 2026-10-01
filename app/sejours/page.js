@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { FaArrowRight, FaCalendarAlt, FaClock, FaFilePdf, FaUserFriends } from "react-icons/fa";
+import { FaArrowRight, FaCalendarAlt, FaClock, FaUserFriends } from "react-icons/fa";
 import { db } from "@/app/firebase";
 import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
 import { isPublicSejour, upcomingSessions } from "@/src/lib/availability";
 import Spinner from "../components/layout/Spinner";
 
-const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
 
 const MONTH_ORDER = [
   "janvier",
@@ -90,7 +89,7 @@ function normalizeSejour(docSnap) {
 function getPriceBadgeLabel(sejour) {
   const range = sejour?.priceRange || { min: 0, max: 0 };
   if (!(range.min > 0 || range.max > 0)) return "Tarif sur demande";
-  if (sejour?.promotion?.active) return `✦ Offre juillet`;
+  if (sejour?.promotion?.active) return `✦ Offre spéciale`;
   if (range.min === range.max) return `Dès ${formatPriceRange(range)}`;
   return formatPriceRange(range);
 }
@@ -193,7 +192,7 @@ export default function SejoursList() {
           <div className="pointer-events-none absolute -right-10 bottom-0 h-44 w-44 rounded-full bg-[#e9e2fb]/65 blur-3xl" />
           <div className="relative">
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#a45a86]">
-              Saison été 2026
+              Saison 2027
             </p>
             <h1
               className="text-4xl font-extrabold text-[#24173d] md:text-5xl"
@@ -332,28 +331,6 @@ export default function SejoursList() {
         )}
       </section>
 
-      <section className="mx-auto mt-8 w-full max-w-[1240px] px-5 md:px-8">
-        <a
-          href={CATALOG_PDF_PATH}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group flex w-full items-center justify-between rounded-2xl border border-[#f0d3e4] bg-[#fff7fc] px-5 py-4 text-[#6b2950] transition hover:border-[#c96b98] hover:bg-[#fff2f9]"
-        >
-          <span className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#b8336a] shadow-[0_4px_16px_rgba(184,51,106,0.15)]">
-              <FaFilePdf />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold uppercase tracking-[0.08em]">Catalogue été 2026</span>
-              <span className="block text-xs text-[#8a5f79]">Voir le programme complet en PDF</span>
-            </span>
-          </span>
-          <span className="inline-flex items-center gap-2 text-sm font-bold text-[#b8336a]">
-            Ouvrir
-            <FaArrowRight className="transition group-hover:translate-x-0.5" />
-          </span>
-        </a>
-      </section>
     </div>
   );
 }

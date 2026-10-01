@@ -6,7 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import Image from "next/image";
 import Link from "next/link";
-import { FaArrowRight, FaFilePdf } from "react-icons/fa";
+import { FaArrowRight } from "react-icons/fa";
 
 import RecapReservation from "../components/reserver/RecapReservation";
 import ReservationFormFields from "../components/reserver/ReservationForm";
@@ -23,7 +23,6 @@ import {
 import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
 import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
 
-const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
 
 
 const CSS_LANDING = `
@@ -106,47 +105,6 @@ function formatDateOptionPrice(dateEntry) {
   return ` - Offre ${formatPriceRange(range)}`;
 }
 
-function CatalogNotice({ compact = false }) {
-  return (
-    <a
-      href={CATALOG_PDF_PATH}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block w-full rounded-2xl border border-[#f0d3e4] transition"
-      style={{
-        background: compact ? "#fff7fc" : "rgba(255,255,255,0.14)",
-        color: compact ? "#6b2950" : "#fff",
-        padding: compact ? "12px 16px" : "12px 14px",
-      }}
-    >
-      <span className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2.5">
-          <span
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full"
-            style={{
-              background: compact ? "#fff" : "rgba(255,255,255,0.2)",
-              color: "#B8336A",
-            }}
-          >
-            <FaFilePdf size={14} />
-          </span>
-          <span style={{ lineHeight: 1.25 }}>
-            <strong style={{ fontSize: "0.8rem", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-              Catalogue été 2026
-            </strong>
-            <span style={{ display: "block", fontSize: "0.78rem", opacity: compact ? 0.78 : 0.9 }}>
-              Télécharger le PDF complet
-            </span>
-          </span>
-        </span>
-        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.06em]">
-          Ouvrir
-          <FaArrowRight size={11} className="transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </span>
-    </a>
-  );
-}
 
 /* ─────────────────────────────────────────────────
    PAGE LANDING : choix du séjour, dates, tranche d'âge
@@ -240,7 +198,7 @@ function LandingSelector() {
         {/* Hero / titre */}
         <div style={{ background: "linear-gradient(135deg, #1f1640 0%, #3b1f5e 100%)", padding: "56px 24px 48px", textAlign: "center" }}>
           <p style={{ margin: "0 0 12px", fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.22em", color: "rgba(255,255,255,0.55)", textTransform: "uppercase" }}>
-            Été 2026 · Réservations ouvertes
+            Saison 2027 · Réservations ouvertes
           </p>
           <h1 style={{ fontFamily: '"Baloo 2", cursive', fontWeight: 800, fontSize: "clamp(1.8rem, 4vw, 2.8rem)", color: "#fff", margin: "0 0 12px", lineHeight: 1.15 }}>
             Choisissez votre séjour
@@ -364,7 +322,7 @@ function LandingSelector() {
                                   padding: "3px 10px",
                                   borderRadius: 100,
                                   textTransform: "uppercase",
-                                }}>✦ Offre juillet</span>
+                                }}>✦ Offre spéciale</span>
                               )}
                               <p style={{ margin: 0, fontSize: "0.92rem", fontWeight: 700, color: "#1f1640", lineHeight: 1.3 }}>
                                 {formatDateFR(d.startDate)} → {formatDateFR(d.endDate)}
@@ -518,10 +476,6 @@ function LandingSelector() {
             <Link href="/sejours" style={{ fontSize: "0.85rem", color: "#B8336A", fontWeight: 600, textDecoration: "none", opacity: 0.8 }}>
               ← Voir la présentation des séjours
             </Link>
-          </div>
-
-          <div style={{ marginTop: 24 }}>
-            <CatalogNotice compact />
           </div>
         </div>
       </div>

@@ -37,7 +37,7 @@ const text = {
   workText:
     "Nous pensons qu'il est nécessaire de valoriser le travail des équipes dans l'animation. Nous proposons des salaires au dessus de la moyenne ainsi que des conditions de travail améliorées.",
   sejoursSummaryText:
-    "En 2026, nous proposons une offre diversifiée de séjours basée sur une pédagogie commune.",
+    "En 2027, nous proposons une offre diversifiée de séjours basée sur une pédagogie commune.",
   cta: "Nos séjours sont ouverts à la réservation.",
 };
 
@@ -535,7 +535,7 @@ const BENTO_CARDS = [
     border: "#F0D3E3",
     dark: false,
     title: "Les séjours 🏖️",
-    body: "En 2026, nous revenons avec de nouveaux séjours pour tous les goûts. Toujours la même formule : 12 jours, 40 jeunes, des activités sportives, un projet artistique et des repas préparés avec tout le monde !",
+    body: "En 2027, nous revenons avec de nouveaux séjours pour tous les goûts. Toujours la même formule : 12 jours, 40 jeunes, des activités sportives, un projet artistique et des repas préparés avec tout le monde !",
   },
   {
     href: "/aide-financement",
@@ -543,7 +543,7 @@ const BENTO_CARDS = [
     border: "#DFD2F4",
     dark: false,
     title: "Aides et financement 💶",
-    body: "En 2026, de nouvelles aides sont disponibles et nous sommes éligibles à la plupart d'entre elles. Nous sommes éligibles a l'aide VACAF nationale, au Pass Colo. Nous proposons aussi des facilités de paiement comme le paiement en plusieurs fois et les chèques vacances.",
+    body: "En 2027, de nouvelles aides sont disponibles et nous sommes éligibles à la plupart d'entre elles. Nous sommes éligibles a l'aide VACAF nationale, au Pass Colo. Nous proposons aussi des facilités de paiement comme le paiement en plusieurs fois et les chèques vacances.",
   },
   {
     href: "/anims",
@@ -707,7 +707,7 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
       age: formatSejourAgesForTrip(publicSejour) || trip.age,
       dates: formatPromoDateForTrip(publicSejour) || formatSejourDatesForTrip(publicSejour) || trip.dates,
       promo: hasActivePromoSession ? (publicSejour.promotion.priceLabel || trip.promo) : "",
-      badge: hasLimitedSessions ? "Quelques places" : hasActivePromoSession ? "Offre juillet" : trip.badge,
+      badge: hasLimitedSessions ? "Quelques places" : hasActivePromoSession ? "Offre spéciale" : trip.badge,
     };
   });
 }
