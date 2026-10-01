@@ -47,6 +47,10 @@ function getEnvironment(rawEnvironment, id, name) {
   return "campagne";
 }
 
+/** "14-17 ans", "14-17" and "14 - 17" are the same age group: "14-17". */
+const normalizeAge = (value) => String(value || "").replace(/\s*ans\s*$/i, "").replace(/\s*-\s*/g, "-").trim();
+const ageStart = (age) => Number.parseInt(age, 10) || 0;
+
 function getDuration(datesArray) {
   if (!datesArray || datesArray.length === 0) return "";
   const first = new Date(datesArray[0].startDate);
@@ -79,7 +83,10 @@ function normalizeSejour(docSnap) {
     displayMonths,
     period,
     environment,
-    ageGroup: Array.isArray(data.ageGroups) ? data.ageGroups.join(" / ") : "",
+    ageGroups: (Array.isArray(data.ageGroups) ? data.ageGroups : []).map(normalizeAge).filter(Boolean),
+    ageGroup: Array.isArray(data.ageGroups) && data.ageGroups.length
+      ? `${data.ageGroups.map(normalizeAge).filter(Boolean).join(" / ")} ans`
+      : "",
     image: data.heroImage || "/load.png",
     description: data.heroSubtitle || "",
     priceRange: data?.promotion?.active ? resolveLowestSejourPriceRange(data) : resolveSejourPriceRange(data),
@@ -97,7 +104,8 @@ function getPriceBadgeLabel(sejour) {
 export default function SejoursList() {
   const [selectedPeriod, setSelectedPeriod] = useState("all");
   const [selectedEnvironment, setSelectedEnvironment] = useState("all");
-  const [selectedAgeGroups, setSelectedAgeGroups] = useState(["11-13", "14-17"]);
+  // No age selected shows every séjour; the buttons are the age groups of the séjours online.
+  const [selectedAgeGroups, setSelectedAgeGroups] = useState([]);
   const [sejours, setSejours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [availableMonths, setAvailableMonths] = useState([]);
@@ -176,6 +184,11 @@ export default function SejoursList() {
     [sejours, selectedEnvironment, selectedPeriod, selectedAgeGroups],
   );
 
+  const ageOptions = useMemo(
+    () => [...new Set(sejours.flatMap((sejour) => sejour.ageGroups || []))].sort((a, b) => ageStart(a) - ageStart(b)),
+    [sejours],
+  );
+
   const handleAgeGroupChange = (value) => {
     setSelectedAgeGroups((prev) =>
       prev.includes(value) ? prev.filter((age) => age !== value) : [...prev, value],
@@ -235,7 +248,7 @@ export default function SejoursList() {
             </select>
 
             <div className="flex flex-wrap items-center gap-2">
-              {["11-13", "14-17"].map((age) => {
+              {ageOptions.map((age) => {
                 const active = selectedAgeGroups.includes(age);
                 return (
                   <button
