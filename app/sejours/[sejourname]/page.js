@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { resolveSejourPriceRange } from "@/src/lib/pricing";
-import { firstBookableSession, isPublicBookableSession, isSessionFull, publicBookableSessions } from "@/src/lib/availability";
+import { firstBookableSession, isPublicBookableSession, isSessionFull, upcomingSessions } from "@/src/lib/availability";
 
 import GenericSejour from "@/app/components/sejour/GenericSejour";
 import SejourTabs from "@/app/components/sejour/SejourTabs";
@@ -225,8 +225,7 @@ export default function SejourDetail() {
         }
 
         const rawData = docSnap.data();
-        const bookableDates = publicBookableSessions(docSnap.id, rawData.dates || []);
-        const data = { id: docSnap.id, ...rawData, dates: bookableDates };
+        const data = { id: docSnap.id, ...rawData, dates: upcomingSessions(rawData.dates) };
         setSejour(data);
 
         if (Array.isArray(data.dates) && data.dates.length > 0) {

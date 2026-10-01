@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
-import { PUBLIC_BOOKABLE_SESSION, isPublicBookableSejour, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
+import { isPublicSejour, isSessionFull, isSessionLimited, upcomingSessions } from "@/src/lib/availability";
 
 /* ─────────────────────────────────────────
    DONNÉES
@@ -72,16 +72,6 @@ const trips = [
     cta: "Découvrir le séjour",
   },
 ];
-
-const julyOffer = {
-  label: "Surf : dernières places en août",
-  title: "Dernières places surf du 17 au 28 août",
-  body:
-    "Tous les autres séjours sont complets. Les inscriptions restent ouvertes uniquement sur la session surf du 17 au 28 août.",
-  price: "places limitées",
-  cta: "Voir la session disponible",
-  href: "/sejours/my-creative-surf-camp",
-};
 
 const homepageTestimonialsManual = [
   {
@@ -459,22 +449,6 @@ function FeaturesAndTrips({ content }) {
 
         {/* Droite — 2 cartes image-fond */}
         <div className="flex flex-col gap-5">
-          <Reveal>
-            <Link
-              href={julyOffer.href}
-              className="group flex items-center gap-3 rounded-xl border border-[#d8bde8]/50 bg-white/50 px-4 py-3 backdrop-blur-sm transition hover:bg-white/70"
-              style={{ textDecoration: "none" }}
-            >
-              <span className="h-2 w-2 shrink-0 rounded-full bg-[#A45A86]" />
-              <p className="flex-1 text-sm font-semibold text-[#5B4B6F]">
-                <span className="font-black text-[#A45A86]">Surf juillet complet —</span>{" "}
-                Quelques places en août · dépêchez-vous !
-              </p>
-              <span className="shrink-0 text-xs font-bold text-[#A45A86] opacity-50 transition group-hover:opacity-100">
-                Voir →
-              </span>
-            </Link>
-          </Reveal>
           {tripsData.map((trip, i) => (
             <Reveal key={trip.title} delay={i * 0.1}>
               <Link href={trip.href || "/sejours"} className="block cursor-pointer" aria-label={trip.title}>
@@ -662,7 +636,7 @@ function extractSejourIdFromTrip(trip) {
 }
 
 function formatSejourDatesForTrip(sejour) {
-  const entries = publicBookableSessions(sejour?.id, sejour?.dates);
+  const entries = upcomingSessions(sejour?.dates);
   if (!entries.length) return "";
   const months = entries
     .flatMap((item) => {
@@ -703,17 +677,18 @@ function formatPromoDateForTrip(sejour, fallback = "") {
   return `${start.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} - ${end.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`;
 }
 
+/** One card per séjour with a session still to come; the homepage content only adds its wording to matching cards. */
 function mergeTripsWithSejours(sourceTrips, sejoursById) {
-  const baseTrips = (Array.isArray(sourceTrips) ? sourceTrips : []).filter((trip) => (
-    extractSejourIdFromTrip(trip) === PUBLIC_BOOKABLE_SESSION.sejourSlug
-  ));
-  return baseTrips.map((trip) => {
-    const sejourId = extractSejourIdFromTrip(trip);
-    const liveSejour = sejourId ? sejoursById.get(sejourId) : null;
-    if (!liveSejour) return trip;
-    const publicSessions = publicBookableSessions(sejourId, liveSejour.dates || []);
-    if (!isPublicBookableSejour(sejourId, liveSejour)) return null;
-    const publicSejour = { ...liveSejour, dates: publicSessions };
+  const contentTrips = new Map((Array.isArray(sourceTrips) ? sourceTrips : []).map((trip) => [extractSejourIdFromTrip(trip), trip]));
+  const firstStart = (sejour) => String(sejour.dates[0]?.startDate || "").slice(0, 10);
+  const publicSejours = [...sejoursById.values()]
+    .filter(isPublicSejour)
+    .map((sejour) => ({ ...sejour, dates: upcomingSessions(sejour.dates) }))
+    .sort((a, b) => firstStart(a).localeCompare(firstStart(b)));
+  return publicSejours.map((publicSejour) => {
+    const sejourId = publicSejour.id;
+    const trip = contentTrips.get(sejourId) || { badge: "Inscriptions ouvertes", cta: "Découvrir le séjour" };
+    const publicSessions = publicSejour.dates;
     const hasLimitedSessions = publicSessions.some(isSessionLimited);
     const hasActivePromoSession = Boolean(
       publicSejour?.promotion?.active
@@ -734,7 +709,7 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
       promo: hasActivePromoSession ? (publicSejour.promotion.priceLabel || trip.promo) : "",
       badge: hasLimitedSessions ? "Quelques places" : hasActivePromoSession ? "Offre juillet" : trip.badge,
     };
-  }).filter(Boolean);
+  });
 }
 
 function escapeHtml(value) {
@@ -1991,9 +1966,7 @@ export default function Home2026() {
 
   const resolvedContent = useMemo(() => {
     const next = { ...homepageContent };
-    if (sejoursById.size) {
-      next.trips = mergeTripsWithSejours(homepageContent.trips, sejoursById);
-    }
+    next.trips = mergeTripsWithSejours(homepageContent.trips, sejoursById);
     next.testimonials = hydrateTestimonialsWithRetours(
       homepageContent.testimonials || [],
       retoursById,

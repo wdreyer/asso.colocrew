@@ -6,7 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { FaArrowRight, FaCalendarAlt, FaClock, FaFilePdf, FaUserFriends } from "react-icons/fa";
 import { db } from "@/app/firebase";
 import { formatPriceRange, resolveLowestSejourPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
-import { isPublicBookableSejour, publicBookableSessions } from "@/src/lib/availability";
+import { isPublicSejour, upcomingSessions } from "@/src/lib/availability";
 import Spinner from "../components/layout/Spinner";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
@@ -48,14 +48,6 @@ function getEnvironment(rawEnvironment, id, name) {
   return "campagne";
 }
 
-function isSejourOnline(item) {
-  const status = String(item?.status || "").toLowerCase();
-  if (item?.archived === true || status === "archived") return false;
-  if (item?.isOnline === false) return false;
-  if (status === "offline" || status === "draft" || status === "hidden") return false;
-  return true;
-}
-
 function getDuration(datesArray) {
   if (!datesArray || datesArray.length === 0) return "";
   const first = new Date(datesArray[0].startDate);
@@ -92,7 +84,6 @@ function normalizeSejour(docSnap) {
     image: data.heroImage || "/load.png",
     description: data.heroSubtitle || "",
     priceRange: data?.promotion?.active ? resolveLowestSejourPriceRange(data) : resolveSejourPriceRange(data),
-    isOnline: isSejourOnline(data),
   };
 }
 
@@ -118,9 +109,9 @@ export default function SejoursList() {
         const querySnapshot = await getDocs(collection(db, "sejours"));
         const docs = querySnapshot.docs.map(normalizeSejour);
         const onlineDocs = docs
-          .filter((item) => item.isOnline && isPublicBookableSejour(item.id, item))
+          .filter(isPublicSejour)
           .map((item) => {
-            const dates = publicBookableSessions(item.id, item.dates);
+            const dates = upcomingSessions(item.dates);
             const displayMonths = dates
               .map((dateObj) => {
                 const start = new Date(dateObj.startDate);

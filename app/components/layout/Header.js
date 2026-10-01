@@ -16,19 +16,19 @@ import {
 } from "react-icons/fa";
 import { auth, db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
 
 /* ─── DATA ─────────────────────────────────── */
 
-const sejoursItems = [
-  {
-    href: "/sejours/my-creative-surf-camp",
-    label: "My Creative Surf Camp",
-    sub: "Pays Basque · 11-17 ans · 17–28 août 2026",
-    image: "/mcsc2026.jpg",
-    badge: "Dernières places",
-    badgeColor: "#B8336A",
-  },
-];
+/** Menu entries for every séjour still to come (see usePublicSejours). */
+function useSejoursItems() {
+  return (usePublicSejours() || []).map((sejour) => ({
+    href: `/sejours/${sejour.id}`,
+    label: sejour.name || sejour.id,
+    sub: [formatAgesLabel(sejour.ageGroups), formatSessionsLabel(sejour.dates)].filter(Boolean).join(" · "),
+    image: sejour.heroImage || sejour.image || "/load.png",
+  }));
+}
 
 const infosItems = [
   { href: "/aide-financement", label: "Aides et financements" },
@@ -264,6 +264,7 @@ const injectCss = `
 /* ─── SÉJOURS DROPDOWN ─────────────────────── */
 
 function SejoursDropdown({ open }) {
+  const sejoursItems = useSejoursItems();
   return (
     <div
       style={{
@@ -288,7 +289,7 @@ function SejoursDropdown({ open }) {
       }}>
         <div style={{ padding: "12px 20px 8px", borderBottom: "1px solid #f3eee8" }}>
           <p style={{ margin: 0, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.14em", color: "#9e91b0", textTransform: "uppercase" }}>
-            Nos séjours été 2026
+            Nos prochains séjours
           </p>
         </div>
 
@@ -301,7 +302,7 @@ function SejoursDropdown({ open }) {
               style={{
                 display: "block",
                 textDecoration: "none",
-                borderRight: i === 0 ? "1px solid #f3eee8" : "none",
+                borderRight: i % 2 === 0 ? "1px solid #f3eee8" : "none",
                 transition: "background 0.18s",
               }}
             >
@@ -315,12 +316,6 @@ function SejoursDropdown({ open }) {
                   sizes="280px"
                 />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 100%)" }} />
-                <span style={{
-                  position: "absolute", top: 10, left: 10,
-                  background: s.badgeColor, color: "#fff",
-                  fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.08em",
-                  padding: "3px 10px", borderRadius: 100, textTransform: "uppercase",
-                }}>{s.badge}</span>
               </div>
 
               <div style={{ padding: "14px 18px 16px" }}>
@@ -447,6 +442,7 @@ function NavItem({ label, openKey, itemKey, setOpenKey, children }) {
 
 function MobileMenu({ isOpen, closeMenu }) {
   const [openSection, setOpenSection] = useState("sejours");
+  const sejoursItems = useSejoursItems();
   if (!isOpen) return null;
 
   const sections = [

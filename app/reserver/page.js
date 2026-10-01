@@ -20,21 +20,11 @@ import {
   resolveSejourPriceRange,
   siblingDiscountFactor,
 } from "@/src/lib/pricing";
-import { PUBLIC_BOOKABLE_SESSION, isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
+import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
+import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
 
 const CATALOG_PDF_PATH = "/Catalogue%20Colocrew%20-%20ETE2026.pdf";
 
-/* ─── Séjours disponibles (données statiques pour le sélecteur) ─── */
-const SEJOURS_META = [
-  {
-    slug: "my-creative-surf-camp",
-    name: "My Creative Surf Camp",
-    sub: "Vieux Boucau · Surf & Projet Artistique",
-    image: "/mcsc2026.jpg",
-    badge: "Août : dernières places",
-    badgeColor: "#d88700",
-  },
-];
 
 const CSS_LANDING = `
   .landing-card {
@@ -171,6 +161,13 @@ function LandingSelector() {
   const [departureCity, setDepartureCity]     = useState("");
   const [returnCity, setReturnCity]           = useState("");
   const [diffReturn, setDiffReturn]           = useState(false);
+  const publicSejours = usePublicSejours();
+  const sejourCards = (publicSejours || []).map((item) => ({
+    slug: item.id,
+    name: item.name || item.id,
+    sub: [formatAgesLabel(item.ageGroups), formatSessionsLabel(item.dates)].filter(Boolean).join(" · "),
+    image: item.heroImage || item.image || "/load.png",
+  }));
 
   /* Charge le séjour Firestore quand on sélectionne une card */
   useEffect(() => {
@@ -228,7 +225,6 @@ function LandingSelector() {
   const handleContinue = () => {
     if (!canContinue) return;
     const [startDate, endDate] = selectedDateKey.split("|");
-    if (selectedSlug !== PUBLIC_BOOKABLE_SESSION.sejourSlug || startDate !== PUBLIC_BOOKABLE_SESSION.startDate || endDate !== PUBLIC_BOOKABLE_SESSION.endDate) return;
     const params = new URLSearchParams({ sejour: selectedSlug, startDate, endDate, ageGroup: selectedAge });
     if (departureCity)         params.set("departureCity", departureCity);
     if (effectiveReturnCity)   params.set("returnCity", effectiveReturnCity);
@@ -264,7 +260,9 @@ function LandingSelector() {
               Quel séjour vous intéresse ?
             </p>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              {SEJOURS_META.map((s) => (
+              {publicSejours === null && <Spinner />}
+              {publicSejours?.length === 0 && <p style={{ margin: 0, color: "#7d748f" }}>Aucun séjour n&apos;est ouvert pour le moment.</p>}
+              {sejourCards.map((s) => (
                 <div
                   key={s.slug}
                   className={`landing-card${selectedSlug === s.slug ? " is-active" : ""}`}
@@ -276,12 +274,6 @@ function LandingSelector() {
                   <div className="card-img-wrap">
                     <Image src={s.image} alt={s.name} fill style={{ objectFit: "cover" }} sizes="360px" />
                     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.55) 100%)" }} />
-                    <span style={{
-                      position: "absolute", top: 10, left: 10,
-                      background: s.badgeColor, color: "#fff",
-                      fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.08em",
-                      padding: "3px 10px", borderRadius: 100, textTransform: "uppercase",
-                    }}>{s.badge}</span>
                     {selectedSlug === s.slug && (
                       <span style={{
                         position: "absolute", top: 10, right: 10,
@@ -697,11 +689,6 @@ function ReservationForm({
       const slug = urlSejour.toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .replace(/\s+/g, "-");
-      if (slug !== PUBLIC_BOOKABLE_SESSION.sejourSlug) {
-        setSejour(null);
-        setLoading(false);
-        return;
-      }
       const snap = await getDoc(doc(db, "sejours", slug));
       if (snap.exists()) {
         const data = snap.data();
@@ -813,10 +800,10 @@ function ReservationForm({
           <span className="inline-flex rounded-full bg-[#514a59] px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white">
             Complet
           </span>
-          <h1 className="mt-5 text-2xl font-extrabold text-[#1f1640]">Cette session est complète</h1>
-          <p className="mt-3 text-[#6b5f82]">Les inscriptions restent ouvertes uniquement pour le séjour surf du 17 au 28 août.</p>
-          <Link href="/reserver" className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#B8336A] px-5 py-3 font-bold text-white">
-            Voir la session disponible <FaArrowRight size={13} />
+          <h1 className="mt-5 text-2xl font-extrabold text-[#1f1640]">Cette session n&apos;est plus disponible</h1>
+          <p className="mt-3 text-[#6b5f82]">Elle est complète ou déjà commencée. Choisissez une autre session parmi nos prochains séjours.</p>
+          <Link href="/sejours" className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#B8336A] px-5 py-3 font-bold text-white">
+            Voir les séjours <FaArrowRight size={13} />
           </Link>
         </div>
       </div>
@@ -827,8 +814,8 @@ function ReservationForm({
     <div className="min-h-screen md:p-6 relative">
       {isSubmitting && (
         <ProcessingModal
-          image={SEJOURS_META.find((s) => s.slug === urlSejour)?.image || sejour?.heroImage || ""}
-          sejourName={sejour?.name || sejour?.nom || SEJOURS_META.find((s) => s.slug === urlSejour)?.name || ""}
+          image={sejour?.heroImage || sejour?.image || ""}
+          sejourName={sejour?.name || sejour?.nom || ""}
         />
       )}
 

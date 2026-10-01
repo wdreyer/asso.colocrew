@@ -2,27 +2,36 @@ export function isSessionFull(session) {
   return session?.bookingOpen === false || session?.availabilityStatus === "full";
 }
 
-export const PUBLIC_BOOKABLE_SESSION = {
-  sejourSlug: "my-creative-surf-camp",
-  startDate: "2026-08-17",
-  endDate: "2026-08-28",
-};
+function todayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
-export function isPublicBookableSession(sejourId, session) {
-  return (
-    String(sejourId || "") === PUBLIC_BOOKABLE_SESSION.sejourSlug
-    && String(session?.startDate || "").slice(0, 10) === PUBLIC_BOOKABLE_SESSION.startDate
-    && String(session?.endDate || "").slice(0, 10) === PUBLIC_BOOKABLE_SESSION.endDate
-    && !isSessionFull(session)
-  );
+function sessionStartKey(session) {
+  return String((typeof session === "object" ? session?.startDate : session) || "").slice(0, 10);
+}
+
+/** A session is public as long as it has not started yet. */
+export function isUpcomingSession(session) {
+  const start = sessionStartKey(session);
+  return Boolean(start) && start >= todayKey();
+}
+
+export function upcomingSessions(sessions = []) {
+  return (Array.isArray(sessions) ? sessions : []).filter(isUpcomingSession);
+}
+
+/** Every séjour with an upcoming session is online, whatever its status in the dashboard. */
+export function isPublicSejour(sejour) {
+  return upcomingSessions(sejour?.dates).length > 0;
+}
+
+export function isPublicBookableSession(_sejourId, session) {
+  return isUpcomingSession(session) && !isSessionFull(session);
 }
 
 export function publicBookableSessions(sejourId, sessions = []) {
   return (Array.isArray(sessions) ? sessions : []).filter((session) => isPublicBookableSession(sejourId, session));
-}
-
-export function isPublicBookableSejour(sejourId, sejour) {
-  return publicBookableSessions(sejourId, sejour?.dates || []).length > 0;
 }
 
 export function isSessionLimited(session) {

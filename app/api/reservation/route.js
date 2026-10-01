@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { PUBLIC_BOOKABLE_SESSION, isPublicBookableSession } from "@/src/lib/availability";
+import { isPublicBookableSession } from "@/src/lib/availability";
 import crypto from "crypto";
 
 function normalizePlace(value) {
@@ -85,16 +85,6 @@ export async function POST(request) {
       .replace(/\s+/g, "-");
     const requestedStartDate = String(body.urlStartDate || "").slice(0, 10);
     const requestedEndDate = String(body.urlEndDate || "").slice(0, 10);
-    if (
-      requestedSejour !== PUBLIC_BOOKABLE_SESSION.sejourSlug
-      || requestedStartDate !== PUBLIC_BOOKABLE_SESSION.startDate
-      || requestedEndDate !== PUBLIC_BOOKABLE_SESSION.endDate
-    ) {
-      return NextResponse.json(
-        { error: "Les inscriptions sont ouvertes uniquement pour le séjour surf du 17 au 28 août." },
-        { status: 409 },
-      );
-    }
     if (requestedSejour && requestedStartDate) {
       const sejourSnap = await getDoc(doc(db, "sejours", requestedSejour));
       const selectedSession = sejourSnap.exists()
@@ -107,7 +97,7 @@ export async function POST(request) {
         : null;
       if (!isPublicBookableSession(requestedSejour, selectedSession)) {
         return NextResponse.json(
-          { error: "Cette session est complète. Choisissez la session surf disponible du 17 au 28 août." },
+          { error: "Cette session n'est plus disponible (complète ou déjà commencée). Choisissez une autre session." },
           { status: 409 },
         );
       }
