@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { isPublicBookableSession } from "@/src/lib/availability";
+import { isPublicBookableSession, sejourIdCandidates } from "@/src/lib/availability";
 import crypto from "crypto";
 
 function normalizePlace(value) {
@@ -78,23 +78,25 @@ export async function POST(request) {
       );
     }
     const body = JSON.parse(fields);
-    const requestedSejour = String(body.urlSejour || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, "-");
     const requestedStartDate = String(body.urlStartDate || "").slice(0, 10);
     const requestedEndDate = String(body.urlEndDate || "").slice(0, 10);
-    if (requestedSejour && requestedStartDate) {
-      const sejourSnap = await getDoc(doc(db, "sejours", requestedSejour));
-      const selectedSession = sejourSnap.exists()
-        ? (sejourSnap.data().dates || []).find(
-          (dateEntry) => (
-            String(dateEntry.startDate || "").slice(0, 10) === requestedStartDate
-            && String(dateEntry.endDate || "").slice(0, 10) === requestedEndDate
-          ),
-        )
-        : null;
+    let requestedSejour = "";
+    let sejourData = null;
+    for (const candidate of sejourIdCandidates(body.urlSejour)) {
+      const sejourSnap = await getDoc(doc(db, "sejours", candidate));
+      if (sejourSnap.exists()) {
+        requestedSejour = candidate;
+        sejourData = sejourSnap.data();
+        break;
+      }
+    }
+    if (body.urlSejour && requestedStartDate) {
+      const selectedSession = (sejourData?.dates || []).find(
+        (dateEntry) => (
+          String(dateEntry.startDate || "").slice(0, 10) === requestedStartDate
+          && String(dateEntry.endDate || "").slice(0, 10) === requestedEndDate
+        ),
+      );
       if (!isPublicBookableSession(requestedSejour, selectedSession)) {
         return NextResponse.json(
           { error: "Cette session n'est plus disponible (complète ou déjà commencée). Choisissez une autre session." },
@@ -227,7 +229,8 @@ export async function POST(request) {
 
     // E) Informations sur le séjour
     const safeSejour = {
-      name: urlSejour,
+      id: requestedSejour || urlSejour,
+      name: sejourData?.name || urlSejour,
       startDate: urlStartDate,
       endDate: urlEndDate,
       ageGroup: urlAgeGroup,
@@ -292,7 +295,7 @@ export async function POST(request) {
           tokenUnique,
           amount: 100,
           currency: "eur",
-          sejourTitle: urlSejour,
+          sejourTitle: sejourData?.name || urlSejour,
           ageGroup: urlAgeGroup,
           startDate: urlStartDate,
           endDate: urlEndDate,

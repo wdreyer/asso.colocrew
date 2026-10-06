@@ -11,6 +11,20 @@ function sessionStartKey(session) {
   return String((typeof session === "object" ? session?.startDate : session) || "").slice(0, 10);
 }
 
+/**
+ * Firestore IDs are case-sensitive (e.g. "bmbeCU0pbLudQzIMCQzX"): try the URL value as is,
+ * then its legacy slug form ("My Creative Surf Camp" -> "my-creative-surf-camp").
+ */
+export function sejourIdCandidates(value) {
+  const raw = String(value || "").trim();
+  const slug = raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "-");
+  return [...new Set([raw, slug].filter(Boolean))];
+}
+
 /** A session is public as long as it has not started yet. */
 export function isUpcomingSession(session) {
   const start = sessionStartKey(session);

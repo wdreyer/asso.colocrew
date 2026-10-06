@@ -22,7 +22,7 @@ import {
 } from "@/src/lib/pricing";
 import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
 import { ageLabel } from "@/src/lib/ages";
-import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions } from "@/src/lib/availability";
+import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions, sejourIdCandidates } from "@/src/lib/availability";
 
 
 
@@ -641,11 +641,16 @@ function ReservationForm({
   /* Charge le séjour depuis Firestore */
   useEffect(() => {
     async function fetchSejour() {
-      const slug = urlSejour.toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, "-");
-      const snap = await getDoc(doc(db, "sejours", slug));
-      if (snap.exists()) {
+      let slug = "";
+      let snap = null;
+      for (const candidate of sejourIdCandidates(urlSejour)) {
+        snap = await getDoc(doc(db, "sejours", candidate));
+        if (snap.exists()) {
+          slug = candidate;
+          break;
+        }
+      }
+      if (slug) {
         const data = snap.data();
         const bookableDates = publicBookableSessions(slug, data.dates || []);
         const requestedSession = bookableDates.find((dateEntry) => (
