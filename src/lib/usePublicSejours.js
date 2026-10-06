@@ -42,6 +42,19 @@ export function formatAgesLabel(ageGroups) {
   return groups.length ? `${groups.join(" / ")} ans` : "";
 }
 
+/** "13 – 19 févr. 2027", "27 févr. – 5 mars 2027" */
+export function formatSessionRange(session) {
+  const start = new Date(session?.startDate);
+  const end = new Date(session?.endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+  const endLabel = end.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const startLabel = sameMonth
+    ? String(start.getDate())
+    : start.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  return `${startLabel} – ${endLabel}`;
+}
+
 /** "Février 2027", "Octobre – Novembre 2026" */
 export function formatSessionsLabel(sessions) {
   const seen = new Set();

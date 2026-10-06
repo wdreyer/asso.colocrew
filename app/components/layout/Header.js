@@ -17,6 +17,7 @@ import {
 import { auth, db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
+import { formatHolidayZones, sessionsHolidayZones } from "@/src/lib/schoolHolidays";
 
 /* ─── DATA ─────────────────────────────────── */
 
@@ -25,7 +26,7 @@ function useSejoursItems() {
   return (usePublicSejours() || []).map((sejour) => ({
     href: `/sejours/${sejour.id}`,
     label: sejour.name || sejour.id,
-    sub: [formatAgesLabel(sejour.ageGroups), formatSessionsLabel(sejour.dates)].filter(Boolean).join(" · "),
+    sub: [formatAgesLabel(sejour.ageGroups), formatSessionsLabel(sejour.dates), formatHolidayZones(sessionsHolidayZones(sejour.dates))].filter(Boolean).join(" · "),
     image: sejour.heroImage || sejour.image || "/load.png",
   }));
 }

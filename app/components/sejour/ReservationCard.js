@@ -5,6 +5,8 @@ import { FaCalendarAlt, FaChild, FaCity, FaMoneyBillWave, FaTrain } from "react-
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
 import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
 import { ageLabel } from "@/src/lib/ages";
+import { sessionHolidayZones } from "@/src/lib/schoolHolidays";
+import HolidayZoneChips from "./HolidayZoneChips";
 
 const SUR_PLACE_LABEL = "Sur place";
 
@@ -180,6 +182,7 @@ export default function ReservationCard({
                       </span>
                     )}
                     <p className="text-sm font-semibold leading-snug text-[#24173d]">{toDateLabel(dateOption)}</p>
+                    <HolidayZoneChips zones={sessionHolidayZones(dateOption)} small className="mt-1" />
                     {isPromo && sejour?.promotion?.priceLabel ? (
                       <p className="mt-0.5 text-xs font-black text-[#B8336A]">
                         dès {sejour.promotion.priceLabel}

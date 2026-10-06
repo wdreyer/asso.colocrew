@@ -8,6 +8,9 @@ import { db } from "@/app/firebase";
 import { formatPriceNumber, formatPriceRange, resolveLowestSejourPriceRange, resolveSessionsPriceRange } from "@/src/lib/pricing";
 import { isPublicSejour, upcomingSessions } from "@/src/lib/availability";
 import { ageGroupsLabel, normalizeAge } from "@/src/lib/ages";
+import { HOLIDAY_ZONES, holidayZonesDetail, sessionHolidayZones, sessionsHolidayZones } from "@/src/lib/schoolHolidays";
+import { formatSessionRange } from "@/src/lib/usePublicSejours";
+import HolidayZoneChips from "../components/sejour/HolidayZoneChips";
 import Spinner from "../components/layout/Spinner";
 
 
@@ -101,6 +104,7 @@ function getPriceBadgeLabel(sejour) {
 export default function SejoursList() {
   const [selectedPeriod, setSelectedPeriod] = useState("all");
   const [selectedEnvironment, setSelectedEnvironment] = useState("all");
+  const [selectedZone, setSelectedZone] = useState("all");
   // No age selected shows every séjour; the buttons are the age groups of the séjours online.
   const [selectedAgeGroups, setSelectedAgeGroups] = useState([]);
   const [sejours, setSejours] = useState([]);
@@ -129,6 +133,7 @@ export default function SejoursList() {
               dates,
               displayMonths,
               period: [...new Set(displayMonths)].join(", "),
+              holidayZones: sessionsHolidayZones(dates),
               priceRange: item?.promotion?.active ? resolveLowestSejourPriceRange({ ...item, dates }) : resolveSessionsPriceRange(item, dates),
             };
           });
@@ -176,9 +181,16 @@ export default function SejoursList() {
         const ageMatch =
           !selectedAgeGroups.length ||
           selectedAgeGroups.some((age) => (sejour.ageGroups || []).includes(age));
-        return periodMatch && environmentMatch && ageMatch;
+        const zoneMatch =
+          selectedZone === "all" || (sejour.holidayZones || []).includes(selectedZone);
+        return periodMatch && environmentMatch && ageMatch && zoneMatch;
       }),
-    [sejours, selectedEnvironment, selectedPeriod, selectedAgeGroups],
+    [sejours, selectedEnvironment, selectedPeriod, selectedAgeGroups, selectedZone],
+  );
+
+  const zoneOptions = useMemo(
+    () => HOLIDAY_ZONES.filter((zone) => sejours.some((sejour) => (sejour.holidayZones || []).includes(zone))),
+    [sejours],
   );
 
   const ageOptions = useMemo(
@@ -243,6 +255,23 @@ export default function SejoursList() {
               <option value="campagne">Campagne</option>
               <option value="ville">Ville</option>
             </select>
+
+            {zoneOptions.length ? (
+              <select
+                id="zone-filter"
+                value={selectedZone}
+                onChange={(e) => setSelectedZone(e.target.value)}
+                title={holidayZonesDetail(zoneOptions)}
+                className="min-h-11 rounded-xl border border-[#e6d8ef] px-4 text-sm font-medium text-[#35224f] outline-none transition focus:border-[#b985cf] focus:ring-2 focus:ring-[#f2d7e9]"
+              >
+                <option value="all">Toutes les zones de vacances</option>
+                {zoneOptions.map((zone) => (
+                  <option key={zone} value={zone}>
+                    Vacances zone {zone}
+                  </option>
+                ))}
+              </select>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-2">
               {ageOptions.map((age) => {
@@ -332,6 +361,23 @@ export default function SejoursList() {
                           <span>{envMeta.label}</span>
                         </span>
                       </div>
+                      {(sejour.holidayZones || []).length ? (
+                        <ul className="grid gap-1.5 border-t border-[#f0e6f5] pt-3">
+                          {(sejour.dates || []).map((session) => {
+                            const zones = sessionHolidayZones(session);
+                            const dimmed = selectedZone !== "all" && !zones.includes(selectedZone);
+                            return (
+                              <li
+                                key={`${session.startDate}-${session.endDate}`}
+                                className={`flex flex-wrap items-center gap-2 ${dimmed ? "opacity-40" : ""}`}
+                              >
+                                <span className="font-semibold">{formatSessionRange(session)}</span>
+                                <HolidayZoneChips zones={zones} label="" small />
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
                     </div>
                   </article>
                 </Link>

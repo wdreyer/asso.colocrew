@@ -5,6 +5,8 @@ import Image from "next/image";
 import { FaCalendarAlt, FaEuroSign, FaTrain, FaUserFriends } from "react-icons/fa";
 import { formatPriceNumber, formatPriceRange, resolveSejourPriceRange } from "@/src/lib/pricing";
 import { ageLabel } from "@/src/lib/ages";
+import { sessionHolidayZones } from "@/src/lib/schoolHolidays";
+import HolidayZoneChips from "../sejour/HolidayZoneChips";
 
 export default function RecapReservation({
   sejour,
@@ -33,6 +35,7 @@ export default function RecapReservation({
     displayedStart && displayedEnd
       ? `${displayedStart} au ${displayedEnd}`
       : displayedStart || "Dates non renseignées";
+  const holidayZones = sessionHolidayZones({ startDate: urlStartDate, endDate: urlEndDate });
 
   const selectedPriceRange = resolveSejourPriceRange(sejour, urlStartDate);
   const hasPriceRange = selectedPriceRange.min > 0 || selectedPriceRange.max > 0;
@@ -74,6 +77,11 @@ export default function RecapReservation({
             <span className="font-semibold">Dates :</span> {displayedDates}
           </p>
         </div>
+        {holidayZones.length ? (
+          <div className="flex items-center text-gray-700 mb-2 ml-6">
+            <HolidayZoneChips zones={holidayZones} label="Vacances scolaires" small />
+          </div>
+        ) : null}
 
         <div className="flex items-center text-gray-700 mb-2">
           <FaTrain className="text-[#B8336A] mr-2" />

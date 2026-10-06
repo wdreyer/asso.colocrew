@@ -21,6 +21,8 @@ import {
   siblingDiscountFactor,
 } from "@/src/lib/pricing";
 import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/lib/usePublicSejours";
+import { formatHolidayZones, sessionHolidayZones, sessionsHolidayZones } from "@/src/lib/schoolHolidays";
+import HolidayZoneChips from "../components/sejour/HolidayZoneChips";
 import { ageLabel } from "@/src/lib/ages";
 import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions, sejourIdCandidates } from "@/src/lib/availability";
 
@@ -124,7 +126,7 @@ function LandingSelector() {
   const sejourCards = (publicSejours || []).map((item) => ({
     slug: item.id,
     name: item.name || item.id,
-    sub: [formatAgesLabel(item.ageGroups), formatSessionsLabel(item.dates)].filter(Boolean).join(" · "),
+    sub: [formatAgesLabel(item.ageGroups), formatSessionsLabel(item.dates), formatHolidayZones(sessionsHolidayZones(item.dates))].filter(Boolean).join(" · "),
     image: item.heroImage || item.image || "/load.png",
   }));
 
@@ -328,6 +330,7 @@ function LandingSelector() {
                               <p style={{ margin: 0, fontSize: "0.92rem", fontWeight: 700, color: "#1f1640", lineHeight: 1.3 }}>
                                 {formatDateFR(d.startDate)} → {formatDateFR(d.endDate)}
                               </p>
+                              <HolidayZoneChips zones={sessionHolidayZones(d)} small className="mt-1" />
                               {d.label ? (
                                 <p style={{ margin: "3px 0 0", fontSize: "0.78rem", color: "#7d748f", fontWeight: 500 }}>{d.label}</p>
                               ) : null}

@@ -6,6 +6,8 @@ import { FaCalendarAlt, FaChild, FaMapMarkerAlt, FaMoneyBillWave, FaRegStar, FaS
 import { formatPriceRange, resolveLowestSejourPriceRange, resolveSessionsPriceRange } from "@/src/lib/pricing";
 import { bookableSessions, isSessionFull, isSessionLimited } from "@/src/lib/availability";
 import { ageGroupsLabel } from "@/src/lib/ages";
+import { formatHolidayZones, sessionHolidayZones, sessionsHolidayZones } from "@/src/lib/schoolHolidays";
+import { formatSessionRange } from "@/src/lib/usePublicSejours";
 
 function InfoPill({ icon: Icon, text }) {
   if (!text) return null;
@@ -63,6 +65,7 @@ export default function GenericSejour({ sejourData, feedback }) {
 
   const availableDates = bookableSessions(dates);
   const months = formatMonthRange(availableDates);
+  const hasHolidayZones = sessionsHolidayZones(availableDates).length > 0;
   const duration = formatDuration(availableDates);
   const priceRange = resolveSessionsPriceRange(sejourData);
   const promo = sejourData.promotion && typeof sejourData.promotion === "object" ? sejourData.promotion : null;
@@ -128,7 +131,15 @@ export default function GenericSejour({ sejourData, feedback }) {
                   ✦ Offre spéciale · {promoPriceLabel}
                 </span>
               ) : null}
-              <InfoPill icon={FaCalendarAlt} text={months} />
+              {hasHolidayZones
+                ? availableDates.map((session) => (
+                  <InfoPill
+                    key={`${session.startDate}-${session.endDate}`}
+                    icon={FaCalendarAlt}
+                    text={[formatSessionRange(session), formatHolidayZones(sessionHolidayZones(session))].filter(Boolean).join(" · ")}
+                  />
+                ))
+                : <InfoPill icon={FaCalendarAlt} text={months} />}
               <InfoPill icon={FaChild} text={ages} />
               <InfoPill icon={FaCalendarAlt} text={duration} />
               <InfoPill icon={FaMoneyBillWave} text={priceLabel} />

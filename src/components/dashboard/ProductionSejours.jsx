@@ -6,6 +6,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, serverTimestamp, setDoc, up
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { WINTER_SCHOOL_HOLIDAYS_2027 } from "@/src/lib/schoolHolidays";
 
 /* ─── KPI icon SVGs ──────────────────────────────────────────────────── */
 function IconCoins() {
@@ -34,38 +35,6 @@ const ACCOUNTING_DOC_ID = "colocrew-2026";
 const DAY_WIDTH = 28;
 const LABEL_WIDTH = 170;
 
-const WINTER_SCHOOL_HOLIDAYS_2027 = [
-  {
-    zone: "C",
-    startDate: "2027-02-06",
-    endDate: "2027-02-21",
-    returnDate: "2027-02-22",
-    color: "#b4234b",
-    background: "#fce8ee",
-    academies: "Créteil, Montpellier, Paris, Toulouse et Versailles",
-    cities: "Créteil, Montpellier, Paris, Toulouse et Versailles",
-  },
-  {
-    zone: "A",
-    startDate: "2027-02-13",
-    endDate: "2027-02-28",
-    returnDate: "2027-03-01",
-    color: "#0f766e",
-    background: "#dff6f1",
-    academies: "Besançon, Bordeaux, Clermont-Ferrand, Dijon, Grenoble, Limoges, Lyon et Poitiers",
-    cities: "Besançon, Bordeaux, Clermont-Ferrand, Dijon, Grenoble, Limoges, Lyon et Poitiers",
-  },
-  {
-    zone: "B",
-    startDate: "2027-02-20",
-    endDate: "2027-03-07",
-    returnDate: "2027-03-08",
-    color: "#9a6700",
-    background: "#fff1c2",
-    academies: "Aix-Marseille, Amiens, Lille, Nancy-Metz, Nantes, Nice, Normandie, Orléans-Tours, Reims, Rennes et Strasbourg",
-    cities: "Aix-en-Provence, Marseille, Amiens, Lille, Nancy, Metz, Nantes, Nice, Caen, Rouen, Orléans, Tours, Reims, Rennes et Strasbourg",
-  },
-];
 
 const PRODUCTION_UNITS = [
   { key: "fixed", label: "Forfait séjour" },

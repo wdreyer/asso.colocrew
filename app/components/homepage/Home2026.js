@@ -8,6 +8,9 @@ import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { isPublicSejour, isSessionFull, isSessionLimited, upcomingSessions } from "@/src/lib/availability";
+import { sessionsHolidayZones } from "@/src/lib/schoolHolidays";
+import { formatSessionRange } from "@/src/lib/usePublicSejours";
+import HolidayZoneChips from "../sejour/HolidayZoneChips";
 
 /* ─────────────────────────────────────────
    DONNÉES
@@ -469,6 +472,8 @@ function FeaturesAndTrips({ content }) {
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                       <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 8px", lineHeight: 1.7 }}>📅 {trip.dates}</span>
                       <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 8px", lineHeight: 1.7 }}>👦 {trip.age}</span>
+                      <HolidayZoneChips zones={trip.holidayZones} label="" />
+
                       {trip.promo ? (
                         <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff", background: "rgba(164,90,134,0.75)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 8px", lineHeight: 1.7 }}>dès {trip.promo.split(" - ")[0]}</span>
                       ) : null}
@@ -690,6 +695,7 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
     const trip = contentTrips.get(sejourId) || { badge: "Inscriptions ouvertes", cta: "Découvrir le séjour" };
     const publicSessions = publicSejour.dates;
     const hasLimitedSessions = publicSessions.some(isSessionLimited);
+    const holidayZones = sessionsHolidayZones(publicSessions);
     const hasActivePromoSession = Boolean(
       publicSejour?.promotion?.active
       && publicSessions.some((session) =>
@@ -705,7 +711,12 @@ function mergeTripsWithSejours(sourceTrips, sejoursById) {
       title: publicSejour.name || trip.title,
       image: publicSejour.heroImage || trip.image,
       age: formatSejourAgesForTrip(publicSejour) || trip.age,
-      dates: formatPromoDateForTrip(publicSejour) || formatSejourDatesForTrip(publicSejour) || trip.dates,
+      // Séjours sur vacances à zones : dates exactes des sessions plutôt que le mois.
+      dates: formatPromoDateForTrip(publicSejour)
+        || (holidayZones.length ? publicSessions.map(formatSessionRange).filter(Boolean).join(" / ") : "")
+        || formatSejourDatesForTrip(publicSejour)
+        || trip.dates,
+      holidayZones,
       promo: hasActivePromoSession ? (publicSejour.promotion.priceLabel || trip.promo) : "",
       badge: hasLimitedSessions ? "Quelques places" : hasActivePromoSession ? "Offre spéciale" : trip.badge,
     };

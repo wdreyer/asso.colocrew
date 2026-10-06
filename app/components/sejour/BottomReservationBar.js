@@ -5,6 +5,7 @@ import { FaCalendarAlt, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
 import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
 import { ageLabel } from "@/src/lib/ages";
+import { formatHolidayZones, sessionHolidayZones } from "@/src/lib/schoolHolidays";
 
 const SUR_PLACE_LABEL = "Sur place";
 
@@ -147,6 +148,7 @@ export default function BottomReservationBar({
             return (
               <option key={`bottom-date-${idx}`} value={value} disabled={isFull}>
                 {isFull ? "COMPLET · " : isLimited ? "DERNIÈRES PLACES · " : isPromo ? "OFFRE · " : ""}{dateOptionLabel(dateOption)}
+                {sessionHolidayZones(dateOption).length ? ` · ${formatHolidayZones(sessionHolidayZones(dateOption))}` : ""}
               </option>
             );
           })}
