@@ -20,7 +20,7 @@ export function sejourIdCandidates(value) {
   const slug = raw
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "-");
   return [...new Set([raw, slug].filter(Boolean))];
 }
