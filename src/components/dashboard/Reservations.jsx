@@ -6,6 +6,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -18,18 +19,25 @@ import { useToast } from "@/src/contexts/ToastContext";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { siblingDiscountFactor } from "@/src/lib/pricing";
+import { isArchivedRecord, seasonOfRecord, useSeasons } from "@/src/lib/seasons";
+import { formatDateRange, useSessionCatalog } from "@/src/lib/sessions";
+import {
+  RESERVATION_STATUS_META,
+  canTransition,
+  computeSessionOccupancy,
+  legacyWeekOf,
+  matchReservationTransports,
+  normalizeReservationStatus,
+  reservationSessionId,
+  reservationTransports,
+  sessionFillState,
+} from "@/src/lib/reservations";
 
 /* ── Constants ─────────────────────────────────────────────────────────── */
 
-const TABS = [
-  { key: "all",       label: "Toutes",   color: "#7c3aed" },
-  { key: "pending",   label: "En cours", color: "#f97316" },
-  { key: "validated", label: "Validées", color: "#10b981" },
-  { key: "deleted",   label: "Passées",  color: "#94a3b8" },
-];
-
-const STATUS_LABEL = { pending: "En cours", validated: "Validée", deleted: "Passée" };
-const STATUS_BADGE  = { pending: "warning",  validated: "success",  deleted: "neutral" };
+const STATUS_LABEL = Object.fromEntries(Object.entries(RESERVATION_STATUS_META).map(([key, meta]) => [key, meta.short]));
+const STATUS_BADGE = Object.fromEntries(Object.entries(RESERVATION_STATUS_META).map(([key, meta]) => [key, meta.badge]));
+const STATUS_ORDER = ["pending", "validated", "waitlist", "cancelled"];
 const STAGE_QUAI_RDV = "Rendez-vous sur le quai — l’animateur·ice vous contactera";
 
 const EMAIL_TEMPLATES = [
@@ -144,11 +152,6 @@ function reservationTransportReminderLines(extra) {
   ].filter(Boolean);
 }
 
-function weekFromStartDate(value) {
-  const date = String(value || "").slice(0, 10);
-  return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
-}
-
 function segmentStopCityForReservation(transport, segment) {
   return transport.direction === "retour" ? segment?.to : segment?.from;
 }
@@ -187,45 +190,23 @@ function ticketSegmentLabelForReservation(ticket, segments = []) {
   return segment ? `${segment.from || "Départ"} > ${segment.to || "Arrivée"}` : ticket.segmentLabel || "";
 }
 
-const WEEK_DATES = {
-  S1: { startDate: "2026-07-06", endDate: "2026-07-17", label: "S1 — 6 au 17 juil." },
-  S2: { startDate: "2026-07-20", endDate: "2026-07-31", label: "S2 — 20 au 31 juil." },
-  S3: { startDate: "2026-08-03", endDate: "2026-08-14", label: "S3 — 3 au 14 août" },
-  S4: { startDate: "2026-08-17", endDate: "2026-08-28", label: "S4 — 17 au 28 août" },
-};
-
-function transportStopCities(transport) {
-  const cities = new Set();
-  [...(transport.segments || []), ...(transport.branches || [])].forEach((segment) => {
-    [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
-    (segment.stops || []).forEach((stop) => stop.city && cities.add(stop.city));
-  });
-  if (transport.departureCity) cities.add(transport.departureCity);
-  if (transport.arrivalCity) cities.add(transport.arrivalCity);
-  return [...cities];
-}
-
+/**
+ * Adds a validated reservation to the convoys of its session (one per direction, when a single
+ * convoy of the right day stops in the family's city). 2026 convoys only know their `week`: it is
+ * rebuilt from the séjour's dates.
+ */
 async function syncReservationToMatchingTransports(reservationId, data) {
-  if (normalizePlace(data.status) !== "validated") return 0;
-  const week = weekFromStartDate(data.sejour?.startDate);
-  if (!week) return 0;
-  const departureCity = data.transport?.departureCity || "";
-  const returnCity = data.transport?.returnCity || "";
+  if (normalizeReservationStatus(data.status) !== "validated") return 0;
   const transportsSnap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
   const transports = transportsSnap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }));
+  let legacyWeek = "";
+  if (data.sejour?.id && transports.some((transport) => !transport.sessionIds?.length && !transport.date && transport.week)) {
+    const sejourSnap = await getDoc(doc(db, COLLECTIONS.SEJOURS, data.sejour.id)).catch(() => null);
+    legacyWeek = sejourSnap?.exists() ? legacyWeekOf(sejourSnap.data().dates, data.sejour.startDate) : "";
+  }
   let synced = 0;
 
-  for (const direction of ["aller", "retour"]) {
-    const city = direction === "retour" ? returnCity : departureCity;
-    if (!city || normalizePlace(city) === "sur place") continue;
-    const matches = transports.filter((transport) =>
-      transport.week === week
-      && transport.direction === direction
-      && normalizePlace(transport.status) !== "annule"
-      && transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city))
-    );
-    if (matches.length !== 1) continue;
-    const transport = matches[0];
+  for (const { transport, city } of matchReservationTransports(transports, data, { legacyWeek })) {
     const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
     if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
     await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), {
@@ -277,6 +258,8 @@ function reservationDataForSync(item, overrides = {}) {
     minor: base.minor || { children: item.children || [] },
     sejour: {
       ...(base.sejour || {}),
+      id: overrides.sejourId ?? base.sejour?.id,
+      sessionId: overrides.sessionId ?? base.sejour?.sessionId,
       name: overrides.sejourName ?? item.sejourName ?? base.sejour?.name,
       startDate: overrides.sejourStartDate ?? item.sejourStartDate ?? base.sejour?.startDate,
       endDate: overrides.sejourEndDate ?? item.sejourEndDate ?? base.sejour?.endDate,
@@ -290,14 +273,34 @@ function reservationDataForSync(item, overrides = {}) {
   };
 }
 
-function useSejours() {
-  const [sejours, setSejours] = useState([]);
-  useEffect(() => {
-    getDocs(query(collection(db, COLLECTIONS.SEJOURS), orderBy("name", "asc")))
-      .then(snap => setSejours(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
-      .catch(() => {});
-  }, []);
-  return sejours;
+/**
+ * Sessions a reservation can be booked on: every session of the open (non-archived) seasons,
+ * from the live catalog. Archived seasons are read-only in /dashboard/archives.
+ */
+function useBookableSessions() {
+  const { archivedSeasons } = useSeasons();
+  const catalog = useSessionCatalog();
+  return useMemo(() => ({
+    ...catalog,
+    sessions: catalog.sessions.filter((session) => !archivedSeasons.has(session.season)),
+  }), [catalog, archivedSeasons]);
+}
+
+function sessionOptionLabel(session) {
+  return `${session.sejourName} — ${session.week} · ${formatDateRange(session.startDate, session.endDate)}`;
+}
+
+/** Fields written on a reservation when it is attached to a catalog session. */
+function sessionPatch(session, ageGroup) {
+  return {
+    season: session.season,
+    "sejour.id": session.sejourId,
+    "sejour.sessionId": session.id,
+    "sejour.name": session.sejourName,
+    "sejour.startDate": session.startDate,
+    "sejour.endDate": session.endDate,
+    "sejour.ageGroup": ageGroup || "",
+  };
 }
 
 function bytesToBase64(bytes) {
@@ -414,13 +417,6 @@ async function buildConvocationPdf(item, extra) {
   return pdf.save();
 }
 
-function normalizeStatus(v) {
-  const s = String(v || "").toLowerCase().trim();
-  if (["validated","validee","validée","confirmed"].includes(s)) return "validated";
-  if (["deleted","supprimee","supprimée","cancelled","archived","passée","passe"].includes(s)) return "deleted";
-  return "pending";
-}
-
 function generateRef() {
   const n = new Date();
   const dd = String(n.getDate()).padStart(2, "0");
@@ -443,7 +439,12 @@ export function mapReservation(snap) {
 
   return {
     id: snap.id,
-    status: normalizeStatus(d.status),
+    status: normalizeReservationStatus(d.status),
+    season: seasonOfRecord(d),
+    sessionId: reservationSessionId(d),
+    sejourId: sejour.id || "",
+    archived: d.archived === true,
+    depositPaid: (d.payment?.depositStatus || "") === "paid",
     numeroDeReservation: d.numeroDeReservation || "",
     tokenUnique: d.tokenUnique || "",
     nom: `${legal.firstName || legal.prenom || ""} ${legal.lastName || legal.nom || ""}`.trim() || d.name || "—",
@@ -466,7 +467,8 @@ export function mapReservation(snap) {
     sejourStartDate: sejour.startDate || "",
     sejourEndDate:   sejour.endDate   || "",
     sejourAgeGroup:  sejour.ageGroup  || "",
-    week:            weekFromStartDate(sejour.startDate || d.sejourStartDate || ""),
+    // S1, S2… comes from the session catalog (see `withSession`), never from hard-coded dates.
+    week:            sejour.week || "",
     departureCity: transport.departureCity || transport.stationName || transport.station || "",
     returnCity:    transport.returnCity || "",
     transportFee:  toAmount(transport.fee ?? d.transportFee ?? null),
@@ -766,6 +768,9 @@ function PanelInfoTab({ item }) {
     <div className="rp-info-tab">
       <PanelSection icon="🏕️" title="Séjour">
         <InfoRow label="Nom" value={item.sejourName} />
+        <InfoRow label="Saison" value={item.season} />
+        <InfoRow label="Session" value={item.sessionLabel || (item.sessionId ? "Hors catalogue" : "Non rattachée")} />
+        <InfoRow label="Statut" value={RESERVATION_STATUS_META[item.status]?.label} />
         <InfoRow label="Tranche d'âge" value={item.sejourAgeGroup} />
         <InfoRow label="Début" value={fmtDate(item.sejourStartDate)} />
         <InfoRow label="Fin" value={fmtDate(item.sejourEndDate)} />
@@ -817,6 +822,7 @@ function PanelInfoTab({ item }) {
       <PanelSection icon="💳" title="Paiement">
         <InfoRow label="Mode" value={paymentMethodLabel} />
         <InfoRow label="Statut" value={paymentStatusLabel} />
+        <InfoRow label="Acompte" value={item.depositPaid ? "Reçu" : null} />
         {item.estimatedMin !== null && item.estimatedMax !== null && (
           <InfoRow label="Estimation" value={
             item.estimatedMin === item.estimatedMax
@@ -1774,9 +1780,7 @@ function ConvoyageInfoTab({ item }) {
       setLoading(true);
       try {
         const snap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
-        const rows = snap.docs
-          .map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }))
-          .filter((transport) => (transport.passengers || []).some((passenger) => passenger.reservationId === item.id))
+        const rows = reservationTransports(snap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() })), item.id)
           .map((transport) => {
             const passenger = (transport.passengers || []).find((entry) => entry.reservationId === item.id);
             const segment = findPassengerSegment(transport, passenger, item);
@@ -1793,8 +1797,7 @@ function ConvoyageInfoTab({ item }) {
               )
             );
             return { transport, passenger, segment, city, staff, tickets };
-          })
-          .sort((a, b) => (a.transport.direction === "aller" ? -1 : 1) - (b.transport.direction === "aller" ? -1 : 1));
+          });
         if (!cancelled) setAssignments(rows);
       } catch (error) {
         console.error(error);
@@ -1819,12 +1822,13 @@ function ConvoyageInfoTab({ item }) {
 
   return (
     <div className="rp-convoyage-tab">
+      <p className="res27-readonly-note">Lecture seule — les trajets se modifient dans Convoyages.</p>
       {assignments.map(({ transport, segment, city, staff, tickets }) => (
         <article key={transport.id} className="rp-convoyage-card">
           <div className="rp-convoyage-head">
             <span className={`rp-convoyage-dir is-${transport.direction}`}>{transport.direction === "retour" ? "Retour" : "Aller"}</span>
             <strong>{transport.departureCity || "Départ"} &gt; {transport.arrivalCity || "Arrivée"}</strong>
-            <small>{fmtDate(transport.date)} · {transport.week || ""}</small>
+            <small>{[fmtDate(transport.date), transport.week].filter(Boolean).join(" · ")}</small>
           </div>
           <div className="rp-convoyage-grid">
             <InfoRow label="Ville enfant" value={city || (transport.direction === "retour" ? item.returnCity : item.departureCity)} />
@@ -1851,11 +1855,53 @@ function ConvoyageInfoTab({ item }) {
   );
 }
 
+/** Status choices allowed from `current` (see RESERVATION_TRANSITIONS). */
+function StatusOptions({ current, withIcons = false }) {
+  const icons = { pending: "🟠", validated: "🟢", waitlist: "🟣", cancelled: "⚫" };
+  return STATUS_ORDER
+    .filter((status) => !current || canTransition(current, status))
+    .map((status) => (
+      <option key={status} value={status}>
+        {withIcons ? `${icons[status]} ` : ""}{RESERVATION_STATUS_META[status].label}
+      </option>
+    ));
+}
+
+/** Session picker grouped by season then séjour. Free dates are no longer typed by hand. */
+function SessionSelect({ sessions, value, onChange, currentLabel = "", placeholder = "— Choisir une session —" }) {
+  const groups = useMemo(() => {
+    const map = new Map();
+    (sessions || []).forEach((session) => {
+      const key = `${session.season} · ${session.sejourName}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(session);
+    });
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0], "fr"));
+  }, [sessions]);
+
+  return (
+    <select className="dash-input" value={value || ""} onChange={(event) => onChange(event.target.value)}>
+      <option value="">{currentLabel || placeholder}</option>
+      {groups.map(([label, entries]) => (
+        <optgroup key={label} label={label}>
+          {entries.map((session) => (
+            <option key={session.id} value={session.id}>
+              {session.week} · {formatDateRange(session.startDate, session.endDate)}{session.capacity ? ` · ${session.capacity} places` : ""}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
 function EditTab({ item, onSave }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     status:          item.status,
+    sessionId:       item.sessionId || "",
+    sejourId:        item.sejourId || "",
     nom:             item.nom !== "—" ? item.nom : "",
     email:           item.email !== "—" ? item.email : "",
     phone:           item.phone !== "—" ? item.phone : "",
@@ -1882,10 +1928,32 @@ function EditTab({ item, onSave }) {
   const setChild = (idx, key, val) =>
     setChildren((prev) => prev.map((c, i) => i === idx ? { ...c, [key]: val } : c));
 
-  const sejours = useSejours();
-  const sejourForForm = sejours.find(x => x.name === form.sejourName) || null;
+  const catalog = useBookableSessions();
+  const selectedSession = catalog.byId.get(form.sessionId) || null;
+  const sejourForForm = catalog.sejours.find((sejour) => sejour.id === (selectedSession?.sejourId || form.sejourId))
+    || catalog.sejours.find((sejour) => sejour.name === form.sejourName)
+    || null;
+
+  const chooseSession = (sessionId) => {
+    const session = catalog.byId.get(sessionId);
+    if (!session) return;
+    const sejour = catalog.sejours.find((entry) => entry.id === session.sejourId);
+    setForm((previous) => ({
+      ...previous,
+      sessionId: session.id,
+      sejourId: session.sejourId,
+      sejourName: session.sejourName,
+      sejourStartDate: session.startDate,
+      sejourEndDate: session.endDate,
+      sejourAgeGroup: sejour?.ageGroups?.includes(previous.sejourAgeGroup) ? previous.sejourAgeGroup : (sejour?.ageGroups?.[0] || previous.sejourAgeGroup),
+    }));
+  };
 
   const save = async () => {
+    if (form.status !== item.status && !canTransition(item.status, form.status)) {
+      showToast("Ce changement de statut n'est pas prévu : repassez d'abord par « Demande reçue »", "warning");
+      return;
+    }
     setSaving(true);
     try {
       const finalPrice   = Number(String(form.finalPrice).replace(",", "."));
@@ -1907,6 +1975,8 @@ function EditTab({ item, onSave }) {
         legalLastName: form.nom.split(" ").slice(1).join(" ") || "",
         email: form.email,
         phone: form.phone,
+        sejourId: selectedSession?.sejourId,
+        sessionId: selectedSession?.id,
         sejourName: form.sejourName,
         sejourStartDate: form.sejourStartDate,
         sejourEndDate: form.sejourEndDate,
@@ -1936,10 +2006,11 @@ function EditTab({ item, onSave }) {
         "legal.phone": form.phone,
         "legal.cafOrSecu": form.cafOrSecu,
         "legal.qf": Number.isFinite(qf) && form.qf !== "" ? qf : null,
-        "sejour.name":      form.sejourName,
-        "sejour.startDate": form.sejourStartDate,
-        "sejour.endDate":   form.sejourEndDate,
-        "sejour.ageGroup":  form.sejourAgeGroup,
+        // A catalog session rewrites the whole séjour block; an older file left on its
+        // original dates keeps them untouched.
+        ...(selectedSession
+          ? sessionPatch(selectedSession, form.sejourAgeGroup)
+          : { "sejour.ageGroup": form.sejourAgeGroup }),
         "transport.departureCity": form.departureCity,
         "transport.returnCity":    form.returnCity,
         "transport.fee": Number.isFinite(transportFee) && form.transportFee !== "" ? transportFee : null,
@@ -1953,6 +2024,9 @@ function EditTab({ item, onSave }) {
       onSave({
         ...item,
         ...form,
+        season: selectedSession?.season || item.season,
+        sessionLabel: selectedSession ? sessionOptionLabel(selectedSession) : item.sessionLabel,
+        week: selectedSession?.week || item.week,
         children: childrenPayload,
         finalPrice: hasFinalPrice ? finalPrice : null,
         totalPrice: hasFinalPrice ? finalPrice : 0,
@@ -1980,9 +2054,7 @@ function EditTab({ item, onSave }) {
       <div className="rp-edit-section">
         <div className="rp-edit-section-title">Statut</div>
         <select className="dash-input" value={form.status} onChange={e => set("status", e.target.value)}>
-          <option value="pending">En cours</option>
-          <option value="validated">Validée</option>
-          <option value="deleted">Passée</option>
+          <StatusOptions current={item.status} />
         </select>
       </div>
 
@@ -2028,33 +2100,14 @@ function EditTab({ item, onSave }) {
         <div className="rp-edit-section-title">Séjour</div>
         <div className="rp-edit-grid">
           <label className="rp-edit-field rp-edit-span2">
-            <span>Nom du séjour</span>
-            <select className="dash-input" value={form.sejourName} onChange={e => {
-              const s = sejours.find(x => x.name === e.target.value);
-              set("sejourName", e.target.value);
-              if (s?.ageGroups?.[0]) set("sejourAgeGroup", s.ageGroups[0]);
-            }}>
-              {form.sejourName && !sejours.some(x => x.name === form.sejourName) && (
-                <option value={form.sejourName}>{form.sejourName}</option>
-              )}
-              <option value="">— Sélectionner un séjour —</option>
-              {sejours.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
+            <span>Session</span>
+            <SessionSelect
+              sessions={catalog.sessions}
+              value={selectedSession ? form.sessionId : ""}
+              onChange={chooseSession}
+              currentLabel={selectedSession ? "" : `${form.sejourName || "Séjour"} · ${formatDateRange(form.sejourStartDate, form.sejourEndDate) || "dates inconnues"} (hors catalogue)`}
+            />
           </label>
-          <label className="rp-edit-field">
-            <span>Semaine</span>
-            <select className="dash-input" value={weekFromStartDate(form.sejourStartDate)} onChange={e => {
-              const w = WEEK_DATES[e.target.value];
-              if (!w) return;
-              set("sejourStartDate", w.startDate);
-              set("sejourEndDate", w.endDate);
-            }}>
-              <option value="">— Semaine —</option>
-              {Object.entries(WEEK_DATES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </label>
-          <F label="Date début" k="sejourStartDate" type="date" />
-          <F label="Date fin"   k="sejourEndDate"   type="date" />
           {sejourForForm?.ageGroups?.length > 0 ? (
             <label className="rp-edit-field">
               <span>Tranche d'âge</span>
@@ -2104,7 +2157,7 @@ const PANEL_TABS = [
   { key: "notes",  label: "Notes" },
 ];
 
-export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange, initialTab = "tarif" }) {
+export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange, initialTab = "tarif", sessionState = null }) {
   const { showToast } = useToast();
   const [item, setItem]         = useState(externalItem);
   const [panelTab, setPanelTab] = useState(initialTab);
@@ -2120,6 +2173,18 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
   }, [onClose]);
 
   const updateStatus = async (newStatus) => {
+    if (newStatus === item.status) return;
+    if (!canTransition(item.status, newStatus)) {
+      showToast("Changement de statut non prévu", "warning");
+      return;
+    }
+    // `sessionState` is only passed by the Reservations page; other callers skip this check.
+    if (newStatus === "validated" && sessionState?.capacity) {
+      const after = sessionState.validated + reservationChildCount(item);
+      if (after > sessionState.capacity && !window.confirm(
+        `La session est complète (${sessionState.validated}/${sessionState.capacity} enfants validés). Valider quand même cette réservation ?`,
+      )) return;
+    }
     try {
       const syncData = reservationDataForSync(item, { status: newStatus });
       await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
@@ -2130,7 +2195,7 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
       const updated = { ...item, status: newStatus };
       setItem(updated);
       onStatusChange(updated);
-      showToast(newStatus === "validated" ? `Reservation validee, ${syncedTransports} trajet(s) synchronise(s)` : "Statut mis a jour", "success");
+      showToast(newStatus === "validated" ? `Réservation validée, ${syncedTransports} trajet(s) synchronisé(s)` : `Statut : ${RESERVATION_STATUS_META[newStatus]?.label}`, "success");
     } catch { showToast("Erreur changement statut", "error"); }
   };
 
@@ -2155,8 +2220,7 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
     finally { setDeleting(false); }
   };
 
-  const statusColors = { pending: "#f97316", validated: "#10b981", deleted: "#94a3b8" };
-  const sc = statusColors[item.status] || "#94a3b8";
+  const sc = RESERVATION_STATUS_META[item.status]?.color || "#94a3b8";
   const sejourLink = item.tokenUnique ? `/reservation/${item.tokenUnique}` : null;
 
   return (
@@ -2172,7 +2236,7 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
             <div className="rp-header-meta">
               {item.numeroDeReservation && <span className="rp-header-ref">{item.numeroDeReservation}</span>}
               <span className="rp-header-date">{fmt(item.dateMs)}</span>
-              <span className="rp-header-sejour">{item.sejourName !== "—" ? item.sejourName : ""}</span>
+              <span className="rp-header-sejour">{item.sessionLabel || (item.sejourName !== "—" ? item.sejourName : "")}</span>
             </div>
           </div>
           <button type="button" className="rp-close" onClick={onClose} aria-label="Fermer">
@@ -2186,12 +2250,10 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
           <select className="dash-input rp-status-select"
             value={item.status} onChange={e => updateStatus(e.target.value)}
             style={{ "--status-color": sc }}>
-            <option value="pending">🟠 En cours</option>
-            <option value="validated">🟢 Validée</option>
-            <option value="deleted">⚫ Passée</option>
+            <StatusOptions current={item.status} withIcons />
           </select>
 
-          {item.status !== "validated" && (
+          {item.status !== "validated" && canTransition(item.status, "validated") && (
             <button type="button" className="rp-validate-btn" onClick={() => updateStatus("validated")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
                 <polyline points="20 6 9 17 4 12" />
@@ -2251,8 +2313,8 @@ const EMPTY_FORM = {
   address: "", city: "", postalCode: "", cafOrSecu: "", qf: "", message: "",
   // child 1
   childFirstName: "", childLastName: "", childBirthDate: "", childBirthPlace: "", childCity: "",
-  // sejour
-  sejourName: "", sejourStartDate: "", sejourEndDate: "", sejourAgeGroup: "",
+  // session (catalogue)
+  sessionId: "", sejourAgeGroup: "",
   // transport
   departureCity: "", returnCity: "", transportFee: "",
   // payment
@@ -2261,25 +2323,35 @@ const EMPTY_FORM = {
   notes: "",
 };
 
-function NewReservationModal({ onClose, onCreated }) {
+function NewReservationModal({ onClose, onCreated, initialSessionId = "", occupancyFor }) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState({ ...EMPTY_FORM, sessionId: initialSessionId });
   const [step, setStep] = useState(1); // 1=Séjour, 2=Enfant, 3=Parent, 4=Transport+Paiement
-  const sejours = useSejours();
+  const catalog = useBookableSessions();
+  const session = catalog.byId.get(form.sessionId) || null;
+  const sejour = session ? catalog.sejours.find((entry) => entry.id === session.sejourId) : null;
+  const fill = session && occupancyFor ? occupancyFor(session) : null;
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const save = async () => {
+    if (!session) {
+      showToast("Choisissez la session de la réservation", "warning"); setStep(1); return;
+    }
     if (!form.lastName && !form.firstName) {
       showToast("Le nom du responsable légal est requis", "warning"); return;
     }
+    if (form.status === "validated" && fill?.full && !window.confirm(
+      `La session est complète (${fill.validated}/${fill.capacity}). Créer quand même une réservation validée ?`,
+    )) return;
     setSaving(true);
     try {
       const ref = generateRef();
       const data = {
         numeroDeReservation: ref,
         status: form.status,
+        season: session.season,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         notes: form.notes,
@@ -2307,9 +2379,11 @@ function NewReservationModal({ onClose, onCreated }) {
           }],
         },
         sejour: {
-          name:      form.sejourName,
-          startDate: form.sejourStartDate,
-          endDate:   form.sejourEndDate,
+          id:        session.sejourId,
+          sessionId: session.id,
+          name:      session.sejourName,
+          startDate: session.startDate,
+          endDate:   session.endDate,
           ageGroup:  form.sejourAgeGroup,
         },
         transport: {
@@ -2329,7 +2403,7 @@ function NewReservationModal({ onClose, onCreated }) {
       const docRef = await addDoc(collection(db, COLLECTIONS.RESERVATIONS), data);
       const syncedTransports = await syncReservationToMatchingTransports(docRef.id, data);
       showToast(`Réservation ${ref} créée${syncedTransports ? ` et ajoutée à ${syncedTransports} transport(s)` : ""} !`, "success");
-      onCreated({ id: docRef.id, ...mapReservation({ id: docRef.id, data: () => data }) });
+      onCreated({ ...mapReservation({ id: docRef.id, data: () => data }), id: docRef.id, dateMs: Date.now() });
       onClose();
     } catch (err) {
       console.error(err);
@@ -2382,49 +2456,45 @@ function NewReservationModal({ onClose, onCreated }) {
           {step === 1 && (
             <div className="rp-edit-grid">
               <label className="rp-edit-field rp-edit-span2">
-                <span>Nom du séjour <span style={{ color: "var(--dash-accent)" }}>*</span></span>
-                <select className="dash-input" value={form.sejourName} onChange={e => {
-                  const s = sejours.find(x => x.name === e.target.value);
-                  set("sejourName", e.target.value);
-                  if (s?.ageGroups?.[0]) set("sejourAgeGroup", s.ageGroups[0]);
-                }}>
-                  <option value="">— Sélectionner un séjour —</option>
-                  {sejours.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
+                <span>Session <span style={{ color: "var(--dash-accent)" }}>*</span></span>
+                <SessionSelect
+                  sessions={catalog.sessions}
+                  value={form.sessionId}
+                  onChange={(sessionId) => {
+                    const next = catalog.byId.get(sessionId);
+                    const nextSejour = next ? catalog.sejours.find((entry) => entry.id === next.sejourId) : null;
+                    setForm((previous) => ({ ...previous, sessionId, sejourAgeGroup: nextSejour?.ageGroups?.[0] || "" }));
+                  }}
+                />
+                {catalog.loading && <small className="res27-hint">Chargement du catalogue…</small>}
+                {!catalog.loading && !catalog.sessions.length && (
+                  <small className="res27-hint">Aucune session ouverte : ajoutez d'abord des dates dans Séjours.</small>
+                )}
+                {fill && (
+                  <small className={`res27-hint${fill.full ? " is-full" : ""}`}>
+                    {fill.capacity
+                      ? `${fill.validated}/${fill.capacity} enfants validés${fill.full ? " — session complète, préférez la liste d'attente" : ""}`
+                      : `${fill.validated} enfant(s) validé(s) · capacité non renseignée`}
+                  </small>
+                )}
               </label>
-              <label className="rp-edit-field">
-                <span>Semaine</span>
-                <select className="dash-input" value={weekFromStartDate(form.sejourStartDate)} onChange={e => {
-                  const w = WEEK_DATES[e.target.value];
-                  if (!w) return;
-                  set("sejourStartDate", w.startDate);
-                  set("sejourEndDate", w.endDate);
-                }}>
-                  <option value="">— Semaine —</option>
-                  {Object.entries(WEEK_DATES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-              </label>
-              <F label="Date de début" k="sejourStartDate" type="date" />
-              <F label="Date de fin"   k="sejourEndDate"   type="date" />
-              {(() => {
-                const s = sejours.find(x => x.name === form.sejourName);
-                return s?.ageGroups?.length > 0 ? (
-                  <label className="rp-edit-field">
-                    <span>Tranche d'âge</span>
-                    <select className="dash-input" value={form.sejourAgeGroup} onChange={e => set("sejourAgeGroup", e.target.value)}>
-                      <option value="">—</option>
-                      {s.ageGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
-                    </select>
-                  </label>
-                ) : (
-                  <F label="Tranche d'âge" k="sejourAgeGroup" placeholder="ex : 12-17 ans" />
-                );
-              })()}
+              {sejour?.ageGroups?.length > 0 ? (
+                <label className="rp-edit-field">
+                  <span>Tranche d'âge</span>
+                  <select className="dash-input" value={form.sejourAgeGroup} onChange={e => set("sejourAgeGroup", e.target.value)}>
+                    <option value="">—</option>
+                    {sejour.ageGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+                  </select>
+                </label>
+              ) : (
+                <F label="Tranche d'âge" k="sejourAgeGroup" placeholder="ex : 12-17 ans" />
+              )}
               <div className="rp-edit-field">
                 <span>Statut initial</span>
                 <select className="dash-input" value={form.status} onChange={e => set("status", e.target.value)}>
-                  <option value="pending">En cours</option>
-                  <option value="validated">Validée</option>
+                  <option value="pending">{RESERVATION_STATUS_META.pending.label}</option>
+                  <option value="validated">{RESERVATION_STATUS_META.validated.label}</option>
+                  <option value="waitlist">{RESERVATION_STATUS_META.waitlist.label}</option>
                 </select>
               </div>
             </div>
@@ -2518,108 +2588,120 @@ function NewReservationModal({ onClose, onCreated }) {
   );
 }
 
-/* ── Validated view helpers ─────────────────────────────────────────────── */
+/* ── Season / session views ─────────────────────────────────────────────── */
 
-const RES_WEEK_INFO = {
-  S1: { label: "Semaine 1", dates: "6 – 17 juil." },
-  S2: { label: "Semaine 2", dates: "20 – 31 juil." },
-  S3: { label: "Semaine 3", dates: "3 – 14 août" },
-  S4: { label: "Semaine 4", dates: "17 – 28 août" },
-};
+const VIEWS = [
+  { key: "sessions",  label: "Sessions" },
+  { key: "pending",   label: "Demandes" },
+  { key: "validated", label: "Validées" },
+  { key: "waitlist",  label: "Liste d'attente" },
+  { key: "all",       label: "Toutes" },
+  { key: "cancelled", label: "Annulées", muted: true },
+];
 
-function validSelectValue(value, fallback = "__empty__") {
-  return value && value !== "—" ? value : fallback;
+const NO_SESSION = "__none__";
+
+function transportFilterValue(item) {
+  return item.departureCity ? "__transport__" : "__sur_place__";
 }
 
-function validSelectLabel(value) {
-  if (value === "__empty__") return "Non renseigné";
-  if (value === "__transport__") return "Avec transport";
-  if (value === "__sur_place__") return "Sur place";
-  return value;
+/** Attaches a mapped reservation to its catalog session (week, label, séjour id). */
+function withSession(item, sessions, byId) {
+  const sessionId = reservationSessionId(item.raw, sessions) || item.sessionId;
+  const session = byId.get(sessionId) || null;
+  return {
+    ...item,
+    sessionId: session ? session.id : (sessionId || ""),
+    sejourId: session?.sejourId || item.sejourId,
+    week: session?.week || item.week || "",
+    sessionLabel: session ? sessionOptionLabel(session) : "",
+    sessionDates: session ? formatDateRange(session.startDate, session.endDate) : formatDateRange(item.sejourStartDate, item.sejourEndDate),
+    inCatalog: Boolean(session),
+  };
 }
 
-function uniqueOptions(items, getter) {
-  return Array.from(new Set((items || []).map(getter).filter(Boolean))).sort((a, b) =>
-    validSelectLabel(a).localeCompare(validSelectLabel(b), "fr", { sensitivity: "base" }),
-  );
-}
-
-function ValidatedOverview({ items, filters, onFilterChange, onReset }) {
-  const weekCounts = useMemo(() => {
-    const result = { all: countReservationChildren(items), S1: 0, S2: 0, S3: 0, S4: 0, autre: 0 };
-    for (const item of items) {
-      const count = reservationChildCount(item);
-      if (item.week && result[item.week] !== undefined) result[item.week] += count;
-      else result.autre += count;
-    }
-    return result;
-  }, [items]);
-
-  const sejourOptions = useMemo(
-    () => uniqueOptions(items, (item) => validSelectValue(item.sejourName)),
-    [items],
-  );
-  const transportOptions = useMemo(
-    () => uniqueOptions(items, (item) => item.departureCity ? "__transport__" : "__sur_place__"),
-    [items],
-  );
-
-  return (
-    <section className="res-valid-panel">
-      <div className="res-valid-summary">
-        <div className="res-valid-total">
-          <span>{weekCounts.all}</span>
-          <small>enfants validés</small>
-        </div>
-        <div className="res-valid-week-strip">
-          {["S1", "S2", "S3", "S4"].map((week) => (
-            <button
-              key={week}
-              type="button"
-              className={`res-valid-week${filters.week === week ? " is-active" : ""}`}
-              onClick={() => onFilterChange("week", filters.week === week ? "all" : week)}
-            >
-              <strong>{week}</strong>
-              <span>{weekCounts[week] || 0}</span>
-              <small>{RES_WEEK_INFO[week]?.dates}</small>
-            </button>
-          ))}
-          {(weekCounts.autre || 0) > 0 && (
-            <button
-              type="button"
-              className={`res-valid-week${filters.week === "autre" ? " is-active" : ""}`}
-              onClick={() => onFilterChange("week", filters.week === "autre" ? "all" : "autre")}
-            >
-              <strong>?</strong>
-              <span>{weekCounts.autre}</span>
-              <small>Sans semaine</small>
-            </button>
-          )}
-        </div>
+function SessionsOverview({ rows, orphan, onOpen, onCreate }) {
+  if (!rows.length && !orphan) {
+    return (
+      <div className="dash-section" style={{ padding: 24 }}>
+        <p className="dash-muted">Aucune session pour cette saison. Les sessions se créent dans les dates de chaque séjour.</p>
       </div>
-
-      <div className="res-valid-filters">
-        <select
-          className="dash-input"
-          value={filters.sejour}
-          onChange={(event) => onFilterChange("sejour", event.target.value)}
-        >
-          <option value="all">Tous les séjours</option>
-          {sejourOptions.map((option) => (
-            <option key={option} value={option}>{validSelectLabel(option)}</option>
-          ))}
-        </select>
-        <select
-          className="dash-input"
-          value={filters.transport}
-          onChange={(event) => onFilterChange("transport", event.target.value)}
-        >
-          <option value="all">Tous les transports</option>
-          {transportOptions.map((option) => (
-            <option key={option} value={option}>{validSelectLabel(option)}</option>
-          ))}
-        </select>
-        <button type="button" className="dash-btn" onClick={onReset}>Réinitialiser</button>
+    );
+  }
+  return (
+    <section className="dash-section res27-sessions">
+      <div className="hr-table-scroll">
+        <table className="res27-session-table">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Validés / capacité</th>
+              <th>Demandes</th>
+              <th>Liste d'attente</th>
+              <th>CA estimé</th>
+              <th>CA validé</th>
+              <th>Encaissé</th>
+              <th aria-label="Actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ session, occupancy, fill }) => (
+              <tr key={session.id} className={fill.full ? "is-full" : ""}>
+                <td>
+                  <button type="button" className="res27-session-link" onClick={() => onOpen(session.id)}>
+                    <strong>{session.sejourName}</strong>
+                    <span>{session.week} · {formatDateRange(session.startDate, session.endDate)}</span>
+                  </button>
+                  {!session.bookingOpen && <span className="res27-chip is-closed">Réservations fermées</span>}
+                  {session.availabilityStatus === "full" && <span className="res27-chip is-closed">Marquée complète</span>}
+                </td>
+                <td>
+                  <div className="res27-fill">
+                    <span className="res27-fill-count">
+                      {occupancy.validated}{fill.capacity ? ` / ${fill.capacity}` : ""}
+                    </span>
+                    {fill.capacity ? (
+                      <span className="res27-fill-bar" aria-hidden="true">
+                        <span style={{ width: `${fill.rate}%` }} className={fill.full ? "is-full" : fill.rate >= 80 ? "is-high" : ""} />
+                      </span>
+                    ) : <small className="res27-hint">capacité non renseignée</small>}
+                    {fill.full && <span className="res27-chip is-full">Complet</span>}
+                  </div>
+                </td>
+                <td>{occupancy.pending || "—"}</td>
+                <td>{occupancy.waitlist || "—"}</td>
+                <td>{occupancy.revenueEstimated ? fmtCur(Math.round(occupancy.revenueEstimated)) : "—"}</td>
+                <td>{occupancy.revenueValidated ? fmtCur(Math.round(occupancy.revenueValidated)) : "—"}</td>
+                <td>{occupancy.collected ? fmtCur(Math.round(occupancy.collected)) : "—"}</td>
+                <td className="res27-session-actions">
+                  <button type="button" className="dash-btn" onClick={() => onOpen(session.id)}>
+                    Réservations ({occupancy.files})
+                  </button>
+                  <button type="button" className="dash-btn" onClick={() => onCreate(session.id)} title="Nouvelle réservation sur cette session">+</button>
+                </td>
+              </tr>
+            ))}
+            {orphan && (
+              <tr className="is-orphan">
+                <td>
+                  <button type="button" className="res27-session-link" onClick={() => onOpen(NO_SESSION)}>
+                    <strong>Hors catalogue</strong>
+                    <span>Réservations dont la session n'existe plus dans les séjours</span>
+                  </button>
+                </td>
+                <td>{orphan.validated}</td>
+                <td>{orphan.pending || "—"}</td>
+                <td>{orphan.waitlist || "—"}</td>
+                <td>{orphan.revenueEstimated ? fmtCur(Math.round(orphan.revenueEstimated)) : "—"}</td>
+                <td>{orphan.revenueValidated ? fmtCur(Math.round(orphan.revenueValidated)) : "—"}</td>
+                <td>{orphan.collected ? fmtCur(Math.round(orphan.collected)) : "—"}</td>
+                <td className="res27-session-actions">
+                  <button type="button" className="dash-btn" onClick={() => onOpen(NO_SESSION)}>Réservations ({orphan.files})</button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -2628,83 +2710,165 @@ function ValidatedOverview({ items, filters, onFilterChange, onReset }) {
 /* ── Main export ────────────────────────────────────────────────────────── */
 
 export default function Reservations() {
-  const [items, setItems]                   = useState([]);
-  const [mainView, setMainView]             = useState("reservations"); // "reservations" | "validees" | "passees"
-  const [validatedFilters, setValidatedFilters] = useState({ week: "all", sejour: "all", transport: "all" });
-  const [selectedItem, setSelectedItem]     = useState(null);
-  const [loading, setLoading]               = useState(true);
-  const [showNew, setShowNew]               = useState(false);
+  const [items, setItems]               = useState([]);
+  const [convoys, setConvoys]           = useState([]);
+  const [view, setView]                 = useState("sessions");
+  const [filters, setFilters]           = useState({ sejour: "all", session: "all", transport: "all" });
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [newSessionId, setNewSessionId] = useState(null); // null = modal closed
+  const [pickedSeason, setPickedSeason] = useState("");
   const { showToast } = useToast();
+  const { activeSeason, archivedSeasons, seasons } = useSeasons();
+  const season = pickedSeason && !archivedSeasons.has(pickedSeason) ? pickedSeason : activeSeason;
+  const catalog = useSessionCatalog(season);
 
   const load = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(
-        query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc")),
-      );
+      const [snap, transportsSnap] = await Promise.all([
+        getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
+        getDocs(collection(db, COLLECTIONS.TRANSPORTS)).catch(() => null),
+      ]);
       setItems(snap.docs.map(mapReservation));
+      setConvoys(transportsSnap ? transportsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() })) : []);
     } catch { showToast("Erreur de chargement", "error"); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
 
-  const buckets = useMemo(() => ({
-    pending:   items.filter(x => x.status === "pending"),
-    validated: items.filter(x => x.status === "validated"),
-    deleted:   items.filter(x => x.status === "deleted"),
-  }), [items]);
-  const childCounts = useMemo(() => ({
-    total: countReservationChildren(items),
-    pending: countReservationChildren(buckets.pending),
-    validated: countReservationChildren(buckets.validated),
-    deleted: countReservationChildren(buckets.deleted),
-  }), [items, buckets]);
+  /* Saisons ouvertes : celles des réservations et des documents `seasons`, sans les archivées. */
+  const seasonOptions = useMemo(() => {
+    const keys = new Set([activeSeason]);
+    items.forEach((item) => item.season && keys.add(item.season));
+    seasons.forEach((entry) => keys.add(entry.id));
+    return [...keys].filter((key) => key && !archivedSeasons.has(key)).sort((a, b) => b.localeCompare(a));
+  }, [items, seasons, activeSeason, archivedSeasons]);
 
-  /* Sous-filtre "Prix défini" / "À traiter" pour les réservations en cours */
+  /* Réservations de la saison choisie, archivées exclues, rattachées à leur session. */
+  const seasonItems = useMemo(() => items
+    .filter((item) => !isArchivedRecord(item.raw || item, archivedSeasons))
+    .filter((item) => item.season === season || (!item.season && season === activeSeason))
+    .map((item) => withSession(item, catalog.sessions, catalog.byId)),
+  [items, archivedSeasons, season, activeSeason, catalog.sessions, catalog.byId]);
+
+  const occupancy = useMemo(
+    () => computeSessionOccupancy(seasonItems.map((item) => ({ ...item.raw, status: item.status, sejour: { ...(item.raw?.sejour || {}), sessionId: item.sessionId } })), catalog.sessions),
+    [seasonItems, catalog.sessions],
+  );
+
+  const sessionRows = useMemo(() => catalog.sessions
+    .filter((session) => filters.sejour === "all" || session.sejourId === filters.sejour)
+    .map((session) => {
+      const entry = occupancy.get(session.id) || { validated: 0, pending: 0, waitlist: 0, files: 0, revenueEstimated: 0, revenueValidated: 0, collected: 0 };
+      return { session, occupancy: entry, fill: sessionFillState(session.capacity, entry) };
+    }), [catalog.sessions, occupancy, filters.sejour]);
+
+  const orphanOccupancy = useMemo(() => {
+    const orphans = seasonItems.filter((item) => !item.inCatalog);
+    if (!orphans.length) return null;
+    return computeSessionOccupancy(orphans.map((item) => ({ ...item.raw, status: item.status, sejour: { sessionId: NO_SESSION } }))).get(NO_SESSION);
+  }, [seasonItems]);
+
+  const fillFor = useCallback((sessionLike) => {
+    const session = catalog.byId.get(sessionLike?.id || sessionLike?.sessionId);
+    if (!session) return null;
+    return sessionFillState(session.capacity, occupancy.get(session.id));
+  }, [catalog.byId, occupancy]);
+
+  /* Convois (aller / retour) de chaque réservation, en lecture seule. */
+  const convoysByReservation = useMemo(() => {
+    const map = new Map();
+    convoys.forEach((transport) => (transport.passengers || []).forEach((passenger) => {
+      if (!passenger.reservationId) return;
+      if (!map.has(passenger.reservationId)) map.set(passenger.reservationId, {});
+      map.get(passenger.reservationId)[transport.direction === "retour" ? "retour" : "aller"] = transport;
+    }));
+    return map;
+  }, [convoys]);
+
+  const sejourOptions = useMemo(() => {
+    const map = new Map();
+    catalog.sessions.forEach((session) => map.set(session.sejourId, session.sejourName));
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "fr"));
+  }, [catalog.sessions]);
+
+  const sessionOptions = useMemo(
+    () => catalog.sessions.filter((session) => filters.sejour === "all" || session.sejourId === filters.sejour),
+    [catalog.sessions, filters.sejour],
+  );
+
+  /* Filtres séjour → session → transport, communs à toutes les listes. */
+  const scopedItems = useMemo(() => seasonItems.filter((item) => {
+    if (filters.session === NO_SESSION) return !item.inCatalog;
+    if (filters.session !== "all" && item.sessionId !== filters.session) return false;
+    if (filters.sejour !== "all" && item.sejourId !== filters.sejour) return false;
+    if (filters.transport !== "all" && transportFilterValue(item) !== filters.transport) return false;
+    return true;
+  }), [seasonItems, filters]);
+
+  const buckets = useMemo(() => {
+    const result = { pending: [], validated: [], waitlist: [], cancelled: [] };
+    scopedItems.forEach((item) => (result[item.status] || result.pending).push(item));
+    return result;
+  }, [scopedItems]);
+
+  const childCounts = useMemo(() => {
+    const count = (list) => list.reduce((total, item) => total + reservationChildCount(item), 0);
+    return {
+      all: count(scopedItems.filter((item) => item.status !== "cancelled")),
+      pending: count(buckets.pending),
+      validated: count(buckets.validated),
+      waitlist: count(buckets.waitlist),
+      cancelled: count(buckets.cancelled),
+    };
+  }, [scopedItems, buckets]);
+
+  /* Sous-filtre "Prix défini" / "À traiter" pour les demandes */
   const [priceFilter, setPriceFilter] = useState("all"); // "all" | "defined" | "todo"
   const pricingCounts = useMemo(() => ({
     defined: buckets.pending.filter(x => x.finalPrice > 0).length,
     todo:    buckets.pending.filter(x => !(x.finalPrice > 0)).length,
   }), [buckets.pending]);
-  const pendingFiltered = useMemo(() => {
-    if (priceFilter === "defined") return buckets.pending.filter(x => x.finalPrice > 0);
-    if (priceFilter === "todo")    return buckets.pending.filter(x => !(x.finalPrice > 0));
-    return buckets.pending;
-  }, [buckets.pending, priceFilter]);
 
-  /* Items de la vue courante */
   const viewItems = useMemo(() => {
-    if (mainView === "validees") return buckets.validated;
-    if (mainView === "passees")  return buckets.deleted;
-    return pendingFiltered;
-  }, [mainView, buckets, pendingFiltered]);
+    if (view === "all") return scopedItems;
+    if (view === "pending") {
+      if (priceFilter === "defined") return buckets.pending.filter(x => x.finalPrice > 0);
+      if (priceFilter === "todo")    return buckets.pending.filter(x => !(x.finalPrice > 0));
+      return buckets.pending;
+    }
+    return buckets[view] || [];
+  }, [view, scopedItems, buckets, priceFilter]);
 
-  const validatedFiltered = useMemo(() => {
-    return buckets.validated.filter((item) => {
-      if (validatedFilters.week !== "all") {
-        if (validatedFilters.week === "autre") {
-          if (item.week) return false;
-        } else if (item.week !== validatedFilters.week) return false;
-      }
-      if (validatedFilters.sejour !== "all" && validSelectValue(item.sejourName) !== validatedFilters.sejour) return false;
-      if (validatedFilters.transport !== "all") {
-        const transportValue = item.departureCity ? "__transport__" : "__sur_place__";
-        if (transportValue !== validatedFilters.transport) return false;
-      }
-      return true;
-    });
-  }, [buckets.validated, validatedFilters]);
-
-  const handleValidatedFilterChange = (key, value) => {
-    setValidatedFilters((prev) => ({ ...prev, [key]: value }));
+  const setFilter = (key, value) => {
+    setFilters((previous) => ({
+      ...previous,
+      [key]: value,
+      // Changer de séjour réinitialise la session choisie.
+      ...(key === "sejour" ? { session: "all" } : {}),
+    }));
     setSelectedItem(null);
   };
 
-  const changeView = (view) => {
-    setMainView(view);
+  const changeSeason = (value) => {
+    setPickedSeason(value);
+    setFilters({ sejour: "all", session: "all", transport: "all" });
+    setSelectedItem(null);
+  };
+
+  const changeView = (next) => {
+    setView(next);
     setSelectedItem(null);
     setPriceFilter("all");
+  };
+
+  const openSession = (sessionId) => {
+    const session = catalog.byId.get(sessionId);
+    setFilters((previous) => ({ ...previous, sejour: session ? session.sejourId : "all", session: sessionId }));
+    setView("all");
+    setSelectedItem(null);
   };
 
   const handleSave = (updated) => {
@@ -2712,9 +2876,11 @@ export default function Reservations() {
     if (selectedItem?.id === updated.id) setSelectedItem(prev => ({ ...prev, ...updated }));
   };
 
+  // Le statut change aussi `raw.status`, utilisé pour l'occupation des sessions.
   const handleStatusChange = (updated) => {
-    setItems(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x));
-    if (selectedItem?.id === updated.id) setSelectedItem(prev => ({ ...prev, ...updated }));
+    const patch = { ...updated, raw: { ...(updated.raw || {}), status: updated.status } };
+    setItems(prev => prev.map(x => x.id === updated.id ? { ...x, ...patch } : x));
+    if (selectedItem?.id === updated.id) setSelectedItem(prev => ({ ...prev, ...patch }));
   };
 
   const handleDelete = useCallback(async (id) => {
@@ -2732,13 +2898,21 @@ export default function Reservations() {
 
   const handleCreated = (newItem) => {
     setItems(prev => [newItem, ...prev]);
-    setSelectedItem(newItem);
+    if (newItem.season && newItem.season !== season) setPickedSeason(newItem.season);
+    setSelectedItem(withSession(newItem, catalog.sessions, catalog.byId));
   };
 
-  const totalRevenue = useMemo(
-    () => buckets.validated.reduce((sum, item) => sum + (Number(item.raw?.finance?.grossAmount) || item.finalPrice || 0), 0),
-    [buckets.validated],
-  );
+  const seasonTotals = useMemo(() => {
+    let revenueValidated = 0;
+    let collected = 0;
+    occupancy.forEach((entry) => {
+      revenueValidated += entry.revenueValidated;
+      collected += entry.collected;
+    });
+    return { revenueValidated, collected };
+  }, [occupancy]);
+
+  const selectedSessionState = selectedItem ? fillFor(selectedItem) : null;
 
   const columns = useMemo(() => [
     {
@@ -2778,18 +2952,36 @@ export default function Reservations() {
         </div>
       ),
     },
-    { key: "sejourName", label: "Séjour", filterable: true, filterLabel: "Tous les séjours" },
+    {
+      key: "sessionLabel",
+      label: "Session",
+      sortValue: row => `${row.sejourStartDate || "9999"}|${row.sejourName}`,
+      render: row => (
+        <div className="res-week-cell">
+          <strong>{row.week || "?"}</strong>
+          <span>{row.sejourName !== "—" ? row.sejourName : ""}{row.sessionDates ? ` · ${row.sessionDates}` : ""}</span>
+          {!row.inCatalog && <span className="res27-chip is-closed">Hors catalogue</span>}
+        </div>
+      ),
+    },
     {
       key: "departureCity",
       label: "Transport",
       sortValue: row => row.departureCity || "",
-      render: row =>
-        row.departureCity ? (
+      render: row => {
+        const assigned = convoysByReservation.get(row.id) || {};
+        return row.departureCity ? (
           <div style={{ fontSize: 12, display: "flex", gap: 4, flexWrap: "wrap" }}>
             <span style={{ background: "#f0fdf4", color: "#16a34a", borderRadius: 5, padding: "1px 7px", fontWeight: 600 }}>↑ {row.departureCity}</span>
             {row.returnCity && <span style={{ background: "#fff7f0", color: "#c2410c", borderRadius: 5, padding: "1px 7px", fontWeight: 600 }}>↓ {row.returnCity}</span>}
+            {(assigned.aller || assigned.retour) && (
+              <span className="res27-chip is-convoy" title="Inscrit sur un convoi (voir l'onglet Convoyage)">
+                Convoi {assigned.aller ? "aller" : ""}{assigned.aller && assigned.retour ? " + " : ""}{assigned.retour ? "retour" : ""}
+              </span>
+            )}
           </div>
-        ) : <span style={{ color: "var(--dash-muted)", fontSize: 12 }}>Sur place</span>,
+        ) : <span style={{ color: "var(--dash-muted)", fontSize: 12 }}>Sur place</span>;
+      },
     },
     {
       key: "finalPrice",
@@ -2842,25 +3034,23 @@ export default function Reservations() {
       key: "status",
       label: "Statut",
       sortable: false,
-      render: row => <Badge label={STATUS_LABEL[row.status] || row.status} variant={STATUS_BADGE[row.status] || "neutral"} />,
-    },
-  ], []);
-
-  const validatedColumns = useMemo(() => [
-    ...columns.slice(0, 3),
-    {
-      key: "week",
-      label: "Semaine",
-      sortValue: row => row.week || "ZZ",
       render: row => (
-        <div className="res-week-cell">
-          <strong>{row.week || "?"}</strong>
-          <span>{row.week ? RES_WEEK_INFO[row.week]?.dates : "Sans semaine"}</span>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+          <Badge label={STATUS_LABEL[row.status] || row.status} variant={STATUS_BADGE[row.status] || "neutral"} />
+          {row.depositPaid && <span className="res27-chip is-deposit">Acompte</span>}
         </div>
       ),
     },
-    ...columns.slice(3),
-  ], [columns]);
+  ], [convoysByReservation]);
+
+  const emptyLabels = {
+    all: "Aucune réservation pour ces filtres.",
+    pending: "Aucune demande en attente.",
+    validated: "Aucune inscription validée pour ces filtres.",
+    waitlist: "Personne en liste d'attente.",
+    cancelled: "Aucune réservation annulée.",
+  };
+  const filteredSession = catalog.byId.get(filters.session);
 
   return (
     <>
@@ -2870,13 +3060,17 @@ export default function Reservations() {
             <header className="dash-page-header dash-page-header-row">
               <div>
                 <h1>Réservations</h1>
-                <p>Gestion des inscriptions, tarifs et statuts.</p>
+                <p>Saison {season} · séjour → session → réservations. Les saisons clôturées se consultent dans les archives.</p>
               </div>
               <div className="dash-row-actions" style={{ flexWrap: "wrap" }}>
-                <div className="res-stat-badge">
-                  <span className="res-stat-value">{childCounts.total}</span>
-                  <span className="res-stat-label">enfants au total</span>
-                </div>
+                <label className="res27-season-picker">
+                  <span>Saison</span>
+                  <select className="dash-input" value={season} onChange={(event) => changeSeason(event.target.value)}>
+                    {seasonOptions.map((key) => (
+                      <option key={key} value={key}>{key}{key === activeSeason ? " (active)" : ""}</option>
+                    ))}
+                  </select>
+                </label>
                 <div className="res-stat-badge res-stat-green">
                   <span className="res-stat-value">{childCounts.validated}</span>
                   <span className="res-stat-label">enfants validés</span>
@@ -2885,10 +3079,16 @@ export default function Reservations() {
                   <span className="res-stat-value">{childCounts.pending}</span>
                   <span className="res-stat-label">enfants en attente</span>
                 </div>
-                {totalRevenue > 0 && (
+                {childCounts.waitlist > 0 && (
+                  <div className="res-stat-badge res27-stat-indigo">
+                    <span className="res-stat-value">{childCounts.waitlist}</span>
+                    <span className="res-stat-label">liste d'attente</span>
+                  </div>
+                )}
+                {seasonTotals.revenueValidated > 0 && (
                   <div className="res-stat-badge res-stat-pink">
-                    <span className="res-stat-value" style={{ fontSize: 13 }}>{fmtCur(totalRevenue)}</span>
-                    <span className="res-stat-label">CA total</span>
+                    <span className="res-stat-value" style={{ fontSize: 13 }}>{fmtCur(Math.round(seasonTotals.revenueValidated))}</span>
+                    <span className="res-stat-label">CA validé</span>
                   </div>
                 )}
                 <button type="button" className="dash-btn" onClick={load}>
@@ -2897,7 +3097,7 @@ export default function Reservations() {
                   </svg>
                   Actualiser
                 </button>
-                <button type="button" className="dash-btn dash-btn-primary" onClick={() => setShowNew(true)}>
+                <button type="button" className="dash-btn dash-btn-primary" onClick={() => setNewSessionId(filteredSession?.id || "")}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -2908,28 +3108,65 @@ export default function Reservations() {
 
             {/* Sélecteur de vue */}
             <div className="res-view-selector">
-              <button type="button"
-                className={`res-view-btn${mainView === "reservations" ? " is-active" : ""}`}
-                onClick={() => changeView("reservations")}>
-                Réservations en cours
-                <span className="res-view-count">{childCounts.pending}</span>
-              </button>
-              <button type="button"
-                className={`res-view-btn${mainView === "validees" ? " is-active" : ""}`}
-                onClick={() => changeView("validees")}>
-                Validées
-                <span className="res-view-count">{childCounts.validated}</span>
-              </button>
-              <button type="button"
-                className={`res-view-btn res-view-btn-muted${mainView === "passees" ? " is-active" : ""}`}
-                onClick={() => changeView("passees")}>
-                Passées
-                <span className="res-view-count">{childCounts.deleted}</span>
-              </button>
+              {VIEWS.map((entry) => (
+                <button key={entry.key} type="button"
+                  className={`res-view-btn${entry.muted ? " res-view-btn-muted" : ""}${view === entry.key ? " is-active" : ""}`}
+                  onClick={() => changeView(entry.key)}>
+                  {entry.label}
+                  <span className="res-view-count">
+                    {entry.key === "sessions" ? sessionRows.length : childCounts[entry.key]}
+                  </span>
+                </button>
+              ))}
             </div>
 
+            {/* Filtres séjour → session → transport */}
+            <div className="res27-filters">
+              <select className="dash-input" value={filters.sejour} onChange={(event) => setFilter("sejour", event.target.value)}>
+                <option value="all">Tous les séjours</option>
+                {sejourOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+              {view !== "sessions" && (
+                <>
+                  <select className="dash-input" value={filters.session} onChange={(event) => setFilter("session", event.target.value)}>
+                    <option value="all">Toutes les sessions</option>
+                    {sessionOptions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {filters.sejour === "all" ? `${session.sejourCode} ` : ""}{session.week} · {formatDateRange(session.startDate, session.endDate)}
+                      </option>
+                    ))}
+                    {orphanOccupancy && <option value={NO_SESSION}>Hors catalogue</option>}
+                  </select>
+                  <select className="dash-input" value={filters.transport} onChange={(event) => setFilter("transport", event.target.value)}>
+                    <option value="all">Tous les transports</option>
+                    <option value="__transport__">Avec transport</option>
+                    <option value="__sur_place__">Sur place</option>
+                  </select>
+                </>
+              )}
+              {(filters.sejour !== "all" || filters.session !== "all" || filters.transport !== "all") && (
+                <button type="button" className="dash-btn" onClick={() => setFilters({ sejour: "all", session: "all", transport: "all" })}>
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+
+            {view !== "sessions" && filteredSession && (() => {
+              const fill = fillFor(filteredSession);
+              return (
+                <div className="res27-session-banner">
+                  <strong>{sessionOptionLabel(filteredSession)}</strong>
+                  <span>
+                    {fill.validated}{fill.capacity ? ` / ${fill.capacity}` : ""} enfants validés
+                    {fill.remaining !== null ? ` · ${fill.remaining} place(s) restante(s)` : ""}
+                  </span>
+                  {fill.full && <span className="res27-chip is-full">Complet — nouvelles demandes en liste d'attente</span>}
+                </div>
+              );
+            })()}
+
             {/* Sous-filtre : prix défini ou à traiter */}
-            {mainView === "reservations" && (
+            {view === "pending" && (
               <div className="res-view-selector" style={{ marginTop: 6 }}>
                 <button type="button"
                   className={`res-view-btn${priceFilter === "all" ? " is-active" : ""}`}
@@ -2952,43 +3189,29 @@ export default function Reservations() {
               </div>
             )}
 
-            {loading ? (
+            {loading || catalog.loading ? (
               <div className="dash-section" style={{ padding: 24 }}>
                 <p className="dash-muted">Chargement…</p>
               </div>
-            ) : mainView === "reservations" || mainView === "passees" ? (
-              /* Réservations en cours et passées : tableau direct */
+            ) : view === "sessions" ? (
+              <SessionsOverview
+                rows={sessionRows}
+                orphan={filters.sejour === "all" ? orphanOccupancy : null}
+                onOpen={openSession}
+                onCreate={(sessionId) => setNewSessionId(sessionId)}
+              />
+            ) : (
               <DataTable
                 columns={columns}
                 data={viewItems}
-                searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation"]}
+                searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation","week"]}
                 defaultSortKey="numeroDeReservation"
                 defaultSortDirection="desc"
                 onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
                 selectedRowId={selectedItem?.id}
-                emptyLabel={mainView === "reservations" ? "Aucune réservation en cours." : "Aucune réservation passée."}
+                emptyLabel={emptyLabels[view] || "Aucune réservation."}
                 toolsInline
               />
-            ) : (
-              <>
-                <ValidatedOverview
-                  items={buckets.validated}
-                  filters={validatedFilters}
-                  onFilterChange={handleValidatedFilterChange}
-                  onReset={() => setValidatedFilters({ week: "all", sejour: "all", transport: "all" })}
-                />
-                <DataTable
-                  columns={validatedColumns}
-                  data={validatedFiltered}
-                  searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation","week"]}
-                  defaultSortKey="week"
-                  defaultSortDirection="asc"
-                  onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
-                  selectedRowId={selectedItem?.id}
-                  emptyLabel="Aucune inscription validée pour ces filtres."
-                  toolsInline
-                />
-              </>
             )}
           </div>
         </div>
@@ -2996,6 +3219,7 @@ export default function Reservations() {
         {selectedItem && (
           <ReservationPanel
             item={selectedItem}
+            sessionState={selectedSessionState}
             onClose={() => setSelectedItem(null)}
             onSave={handleSave}
             onDelete={handleDelete}
@@ -3004,13 +3228,14 @@ export default function Reservations() {
         )}
       </div>
 
-      {showNew && (
+      {newSessionId !== null && (
         <NewReservationModal
-          onClose={() => setShowNew(false)}
+          initialSessionId={newSessionId}
+          occupancyFor={fillFor}
+          onClose={() => setNewSessionId(null)}
           onCreated={handleCreated}
         />
       )}
     </>
   );
 }
-

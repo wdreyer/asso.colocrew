@@ -313,7 +313,9 @@ export async function POST(request) {
               invoiceId: sessionInvoiceId,
               paymentIntentId: sessionPaymentIntentId,
             }),
-            status: "deposit_paid",
+            // Le statut de la réservation (demande / validée / liste d'attente) n'est plus
+            // écrasé : l'acompte se lit dans payment.depositStatus (docs/MODELE-DONNEES.md §4).
+            "payment.depositPaidAt": serverTimestamp(),
             updatedAt: serverTimestamp(),
             ...financePatch,
           });

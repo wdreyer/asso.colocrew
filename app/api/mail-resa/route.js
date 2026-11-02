@@ -34,6 +34,7 @@ export async function POST(request) {
       transport, // { departureCity, returnCity, fee }
       estimatedPriceString, // Estimation du paiement (texte)
       stripeDepositUrl, // URL de paiement acompte Stripe
+      waitlist = false, // Session complète : demande en liste d'attente, sans acompte
     } = data;
 
     if (formType !== "reservation") {
@@ -55,9 +56,9 @@ export async function POST(request) {
     });
 
     // Préparation du sujet unique pour admin et utilisateur
-    const reservationSubject = `Colocrew - Estimation de tarif No. ${
-      numeroDeReservation || "???"
-    }`;
+    const reservationSubject = waitlist
+      ? `Colocrew - Liste d'attente No. ${numeroDeReservation || "???"}`
+      : `Colocrew - Estimation de tarif No. ${numeroDeReservation || "???"}`;
 
     // Construction du contenu HTML unique via buildReservationEmail
     const reservationHtmlContent = buildReservationEmail({
@@ -71,6 +72,7 @@ export async function POST(request) {
       transport,
       estimatedPriceString,
       stripeDepositUrl,
+      waitlist,
     });
 
     // Options d'email pour admin et utilisateur (même contenu)
@@ -127,6 +129,7 @@ function buildReservationEmail({
   transport = {},
   estimatedPriceString = "",
   stripeDepositUrl = null,
+  waitlist = false,
 }) {
   const colorPrimary = "#B8336A";
   const colorSecondary = "#A2225A";
@@ -178,8 +181,25 @@ function buildReservationEmail({
     `
       : "";
 
+  // Saison affichée dans l'en-tête, déduite de la date de début de la session
+  const sessionStart = new Date(sejour?.startDate || "");
+  const seasonLabel = Number.isNaN(sessionStart.getTime())
+    ? ""
+    : `${sessionStart.getMonth() >= 5 && sessionStart.getMonth() <= 8 ? "Été" : "Saison"} ${sessionStart.getFullYear()}`;
+
+  // Session complète : pas d'acompte, la demande attend qu'une place se libère
+  const waitlistBlock = `
+    <div style="margin:24px 0; padding:22px 24px; background:#f5f3ff; border:2px solid #6366f1; border-radius:12px; text-align:center;">
+      <p style="margin:0 0 6px; font-size:17px; font-weight:800; color:#4338ca;">Cette session est complète</p>
+      <p style="margin:0; font-size:13px; color:#555; line-height:1.6;">
+        Votre demande est enregistrée sur <strong>liste d'attente</strong>. Nous vous contactons dès qu'une place se libère.<br/>
+        Aucun paiement n'est demandé pour le moment.
+      </p>
+    </div>
+  `;
+
   // Bloc acompte : Stripe + virement RIB
-  const depositBlock = `
+  const depositBlock = waitlist ? waitlistBlock : `
     <div style="margin:24px 0; padding:22px 24px; background:#fff3f8; border:2px solid ${colorPrimary}; border-radius:12px; text-align:center;">
       <p style="margin:0 0 4px; font-size:17px; font-weight:800; color:${colorPrimary};">⚡ Il nous reste quelques places pour ce séjour !</p>
       <p style="margin:0 0 18px; font-size:13px; color:#555; line-height:1.6;">
@@ -222,8 +242,8 @@ function buildReservationEmail({
 
     <!-- Header -->
     <div style="background:${colorPrimary}; padding:28px 32px; text-align:center;">
-      <p style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; margin:0 0 8px;">ColoCrew · Été 2026</p>
-      <h1 style="color:#fff; margin:0 0 6px; font-size:24px; font-weight:800; letter-spacing:-0.01em;">Estimation de tarif</h1>
+      <p style="color:rgba(255,255,255,0.7); font-size:11px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; margin:0 0 8px;">ColoCrew${seasonLabel ? ` · ${seasonLabel}` : ""}</p>
+      <h1 style="color:#fff; margin:0 0 6px; font-size:24px; font-weight:800; letter-spacing:-0.01em;">${waitlist ? "Liste d'attente" : "Estimation de tarif"}</h1>
       <p style="color:rgba(255,255,255,0.85); margin:0; font-size:14px; font-weight:600;">N° ${numeroDeReservation || "???"}</p>
     </div>
 
