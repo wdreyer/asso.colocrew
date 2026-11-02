@@ -35,6 +35,8 @@ function sanitizedContract(input) {
     stayName: cleanText(input?.stayName || input?.stay, 150),
     stayCode: cleanText(input?.stayCode, 50),
     week: cleanText(input?.week, 30),
+    season: cleanText(input?.season, 10),
+    place: cleanText(input?.place, 150),
     startDate: cleanText(input?.startDate, 30),
     endDate: cleanText(input?.endDate, 30),
     netSalary: Number(input?.netSalary) || 0,

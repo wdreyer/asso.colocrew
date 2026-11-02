@@ -128,3 +128,11 @@
 .dp-food-wrap td>button{background:var(--meal-bg,color-mix(in srgb,var(--meal-color) 8%,white))}
 @media(max-width:760px){.dp-color-inputs{grid-template-columns:1fr}.dp-color-presets button{width:34px;height:34px}}
 @media(max-width:760px){.dp-table-row>.dp-activity p{padding-left:0;font-size:11px}}
+
+/* Modèle de départ d'une session (dashboard uniquement) */
+.dp-template-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:14px 32px;border:1px solid #e7def3;border-radius:12px;background:#fbf8ff;padding:10px 14px;font-size:13px}
+.dp-template-bar>span{color:#6b5a7c;font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:.04em}
+.dp-template-bar select{min-width:220px;border:1px solid #d9cfe6;border-radius:8px;background:#fff;padding:7px 9px;font:inherit}
+.dp-template-bar button{border:0;border-radius:8px;background:#281747;color:#fff;padding:8px 12px;font-weight:800;cursor:pointer}
+.dp-template-bar button:disabled{opacity:.55;cursor:default}
+.dp-template-bar small{flex-basis:100%;color:#7b6c86}

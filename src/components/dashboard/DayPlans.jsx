@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, getDocs, onSnapshot, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, onSnapshot, query, setDoc, where, writeBatch } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import Modal from "@/src/components/dashboard/ui/Modal";
 import { useToast } from "@/src/contexts/ToastContext";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { useSessionCatalog } from "@/src/lib/sessions";
 import {
   DAY_PLAN_SECTIONS,
+  DAY_PLAN_TEMPLATES,
   dayPlanDates,
+  dayPlanDocId,
   getDayPlanConfig,
   seedDay,
+  sessionDayPlanConfig,
+  templateSeedDays,
 } from "@/src/lib/dayPlansSeed";
 import "@/src/styles/day-plans.css";
 
@@ -289,7 +294,10 @@ function sortTasks(tasks) {
   return [...(tasks || [])].sort((a, b) => `${a.startTime || "99:99"}-${a.title}`.localeCompare(`${b.startTime || "99:99"}-${b.title}`, "fr"));
 }
 
+// Réglages propres au séjour MCSC S2 2026 (planning surf importé, menus enfants) : ils ne
+// s'appliquent qu'à ce séjour, pas aux sessions MCSC S2 des saisons suivantes.
 function isMcscS2(stay) {
+  if (stay?.sessionId) return stay.legacyStayId === "mcsc-s2-2026";
   return stay?.id === "mcsc-s2-2026" || (stay?.code === "MCSC" && stay?.week === "S2");
 }
 
@@ -531,9 +539,121 @@ function openLeavesPdf({ plans, members, leaveDates, stay }) {
   return true;
 }
 
-export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
-  const { showToast } = useToast();
+/**
+ * Déroulés des journées d'un séjour.
+ *
+ * - `sessionId` : session du catalogue (`useSessionCatalog`). Les journées sont lues et écrites
+ *   dans `day_plans/{sessionId}__{date}` ; pour une session 2026 qui correspond à un séjour
+ *   configuré en dur, les anciens documents `${stayId}-${date}` restent lus en dessous.
+ * - `stayCode` + `week` (sans `sessionId`) : ancien mode 2026, inchangé.
+ * - `readOnly` : consultation seule (espace équipe) — aucun bouton d'ajout, de modification,
+ *   d'affectation ni de congé ; les exports PDF restent disponibles.
+ * - `team` : équipe à afficher, si l'appelant la connaît déjà (`[{ id, firstName, name, role,
+ *   startDate, endDate }]`). Sans elle, l'équipe vient des contrats de la session ; en lecture
+ *   seule, les fiches `staff_members` ne sont alors pas lues (seul `memberName` des contrats sert).
+ */
+export default function DayPlans({ sessionId = "", readOnly = false, team = null, stayCode = "MCSC", week = "S1" }) {
+  if (sessionId) return <SessionDayPlans sessionId={sessionId} readOnly={readOnly} team={team} />;
+  return <LegacyDayPlans stayCode={stayCode} week={week} readOnly={readOnly} team={team} />;
+}
+
+function LegacyDayPlans({ stayCode, week, readOnly, team }) {
   const config = useMemo(() => getDayPlanConfig(stayCode, week), [stayCode, week]);
+  return <DayPlansBoard config={config} readOnly={readOnly} team={team} />;
+}
+
+function SessionDayPlans({ sessionId, readOnly, team }) {
+  const catalog = useSessionCatalog();
+  const session = catalog.byId.get(sessionId);
+  const sessionKey = session
+    ? [session.id, session.startDate, session.endDate, session.week, session.sejourCode, session.sejourName, session.season].join("|")
+    : "";
+  // La session est recréée à chaque mise à jour du catalogue : on ne recalcule que si elle change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const config = useMemo(() => (session ? sessionDayPlanConfig(session) : null), [sessionKey]);
+  if (catalog.loading) return <div className="dp-page"><div className="dp-loading">Chargement de la session…</div></div>;
+  if (!config) {
+    return (
+      <div className="dp-page">
+        <div className="dp-loading">Session introuvable : le séjour a peut-être été supprimé ou sa date de début modifiée.</div>
+      </div>
+    );
+  }
+  return <DayPlansBoard key={sessionId} config={config} readOnly={readOnly} team={team} />;
+}
+
+function teamMember(entry) {
+  const name = entry.name || entry.memberName || `${entry.firstName || ""} ${entry.lastName || ""}`.trim();
+  return {
+    ...entry,
+    id: entry.id || entry.memberId,
+    name,
+    firstName: entry.firstName || String(name).split(" ")[0] || "",
+    role: entry.role || "Animateur·ice",
+    contracts: Array.isArray(entry.contracts) && entry.contracts.length
+      ? entry.contracts
+      : [{ id: entry.contractId || "", role: entry.role || "Animateur·ice", startDate: entry.startDate || "", endDate: entry.endDate || "" }],
+  };
+}
+
+function rangesOverlap(startA, endA, startB, endB) {
+  if (!startA || !startB) return false;
+  return startA <= (endB || startB) && startB <= (endA || startA);
+}
+
+/** Contrats de l'équipe d'une session, ou du séjour 2026 en ancien mode. */
+async function loadStayContracts(stay) {
+  const contractsRef = collection(db, COLLECTIONS.STAFF_CONTRACTS);
+  if (!stay.sessionId) {
+    const snapshot = await getDocs(contractsRef);
+    return snapshot.docs
+      .map((item) => ({ id: item.id, ...item.data() }))
+      .filter((contract) => contract.week === stay.week && String(contract.stayCode || "").toUpperCase() === stay.code);
+  }
+  const [linked, legacy] = await Promise.all([
+    getDocs(query(contractsRef, where("sessionId", "==", stay.sessionId))),
+    stay.legacyStayId && stay.code
+      ? getDocs(query(contractsRef, where("stayCode", "==", stay.code)))
+      : Promise.resolve({ docs: [] }),
+  ]);
+  const legacyContracts = legacy.docs
+    .map((item) => ({ id: item.id, ...item.data() }))
+    .filter((contract) => !contract.sessionId && rangesOverlap(contract.startDate, contract.endDate, stay.startDate, stay.endDate));
+  return [...linked.docs.map((item) => ({ id: item.id, ...item.data() })), ...legacyContracts];
+}
+
+function membersFromContracts(contracts, memberDocs = null) {
+  const byMember = contracts.reduce((result, contract) => {
+    if (!contract.memberId) return result;
+    result[contract.memberId] = [...(result[contract.memberId] || []), contract];
+    return result;
+  }, {});
+  return Object.entries(byMember).map(([memberId, memberContracts]) => {
+    const sorted = [...memberContracts].sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || ""), "fr"));
+    const contract = sorted[0] || {};
+    const stored = memberDocs?.get(memberId) || null;
+    const name = stored?.name || `${stored?.firstName || ""} ${stored?.lastName || ""}`.trim() || contract.memberName || "";
+    return {
+      ...(stored || {}),
+      id: memberId,
+      name,
+      firstName: stored?.firstName || String(name).split(" ")[0] || "",
+      role: contract.role || "Animateur·ice",
+      contractId: contract.id || "",
+      contractStartDate: contract.startDate || "",
+      contractEndDate: contract.endDate || "",
+      contracts: sorted.map((item) => ({
+        id: item.id,
+        role: item.role || "Animateur·ice",
+        startDate: item.startDate || "",
+        endDate: item.endDate || "",
+      })),
+    };
+  }).sort((a, b) => memberName(a).localeCompare(memberName(b), "fr"));
+}
+
+function DayPlansBoard({ config, readOnly = false, team = null }) {
+  const { showToast } = useToast();
   const stay = config.stay;
   const dates = useMemo(() => dayPlanDates(config), [config]);
   const seededPlans = useMemo(() => Object.fromEntries(dates.map((date) => [date, seedDay(date, config)])), [dates, config]);
@@ -545,76 +665,112 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editor, setEditor] = useState(null);
+  const [templateKey, setTemplateKey] = useState("basic");
 
   useEffect(() => {
     setSelectedDate((current) => dates.includes(current) ? current : defaultSelectedDate(dates, stay));
   }, [dates, stay]);
 
+  // Équipe : fournie par l'appelant, sinon déduite des contrats.
+  useEffect(() => {
+    if (team) {
+      setMembers(team.map(teamMember).sort((a, b) => memberName(a).localeCompare(memberName(b), "fr")));
+      return undefined;
+    }
+    let active = true;
+    loadStayContracts(stay)
+      .then(async (contracts) => {
+        let memberDocs = null;
+        if (!readOnly) {
+          const snapshot = await getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS));
+          memberDocs = new Map(snapshot.docs.map((item) => [item.id, { id: item.id, ...item.data() }]));
+        }
+        if (active) setMembers(membersFromContracts(contracts, memberDocs));
+      })
+      .catch((error) => {
+        if (active) showToast(error?.message || "Chargement de l'équipe impossible.", "error");
+      });
+    return () => { active = false; };
+  }, [stay, team, readOnly, showToast]);
+
+  // Journées : documents de la session, plus les anciens documents 2026 du même séjour.
   useEffect(() => {
     let active = true;
     setLoading(true);
     setPlans(seededPlans);
-    Promise.all([
-      getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
-      getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
-      getDocs(collection(db, COLLECTIONS.DAY_PLANS)),
-    ]).then(([memberSnap, contractSnap, planSnap]) => {
-      if (!active) return;
-      const contracts = contractSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
-      const stayContracts = contracts.filter((contract) => contract.week === stay.week && String(contract.stayCode || "").toUpperCase() === stay.code);
-      const memberIds = new Set(stayContracts.map((contract) => contract.memberId));
-      const contractsByMember = stayContracts.reduce((result, contract) => {
-        result[contract.memberId] = [...(result[contract.memberId] || []), contract];
-        return result;
-      }, {});
-      setMembers(memberSnap.docs.map((item) => {
-        const memberContracts = (contractsByMember[item.id] || [])
-          .sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || ""), "fr"));
-        const contract = memberContracts[0] || {};
-        return {
-          id: item.id,
-          ...item.data(),
-          role: contract.role || "Animateur·ice",
-          contractId: contract.id || "",
-          contractStartDate: contract.startDate || "",
-          contractEndDate: contract.endDate || "",
-          contracts: memberContracts.map((item) => ({
-            id: item.id,
-            role: item.role || "Animateur·ice",
-            startDate: item.startDate || "",
-            endDate: item.endDate || "",
-          })),
-        };
-      }).filter((member) => memberIds.has(member.id)).sort((a, b) => memberName(a).localeCompare(memberName(b), "fr")));
-
-      const existing = Object.fromEntries(planSnap.docs
-        .map((item) => ({ id: item.id, ...item.data() }))
-        .filter((plan) => plan.stayId === stay.id)
-        .map((plan) => [plan.date, normalizePlanForDisplay(plan, seededPlans[plan.date], stay)]));
-      setPlans({ ...seededPlans, ...existing });
-      setLoading(false);
-    }).catch((error) => {
-      if (!active) return;
-      setPlans(seededPlans);
-      setLoading(false);
-      showToast(error?.message || "Chargement du planning impossible.", "error");
-    });
-
-    const unsubscribe = onSnapshot(collection(db, COLLECTIONS.DAY_PLANS), (snapshot) => {
-      if (!active) return;
+    const plansRef = collection(db, COLLECTIONS.DAY_PLANS);
+    const sources = stay.sessionId
+      ? [
+          ...(stay.legacyStayId ? [{ key: "legacy", query: query(plansRef, where("stayId", "==", stay.legacyStayId)) }] : []),
+          { key: "session", query: query(plansRef, where("sessionId", "==", stay.sessionId)) },
+        ]
+      : [{ key: "legacy", query: query(plansRef, where("stayId", "==", stay.id)) }];
+    const received = {};
+    const publish = () => {
+      if (!active || sources.some((source) => !received[source.key])) return;
       const next = {};
-      snapshot.docs.forEach((item) => {
-        const data = item.data();
-        if (data.stayId === stay.id) {
-          const plan = { id: item.id, ...data };
-          next[data.date] = normalizePlanForDisplay(plan, seededPlans[plan.date], stay);
-        }
+      sources.forEach((source) => {
+        received[source.key].forEach((plan) => {
+          if (source.key === "legacy" && stay.sessionId && plan.sessionId) return;
+          next[plan.date] = normalizePlanForDisplay(plan, seededPlans[plan.date], stay);
+        });
       });
       setPlans({ ...seededPlans, ...next });
       setLoading(false);
-    }, () => setLoading(false));
-    return () => { active = false; unsubscribe(); };
-  }, [seededPlans, stay, showToast]);
+    };
+    const unsubscribers = sources.map((source) => onSnapshot(source.query, (snapshot) => {
+      received[source.key] = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .filter((plan) => plan.date && dates.includes(plan.date));
+      publish();
+    }, (error) => {
+      if (!active) return;
+      received[source.key] = [];
+      publish();
+      showToast(error?.message || "Chargement du planning impossible.", "error");
+    }));
+    return () => { active = false; unsubscribers.forEach((unsubscribe) => unsubscribe()); };
+  }, [seededPlans, dates, stay, showToast]);
+
+  /** Contenu à écrire pour une journée : sans l'ID du document lu, avec les champs de la session. */
+  const planPayload = (current, fields) => {
+    const { id: _id, ...rest } = current || {};
+    return {
+      ...rest,
+      ...fields,
+      ...(stay.sessionId ? { stayId: stay.id, sessionId: stay.sessionId, season: stay.season || "", stayCode: stay.code, week: stay.week } : {}),
+      updatedAt: new Date().toISOString(),
+      updatedBy: "",
+    };
+  };
+
+  // Pré-remplit les journées encore jamais enregistrées à partir d'un modèle.
+  const applyTemplate = async () => {
+    const emptyDates = dates.filter((date) => !plans[date]?.id);
+    if (!emptyDates.length) {
+      showToast("Toutes les journées ont déjà été enregistrées : aucun jour à pré-remplir.", "info");
+      return;
+    }
+    const template = DAY_PLAN_TEMPLATES.find((item) => item.key === templateKey);
+    if (!window.confirm(`Pré-remplir ${emptyDates.length} journée${emptyDates.length > 1 ? "s" : ""} vide${emptyDates.length > 1 ? "s" : ""} avec « ${template?.label || templateKey} » ?\n\nLes journées déjà enregistrées ne sont pas modifiées.`)) return;
+    setSaving(true);
+    try {
+      const seedDays = templateSeedDays(templateKey, stay);
+      const batch = writeBatch(db);
+      emptyDates.forEach((date) => {
+        batch.set(doc(db, COLLECTIONS.DAY_PLANS, dayPlanDocId(stay, date)), planPayload(seedDay(date, config), {
+          tasks: sortTasks(seedDays[date] || []),
+          createdFrom: template?.label || templateKey,
+        }));
+      });
+      await batch.commit();
+      showToast(`${emptyDates.length} journée${emptyDates.length > 1 ? "s" : ""} pré-remplie${emptyDates.length > 1 ? "s" : ""}.`, "success");
+    } catch (error) {
+      showToast(error?.message || "Pré-remplissage impossible.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const rawSelectedPlan = plans[selectedDate] || seedDay(selectedDate, config);
   const selectedMembers = useMemo(
@@ -629,15 +785,11 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   const memberById = useMemo(() => Object.fromEntries(members.map((member) => [member.id, member])), [members]);
 
   const saveDay = async (date, fields, successMessage = "Planning enregistré.") => {
+    if (readOnly) return;
     setSaving(true);
     try {
       const current = plans[date] || seedDay(date, config);
-      await setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${date}`), {
-        ...current,
-        ...fields,
-        updatedAt: new Date().toISOString(),
-        updatedBy: "",
-      }, { merge: true });
+      await setDoc(doc(db, COLLECTIONS.DAY_PLANS, dayPlanDocId(stay, date)), planPayload(current, fields), { merge: true });
       if (successMessage) showToast(successMessage, "success");
     } catch (error) {
       showToast(error?.message || "Enregistrement impossible.", "error");
@@ -672,6 +824,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
   };
 
   const saveTask = async (draft, photoFile = null) => {
+    if (readOnly) return;
     const taskId = draft.id || newId();
     const sourceDate = draft._sourceDate || selectedDate;
     const targetDate = draft.targetDate || sourceDate;
@@ -697,19 +850,13 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         const sourcePlan = plans[sourceDate] || seedDay(sourceDate, config);
         const targetPlan = plans[targetDate] || seedDay(targetDate, config);
         await Promise.all([
-          setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${sourceDate}`), {
-            ...sourcePlan,
+          setDoc(doc(db, COLLECTIONS.DAY_PLANS, dayPlanDocId(stay, sourceDate)), planPayload(sourcePlan, {
             tasks: sortTasks((sourcePlan.tasks || []).filter((task) => task.id !== taskId)),
-            updatedAt: new Date().toISOString(),
-            updatedBy: "",
-          }, { merge: true }),
-          setDoc(doc(db, COLLECTIONS.DAY_PLANS, `${stay.id}-${targetDate}`), {
-            ...targetPlan,
+          }), { merge: true }),
+          setDoc(doc(db, COLLECTIONS.DAY_PLANS, dayPlanDocId(stay, targetDate)), planPayload(targetPlan, {
             tasks: sortTasks([...(targetPlan.tasks || []).filter((task) => task.id !== taskId), complete]),
             deletedTaskIds: (targetPlan.deletedTaskIds || []).filter((id) => id !== taskId),
-            updatedAt: new Date().toISOString(),
-            updatedBy: "",
-          }, { merge: true }),
+          }), { merge: true }),
         ]);
         showToast("Activité déplacée.", "success");
       } catch (error) {
@@ -822,9 +969,20 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
           {view === "food" && <button type="button" className="dp-pdf-button" onClick={() => {
             if (!openMenusPdf({ plans, dates, config, stay, members })) showToast("Autorisez les fenetres pop-up pour exporter les menus.", "error");
           }}>PDF menus</button>}
-          {view === "day" && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK, _sourceDate: selectedDate, targetDate: selectedDate })}>+ Ajouter une tâche</button>}
+          {view === "day" && !readOnly && <button type="button" className="dp-add-main" onClick={() => setEditor({ ...EMPTY_TASK, _sourceDate: selectedDate, targetDate: selectedDate })}>+ Ajouter une tâche</button>}
         </div>
       </header>
+
+      {!readOnly && stay.sessionId && (
+        <div className="dp-template-bar">
+          <span>Modèle de départ</span>
+          <select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} disabled={saving}>
+            {DAY_PLAN_TEMPLATES.map((template) => <option key={template.key} value={template.key}>{template.label}</option>)}
+          </select>
+          <button type="button" onClick={applyTemplate} disabled={saving || loading}>Pré-remplir les journées vides</button>
+          <small>Les journées jamais enregistrées affichent la journée type ; seules elles sont pré-remplies.</small>
+        </div>
+      )}
 
       <div className="dp-layout">
         <aside className="dp-days">
@@ -851,6 +1009,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
               dates={dates}
               config={config}
               stay={stay}
+              readOnly={readOnly}
               onOpenTask={openTaskEditor}
               onAddTask={openNewTaskEditor}
               onSelect={(date) => { setSelectedDate(date); setView("day"); }}
@@ -862,27 +1021,29 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
               members={members}
               stay={stay}
               selectedDate={selectedDate}
+              readOnly={readOnly}
               onOpen={(date, task) => openTaskEditor(date, task, "food")}
               onUseMenu={openKitchenMenuEditor}
             />
           ) : view === "leaves" ? (
-            <LeavesOverview plans={plans} members={members} leaveDates={leaveDates} stay={stay} saving={saving} onToggle={toggleLeave} showToast={showToast} />
+            <LeavesOverview plans={plans} members={members} leaveDates={leaveDates} stay={stay} saving={saving || readOnly} onToggle={toggleLeave} showToast={showToast} />
           ) : (
             <>
-              <DayHeader date={selectedDate} plan={selectedPlan} dates={dates} leaveDates={leaveDates} stay={stay} members={selectedMembers} saving={saving} onToggleLeave={toggleLeave} />
+              <DayHeader date={selectedDate} plan={selectedPlan} dates={dates} leaveDates={leaveDates} stay={stay} members={selectedMembers} saving={saving || readOnly} onToggleLeave={toggleLeave} />
               <DayTimeline
                 plan={selectedPlan}
                 date={selectedDate}
                 members={selectedMembers}
                 memberById={selectedMemberById}
                 unavailability={unavailability}
+                readOnly={readOnly}
                 onEdit={(task) => openTaskEditor(selectedDate, task)}
                 onAdd={(sectionKey) => openNewTaskEditor(selectedDate, sectionKey)}
                 onToggleAssignee={toggleTaskAssignee}
               />
               <label className="dp-notes">
                 <span>Notes générales de la journée</span>
-                <textarea defaultValue={selectedPlan.notes || ""} key={selectedDate} placeholder="Informations utiles à toute l’équipe…" onBlur={(event) => {
+                <textarea defaultValue={selectedPlan.notes || ""} key={selectedDate} readOnly={readOnly} placeholder="Informations utiles à toute l’équipe…" onBlur={(event) => {
                   if (event.target.value !== (selectedPlan.notes || "")) saveDay(selectedDate, { notes: event.target.value }, "Notes enregistrées.");
                 }} />
               </label>
@@ -897,6 +1058,7 @@ export default function DayPlans({ stayCode = "MCSC", week = "S1" }) {
         members={selectedMembers}
         memberById={selectedMemberById}
         saving={saving}
+        readOnly={readOnly}
         onClose={() => setEditor(null)}
         onSave={saveTask}
         onDelete={deleteTask}
@@ -932,7 +1094,7 @@ function DayHeader({ date, plan, dates, leaveDates, stay, members, saving, onTog
   );
 }
 
-function DayTimeline({ plan, date, members, memberById, unavailability, onEdit, onAdd, onToggleAssignee }) {
+function DayTimeline({ plan, date, members, memberById, unavailability, readOnly = false, onEdit, onAdd, onToggleAssignee }) {
   return <div className="dp-schedule-table">
     <div className="dp-table-head"><span>Moment</span><span>Activité</span><span>Animateur·ices</span><span>En congé</span></div>
     {DAY_PLAN_SECTIONS.map((section) => {
@@ -941,7 +1103,10 @@ function DayTimeline({ plan, date, members, memberById, unavailability, onEdit, 
       const sectionLeave = members.filter((member) => unavailability(member.id, referenceTime));
       if (!tasks.length) return <div className="dp-table-row is-empty" key={section.key}>
         <div className="dp-moment" style={{ "--section-color": section.color }}><i>{section.icon}</i><strong>{section.label}</strong></div>
-        <button type="button" className="dp-activity dp-add-slot" onClick={() => onAdd(section.key)}><span>À organiser</span><b>+</b></button><div className="dp-people"><em>—</em></div>
+        {readOnly
+          ? <div className="dp-activity dp-add-slot"><span>Rien de prévu</span></div>
+          : <button type="button" className="dp-activity dp-add-slot" onClick={() => onAdd(section.key)}><span>À organiser</span><b>+</b></button>}
+        <div className="dp-people"><em>—</em></div>
         <LeavePeople members={sectionLeave} />
       </div>;
       return tasks.map((task, index) => {
@@ -960,24 +1125,24 @@ function DayTimeline({ plan, date, members, memberById, unavailability, onEdit, 
             {(task.details || task.menu) && <p>{task.details || task.menu}</p>}
             {(task.kitchen || task.photo?.url || unavailable.length > 0) && <span className="dp-tags">{task.kitchen && <i>🍳 Cuisine</i>}{task.photo?.url && <i>📷 Photo</i>}{unavailable.length > 0 && <i className="is-warning">⚠ Conflit congé</i>}</span>}
           </button>
-          <QuickAssign task={task} date={date} members={members} unavailability={unavailability} onToggle={onToggleAssignee} />
+          <QuickAssign task={task} date={date} members={members} unavailability={unavailability} readOnly={readOnly} onToggle={onToggleAssignee} />
           <LeavePeople members={peopleOnLeave} />
-          {index === tasks.length - 1 && <button type="button" className="dp-row-add-task" onClick={() => onAdd(section.key)} title={`Ajouter dans ${section.label}`}>+</button>}
+          {index === tasks.length - 1 && !readOnly && <button type="button" className="dp-row-add-task" onClick={() => onAdd(section.key)} title={`Ajouter dans ${section.label}`}>+</button>}
         </div>;
       });
     })}
   </div>;
 }
 
-function QuickAssign({ task, date, members, unavailability, onToggle }) {
+function QuickAssign({ task, date, members, unavailability, readOnly = false, onToggle }) {
   const [open, setOpen] = useState(false);
   const selectedIds = new Set(task.assigneeIds || []);
   const assignableMembers = assignableMembersForTask(members, date, task);
   const selected = assignableMembers.filter((member) => selectedIds.has(member.id));
   return <div className="dp-quick-assign">
     <div className="dp-assigned-names">{selected.length ? selected.map((member) => <span key={member.id}>{member.firstName || memberName(member)}</span>) : <em>À affecter</em>}</div>
-    <button type="button" className="dp-assign-plus" aria-label={`Modifier les affectations de ${task.title}`} onClick={() => setOpen((value) => !value)}>+</button>
-    {open && <div className="dp-assign-menu">
+    {!readOnly && <button type="button" className="dp-assign-plus" aria-label={`Modifier les affectations de ${task.title}`} onClick={() => setOpen((value) => !value)}>+</button>}
+    {open && !readOnly && <div className="dp-assign-menu">
       <header><strong>Qui fait cette activité ?</strong><button type="button" onClick={() => setOpen(false)}>×</button></header>
       {assignableMembers.map((member) => {
         const isSelected = selectedIds.has(member.id);
@@ -998,7 +1163,7 @@ function LeavePeople({ members }) {
   </div>;
 }
 
-function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTask, onAddTask }) {
+function WeekOverview({ plans, members, dates, config, stay, readOnly = false, onSelect, onOpenTask, onAddTask }) {
   const scrollRef = useRef(null);
   return <section className="dp-overview">
     <header><span className="dp-eyebrow">Planning général</span><h2>{stay.name} — {stay.week}</h2><p>Comme sur le planning Excel : les jours en colonnes et les moments de la journée en lignes.</p></header>
@@ -1013,7 +1178,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
             const memberById = activeMemberByIdOnDate(members, date);
             const tasks = sortTasks(((plans[date] || seedDay(date, config)).tasks || []).filter((task) => task.category === section.key));
             const addAtClick = (event) => {
-              if (event.target.closest("[data-dp-action]")) return;
+              if (readOnly || event.target.closest("[data-dp-action]")) return;
               onAddTask(date, section.key, clickedSectionTime(event, section.key));
             };
             return <div
@@ -1023,7 +1188,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
               key={`${section.key}-${date}`}
               onClick={addAtClick}
               onKeyDown={(event) => {
-                if (!["Enter", " "].includes(event.key)) return;
+                if (readOnly || !["Enter", " "].includes(event.key)) return;
                 event.preventDefault();
                 onAddTask(date, section.key);
               }}
@@ -1053,7 +1218,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
                 }
                 return <button type="button" data-dp-action="edit" key={task.id} style={{ "--activity-color": palette.color, "--activity-bg": palette.background }} onClick={(event) => { event.stopPropagation(); onOpenTask(date, task); }}><b>{task.startTime}</b><strong>{task.title}</strong><small>{(task.assigneeIds || []).map((id) => memberById[id]?.firstName).filter(Boolean).join(", ") || "A affecter"}</small></button>;
               }) : <em>—</em>}
-              <button type="button" data-dp-action="add" className="dp-excel-add-task" aria-label={`Ajouter une tache ${section.label} le ${dateLabel(date, true)}`} onClick={(event) => { event.stopPropagation(); onAddTask(date, section.key, clickedSectionTime(event, section.key)); }}>+</button>
+              {!readOnly && <button type="button" data-dp-action="add" className="dp-excel-add-task" aria-label={`Ajouter une tache ${section.label} le ${dateLabel(date, true)}`} onClick={(event) => { event.stopPropagation(); onAddTask(date, section.key, clickedSectionTime(event, section.key)); }}>+</button>}
             </div>;
           })}
         </div>)}
@@ -1062,7 +1227,7 @@ function WeekOverview({ plans, members, dates, config, stay, onSelect, onOpenTas
   </section>;
 }
 
-function FoodOverview({ plans, dates, members, stay, selectedDate, onOpen, onUseMenu }) {
+function FoodOverview({ plans, dates, members, stay, selectedDate, readOnly = false, onOpen, onUseMenu }) {
   const mealSections = [
     { key: "breakfast", label: "Petit déjeuner", icon: "☕", color: "#d97706" },
     { key: "lunch", label: "Repas du midi", icon: "🥗", color: "#16a34a" },
@@ -1070,7 +1235,7 @@ function FoodOverview({ plans, dates, members, stay, selectedDate, onOpen, onUse
   ];
   return <section className="dp-food-view">
     <header><span className="dp-eyebrow">Cuisine et repas</span><h2>Planning nourriture</h2><p>Menus, horaires, groupes cuisine et personnes affectées pour tout le séjour.</p></header>
-    {stay?.code === "MCSC" && stay?.week === "S2" && <KitchenMenuLibrary selectedDate={selectedDate} onUseMenu={onUseMenu} />}
+    {!readOnly && isMcscS2(stay) && <KitchenMenuLibrary selectedDate={selectedDate} onUseMenu={onUseMenu} />}
     <div className="dp-food-wrap"><table><thead><tr><th>Jour</th>{mealSections.map((section) => <th key={section.key}><span>{section.icon}</span>{section.label}</th>)}</tr></thead><tbody>
       {dates.map((date, index) => {
         const tasks = plans[date]?.tasks || [];
@@ -1203,7 +1368,7 @@ function LeaveValidation({ plans, members, leaveDates, stay }) {
   </section>;
 }
 
-function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelete, onDuplicate }) {
+function TaskDetails({ task, dates, memberById, saving, readOnly = false, onClose, onSave, onDelete, onDuplicate }) {
   const [draft, setDraft] = useState(null);
   const [editing, setEditing] = useState(false);
   const [photoFile, setPhotoFile] = useState(null);
@@ -1216,10 +1381,10 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
       documents: Array.isArray(task.documents) ? task.documents : [],
       rotationSegments: Array.isArray(task.rotationSegments) ? task.rotationSegments : [],
     } : null);
-    setEditing(Boolean(task));
+    setEditing(Boolean(task) && !readOnly);
     setPhotoFile(null);
     setPhotoPreview("");
-  }, [task]);
+  }, [task, readOnly]);
   if (!draft) return null;
   const set = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
   const section = DAY_PLAN_SECTIONS.find((item) => item.key === draft.category);
@@ -1240,10 +1405,10 @@ function TaskDetails({ task, dates, memberById, saving, onClose, onSave, onDelet
       <div className="dp-detail-text">{draft.details || draft.menu || "Aucun détail ajouté pour le moment."}</div>
       {assigned.length > 0 && <div className="dp-detail-team"><strong>Équipe</strong>{assigned.map((member) => <span key={member.id}><i>{initials(member)}</i>{memberName(member)}</span>)}</div>}
       <div className="dp-detail-actions">
-        {draft.id && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Supprimer l’activité « ${draft.title} » ?`)) onDelete(draft); }}>Supprimer</button>}
-        {draft.id && <button type="button" onClick={() => onDuplicate(draft)} disabled={saving}>Dupliquer</button>}
+        {draft.id && !readOnly && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Supprimer l’activité « ${draft.title} » ?`)) onDelete(draft); }}>Supprimer</button>}
+        {draft.id && !readOnly && <button type="button" onClick={() => onDuplicate(draft)} disabled={saving}>Dupliquer</button>}
         <button type="button" onClick={onClose}>Fermer</button>
-        <button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button>
+        {!readOnly && <button type="button" className="is-primary" onClick={() => setEditing(true)}>Modifier</button>}
       </div>
     </article> : <form className="dp-simple-editor" onSubmit={(event) => { event.preventDefault(); if (draft.title.trim()) onSave(draft, photoFile); }}>
       <div><label><span>Jour</span><select value={draft.targetDate || draft._sourceDate || dates[0]} onChange={(event) => set("targetDate", event.target.value)}>{dates.map((date, index) => <option key={date} value={date}>J{index + 1} — {dateLabel(date, true)}</option>)}</select></label><label><span>Moment</span><select value={draft.category} onChange={(event) => set("category", event.target.value)}>{DAY_PLAN_SECTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label></div>
