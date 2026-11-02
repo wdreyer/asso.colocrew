@@ -145,6 +145,7 @@ export default function ReservationPage({ params }) {
   const isPriceCalculated =
     finalPrice > 0 && (payment?.priceStatus === "validated" || status === "validated");
   const isDepositPaid = payment?.depositStatus === "paid";
+  const isWaitlisted = status === "waitlist";
   const depositAmount = Number(payment?.depositAmount || 100);
   const alreadyPaid = Math.max(Number(payment?.alreadyPaid || 0), isDepositPaid ? depositAmount : 0);
   const calculatedRemaining = Math.max((totalDue || finalPrice) - alreadyPaid, 0);
@@ -191,7 +192,7 @@ export default function ReservationPage({ params }) {
     <div className="max-w-4xl mx-auto p-6">
 
       {/* Bannière création */}
-      {justCreated && !isDepositPaid && (
+      {justCreated && !isDepositPaid && !isWaitlisted && (
         <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4">
           <p className="font-bold">Votre demande a bien été enregistrée !</p>
           <p>Payez votre acompte ci-dessous pour bloquer votre place dès maintenant.</p>
@@ -211,7 +212,18 @@ export default function ReservationPage({ params }) {
         </div>
 
         {/* ── BLOC ACOMPTE ─────────────────────────────────────────────── */}
-        {isDepositPaid ? (
+        {isWaitlisted && !isDepositPaid ? (
+            /* Session complète : pas d'acompte tant qu'une place ne se libère pas */
+            <div className="border-2 border-amber-400 rounded-xl p-5 mb-6 bg-amber-50">
+              <p className="text-amber-800 font-bold text-lg mb-1">
+                Vous êtes sur liste d&apos;attente
+              </p>
+              <p className="text-sm text-amber-700">
+                Cette session est complète. Nous vous contactons dès qu&apos;une place se libère :
+                l&apos;acompte ne vous sera demandé qu&apos;à ce moment-là.
+              </p>
+            </div>
+          ) : isDepositPaid ? (
             /* Acompte déjà payé */
             <div className="border-2 border-green-400 rounded-xl p-5 mb-6 bg-green-50">
               <p className="text-green-700 font-bold text-lg mb-1">

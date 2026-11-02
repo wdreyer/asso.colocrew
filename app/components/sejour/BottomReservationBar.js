@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { FaCalendarAlt, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
-import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { fetchSessionFill, isSessionFull, isSessionLimited } from "@/src/lib/availability";
 import { ageLabel } from "@/src/lib/ages";
 import { formatHolidayZones, sessionHolidayZones } from "@/src/lib/schoolHolidays";
 
@@ -82,6 +82,14 @@ export default function BottomReservationBar({
   onDepartureCityChange,
   onReturnCityChange,
 }) {
+  const [sessionFill, setSessionFill] = useState(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSessionFill(sejour?.id).then((fill) => { if (!cancelled) setSessionFill(fill); });
+    return () => { cancelled = true; };
+  }, [sejour?.id]);
+
   const total = useMemo(() => {
     const parsed = extractPriceRange(reservationPrice);
     const transport = Number(transportPrice) || 0;
@@ -142,12 +150,13 @@ export default function BottomReservationBar({
           {sejour?.dates?.map((dateOption, idx) => {
             const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
             const isFull = isSessionFull(dateOption);
-            const isLimited = isSessionLimited(dateOption);
+            const isWaitlist = !isFull && Boolean(sessionFill.get(String(value || "").slice(0, 10))?.full);
+            const isLimited = !isWaitlist && isSessionLimited(dateOption);
             const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
             const isPromo = Boolean(!isFull && sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
             return (
               <option key={`bottom-date-${idx}`} value={value} disabled={isFull}>
-                {isFull ? "COMPLET · " : isLimited ? "DERNIÈRES PLACES · " : isPromo ? "OFFRE · " : ""}{dateOptionLabel(dateOption)}
+                {isFull ? "COMPLET · " : isWaitlist ? "LISTE D'ATTENTE · " : isLimited ? "DERNIÈRES PLACES · " : isPromo ? "OFFRE · " : ""}{dateOptionLabel(dateOption)}
                 {sessionHolidayZones(dateOption).length ? ` · ${formatHolidayZones(sessionHolidayZones(dateOption))}` : ""}
               </option>
             );
