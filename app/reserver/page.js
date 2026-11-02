@@ -24,7 +24,7 @@ import { formatAgesLabel, formatSessionsLabel, usePublicSejours } from "@/src/li
 import { formatHolidayZones, sessionHolidayZones, sessionsHolidayZones } from "@/src/lib/schoolHolidays";
 import HolidayZoneChips from "../components/sejour/HolidayZoneChips";
 import { ageLabel } from "@/src/lib/ages";
-import { isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions, sejourIdCandidates } from "@/src/lib/availability";
+import { fetchSessionFill, isPublicBookableSession, isSessionFull, isSessionLimited, publicBookableSessions, publicSessionId, sejourIdCandidates } from "@/src/lib/availability";
 
 
 
@@ -122,6 +122,7 @@ function LandingSelector() {
   const [departureCity, setDepartureCity]     = useState("");
   const [returnCity, setReturnCity]           = useState("");
   const [diffReturn, setDiffReturn]           = useState(false);
+  const [sessionFill, setSessionFill]         = useState(new Map());
   const publicSejours = usePublicSejours();
   const sejourCards = (publicSejours || []).map((item) => ({
     slug: item.id,
@@ -140,6 +141,8 @@ function LandingSelector() {
     setDepartureCity("");
     setReturnCity("");
     setDiffReturn(false);
+    setSessionFill(new Map());
+    fetchSessionFill(selectedSlug).then(setSessionFill);
     getDoc(doc(db, "sejours", selectedSlug)).then((snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -274,7 +277,9 @@ function LandingSelector() {
                         const key = `${d.startDate}|${d.endDate}`;
                         const isSelected = selectedDateKey === key;
                         const isFull = isSessionFull(d);
-                        const isLimited = isSessionLimited(d);
+                        // Complète en capacité : la demande reste possible, en liste d'attente.
+                        const isWaitlist = !isFull && Boolean(sessionFill.get(String(d.startDate || "").slice(0, 10))?.full);
+                        const isLimited = !isWaitlist && isSessionLimited(d);
                         const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
                         const isPromo = Boolean(!isFull && sejour?.promotion?.active && promoStart && String(d.startDate || "").slice(0, 10) === promoStart);
                         const promoRange = isPromo ? extractPriceRange(d) : null;
@@ -306,6 +311,11 @@ function LandingSelector() {
                               {isFull && (
                                 <span style={{ display: "inline-block", marginBottom: 7, background: "#514a59", color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.1em", padding: "3px 10px", borderRadius: 100, textTransform: "uppercase" }}>
                                   Complet
+                                </span>
+                              )}
+                              {isWaitlist && (
+                                <span style={{ display: "inline-block", marginBottom: 7, background: "#4f46e5", color: "#fff", fontSize: "0.62rem", fontWeight: 800, letterSpacing: "0.08em", padding: "3px 10px", borderRadius: 100, textTransform: "uppercase" }}>
+                                  Liste d&apos;attente
                                 </span>
                               )}
                               {isLimited && (
@@ -616,6 +626,8 @@ function ReservationForm({
   const [sejour,      setSejour]      = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sejourId,    setSejourId]    = useState("");
+  const [sessionFill, setSessionFill] = useState(new Map());
 
   const initialFormData = {
     minor: {
@@ -661,6 +673,8 @@ function ReservationForm({
           && String(dateEntry.endDate || "").slice(0, 10) === String(urlEndDate || "").slice(0, 10)
         ));
         setSejour(requestedSession ? { ...data, dates: bookableDates } : null);
+        setSejourId(slug);
+        fetchSessionFill(slug).then(setSessionFill);
       } else alert("Séjour non trouvé.");
       setLoading(false);
     }
@@ -735,6 +749,8 @@ function ReservationForm({
         discountFactor,
         flatDiscount: String(formData?.legal?.promoCode || "").trim().toUpperCase() === "NOEL" ? 50 : 0,
         urlSejour, urlStartDate, urlEndDate, urlAgeGroup,
+        // Session choisie, identifiée comme dans le backoffice ("<sejourId>__<startDate>").
+        sessionId: publicSessionId(sejourId, urlStartDate),
         departureCity: urlDepartureCity, returnCity: urlReturnCity,
         insuranceFee, transportFee: effectiveTransportFee,
       };
@@ -782,6 +798,12 @@ function ReservationForm({
         />
       )}
 
+
+      {sessionFill.get(String(urlStartDate || "").slice(0, 10))?.full && (
+        <div className="bg-[#eef2ff] border border-[#c7d2fe] text-[#3730a3] rounded p-4 mb-4 text-sm">
+          <strong>Cette session est complète.</strong> Vous pouvez tout de même envoyer votre demande : elle sera placée sur liste d&apos;attente et nous vous recontacterons dès qu&apos;une place se libère. Aucun acompte ne vous sera demandé d&apos;ici là.
+        </div>
+      )}
 
       <div className="bg-white rounded p-4">
         <RecapReservation

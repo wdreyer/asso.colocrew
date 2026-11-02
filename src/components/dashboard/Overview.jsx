@@ -1,10 +1,18 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
-import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
+import { useEffect, useMemo, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { isArchivedRecord, seasonOfDate, seasonOfRecord, useSeasons } from "@/src/lib/seasons";
+import { formatDateRange, sessionIdFor, useSessionCatalog } from "@/src/lib/sessions";
+import {
+  computeSessionOccupancy,
+  normalizeReservationStatus,
+  reservationChildCount,
+  sessionFillState,
+} from "@/src/lib/reservations";
 
 /* ─── Metric icon SVGs ───────────────────────────────────────────────── */
 function IconCalendar() {
@@ -78,33 +86,21 @@ function IconArrow() {
   );
 }
 
-/* ─── Occupation / équipes lookup tables ────────────────────────────── */
-const WEEK_ORDER = ["S1", "S2", "S3", "S4"];
-const WEEK_LABELS = {
-  "2026-07-06": "S1",
-  "2026-07-20": "S2",
-  "2026-08-03": "S3",
-  "2026-08-17": "S4",
-};
-const STAY_LABELS = {
-  "my-creative-surf-camp": "MCSC",
-  "eaux-vives-creative-camp": "EVCC",
-};
-const STAY_CAPACITY = { MCSC: 35, EVCC: 30 };
-
-function canonicalStaySlug(value) {
-  const normalized = String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (normalized === "mycreativesurfcamp") return "my-creative-surf-camp";
-  if (normalized === "eauxvivescreativecamp") return "eaux-vives-creative-camp";
-  return value;
-}
-
-function resolveStayCode(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "Non renseigné";
-  const upper = raw.toUpperCase();
-  if (STAY_CAPACITY[upper]) return upper;
-  return STAY_LABELS[canonicalStaySlug(raw)] || raw;
+/* ─── Contrats d'une session ─────────────────────────────────────────── */
+/**
+ * A contract points at its session with `sessionId`; older ones only have a stay code and a
+ * week, matched against the catalog of the same season.
+ */
+function contractSessionId(contract, sessions) {
+  if (contract.sessionId) return contract.sessionId;
+  if (contract.sejourId && contract.startDate) return sessionIdFor(contract.sejourId, contract.startDate);
+  const code = String(contract.stayCode || "").toUpperCase();
+  const name = String(contract.stayName || "").toLowerCase();
+  const match = sessions.find((session) =>
+    session.week === contract.week
+    && (session.sejourCode === code || session.sejourName.toLowerCase() === name),
+  );
+  return match?.id || "";
 }
 
 /* ─── Quick actions config ───────────────────────────────────────────── */
@@ -128,12 +124,6 @@ function tsToMs(value) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function childCountFromReservation(data) {
-  const children = Array.isArray(data?.minor?.children) ? data.minor.children.length : 0;
-  if (children > 0) return children;
-  const declared = Number(data?.minor?.numberOfChildren);
-  return Number.isFinite(declared) && declared > 0 ? declared : 1;
-}
 
 function timeAgo(ms) {
   if (!ms) return "";
@@ -156,39 +146,45 @@ function rateTone(rate) {
   return "red";
 }
 
-function OccupancyTable({ columns }) {
+function OccupancyTable({ columns, season }) {
   if (columns.length === 0) return null;
 
   return (
     <section className="dash-section">
       <div className="dash-section-head">
-        <h2>Occupation des séjours</h2>
+        <h2>Occupation des sessions {season}</h2>
         <span style={{ fontSize: 11, color: "var(--dash-muted)" }}>Inscriptions validées · taux de remplissage · équipe</span>
       </div>
       <div className="hr-table-scroll">
         <table className="dash-occupancy-table">
           <tbody>
             <tr className="dash-occ-head-row">
-              <td className="dash-occ-row-label">Semaine</td>
-              {columns.map((col) => <td key={`${col.week}-${col.stay}-w`}>{col.week}</td>)}
+              <td className="dash-occ-row-label">Session</td>
+              {columns.map((col) => <td key={`${col.id}-w`} title={col.dates}>{col.week}</td>)}
             </tr>
             <tr className="dash-occ-head-row">
               <td className="dash-occ-row-label">Séjour</td>
-              {columns.map((col) => <td key={`${col.week}-${col.stay}-n`}>{col.stay}</td>)}
+              {columns.map((col) => <td key={`${col.id}-n`} title={col.dates}>{col.stay}</td>)}
             </tr>
             <tr>
               <td className="dash-occ-row-label">Inscriptions validées</td>
               {columns.map((col) => (
-                <td key={`${col.week}-${col.stay}-v`}><strong>{col.validated}</strong></td>
+                <td key={`${col.id}-v`}><strong>{col.validated}</strong>{col.capacity ? ` / ${col.capacity}` : ""}</td>
+              ))}
+            </tr>
+            <tr>
+              <td className="dash-occ-row-label">Demandes · liste d'attente</td>
+              {columns.map((col) => (
+                <td key={`${col.id}-p`}>{col.pending || "—"} · {col.waitlist || "—"}</td>
               ))}
             </tr>
             <tr>
               <td className="dash-occ-row-label">Taux remplissage</td>
               {columns.map((col) => (
-                <td key={`${col.week}-${col.stay}-r`}>
+                <td key={`${col.id}-r`}>
                   {col.rate === null ? "—" : (
                     <span className={`dash-occ-badge dash-occ-badge-${rateTone(col.rate)}`}>
-                      {col.rate.toFixed(2).replace(".", ",")}%
+                      {col.rate}%
                     </span>
                   )}
                 </td>
@@ -197,13 +193,13 @@ function OccupancyTable({ columns }) {
             <tr>
               <td className="dash-occ-row-label">Animateurs</td>
               {columns.map((col) => (
-                <td key={`${col.week}-${col.stay}-a`}>{col.animCount || "—"}</td>
+                <td key={`${col.id}-a`}>{col.animCount || "—"}</td>
               ))}
             </tr>
             <tr>
               <td className="dash-occ-row-label">Équipe totale</td>
               {columns.map((col) => (
-                <td key={`${col.week}-${col.stay}-s`}>{col.staffCount || "—"}</td>
+                <td key={`${col.id}-s`}>{col.staffCount || "—"}</td>
               ))}
             </tr>
           </tbody>
@@ -261,135 +257,35 @@ export default function Overview() {
   });
 
   const [metrics, setMetrics] = useState({
-    pendingReservations: null,
     totalSejours: null,
     totalPhotos: null,
     totalTemoignages: null,
   });
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [occupancyColumns, setOccupancyColumns] = useState([]);
-  const [registrationSeries, setRegistrationSeries] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
+  // Chiffres de la saison active uniquement ; les saisons clôturées sont dans les archives.
+  const { activeSeason, archivedSeasons } = useSeasons();
+  const catalog = useSessionCatalog(activeSeason);
 
   useEffect(() => {
     async function loadData() {
       setLoadingMetrics(true);
       try {
-        const [reservationsSnap, sejoursSnap, photosSnap, temoignagesSnap, recentSnap, contractsSnap] = await Promise.all([
+        const [reservationsSnap, sejoursSnap, photosSnap, temoignagesSnap, contractsSnap] = await Promise.all([
           getDocs(collection(db, COLLECTIONS.RESERVATIONS)),
           getDocs(collection(db, COLLECTIONS.SEJOURS)),
           getDocs(collection(db, COLLECTIONS.PHOTOS)),
           getDocs(collection(db, "retours")),
-          getDocs(
-            query(
-              collection(db, COLLECTIONS.RESERVATIONS),
-              orderBy("createdAt", "desc"),
-              limit(6),
-            ),
-          ),
           getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
         ]);
-
-        // Count pending reservations
-        const pending = reservationsSnap.docs.reduce((total, reservationDoc) => {
-          const data = reservationDoc.data();
-          const status = String(data?.status || "").toLowerCase();
-          return ["validated", "deleted", "cancelled"].includes(status)
-            ? total
-            : total + childCountFromReservation(data);
-        }, 0);
-
+        setReservations(reservationsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
+        setContracts(contractsSnap.docs.map((entry) => ({ id: entry.id, ...entry.data() })));
         setMetrics({
-          pendingReservations: pending,
           totalSejours: sejoursSnap.size,
           totalPhotos: photosSnap.size,
           totalTemoignages: temoignagesSnap.size,
         });
-
-        const activity = recentSnap.docs.map((d) => {
-          const data = d.data();
-          const legal = data?.legal || {};
-          const nom = `${legal?.firstName || legal?.prenom || ""} ${legal?.lastName || legal?.nom || ""}`.trim() || data?.name || "Anonyme";
-          const sejour = data?.sejour?.name || data?.sejourName || "séjour";
-          const ms = tsToMs(data?.createdAt);
-          const status = String(data?.status || "").toLowerCase();
-          return { id: d.id, nom, sejour, ms, status };
-        });
-
-        setRecentActivity(activity);
-
-        /* ── Occupation (inscriptions validées) par semaine × séjour ── */
-        const occupancyMap = new Map();
-        const ensureCell = (week, stay) => {
-          const key = `${week}|${stay}`;
-          if (!occupancyMap.has(key)) {
-            occupancyMap.set(key, { week, stay, validated: 0, staffIds: new Set(), animIds: new Set() });
-          }
-          return occupancyMap.get(key);
-        };
-
-        reservationsSnap.docs.forEach((reservationDoc) => {
-          const data = reservationDoc.data();
-          if (String(data?.status || "").toLowerCase() !== "validated") return;
-          const startDate = String(data?.sejour?.startDate || data?.sejourStartDate || "").slice(0, 10);
-          const week = WEEK_LABELS[startDate];
-          if (!week) return;
-          const stay = resolveStayCode(data?.sejour?.name || data?.sejourName);
-          const cell = ensureCell(week, stay);
-          cell.validated += childCountFromReservation(data);
-        });
-
-        contractsSnap.docs.forEach((contractDoc) => {
-          const data = contractDoc.data();
-          const week = data?.week;
-          if (!week) return;
-          const stay = resolveStayCode(data?.stayCode || data?.stayName);
-          const cell = ensureCell(week, stay);
-          const memberKey = data?.memberId || data?.memberName || contractDoc.id;
-          cell.staffIds.add(memberKey);
-          if (String(data?.role || "").toLowerCase().includes("anim")) cell.animIds.add(memberKey);
-        });
-
-        const columns = [...occupancyMap.values()]
-          .filter((cell) => cell.validated > 0 || cell.staffIds.size > 0)
-          .map((cell) => {
-            const capacity = STAY_CAPACITY[cell.stay] || null;
-            return {
-              week: cell.week,
-              stay: cell.stay,
-              validated: cell.validated,
-              capacity,
-              rate: capacity ? Math.min(Math.round((cell.validated / capacity) * 10000) / 100, 100) : null,
-              staffCount: cell.staffIds.size,
-              animCount: cell.animIds.size,
-            };
-          })
-          .sort((a, b) => {
-            const weekDiff = WEEK_ORDER.indexOf(a.week) - WEEK_ORDER.indexOf(b.week);
-            return weekDiff !== 0 ? weekDiff : a.stay.localeCompare(b.stay, "fr");
-          });
-        setOccupancyColumns(columns);
-
-        /* ── Évolution des inscriptions sur les 30 derniers jours ── */
-        const dayCounts = new Map();
-        reservationsSnap.docs.forEach((reservationDoc) => {
-          const ms = tsToMs(reservationDoc.data()?.createdAt);
-          if (!ms) return;
-          const dayKey = new Date(ms).toISOString().slice(0, 10);
-          dayCounts.set(dayKey, (dayCounts.get(dayKey) || 0) + 1);
-        });
-        const series = [];
-        for (let i = 29; i >= 0; i -= 1) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dayKey = d.toISOString().slice(0, 10);
-          series.push({
-            date: dayKey,
-            label: d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
-            count: dayCounts.get(dayKey) || 0,
-          });
-        }
-        setRegistrationSeries(series);
       } catch {
         // silently fail — dashboard still usable
       } finally {
@@ -399,10 +295,95 @@ export default function Overview() {
     loadData();
   }, []);
 
+  /* Réservations de la saison active, archivées exclues. */
+  const seasonReservations = useMemo(
+    () => reservations.filter((data) => !isArchivedRecord(data, archivedSeasons) && seasonOfRecord(data) === activeSeason),
+    [reservations, archivedSeasons, activeSeason],
+  );
+
+  const pendingReservations = useMemo(
+    () => seasonReservations
+      .filter((data) => normalizeReservationStatus(data.status) === "pending")
+      .reduce((total, data) => total + reservationChildCount(data), 0),
+    [seasonReservations],
+  );
+
+  const recentActivity = useMemo(() => [...seasonReservations]
+    .map((data) => {
+      const legal = data?.legal || {};
+      return {
+        id: data.id,
+        nom: `${legal?.firstName || legal?.prenom || ""} ${legal?.lastName || legal?.nom || ""}`.trim() || data?.name || "Anonyme",
+        sejour: data?.sejour?.name || data?.sejourName || "séjour",
+        ms: tsToMs(data?.createdAt),
+        status: normalizeReservationStatus(data?.status),
+      };
+    })
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 6), [seasonReservations]);
+
+  /* ── Occupation par session de la saison active ── */
+  const occupancyColumns = useMemo(() => {
+    const occupancy = computeSessionOccupancy(seasonReservations, catalog.sessions);
+    const staff = new Map();
+    contracts
+      .filter((data) => data.archived !== true && (data.season ? String(data.season) : seasonOfDate(data.startDate)) === activeSeason)
+      .forEach((data) => {
+        const sessionId = contractSessionId(data, catalog.sessions);
+        if (!sessionId) return;
+        if (!staff.has(sessionId)) staff.set(sessionId, { staffIds: new Set(), animIds: new Set() });
+        const memberKey = data.memberId || data.memberName || data.id;
+        staff.get(sessionId).staffIds.add(memberKey);
+        if (String(data.role || "").toLowerCase().includes("anim")) staff.get(sessionId).animIds.add(memberKey);
+      });
+    return catalog.sessions
+      .map((session) => {
+        const entry = occupancy.get(session.id) || {};
+        const fill = sessionFillState(session.capacity, entry);
+        const team = staff.get(session.id);
+        return {
+          id: session.id,
+          week: session.week,
+          stay: session.sejourCode || session.sejourName,
+          dates: `${session.sejourName} · ${formatDateRange(session.startDate, session.endDate)}`,
+          validated: entry.validated || 0,
+          pending: entry.pending || 0,
+          waitlist: entry.waitlist || 0,
+          capacity: fill.capacity || null,
+          rate: fill.rate,
+          staffCount: team?.staffIds.size || 0,
+          animCount: team?.animIds.size || 0,
+        };
+      });
+  }, [seasonReservations, contracts, catalog.sessions, activeSeason]);
+
+  /* ── Évolution des inscriptions de la saison sur les 30 derniers jours ── */
+  const registrationSeries = useMemo(() => {
+    const dayCounts = new Map();
+    seasonReservations.forEach((data) => {
+      const ms = tsToMs(data?.createdAt);
+      if (!ms) return;
+      const dayKey = new Date(ms).toISOString().slice(0, 10);
+      dayCounts.set(dayKey, (dayCounts.get(dayKey) || 0) + 1);
+    });
+    const series = [];
+    for (let i = 29; i >= 0; i -= 1) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dayKey = d.toISOString().slice(0, 10);
+      series.push({
+        date: dayKey,
+        label: d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }),
+        count: dayCounts.get(dayKey) || 0,
+      });
+    }
+    return series;
+  }, [seasonReservations]);
+
   const metricCards = [
     {
-      label: "Enfants en attente",
-      value: metrics.pendingReservations,
+      label: `Enfants en attente · ${activeSeason}`,
+      value: pendingReservations,
       color: "orange",
       icon: <IconCalendar />,
       href: "/dashboard/reservations",
@@ -550,7 +531,7 @@ export default function Overview() {
       </div>
 
       {/* Occupation des séjours + équipes */}
-      {!loadingMetrics && <OccupancyTable columns={occupancyColumns} />}
+      {!loadingMetrics && <OccupancyTable columns={occupancyColumns} season={activeSeason} />}
 
       {/* Évolution des inscriptions */}
       {!loadingMetrics && <RegistrationChart series={registrationSeries} />}

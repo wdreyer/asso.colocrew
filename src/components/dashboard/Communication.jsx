@@ -5,22 +5,13 @@ import { collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } 
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { useToast } from "@/src/contexts/ToastContext";
+import { useSeasons } from "@/src/lib/seasons";
+import { formatDateRange as formatSessionRange, useSessionCatalog } from "@/src/lib/sessions";
+import { reservationSessionId } from "@/src/lib/reservations";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const WEEK_MAP = {
-  "2026-07-06": "S1",
-  "2026-07-20": "S2",
-  "2026-08-03": "S3",
-  "2026-08-17": "S4",
-};
-
-const WEEK_LABELS = {
-  S1: "S1 — 6 au 17 juil.",
-  S2: "S2 — 20 au 31 juil.",
-  S3: "S3 — 3 au 14 août",
-  S4: "S4 — 17 au 28 août",
-};
+// Semaines et dates viennent du catalogue de sessions (useSessionCatalog) : chaque réservation
+// chargée reçoit `_sessionId` et `_week` (S1, S2… dans son séjour et sa saison).
 
 const SENDERS = [
   { name: "ColoCrew", email: "contact@colocrew.com" },
@@ -32,7 +23,7 @@ const PAYMENT_FAILED_TEMPLATE_KEY = "paiement_cb_echoue";
 const BAFA_TEMPLATE_KEY = "bafa_toussaint_2026";
 const BAFA_TARGET_COUNT = 3000;
 const SMS_TEST_PHONE = "0687916897";
-const SMS_S4_RELANCE_DEFAULT = `ColoCrew : il reste quelques places pour le sejour d'aout S4 de {{prenom_enfants}}. Pour bloquer la place, repondez OUI a ce SMS ou appelez William au 06 87 91 68 97. Ref {{numero_reservation}}`;
+const SMS_S4_RELANCE_DEFAULT = `ColoCrew : il reste quelques places pour le sejour {{nom_sejour}} ({{semaine}}) de {{prenom_enfants}}. Pour bloquer la place, repondez OUI a ce SMS ou appelez William au 06 87 91 68 97. Ref {{numero_reservation}}`;
 
 const AURA_AND_CANTAL_NEARBY_DEPARTMENTS = new Set([
   "01", "03", "07", "12", "15", "19", "26", "38", "42", "43", "46", "48", "63", "69", "71", "73", "74",
@@ -292,8 +283,9 @@ const VAR_BADGES_BODY = [
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function weekFromStartDate(iso) {
-  return WEEK_MAP[String(iso || "").slice(0, 10)] || "";
+/** S1, S2… of a reservation, set from the session catalog when reservations are loaded. */
+function reservationWeek(reservation) {
+  return reservation?._week || "";
 }
 
 function isValidatedReservation(reservation) {
@@ -476,7 +468,7 @@ function normalizeSmsPhone(value) {
 function resolveVars(text, reservation, extraVars = {}) {
   if (!text) return "";
   const { legal = {}, minor = {}, sejour = {} } = reservation;
-  const week = weekFromStartDate(sejour?.startDate);
+  const week = reservationWeek(reservation);
   const paymentAmounts = reservationPaymentAmounts(reservation);
   const vars = {
     prenom_parent:      legal.firstName || "",
@@ -711,12 +703,25 @@ export default function Communication() {
   const [activeChannel, setActiveChannel] = useState("email");
 
   // Data
-  const [reservations, setReservations] = useState([]);
+  const [loadedReservations, setReservations] = useState([]);
+  const { archivedSeasons } = useSeasons();
+  const catalog = useSessionCatalog();
+  // Chaque réservation est rattachée à sa session du catalogue (ciblage par session).
+  const reservations = useMemo(() => loadedReservations.map((reservation) => {
+    const sessionId = reservationSessionId(reservation, catalog.sessions);
+    return { ...reservation, _sessionId: sessionId, _week: catalog.byId.get(sessionId)?.week || "" };
+  }), [loadedReservations, catalog.sessions, catalog.byId]);
+  const sessionOptions = useMemo(
+    () => catalog.sessions
+      .filter((session) => !archivedSeasons.has(session.season))
+      .sort((a, b) => b.season.localeCompare(a.season) || a.startDate.localeCompare(b.startDate)),
+    [catalog.sessions, archivedSeasons],
+  );
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [filterSejour, setFilterSejour] = useState("all");
-  const [filterWeek, setFilterWeek] = useState("all");
+  const [filterSession, setFilterSession] = useState("all");
   const [filterStatus, setFilterStatus] = useState("validated");
   const [search, setSearch] = useState("");
 
@@ -805,9 +810,7 @@ export default function Communication() {
       if (filterStatus === "validated" && !isValidatedReservation(r)) return false;
       if (filterStatus === "pending" && !isPendingReservation(r)) return false;
       if (filterSejour !== "all" && r.sejour?.name !== filterSejour) return false;
-      const week = weekFromStartDate(r.sejour?.startDate);
-      if (filterWeek === "august" && !["S3", "S4"].includes(week)) return false;
-      if (filterWeek !== "all" && filterWeek !== "august" && week !== filterWeek) return false;
+      if (filterSession !== "all" && r._sessionId !== filterSession) return false;
       if (search) {
         const q = search.toLowerCase();
         const name = `${r.legal?.firstName || ""} ${r.legal?.lastName || ""}`.toLowerCase();
@@ -819,7 +822,7 @@ export default function Communication() {
       }
       return true;
     });
-  }, [activeChannel, reservations, filterSejour, filterStatus, filterWeek, search]);
+  }, [activeChannel, reservations, filterSejour, filterStatus, filterSession, search]);
 
   const selectedList = useMemo(
     () => filtered.filter((r) => selected.has(r.id)),
@@ -845,13 +848,13 @@ export default function Communication() {
     setMissingDocs(new Set());
     if (key === LATEST_PLACES_TEMPLATE_KEY) {
       setFilterStatus("pending");
-      setFilterWeek("all");
+      setFilterSession("all");
     } else if (key === PAYMENT_FAILED_TEMPLATE_KEY) {
       setFilterStatus("all");
-      setFilterWeek("all");
+      setFilterSession("all");
     } else if (key === BAFA_TEMPLATE_KEY) {
       setFilterStatus("all");
-      setFilterWeek("all");
+      setFilterSession("all");
       setFilterSejour("all");
       setActiveChannel("email");
     } else {
@@ -867,7 +870,7 @@ export default function Communication() {
     setSendProgress({ done: 0, total: 0, errors: [] });
     if (channel === "sms") {
       setFilterStatus("pending");
-      setFilterWeek("S4");
+      setFilterSession("all");
       setTemplateKey(LATEST_PLACES_TEMPLATE_KEY);
     } else {
       setFilterStatus("validated");
@@ -895,7 +898,7 @@ export default function Communication() {
     setBody(tpl.defaultBody);
     setFilterStatus("all");
     setFilterSejour("all");
-    setFilterWeek("all");
+    setFilterSession("all");
     setSearch("");
     setSelected(new Set(bafaAudience.targetContacts.map((reservation) => reservation.id)));
     setPreviewOpen(false);
@@ -1108,8 +1111,8 @@ export default function Communication() {
       showToast("Certains destinataires n'ont pas de mobile valide", "error");
       return;
     }
-    if (selectedList.some((res) => weekFromStartDate(res.sejour?.startDate) !== "S4" || !isPendingReservation(res))) {
-      showToast("Le SMS de relance est prévu pour les S4 en cours non validées", "error");
+    if (selectedList.some((res) => !res._sessionId || !isPendingReservation(res))) {
+      showToast("Le SMS de relance est prévu pour les demandes en cours non validées, rattachées à une session", "error");
       return;
     }
     if (!smsSender.trim()) { showToast("L'expéditeur SMS est obligatoire", "error"); return; }
@@ -1162,7 +1165,8 @@ export default function Communication() {
       numeroDeReservation: "TEST",
       legal: { firstName: "Test", lastName: "ColoCrew" },
       minor: { children: [{ firstName: "Test", lastName: "" }] },
-      sejour: { name: "My Creative Surf Camp", startDate: "2026-08-17", endDate: "2026-08-28" },
+      sejour: { name: "Séjour ColoCrew", startDate: "", endDate: "" },
+      _week: "S1",
     };
     setSmsTestSending(true);
     try {
@@ -1218,7 +1222,7 @@ export default function Communication() {
             Emails
           </button>
           <button type="button" onClick={() => handleChannelChange("sms")} style={{ ...channelTabStyle, ...(activeChannel === "sms" ? channelTabActiveStyle : {}) }}>
-            SMS relance S4
+            SMS relance session
           </button>
         </div>
 
@@ -1277,10 +1281,15 @@ export default function Communication() {
                 <option value="all">Tous les séjours</option>
                 {sejourOptions.map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
-              <select value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
-                <option value="all">Toutes semaines</option>
-                <option value="august">Août S3 + S4</option>
-                {Object.entries(WEEK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              <select value={filterSession} onChange={(e) => setFilterSession(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
+                <option value="all">Toutes les sessions</option>
+                {sessionOptions
+                  .filter((session) => filterSejour === "all" || session.sejourName === filterSejour)
+                  .map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.season} · {session.sejourCode} {session.week} — {formatSessionRange(session.startDate, session.endDate)}
+                    </option>
+                  ))}
               </select>
             </div>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={selectStyle}>
@@ -1312,7 +1321,7 @@ export default function Communication() {
             ) : (
               filtered.map((res) => {
                 const isSelected = selected.has(res.id);
-                const week = weekFromStartDate(res.sejour?.startDate);
+                const week = reservationWeek(res);
                 const kidsNames = childrenFirstNames(res.minor) || childrenFullNames(res.minor);
                 return (
                   <div
@@ -1395,7 +1404,7 @@ export default function Communication() {
               <div style={{ marginBottom: 18, padding: 16, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10 }}>
                 <div style={{ ...labelStyle, color: "#047857", marginBottom: 6 }}>Ciblage SMS</div>
                 <p style={{ margin: 0, fontSize: 12, color: "#047857", lineHeight: 1.5 }}>
-                  Mode prévu pour les réservations S4 en cours non validées avec mobile valide. Pour recevoir une réponse directe au SMS, l'expéditeur Brevo doit permettre les réponses ; un Sender ID texte comme "ColoCrew" peut ne pas recevoir les retours.
+                  Mode prévu pour les demandes en cours non validées d'une session (filtre Session), avec mobile valide. Pour recevoir une réponse directe au SMS, l'expéditeur Brevo doit permettre les réponses ; un Sender ID texte comme "ColoCrew" peut ne pas recevoir les retours.
                 </p>
               </div>
 
@@ -1444,7 +1453,7 @@ export default function Communication() {
                   Aperçu premier destinataire
                 </div>
                 <div style={{ padding: 14, fontSize: 14, lineHeight: 1.6, color: "#1e1040", whiteSpace: "pre-wrap" }}>
-                  {selectedList[0] ? resolveVars(smsBody, selectedList[0]) : "Sélectionnez au moins une famille S4 non validée."}
+                  {selectedList[0] ? resolveVars(smsBody, selectedList[0]) : "Sélectionnez au moins une famille non validée."}
                 </div>
               </div>
             </div>
@@ -1463,7 +1472,7 @@ export default function Communication() {
               ) : (
                 <>
                   <span style={{ fontSize: 13, color: "#64748b", flex: 1 }}>
-                    {selectedList.length === 0 ? "Sélectionnez les familles S4 à relancer" : `${selectedList.length} SMS prêt(s) à envoyer`}
+                    {selectedList.length === 0 ? "Sélectionnez les familles à relancer" : `${selectedList.length} SMS prêt(s) à envoyer`}
                   </span>
                   <button
                     type="button"
