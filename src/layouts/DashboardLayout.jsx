@@ -21,7 +21,13 @@ const NAV_STRUCTURE = [
   {
     group: "Opérations",
     items: [
-      { label: "Ressources humaines", href: "/dashboard/rh",           icon: "users" },
+      {
+        label: "Ressources humaines", href: "/dashboard/rh", icon: "users",
+        children: [
+          { label: "Comptes équipe", href: "/dashboard/rh/comptes" },
+          { label: "Déroulés",       href: "/dashboard/rh/deroules" },
+        ],
+      },
       { label: "Convoyages",          href: "/dashboard/transport",    icon: "transport" },
     ],
   },
