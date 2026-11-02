@@ -12209,3 +12209,47 @@
   .res27-filters .dash-input { max-width: none; }
   .res27-session-actions { justify-content: flex-start; }
 }
+
+/* ─── RH 2027 : saisons, sessions, historique et comptes de l'espace équipe ─── */
+.hr-season-select{border:1px solid #ddd3e8;border-radius:8px;background:#fff;padding:8px 10px;color:#2a1a45;font-weight:800;font-size:13px}
+.hr-page .hr-week-tiles{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}
+.hr-tab-count.is-alert{background:#b8336a;color:#fff}
+.hr-sejour-empty{margin:4px 0 0;color:#8a789d;font-size:13px}
+.hr-form-hint{margin:-4px 0 4px;color:#9a3412;font-size:12px}
+.hr-history{display:grid;gap:16px}
+.hr-history-season{border:1px solid #e7def3;border-radius:12px;background:#fff;padding:12px 14px}
+.hr-history-season>header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.hr-history-season h3{margin:0;font-size:15px;color:#1e1040}
+.hr-history-table{overflow-x:auto}
+.hr-history-table table{width:100%;border-collapse:collapse;font-size:12px}
+.hr-history-table th{padding:6px 8px;border-bottom:1px solid #eee6f5;color:#6b5a7c;font-size:11px;text-align:left;text-transform:uppercase}
+.hr-history-table td{padding:7px 8px;border-bottom:1px solid #f4eef8;vertical-align:middle}
+.hr-history-table tr.is-archived td{color:#6b5a7c}
+.hr-history-link{margin-left:6px;color:#b8336a;font-size:11px;font-weight:800}
+.hr-history-transports{display:grid;gap:6px;margin:10px 0 0;padding:0;list-style:none}
+.hr-history-transports li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;border-radius:8px;background:#f8f5fc;padding:7px 10px;font-size:12px}
+.hr-history-transports small{color:#7b6c86}
+.hr-accounts{display:grid;gap:12px}
+.hr-account-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.hr-account-card{display:grid;gap:10px;border:1px solid #e4ddea;border-left:4px solid #d97706;border-radius:12px;background:#fff;padding:14px}
+.hr-account-card.is-approved{border-left-color:#059669}
+.hr-account-card.is-rejected{border-left-color:#b91c1c}
+.hr-account-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.hr-account-card>header strong{display:block;color:#1e1040;font-size:15px}
+.hr-account-card>header small{color:#7b6c86;font-size:12px}
+.hr-account-contact{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.hr-account-contact a{color:#5b3674}
+.hr-account-linked,.hr-account-reason,.hr-account-suggestion{font-size:13px;color:#4b3b5e}
+.hr-account-reason{border-radius:8px;background:#fef2f2;padding:7px 9px;color:#991b1b}
+.hr-account-match{display:grid;gap:6px}
+.hr-account-match select{border:1px solid #ddd3e8;border-radius:8px;background:#fff;padding:8px;font-size:13px}
+.hr-account-actions{display:flex;flex-wrap:wrap;gap:6px}
+.hr-session-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.hr-session-link{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;border:1px solid #e4ddea;border-radius:12px;background:#fff;padding:12px 14px;color:#1e1040;text-decoration:none}
+.hr-session-link:hover{border-color:#b8336a}
+.hr-session-link .hr-sejour-week{grid-row:span 2}
+.hr-session-link small{color:#7b6c86}
+.hr-dayplans-page .dp-page{min-height:auto;border-radius:14px;overflow:hidden}
+.hr-dayplans-back{display:flex;gap:14px;margin-bottom:10px;font-size:13px;font-weight:800}
+.hr-dayplans-back a{color:#5b3674}
+@media(max-width:640px){.hr-account-list,.hr-session-links{grid-template-columns:1fr}}

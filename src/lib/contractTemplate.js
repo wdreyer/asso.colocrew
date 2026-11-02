@@ -81,7 +81,11 @@ function isDeputyDirectorContract(contract) {
   return key === "dsa" || role.includes("dsa") || role.includes("adjoint");
 }
 
+// Lieu d'exercice : celui du séjour (`place`, recopié de `sejours/{id}.location` à la création
+// du contrat). Les contrats 2026 n'ont pas ce champ : on retombe sur les deux lieux de l'été 2026.
 function exercisePlace(contract) {
+  const explicit = String(contract?.place || "").trim();
+  if (explicit) return explicit;
   const stay = String(contract?.stayCode || contract?.stayName || "").toLowerCase();
   return stay.includes("mcsc") || stay.includes("creative surf") ? "Messanges" : "Bidarray";
 }

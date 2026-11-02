@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
@@ -93,14 +93,8 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
 
   const syncStatus = async (member, documentType, status, locked) => {
     const statusValue = { status, locked, updatedAt: new Date().toISOString() };
-    await Promise.all([
-      updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), { [`documentStatus.${documentType}`]: statusValue }),
-      setDoc(doc(db, COLLECTIONS.STAFF_PUBLIC_PROFILES, member.id), {
-        documentLocks: { [documentType]: locked },
-        documentStatus: { [documentType]: statusValue },
-        updatedAt: serverTimestamp(),
-      }, { merge: true }),
-    ]);
+    // Le statut vit sur la fiche ; staff_public_profiles (ancienne page publique /rh) n'est plus alimenté.
+    await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), { [`documentStatus.${documentType}`]: statusValue });
   };
 
   const changeStatus = async (member, documentItem, status, locked) => {

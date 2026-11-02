@@ -330,10 +330,10 @@ function dayKey(date) {
   return date.slice(8, 10) + date.slice(5, 7);
 }
 
-function basicStayDays(stay) {
-  const prefix = stay.id.replace("-2026", "");
+function basicStayDays(stay, options = {}) {
+  const prefix = options.prefix || stay.id.replace("-2026", "");
   const isEvcc = stay.code === "EVCC";
-  const isS4 = stay.week === "S4";
+  const isS4 = options.lateBreakfast ?? stay.week === "S4";
   const dates = datesBetween(stay.startDate, stay.endDate);
   return Object.fromEntries(dates.map((date, index) => {
     const key = `${prefix}-${dayKey(date)}`;
@@ -580,6 +580,7 @@ export function seedDay(date, config = DAY_PLAN_CONFIGS["mcsc-s1-2026"]) {
     stayId: stay.id,
     stayCode: stay.code,
     week: stay.week,
+    ...(stay.sessionId ? { sessionId: stay.sessionId, season: stay.season || "" } : {}),
     date,
     tasks: config.seedDays?.[date] || [],
     leaveMemberIds: [],
@@ -599,4 +600,91 @@ export function dayPlanDates(config = DAY_PLAN_CONFIGS["mcsc-s1-2026"]) {
     cursor.setDate(cursor.getDate() + 1);
   }
   return dates;
+}
+
+// ─── Déroulés par session (saison 2027 et suivantes) ─────────────────────────
+//
+// Une session du catalogue (`useSessionCatalog`) a ses déroulés dans
+// `day_plans/{sessionId}__{date}` avec `sessionId`, `season` et `date`. Les configurations 2026
+// ci-dessus restent lisibles telles quelles (IDs `${stay.id}-${date}`) et servent de modèles de
+// départ pour les nouvelles sessions.
+
+/** ID Firestore d'une journée : nouveau format pour une session, ancien format pour 2026. */
+export function dayPlanDocId(stay, date) {
+  return stay?.sessionId ? `${stay.sessionId}__${date}` : `${stay?.id}-${date}`;
+}
+
+/** Séjour 2026 configuré en dur qui correspond à une session du catalogue (même code et même début). */
+export function legacyDayPlanStayFor(session) {
+  if (!session) return null;
+  const code = String(session.sejourCode || "").toUpperCase();
+  return DAY_PLAN_STAY_OPTIONS.find((stay) => stay.code === code && stay.startDate === session.startDate) || null;
+}
+
+export function sessionDayPlanStay(session) {
+  const legacy = legacyDayPlanStayFor(session);
+  return {
+    id: session.id,
+    sessionId: session.id,
+    season: session.season || "",
+    sejourId: session.sejourId || "",
+    code: session.sejourCode || "",
+    week: session.week || "",
+    name: session.sejourName || "Séjour",
+    startDate: session.startDate,
+    endDate: session.endDate || session.startDate,
+    legacyStayId: legacy?.id || "",
+  };
+}
+
+function cloneTasksForSession(tasks, stay, date) {
+  const prefix = `${stay.code.toLowerCase()}-${stay.week.toLowerCase()}-${stay.season}-${date}`;
+  return (tasks || []).map((item, index) => ({
+    ...item,
+    id: `${prefix}-${index + 1}`,
+    assigneeIds: [],
+  }));
+}
+
+/** Modèles proposés pour pré-remplir une session : journée type générique ou un séjour 2026. */
+export const DAY_PLAN_TEMPLATES = [
+  { key: "basic", label: "Journée type ColoCrew" },
+  ...Object.entries(DAY_PLAN_CONFIGS).map(([key, config]) => ({
+    key,
+    label: `${config.stay.name} ${config.stay.week} 2026`,
+  })),
+];
+
+/**
+ * Tâches de départ de chaque jour d'une session à partir d'un modèle. Un modèle 2026 est recopié
+ * jour par jour (J1 → J1…), le dernier jour du modèle allant toujours sur le dernier jour de la
+ * session ; les affectations d'animateurs ne sont pas reprises.
+ */
+export function templateSeedDays(templateKey, stay) {
+  const dates = datesBetween(stay.startDate, stay.endDate);
+  const template = DAY_PLAN_CONFIGS[templateKey];
+  if (!template) {
+    const prefix = `${String(stay.code || "s").toLowerCase()}-${String(stay.week || "").toLowerCase()}-${stay.season || ""}`;
+    return basicStayDays({ ...stay, startDate: dates[0], endDate: dates[dates.length - 1] }, { prefix, lateBreakfast: false });
+  }
+  const templateDates = dayPlanDates(template);
+  return Object.fromEntries(dates.map((date, index) => {
+    const isLast = index === dates.length - 1;
+    const sourceDate = isLast ? templateDates[templateDates.length - 1] : templateDates[Math.min(index, templateDates.length - 2)];
+    return [date, cloneTasksForSession(template.seedDays?.[sourceDate] || [], stay, date)];
+  }));
+}
+
+/**
+ * Configuration d'une session pour `DayPlans`. Une session 2026 qui correspond à un séjour
+ * configuré en dur garde son seed d'origine ; les autres partent de la journée type.
+ */
+export function sessionDayPlanConfig(session) {
+  const stay = sessionDayPlanStay(session);
+  const legacy = stay.legacyStayId ? DAY_PLAN_CONFIGS[stay.legacyStayId] : null;
+  return {
+    stay,
+    seedDays: legacy ? legacy.seedDays : templateSeedDays("basic", stay),
+    createdFrom: legacy ? legacy.createdFrom : "Journée type ColoCrew",
+  };
 }
