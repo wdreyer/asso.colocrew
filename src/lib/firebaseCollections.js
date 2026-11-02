@@ -11,6 +11,8 @@
   STAFF_CONTRACTS: "staff_contracts",
   STAFF_DOCUMENTS: "staff_documents",
   STAFF_PUBLIC_PROFILES: "staff_public_profiles",
+  STAFF_ACCOUNTS: "staff_accounts",
+  SEASONS: "seasons",
   DAY_PLANS: "day_plans",
   SALARY_GRID: "salary_grid",
   PAGES: "pages",
