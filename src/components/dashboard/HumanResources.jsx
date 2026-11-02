@@ -5,6 +5,7 @@ import {
   collection, doc, getDocs, updateDoc, arrayUnion, arrayRemove, addDoc, setDoc, deleteDoc, onSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import Link from "next/link";
 import DataTable from "@/src/components/dashboard/ui/DataTable";
 import Badge from "@/src/components/dashboard/ui/Badge";
 import Modal from "@/src/components/dashboard/ui/Modal";
@@ -15,26 +16,41 @@ import { useToast } from "@/src/contexts/ToastContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded, splitPaidLeaveIncluded } from "@/src/lib/salaryGrid";
 import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
-import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, publicAssignmentsForMember, uploadStaffDocument } from "@/src/lib/staffDocuments";
+import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, uploadStaffDocument } from "@/src/lib/staffDocuments";
+import { isArchivedRecord, seasonOfDate, seasonOfRecord, useSeasons } from "@/src/lib/seasons";
+import { formatDateRange, useSessionCatalog } from "@/src/lib/sessions";
+import {
+  STAFF_ACCOUNT_ROLES,
+  STAFF_ACCOUNT_STATUS,
+  accountLinkedToMember,
+  approveStaffAccount,
+  approveStaffAccountWithNewMember,
+  countPendingAccounts,
+  mapStaffAccount,
+  rankMemberCandidates,
+  rejectStaffAccount,
+  staffAccountName,
+  unlinkStaffAccount,
+} from "@/src/lib/staffAccounts";
 
-// ─── Constantes ──────────────────────────────────────────────────────────────
+// ─── Sessions ────────────────────────────────────────────────────────────────
+//
+// Un contrat = une personne × une session du catalogue (`sessionId`). Les contrats 2026 n'ont
+// que `stayCode` + `week` : ils sont regroupés sur ces deux champs.
 
-const WEEK_ORDER = ["S1", "S2", "S3", "S4"];
+function contractSessionKey(contract) {
+  return contract.sessionId || `legacy__${contract.stayCode || contract.stay}__${contract.week}`;
+}
 
-// Séjours 2026 — liste fermée pour éviter les doublons dus à des variantes tapées à la main
-// (ex. "mcsc" vs "MCSC") qui casseraient le regroupement "Par séjour".
-const STAYS = [
-  { code: "MCSC", name: "My Creative Surf Camp" },
-  { code: "EVCC", name: "Eaux Vives Creative Camp" },
-];
+function contractShortLabel(contract) {
+  return [contract.stayCode || contract.stay, contract.week].filter(Boolean).join(" ");
+}
 
-// Dates de référence des séjours d'été 2026 (pré-remplissage, modifiable dans le formulaire).
-const WEEK_DATES = {
-  S1: { startDate: "2026-07-06", endDate: "2026-07-17" },
-  S2: { startDate: "2026-07-20", endDate: "2026-07-31" },
-  S3: { startDate: "2026-08-03", endDate: "2026-08-14" },
-  S4: { startDate: "2026-08-17", endDate: "2026-08-28" },
-};
+/** Lieu d'exercice d'un séjour, repris sur le contrat : "Dax, Landes" → "Dax". */
+function sejourPlace(sejour) {
+  const location = String(sejour?.location || sejour?.productionSnapshot?.plan?.location || "").trim();
+  return location.split(",")[0].trim();
+}
 
 function nbDaysBetween(start, end) {
   if (!start || !end) return REFERENCE_DAYS;
@@ -160,6 +176,7 @@ function mapMember(snap) {
     photoUrl:  d.photoUrl  || "",
     documents: d.documents || [],
     documentStatus: d.documentStatus || {},
+    accountUid: d.accountUid || "",
     active:    d.active !== false,
   };
 }
@@ -175,7 +192,13 @@ function mapContract(snap) {
     id: snap.id,
     memberId:   d.memberId   || "",
     memberName: d.memberName || "Animateur non renseigné",
+    season:   seasonOfRecord(d),
+    archived: d.archived === true,
+    sejourId: d.sejourId  || "",
+    sessionId: d.sessionId || "",
+    place:    d.place     || "",
     stay:     d.stayName  || d.stayCode || "Non renseigné",
+    stayName: d.stayName  || "",
     stayCode: d.stayCode  || "",
     week:     d.week      || "Non renseignée",
     role:     d.role      || "Poste non renseigné",
@@ -265,14 +288,24 @@ function Avatar({ member, size = 44 }) {
 
 // ─── Vue "Par séjour" ─────────────────────────────────────────────────────────
 
-function SejoursView({ members, contracts, onFiche, onContract, onEditContract, onBatchContracts }) {
+function SejoursView({ members, contracts, sessions, season, onFiche, onContract, onEditContract, onBatchContracts, onNewContract }) {
   const groups = useMemo(() => {
     const map = new Map();
+    // Toutes les sessions de la saison, même sans contrat, pour pouvoir y recruter.
+    sessions.forEach((session) => {
+      map.set(session.id, {
+        key: session.id, sessionId: session.id, session,
+        stay: session.sejourName, stayCode: session.sejourCode, week: session.week,
+        startDate: session.startDate, endDate: session.endDate,
+        contracts: [],
+      });
+    });
     contracts.forEach((c) => {
-      const key = `${c.stayCode || c.stay}__${c.week}`;
+      const key = contractSessionKey(c);
       if (!map.has(key)) {
         map.set(key, {
-          key, stay: c.stay, stayCode: c.stayCode, week: c.week,
+          key, sessionId: c.sessionId, session: null,
+          stay: c.stay, stayCode: c.stayCode, week: c.week,
           startDate: c.startDate, endDate: c.endDate,
           contracts: [],
         });
@@ -282,17 +315,16 @@ function SejoursView({ members, contracts, onFiche, onContract, onEditContract, 
       if (!g.endDate   && c.endDate)   g.endDate   = c.endDate;
       g.contracts.push(c);
     });
-    return [...map.values()].sort((a, b) => {
-      const ai = WEEK_ORDER.indexOf(a.week), bi = WEEK_ORDER.indexOf(b.week);
-      if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-      return a.stay.localeCompare(b.stay, "fr");
-    });
-  }, [contracts]);
+    return [...map.values()].sort((a, b) => (
+      String(a.startDate || "9999").localeCompare(String(b.startDate || "9999"))
+      || String(a.stay).localeCompare(String(b.stay), "fr")
+    ));
+  }, [contracts, sessions]);
 
   if (!groups.length) {
     return (
       <div className="hr-empty">
-        <p>Aucun contrat enregistré — les séjours apparaîtront ici une fois les contrats créés.</p>
+        <p>Aucune session pour la saison {season}. Ajoutez des dates aux séjours pour créer les sessions, puis les contrats.</p>
       </div>
     );
   }
@@ -317,17 +349,35 @@ function SejoursView({ members, contracts, onFiche, onContract, onEditContract, 
               <div className="hr-sejour-title-row">
                 <span className="hr-sejour-week">{g.week}</span>
                 <h2 className="hr-sejour-name">{g.stay}</h2>
+                {!g.sessionId && <Badge label="Ancien contrat" variant="neutral" />}
               </div>
               <div className="hr-sejour-dates">
                 {g.startDate && g.endDate
                   ? `${fmtDate(g.startDate)} → ${fmtDate(g.endDate)}`
                   : "Dates à compléter"}
-                <span className="hr-sejour-count">{groupMembers.length} personnes</span>
+                <span className="hr-sejour-count">
+                  {groupMembers.length} personne{groupMembers.length > 1 ? "s" : ""}
+                  {g.session?.capacity ? ` · ${g.session.capacity} enfants max.` : ""}
+                </span>
+                {g.session && (
+                  <button type="button" className="dash-btn" onClick={() => onNewContract(null, g.session)}>
+                    + Contrat
+                  </button>
+                )}
+                {g.sessionId && (
+                  <Link className="dash-btn" href={`/dashboard/rh/deroules/${encodeURIComponent(g.sessionId)}`}>
+                    Déroulés
+                  </Link>
+                )}
                 <button type="button" className="dash-btn" onClick={() => onBatchContracts(g)} disabled={!groupMembers.length}>
                   PDF groupé recto-verso
                 </button>
               </div>
             </div>
+
+            {!groupMembers.length && (
+              <p className="hr-sejour-empty">Aucun contrat sur cette session pour l’instant.</p>
+            )}
 
             {dirs.length > 0 && (
               <div className="hr-sejour-team-section">
@@ -554,13 +604,25 @@ function docusignWaitingFromSigners(status, signers = []) {
 
 function ContratsView({ contracts, members, onContract, onEditContract, onDeleteContract, onNewContract, onCompleteMember, onToggleCea, onToggleSocialSection, onTogglePayment, onDocusignSend, onDocusignAttach, onDocusignRefresh, onDocusignRefreshMany, onDocusignReset, docusignBusyId }) {
   const [visibleContracts, setVisibleContracts] = useState([]);
-  const [weekTile, setWeekTile] = useState("all");
+  const [sessionTile, setSessionTile] = useState("all");
   const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m])), [members]);
-  const tableContracts = useMemo(() => contracts.filter((contract) => weekTile === "all" || contract.week === weekTile).map((contract) => ({
+  // Une tuile par session de la saison (dans l'ordre des dates), pour filtrer le tableau.
+  const sessionTiles = useMemo(() => {
+    const tiles = new Map();
+    contracts.forEach((contract) => {
+      const key = contractSessionKey(contract);
+      if (!tiles.has(key)) tiles.set(key, { key, label: contractShortLabel(contract) || "Sans séjour", startDate: contract.startDate || "", count: 0 });
+      const tile = tiles.get(key);
+      tile.count += 1;
+      if (contract.startDate && (!tile.startDate || contract.startDate < tile.startDate)) tile.startDate = contract.startDate;
+    });
+    return [...tiles.values()].sort((a, b) => String(a.startDate || "9999").localeCompare(String(b.startDate || "9999")) || a.label.localeCompare(b.label, "fr"));
+  }, [contracts]);
+  const tableContracts = useMemo(() => contracts.filter((contract) => sessionTile === "all" || contractSessionKey(contract) === sessionTile).map((contract) => ({
     ...contract,
     ceaStatus: contract.ceaDeclarationValidated ? "CEA fait" : "CEA à faire",
     socialSectionStatus: contract.socialSectionDone ? "Volet social fait" : "Volet social à faire",
-  })), [contracts, weekTile]);
+  })), [contracts, sessionTile]);
 
   const payrollSummary = useMemo(() => {
     const empty = {
@@ -580,13 +642,14 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
       const paid = contract.paymentValidated ? net : Math.min(paidAmount, net);
       const due = contract.paymentValidated ? 0 : Math.max(net - paidAmount, 0);
       const charges = Math.max(gross - net, 0);
-      const key = `${contract.week || "?"}__${contract.stayCode || contract.stay || "Non renseigne"}`;
+      const key = contractSessionKey(contract);
       if (!acc.groups.has(key)) {
         acc.groups.set(key, {
           ...empty,
           key,
           week: contract.week || "Non renseignee",
           stay: contract.stayCode || contract.stay || "Non renseigne",
+          startDate: contract.startDate || "",
         });
       }
       [acc.total, acc.groups.get(key)].forEach((target) => {
@@ -605,7 +668,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
     return {
       total: summary.total,
       groups: [...summary.groups.values()].sort((left, right) =>
-        WEEK_ORDER.indexOf(left.week) - WEEK_ORDER.indexOf(right.week)
+        String(left.startDate || "9999").localeCompare(String(right.startDate || "9999"))
         || left.stay.localeCompare(right.stay, "fr")
       ),
     };
@@ -750,12 +813,12 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
   ];
 
   const exportCsv = () => {
-    const headers = ["Animateur", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net total", "Brut total", "Brut hors CP", "CP 10% brut", "Net hors CP", "CP 10% net", "Déclaration CEA", "Volet social", "Paiement", "Signature"];
+    const headers = ["Animateur", "Saison", "Semaine", "Séjour", "Poste", "Début", "Fin", "Net total", "Brut total", "Brut hors CP", "CP 10% brut", "Net hors CP", "CP 10% net", "Déclaration CEA", "Volet social", "Paiement", "Signature"];
     const lines = contracts.map((c) => {
       const grossSplit = socialSalarySplit(c.grossSalary);
       const netSplit = socialSalarySplit(c.netSalary);
       return [
-        c.memberName, c.week, c.stay, c.role, c.startDate, c.endDate,
+        c.memberName, c.season, c.week, c.stay, c.role, c.startDate, c.endDate,
         c.netSalary, c.grossSalary, grossSplit.salary, grossSplit.paidLeave, netSplit.salary, netSplit.paidLeave,
         c.ceaDeclarationValidated ? "Validée" : "À faire", c.socialSectionDone ? "Fait" : "À faire", c.status, c.docusignStatus || "Non envoyé",
       ];
@@ -773,18 +836,15 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
 
   return (
     <div>
-      <div className="hr-week-tiles" aria-label="Filtrer les contrats par semaine">
-        <button type="button" className={`hr-week-tile${weekTile === "all" ? " is-active" : ""}`} onClick={() => setWeekTile("all")}>
+      <div className="hr-week-tiles" aria-label="Filtrer les contrats par session">
+        <button type="button" className={`hr-week-tile${sessionTile === "all" ? " is-active" : ""}`} onClick={() => setSessionTile("all")}>
           <strong>Toutes</strong><span>{contracts.length}</span>
         </button>
-        {WEEK_ORDER.map((week) => {
-          const count = contracts.filter((item) => item.week === week).length;
-          return (
-            <button key={week} type="button" className={`hr-week-tile${weekTile === week ? " is-active" : ""}`} onClick={() => setWeekTile(week)}>
-              <strong>{week}</strong><span>{count}</span>
-            </button>
-          );
-        })}
+        {sessionTiles.map((tile) => (
+          <button key={tile.key} type="button" className={`hr-week-tile${sessionTile === tile.key ? " is-active" : ""}`} onClick={() => setSessionTile(tile.key)}>
+            <strong>{tile.label}</strong><span>{tile.count}</span>
+          </button>
+        ))}
       </div>
       <section className="hr-payroll-summary" aria-label="Synthese paie">
         <div className="hr-payroll-kpis">
@@ -863,7 +923,7 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
         columns={columns}
         data={tableContracts}
         searchableKeys={["memberName", "week", "stay", "role", "ceaStatus"]}
-        defaultSortKey="week"
+        defaultSortKey="datesLabel"
         emptyLabel="Aucun contrat enregistré."
         toolsInline
         onProcessedDataChange={setVisibleContracts}
@@ -886,7 +946,7 @@ const EDIT_FIELDS = [
   { key: "nationality",          label: "Nationalité", placeholder: "Française" },
 ];
 
-function FicheModal({ member: initial, contracts, structuredDocuments, initialEdit = false, onClose, onUpdate, onEditContract, onDocumentChange }) {
+function FicheModal({ member: initial, contracts, allContracts = [], archivedSeasons, sessionsById, structuredDocuments, initialEdit = false, onClose, onUpdate, onEditContract, onDocumentChange }) {
   const { showToast } = useToast();
   const [member, setMember]   = useState(initial);
   const [editMode, setEdit]   = useState(initialEdit);
@@ -899,6 +959,7 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
   const docInputRef           = useRef(null);
 
   const memberContracts = contracts.filter((c) => c.memberId === member.id);
+  const historyContracts = allContracts.filter((c) => c.memberId === member.id);
 
   // ── Sauvegarde des infos ──
   const saveInfo = async () => {
@@ -1042,6 +1103,9 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
               Contrats <span>{memberContracts.length}</span>
             </button>
           )}
+          <button type="button" className={tab === "history" ? "is-active" : ""} onClick={() => setTab("history")}>
+            Historique <span>{historyContracts.length}</span>
+          </button>
         </div>
 
         {/* ── Contenu ── */}
@@ -1242,8 +1306,286 @@ function FicheModal({ member: initial, contracts, structuredDocuments, initialEd
             </div>
           )}
 
+          {/* HISTORIQUE */}
+          {tab === "history" && (
+            <MemberHistory member={member} contracts={historyContracts} archivedSeasons={archivedSeasons} sessionsById={sessionsById} />
+          )}
+
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Fiche : historique (toutes saisons, archives comprises) ─────────────────
+
+/** Convoyages d'un membre : nouveau format (`staffMemberIds`) ou ancien (`staff[].memberId`). */
+function transportIncludesMember(transport, memberId) {
+  if (!memberId) return false;
+  if (Array.isArray(transport.staffMemberIds) && transport.staffMemberIds.includes(memberId)) return true;
+  return (Array.isArray(transport.staff) ? transport.staff : []).some((entry) => entry?.memberId === memberId || entry?.id === memberId);
+}
+
+function transportRole(transport, memberId) {
+  const entry = (transport.staff || []).find((item) => item?.memberId === memberId || item?.id === memberId);
+  if (transport.leadStaffId && (transport.leadStaffId === memberId || transport.leadStaffId === entry?.id)) return "Chef de convoi";
+  return entry?.role || "Convoyeur·se";
+}
+
+function signatureLabel(contract) {
+  if (!contract.docusignEnvelopeId) return contract.contractFileUrl ? { label: "PDF signé", variant: "success" } : { label: "Non envoyé", variant: "neutral" };
+  return DOCUSIGN_STATUS[contract.docusignStatus] || { label: contract.docusignStatus || "Envoyé", variant: "info" };
+}
+
+function MemberHistory({ member, contracts, archivedSeasons, sessionsById }) {
+  const [transports, setTransports] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    getDocs(collection(db, COLLECTIONS.TRANSPORTS))
+      .then((snapshot) => {
+        if (!active) return;
+        setTransports(snapshot.docs
+          .map((item) => ({ id: item.id, ...item.data() }))
+          .filter((transport) => transportIncludesMember(transport, member.id)));
+      })
+      .catch(() => { if (active) setTransports([]); });
+    return () => { active = false; };
+  }, [member.id]);
+
+  const seasons = useMemo(() => {
+    const map = new Map();
+    const bucket = (season) => {
+      const key = season || "Sans date";
+      if (!map.has(key)) map.set(key, { key, contracts: [], transports: [] });
+      return map.get(key);
+    };
+    contracts.forEach((contract) => bucket(contract.season).contracts.push(contract));
+    (transports || []).forEach((transport) => bucket(seasonOfRecord(transport)).transports.push(transport));
+    map.forEach((group) => {
+      group.contracts.sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+      group.transports.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.direction).localeCompare(String(b.direction)));
+    });
+    return [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
+  }, [contracts, transports]);
+
+  if (!seasons.length && transports !== null) {
+    return <p className="hr-docs-empty">Aucun contrat ni convoyage enregistré pour {member.firstName || "cette personne"}.</p>;
+  }
+
+  return (
+    <div className="hr-history">
+      <p className="hr-docs-hint">Lecture seule : contrats et convoyages de toutes les saisons, y compris archivées.</p>
+      {transports === null && <p className="dash-muted">Chargement des convoyages…</p>}
+      {seasons.map((group) => (
+        <section key={group.key} className="hr-history-season">
+          <header>
+            <h3>Saison {group.key}</h3>
+            {archivedSeasons?.has(group.key) && <Badge label="Archivée" variant="neutral" />}
+          </header>
+          {group.contracts.length > 0 && (
+            <div className="hr-history-table">
+              <table>
+                <thead>
+                  <tr><th>Poste</th><th>Séjour</th><th>Dates</th><th>Net</th><th>Brut</th><th>Signature</th><th>Paiement</th></tr>
+                </thead>
+                <tbody>
+                  {group.contracts.map((contract) => {
+                    const session = contract.sessionId ? sessionsById?.get(contract.sessionId) : null;
+                    const signature = signatureLabel(contract);
+                    return (
+                      <tr key={contract.id} className={contract.archived ? "is-archived" : ""}>
+                        <td>{compactRole(contract)}</td>
+                        <td>{session ? `${session.sejourName} · ${session.week}` : `${contract.stay} · ${contract.week}`}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{formatDateRange(contract.startDate, contract.endDate) || "Dates à compléter"}</td>
+                        <td>{currency(contract.netSalary)}</td>
+                        <td>{currency(contract.grossSalary)}</td>
+                        <td>
+                          <Badge label={signature.label} variant={signature.variant} />
+                          {contract.contractFileUrl && (
+                            <a className="hr-history-link" href={contract.contractFileUrl} target="_blank" rel="noopener noreferrer">PDF</a>
+                          )}
+                        </td>
+                        <td><Badge label={contract.status} variant={contract.paymentValidated ? "success" : "warning"} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {group.transports.length > 0 && (
+            <ul className="hr-history-transports">
+              {group.transports.map((transport) => (
+                <li key={transport.id}>
+                  <strong>{transport.direction === "retour" ? "Retour" : "Aller"} · {fmtDate(transport.date)}</strong>
+                  <span>{[transport.departureCity, transport.arrivalCity].filter(Boolean).join(" → ") || transport.routeLabel || "Trajet"}</span>
+                  <small>{transportRole(transport, member.id)}{transport.trainNumber ? ` · train ${transport.trainNumber}` : ""}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!group.contracts.length && !group.transports.length && <p className="dash-muted">Rien sur cette saison.</p>}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// ─── Onglet « Comptes » : demandes d'accès à l'espace équipe ─────────────────
+
+function StaffAccountsPanel({ accounts, members, onMemberCreated, onMemberLinked, onFiche }) {
+  const { currentUser } = useAuth();
+  const { showToast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [choices, setChoices] = useState({});
+  const [busy, setBusy] = useState("");
+
+  const memberById = useMemo(() => Object.fromEntries(members.map((member) => [member.id, member])), [members]);
+  const counts = useMemo(() => accounts.reduce((result, account) => {
+    result[account.status] = (result[account.status] || 0) + 1;
+    return result;
+  }, {}), [accounts]);
+  const visible = useMemo(() => accounts
+    .filter((account) => statusFilter === "all" || account.status === statusFilter)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))), [accounts, statusFilter]);
+
+  const run = async (key, action, success) => {
+    setBusy(key);
+    try {
+      await action();
+      showToast(success, "success");
+    } catch (error) {
+      showToast(error?.message || "Action impossible.", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const approveLinked = (account, memberId) => {
+    const member = memberById[memberId];
+    if (!member) { showToast("Choisissez la fiche à lier.", "error"); return; }
+    const conflict = accountLinkedToMember(memberId, accounts, account.uid);
+    if (conflict && !window.confirm(`La fiche de ${member.name} est déjà liée au compte ${conflict.email}. Lier quand même ce nouveau compte ?`)) return;
+    run(account.uid, async () => {
+      await approveStaffAccount({ account, memberId, reviewer: currentUser });
+      onMemberLinked(memberId, account);
+    }, `Compte validé et lié à ${member.name}.`);
+  };
+
+  const approveNew = (account) => {
+    if (!window.confirm(`Créer une nouvelle fiche pour ${staffAccountName(account)} et valider son compte ?`)) return;
+    run(account.uid, async () => {
+      const { member } = await approveStaffAccountWithNewMember({ account, reviewer: currentUser });
+      onMemberCreated(member);
+    }, "Compte validé, fiche créée.");
+  };
+
+  const reject = (account, suspend = false) => {
+    const reason = window.prompt(suspend ? "Motif de la suspension (visible par la personne) :" : "Motif du refus (visible par la personne) :", account.rejectionReason || "");
+    if (reason == null) return;
+    run(account.uid, () => rejectStaffAccount({ account, reason, reviewer: currentUser }), suspend ? "Compte suspendu." : "Demande refusée.");
+  };
+
+  const unlink = (account) => {
+    const member = memberById[account.memberId];
+    if (!window.confirm(`Délier le compte ${account.email} de la fiche ${member?.name || ""} ?\n\nLe compte repasse en attente de validation ; la fiche et ses contrats ne changent pas.`)) return;
+    run(account.uid, async () => {
+      await unlinkStaffAccount({ account, reviewer: currentUser });
+      if (account.memberId) onMemberLinked(account.memberId, null);
+    }, "Compte délié.");
+  };
+
+  const filters = [
+    { key: "pending", label: "En attente" },
+    { key: "approved", label: "Validés" },
+    { key: "rejected", label: "Refusés / suspendus" },
+    { key: "all", label: "Tous" },
+  ];
+
+  return (
+    <div className="hr-accounts">
+      <div className="hr-equipe-filters">
+        {filters.map((filter) => (
+          <button key={filter.key} type="button" className={`hr-filter-btn${statusFilter === filter.key ? " is-active" : ""}`} onClick={() => setStatusFilter(filter.key)}>
+            {filter.label} <span>{filter.key === "all" ? accounts.length : counts[filter.key] || 0}</span>
+          </button>
+        ))}
+      </div>
+      <p className="hr-docs-hint">
+        Chaque animateur·ice ou directeur·ice crée son compte depuis l’espace équipe. Une fois validé et lié à sa fiche,
+        il ou elle y retrouve son planning, ses contrats, ses documents et ses convoyages.
+      </p>
+
+      {!visible.length ? (
+        <div className="hr-empty"><p>Aucun compte dans cette catégorie.</p></div>
+      ) : (
+        <div className="hr-account-list">
+          {visible.map((account) => {
+            const status = STAFF_ACCOUNT_STATUS[account.status];
+            const candidates = rankMemberCandidates(account, members);
+            const linked = account.memberId ? memberById[account.memberId] : null;
+            const chosen = choices[account.uid] ?? (account.memberId || candidates[0]?.member.id || "");
+            const isBusy = busy === account.uid;
+            return (
+              <article key={account.uid} className={`hr-account-card is-${account.status}`}>
+                <header>
+                  <div>
+                    <strong>{staffAccountName(account)}</strong>
+                    <small>{STAFF_ACCOUNT_ROLES[account.requestedRole] || account.requestedRole} demandé·e{account.createdAt ? ` · ${fmtDate(account.createdAt)}` : ""}</small>
+                  </div>
+                  <Badge label={status.label} variant={status.variant} />
+                </header>
+                <div className="hr-account-contact">
+                  <a href={`mailto:${account.email}`}>{account.email || "E-mail manquant"}</a>
+                  {account.phone && <a href={`tel:${account.phone}`}>{account.phone}</a>}
+                </div>
+
+                {account.status === "approved" && (
+                  <div className="hr-account-linked">
+                    Lié à {linked ? <button type="button" className="hr-form-link-btn" onClick={() => onFiche(linked)}>{linked.name}</button> : <em>une fiche introuvable</em>}
+                    {account.reviewedBy && <small> · validé par {account.reviewedBy}{account.reviewedAt ? ` le ${fmtDate(account.reviewedAt)}` : ""}</small>}
+                  </div>
+                )}
+                {account.status === "rejected" && account.rejectionReason && (
+                  <div className="hr-account-reason">Motif : {account.rejectionReason}</div>
+                )}
+
+                {account.status !== "approved" && (
+                  <div className="hr-account-match">
+                    {candidates.length > 0 ? (
+                      <span className="hr-account-suggestion">Fiche proposée : <strong>{candidates[0].member.name}</strong> ({candidates[0].reason})</span>
+                    ) : (
+                      <span className="hr-account-suggestion">Aucune fiche existante ne correspond.</span>
+                    )}
+                    <select value={chosen} onChange={(event) => setChoices((previous) => ({ ...previous, [account.uid]: event.target.value }))} disabled={isBusy}>
+                      <option value="">— Choisir une fiche existante —</option>
+                      {candidates.map(({ member }) => <option key={`c-${member.id}`} value={member.id}>★ {member.name}</option>)}
+                      {members.filter((member) => !candidates.some((candidate) => candidate.member.id === member.id)).map((member) => (
+                        <option key={member.id} value={member.id}>{member.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="hr-account-actions">
+                  {account.status !== "approved" && (
+                    <>
+                      <button type="button" className="dash-btn dash-btn-primary" disabled={isBusy || !chosen} onClick={() => approveLinked(account, chosen)}>
+                        {chosen && memberById[chosen] ? `Valider et lier à ${memberById[chosen].firstName || memberById[chosen].name}` : "Valider et lier"}
+                      </button>
+                      <button type="button" className="dash-btn" disabled={isBusy} onClick={() => approveNew(account)}>Valider et créer la fiche</button>
+                    </>
+                  )}
+                  {account.status === "pending" && <button type="button" className="dash-btn" disabled={isBusy} onClick={() => reject(account)}>Refuser</button>}
+                  {account.status === "approved" && <button type="button" className="dash-btn" disabled={isBusy} onClick={() => reject(account, true)}>Suspendre</button>}
+                  {account.memberId && <button type="button" className="dash-btn" disabled={isBusy} onClick={() => unlink(account)}>Délier</button>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1356,18 +1698,16 @@ function DocusignPreparationModal({ isOpen, member, contract, busy, onClose, onP
   );
 }
 
-function emptyContractForm(member, contract) {
-  const week = contract?.week && WEEK_ORDER.includes(contract.week) ? contract.week : "S1";
-  const defaults = WEEK_DATES[week] || {};
-  const matchedStay = STAYS.find((s) => s.code.toLowerCase() === String(contract?.stayCode || "").toLowerCase());
+function emptyContractForm(member, contract, initialSession = null) {
+  const session = contract ? null : initialSession;
   return {
     memberId: member?.id || contract?.memberId || "",
     newFirstName: "",
     newLastName: "",
-    stayCode: matchedStay?.code || STAYS[0].code,
-    week,
-    startDate: contract?.startDate || defaults.startDate || "",
-    endDate:   contract?.endDate   || defaults.endDate   || "",
+    // Vide pour un ancien contrat 2026 sans session : ses champs séjour/semaine sont conservés.
+    sessionId: contract?.sessionId || session?.id || "",
+    startDate: contract?.startDate || session?.startDate || "",
+    endDate:   contract?.endDate   || session?.endDate   || "",
     roleKey: contract?.roleKey || "",
     primeCount: contract?.primeCount || 0,
     convoyagePrime: contract?.convoyagePrime === true,
@@ -1378,21 +1718,32 @@ function emptyContractForm(member, contract) {
   };
 }
 
-function ContractFormModal({ isOpen, member, contract, members, gridRows, onClose, onSaved }) {
+function ContractFormModal({ isOpen, member, contract, initialSession, members, gridRows, sessions, sessionsById, sejoursById, onClose, onSaved }) {
   const { showToast } = useToast();
   const isEdit = !!contract;
   const posteRows = useMemo(() => gridRows.filter((r) => !r.isPrime).sort((a, b) => a.order - b.order), [gridRows]);
   const primeUnit = useMemo(() => gridRows.find((r) => r.isPrime), [gridRows]);
 
   const [addingMember, setAddingMember] = useState(!member && !isEdit);
-  const [form, setForm] = useState(() => emptyContractForm(member, contract));
+  const [form, setForm] = useState(() => emptyContractForm(member, contract, initialSession));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm(emptyContractForm(member, contract));
+    setForm(emptyContractForm(member, contract, initialSession));
     setAddingMember(!member && !isEdit);
-  }, [isOpen, member, contract, isEdit]);
+  }, [isOpen, member, contract, initialSession, isEdit]);
+
+  // Sessions proposées : celles de la saison affichée, plus celle du contrat si elle est ailleurs.
+  const sessionOptions = useMemo(() => {
+    const list = [...(sessions || [])];
+    const current = form.sessionId ? sessionsById?.get(form.sessionId) : null;
+    if (current && !list.some((session) => session.id === current.id)) list.unshift(current);
+    return list;
+  }, [sessions, sessionsById, form.sessionId]);
+  const legacyLabel = isEdit && !contract?.sessionId
+    ? `Ancien contrat : ${contractShortLabel(contract) || "séjour non renseigné"}${contract?.season ? ` (${contract.season})` : ""}`
+    : "";
 
   const set = (key, value) => setForm((p) => ({ ...p, [key]: value }));
 
@@ -1407,9 +1758,15 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
     setForm((p) => ({ ...p, netSalary: net, grossSalary: gross }));
   };
 
-  const handleWeekChange = (week) => {
-    const d = WEEK_DATES[week] || {};
-    setForm((p) => ({ ...p, week, startDate: d.startDate || p.startDate, endDate: d.endDate || p.endDate }));
+  // Choisir une session reprend ses dates ; elles restent modifiables (arrivée la veille…).
+  const handleSessionChange = (sessionId) => {
+    const session = sessionsById?.get(sessionId);
+    setForm((p) => ({
+      ...p,
+      sessionId,
+      startDate: session?.startDate || p.startDate,
+      endDate: session?.endDate || p.endDate,
+    }));
   };
 
   const handleConvoyagePrimeChange = (checked) => {
@@ -1431,8 +1788,26 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       return;
     }
     if (!addingMember && !form.memberId) { showToast("Choisissez un membre.", "error"); return; }
-    const stay = STAYS.find((s) => s.code === form.stayCode);
-    if (!stay) { showToast("Choisissez un séjour.", "error"); return; }
+    const session = form.sessionId ? sessionsById?.get(form.sessionId) : null;
+    if (form.sessionId && !session) { showToast("Cette session n'existe plus dans le catalogue des séjours.", "error"); return; }
+    if (!session && !legacyLabel) { showToast("Choisissez une session.", "error"); return; }
+    if (!form.startDate || !form.endDate) { showToast("Renseignez les dates du contrat.", "error"); return; }
+    const stayFields = session
+      ? {
+          season: session.season,
+          sejourId: session.sejourId,
+          sessionId: session.id,
+          stayName: session.sejourName,
+          stayCode: session.sejourCode,
+          week: session.week,
+          place: sejourPlace(sejoursById?.get(session.sejourId)) || contract?.place || "",
+        }
+      : {
+          season: contract?.season || seasonOfDate(form.startDate),
+          stayName: contract?.stayName || contract?.stay || "",
+          stayCode: contract?.stayCode || "",
+          week: contract?.week || "",
+        };
 
     setSaving(true);
     try {
@@ -1471,9 +1846,7 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
       const payload = {
         memberId,
         memberName,
-        stayName: stay.name,
-        stayCode: stay.code,
-        week: form.week,
+        ...stayFields,
         role: gridRow.label,
         roleKey: gridRow.id,
         startDate: form.startDate,
@@ -1495,14 +1868,15 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
           : (contract?.socialSectionDoneAt || ""),
       };
 
+      let savedId = contract?.id;
       if (isEdit) {
         await updateDoc(doc(db, COLLECTIONS.STAFF_CONTRACTS, contract.id), payload);
       } else {
-        await addDoc(collection(db, COLLECTIONS.STAFF_CONTRACTS), payload);
+        savedId = (await addDoc(collection(db, COLLECTIONS.STAFF_CONTRACTS), payload)).id;
       }
 
       showToast(isEdit ? "Contrat mis à jour." : "Contrat créé.", "success");
-      onSaved({ id: contract?.id, ...payload }, createdMember, directionRole ? memberId : "");
+      onSaved({ id: savedId, ...payload }, createdMember, directionRole ? memberId : "");
       onClose();
     } catch (err) {
       showToast(`Erreur : ${err.message || err}`, "error");
@@ -1549,20 +1923,20 @@ function ContractFormModal({ isOpen, member, contract, members, gridRows, onClos
 
         <div className="hr-form-row">
           <label className="hr-edit-label">
-            <span>Séjour</span>
-            <select value={form.stayCode} onChange={(e) => set("stayCode", e.target.value)}>
-              {STAYS.map((s) => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
+            <span>Session</span>
+            <select value={form.sessionId} onChange={(e) => handleSessionChange(e.target.value)}>
+              <option value="">{legacyLabel || "— Choisir une session —"}</option>
+              {sessionOptions.map((session) => (
+                <option key={session.id} value={session.id}>{session.sejourName} · {session.label}</option>
+              ))}
             </select>
           </label>
         </div>
+        {!sessionOptions.length && !legacyLabel && (
+          <p className="hr-form-hint">Aucune session sur cette saison : ajoutez d’abord des dates au séjour.</p>
+        )}
 
         <div className="hr-form-row">
-          <label className="hr-edit-label">
-            <span>Semaine</span>
-            <select value={form.week} onChange={(e) => handleWeekChange(e.target.value)}>
-              {WEEK_ORDER.map((w) => <option key={w} value={w}>{w}</option>)}
-            </select>
-          </label>
           <label className="hr-edit-label">
             <span>Début</span>
             <input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
@@ -1742,14 +2116,45 @@ export default function HumanResources({ initialTab = "sejours" }) {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
   const [members,   setMembers]   = useState([]);
-  const [contracts, setContracts] = useState([]);
+  // Tous les contrats, toutes saisons (archives comprises) : l'historique des fiches en a besoin.
+  const [allContracts, setContracts] = useState([]);
   const [staffDocuments, setStaffDocuments] = useState([]);
+  const [staffAccounts, setStaffAccounts] = useState([]);
   const [gridRows,  setGridRows]  = useState(DEFAULT_SALARY_GRID);
   const [loading,   setLoading]   = useState(true);
   const [tab,       setTab]       = useState(initialTab);
   const [fiche,     setFiche]     = useState(null);
   const [ficheStartsInEdit, setFicheStartsInEdit] = useState(false);
-  const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null });
+  const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null, session: null });
+  const [seasonChoice, setSeasonChoice] = useState("");
+
+  const { activeSeason, archivedSeasons, seasons: seasonDocs } = useSeasons();
+  const catalog = useSessionCatalog();
+  const season = seasonChoice || activeSeason;
+
+  // Saisons consultables ici : uniquement les non archivées (les archives sont dans /dashboard/archives).
+  const seasonOptions = useMemo(() => {
+    const keys = new Set([
+      activeSeason,
+      ...seasonDocs.map((item) => item.id),
+      ...catalog.sessions.map((session) => session.season),
+      ...allContracts.map((contract) => contract.season),
+    ]);
+    return [...keys].filter((key) => /^\d{4}$/.test(String(key || "")) && !archivedSeasons.has(key)).sort();
+  }, [activeSeason, seasonDocs, catalog.sessions, allContracts, archivedSeasons]);
+
+  const seasonSessions = useMemo(
+    () => catalog.sessions.filter((session) => session.season === season),
+    [catalog.sessions, season],
+  );
+  const sejoursById = useMemo(() => new Map(catalog.sejours.map((sejour) => [sejour.id, sejour])), [catalog.sejours]);
+
+  // Vue de travail : contrats non archivés de la saison choisie (ceux sans date restent visibles
+  // dans la saison active pour être complétés).
+  const contracts = useMemo(() => allContracts.filter((contract) => {
+    if (isArchivedRecord(contract, archivedSeasons)) return false;
+    return contract.season ? contract.season === season : season === activeSeason;
+  }), [allContracts, archivedSeasons, season, activeSeason]);
   const [contractSendReview, setContractSendReview] = useState({ isOpen: false, member: null, contract: null });
   const [gridModalOpen, setGridModalOpen]  = useState(false);
   const [docusignBusyId, setDocusignBusyId] = useState("");
@@ -2213,7 +2618,8 @@ export default function HumanResources({ initialTab = "sejours" }) {
           memberName: memberNameById[contract.memberId] || contract.memberName,
         }));
         const staleContractNames = storedContracts.filter((contract) => (
-          memberNameById[contract.memberId]
+          !contract.archived
+          && memberNameById[contract.memberId]
           && memberNameById[contract.memberId] !== contract.memberName
         ));
         Promise.all(staleContractNames.map((contract) => updateDoc(
@@ -2242,36 +2648,21 @@ export default function HumanResources({ initialTab = "sejours" }) {
     () => {},
   ), []);
 
-  useEffect(() => {
-    if (loading || !members.length) return;
-    const syncPublicProfiles = async () => {
-      await Promise.all(members.map((member) => {
-        const locks = Object.fromEntries(STAFF_DOCUMENT_TYPES.map((type) => [
-          type.key,
-          staffDocuments.some((document) => document.memberId === member.id && document.documentType === type.key && document.status === "validated" && document.locked),
-        ]));
-        return setDoc(doc(db, COLLECTIONS.STAFF_PUBLIC_PROFILES, member.id), {
-          name: member.name,
-          firstName: member.firstName,
-          lastName: member.lastName,
-          staffType: member.staffType,
-          active: member.active,
-          assignments: publicAssignmentsForMember(member.id, contracts),
-          documentLocks: locks,
-          updatedAt: new Date().toISOString(),
-        }, { merge: true });
-      }));
-    };
-    syncPublicProfiles().catch(() => {});
-  }, [loading, members, contracts, staffDocuments]);
+  // Demandes de comptes de l'espace équipe, en direct pour le badge de l'onglet.
+  useEffect(() => onSnapshot(
+    collection(db, COLLECTIONS.STAFF_ACCOUNTS),
+    (snapshot) => setStaffAccounts(snapshot.docs.map(mapStaffAccount)),
+    () => setStaffAccounts([]),
+  ), []);
 
   const updateMember = (updated) => {
     setMembers((prev) => prev.map((m) => m.id === updated.id ? updated : m));
     setFiche((prev) => prev?.id === updated.id ? updated : prev);
     const memberName = `${updated.firstName || ""} ${updated.lastName || ""}`.trim() || updated.name;
-    const linkedContracts = contracts.filter((contract) => contract.memberId === updated.id);
+    const linkedContracts = allContracts.filter((contract) => contract.memberId === updated.id && !isArchivedRecord(contract, archivedSeasons));
+    const linkedIds = new Set(linkedContracts.map((contract) => contract.id));
     setContracts((previous) => previous.map((contract) => (
-      contract.memberId === updated.id ? { ...contract, memberName } : contract
+      linkedIds.has(contract.id) ? { ...contract, memberName } : contract
     )));
     Promise.all(
       linkedContracts.map((contract) => updateDoc(
@@ -2290,12 +2681,25 @@ export default function HumanResources({ initialTab = "sejours" }) {
       contract,
       member: members.find((member) => member.id === contract.memberId),
     })).filter((entry) => entry.member);
-    openContractsBatchPrint(entries, `${group.stayCode || group.stay}-${group.week}`);
+    openContractsBatchPrint(entries, [group.stayCode || group.stay, group.week, seasonOfDate(group.startDate)].filter(Boolean).join("-"));
   };
 
-  const openNewContract = (member = null) => setContractModal({ isOpen: true, member, contract: null });
-  const openEditContract = (member, contract) => setContractModal({ isOpen: true, member: member || null, contract });
-  const closeContractModal = () => setContractModal({ isOpen: false, member: null, contract: null });
+  const openNewContract = (member = null, session = null) => setContractModal({ isOpen: true, member, contract: null, session });
+  const openEditContract = (member, contract) => setContractModal({ isOpen: true, member: member || null, contract, session: null });
+  const closeContractModal = () => setContractModal({ isOpen: false, member: null, contract: null, session: null });
+
+  // Comptes : garder les fiches à jour après une validation, une création ou un déliement.
+  const handleAccountMemberCreated = (member) => {
+    const mapped = mapMember({ id: member.id, data: () => member });
+    setMembers((previous) => [...previous, mapped].sort((a, b) => a.name.localeCompare(b.name, "fr")));
+  };
+  const handleAccountMemberLinked = (memberId, account) => {
+    const apply = (member) => (member.id === memberId
+      ? { ...member, accountUid: account?.uid || "", email: account?.email ? account.email.trim().toLowerCase() : member.email }
+      : member);
+    setMembers((previous) => previous.map(apply));
+    setFiche((previous) => previous ? apply(previous) : previous);
+  };
 
   const handleContractSaved = (savedContract, createdMember, directionMemberId = "") => {
     if (createdMember) {
@@ -2305,12 +2709,12 @@ export default function HumanResources({ initialTab = "sejours" }) {
         member.id === directionMemberId ? { ...member, staffType: "directeur" } : member
       )));
     }
+    // Re-mappe le contrat pour que les champs calculés (séjour, saison, dates, statut) suivent.
     setContracts((prev) => {
-      const exists = prev.some((c) => c.id === savedContract.id);
-      const next = exists
-        ? prev.map((c) => (c.id === savedContract.id ? { ...c, ...savedContract } : c))
-        : [...prev, { ...savedContract, id: savedContract.id || `${Date.now()}` }];
-      return next;
+      const id = savedContract.id || `${Date.now()}`;
+      const existing = prev.find((c) => c.id === id);
+      const mapped = mapContract({ id, data: () => ({ ...(existing || {}), ...savedContract }) });
+      return existing ? prev.map((c) => (c.id === id ? { ...c, ...mapped } : c)) : [...prev, mapped];
     });
   };
 
@@ -2336,10 +2740,11 @@ export default function HumanResources({ initialTab = "sejours" }) {
   const dirCount  = members.filter((m) => m.staffType === "directeur").length;
 
   const TABS = [
-    { key: "sejours",  label: "Par séjour",  count: contracts.length > 0 ? [...new Set(contracts.map((c) => `${c.stayCode}${c.week}`))].length : null },
+    { key: "sejours",  label: "Par séjour",  count: new Set([...seasonSessions.map((session) => session.id), ...contracts.map(contractSessionKey)]).size || null },
     { key: "equipe",   label: "Équipe",       count: members.length },
     { key: "contrats", label: "Contrats",     count: contracts.length },
     { key: "documents", label: "Documents", count: staffDocuments.filter((document) => document.status !== "validated").length || null },
+    { key: "comptes",  label: "Comptes",      count: countPendingAccounts(staffAccounts) || null, alert: true },
   ];
 
   return (
@@ -2349,9 +2754,12 @@ export default function HumanResources({ initialTab = "sejours" }) {
       <header className="dash-page-header-row">
         <div className="dash-page-header">
           <h1>Ressources humaines</h1>
-          <p>{animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}</p>
+          <p>Saison {season} · {animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="dash-row-actions">
+          <select className="hr-season-select" value={season} onChange={(event) => setSeasonChoice(event.target.value)} aria-label="Saison affichée">
+            {seasonOptions.map((key) => <option key={key} value={key}>Saison {key}</option>)}
+          </select>
           <button
             type="button"
             className="dash-btn"
@@ -2366,9 +2774,9 @@ export default function HumanResources({ initialTab = "sejours" }) {
           <a className="dash-btn" href="/api/docusign/consent" target="_blank" rel="noreferrer">
             Connecter DocuSign
           </a>
-          <a className="dash-btn" href="/rh" target="_blank" rel="noreferrer">
-            Ouvrir le dépôt public
-          </a>
+          <Link className="dash-btn" href="/dashboard/rh/deroules">
+            Déroulés
+          </Link>
           <button type="button" className="dash-btn" onClick={() => setGridModalOpen(true)}>
             Grille salariale
           </button>
@@ -2388,7 +2796,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onClick={() => setTab(t.key)}
           >
             {t.label}
-            {t.count != null && <span className="hr-tab-count">{t.count}</span>}
+            {t.count != null && <span className={`hr-tab-count${t.alert ? " is-alert" : ""}`}>{t.count}</span>}
           </button>
         ))}
       </nav>
@@ -2399,7 +2807,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
         </section>
       ) : (
         <div className="hr-content">
-          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} />}
+          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} sessions={seasonSessions} season={season} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} onNewContract={openNewContract} />}
           {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} documents={staffDocuments} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} />}
           {tab === "contrats" && <ContratsView
             contracts={contracts}
@@ -2426,6 +2834,13 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onDocumentChange={handleDocumentChange}
             onDocumentDelete={handleDocumentDelete}
           />}
+          {tab === "comptes" && <StaffAccountsPanel
+            accounts={staffAccounts}
+            members={members}
+            onMemberCreated={handleAccountMemberCreated}
+            onMemberLinked={handleAccountMemberLinked}
+            onFiche={openMemberFile}
+          />}
         </div>
       )}
 
@@ -2434,6 +2849,9 @@ export default function HumanResources({ initialTab = "sejours" }) {
         <FicheModal
           member={fiche}
           contracts={contracts}
+          allContracts={allContracts}
+          archivedSeasons={archivedSeasons}
+          sessionsById={catalog.byId}
           structuredDocuments={staffDocuments}
           initialEdit={ficheStartsInEdit}
           onClose={closeMemberFile}
@@ -2448,8 +2866,12 @@ export default function HumanResources({ initialTab = "sejours" }) {
         isOpen={contractModal.isOpen}
         member={contractModal.member}
         contract={contractModal.contract}
+        initialSession={contractModal.session}
         members={members}
         gridRows={gridRows}
+        sessions={seasonSessions}
+        sessionsById={catalog.byId}
+        sejoursById={sejoursById}
         onClose={closeContractModal}
         onSaved={handleContractSaved}
       />
