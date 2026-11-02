@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { FaCalendarAlt, FaChild, FaCity, FaMoneyBillWave, FaTrain } from "react-icons/fa";
 import { extractPriceRange, formatPriceNumber } from "@/src/lib/pricing";
-import { isSessionFull, isSessionLimited } from "@/src/lib/availability";
+import { fetchSessionFill, isSessionFull, isSessionLimited } from "@/src/lib/availability";
 import { ageLabel } from "@/src/lib/ages";
 import { sessionHolidayZones } from "@/src/lib/schoolHolidays";
 import HolidayZoneChips from "./HolidayZoneChips";
@@ -86,6 +86,13 @@ export default function ReservationCard({
   handleReturnCityChange,
 }) {
   const stationOptions = getStationOptions(sejour?.stations);
+  // Sessions complètes en capacité : réservables en liste d'attente.
+  const [sessionFill, setSessionFill] = useState(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    fetchSessionFill(sejour?.id).then((fill) => { if (!cancelled) setSessionFill(fill); });
+    return () => { cancelled = true; };
+  }, [sejour?.id]);
 
   const computeTransportPrice = () => {
     if (isSurPlace(selectedDepartureCity) && (!isRoundTrip || isSurPlace(selectedReturnCity))) {
@@ -144,7 +151,8 @@ export default function ReservationCard({
               const value = typeof dateOption === "object" ? dateOption.startDate : dateOption;
               const isSelected = selectedDate === value;
               const isFull = isSessionFull(dateOption);
-              const isLimited = isSessionLimited(dateOption);
+              const isWaitlist = !isFull && Boolean(sessionFill.get(String(value || "").slice(0, 10))?.full);
+              const isLimited = !isWaitlist && isSessionLimited(dateOption);
               const promoStart = String(sejour?.promotion?.startDate || "").slice(0, 10);
               const isPromo = Boolean(!isFull && sejour?.promotion?.active && promoStart && String(value || "").slice(0, 10) === promoStart);
               return (
@@ -169,6 +177,11 @@ export default function ReservationCard({
                     {isFull && (
                       <span className="mb-1.5 inline-block rounded-full bg-[#514a59] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-white">
                         Complet
+                      </span>
+                    )}
+                    {isWaitlist && (
+                      <span className="mb-1.5 inline-block rounded-full bg-[#4f46e5] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-white">
+                        Liste d&apos;attente
                       </span>
                     )}
                     {isLimited && (

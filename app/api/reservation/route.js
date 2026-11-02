@@ -2,56 +2,37 @@
 
 import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
-import { collection, addDoc, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { isPublicBookableSession, sejourIdCandidates } from "@/src/lib/availability";
+import {
+  computeSessionOccupancy,
+  legacyWeekOf,
+  matchReservationTransports,
+  normalizeReservationStatus,
+  reservationSessionKey,
+  sessionFillState,
+} from "@/src/lib/reservations";
 import crypto from "crypto";
 
-function normalizePlace(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
+function sessionCapacity(sessionEntry, sejourData) {
+  return Number(sessionEntry?.capacity ?? sessionEntry?.maxChildren ?? sejourData?.maxChildren ?? 0) || 0;
 }
 
-function weekFromStartDate(value) {
-  const date = String(value || "").slice(0, 10);
-  return { "2026-07-06": "S1", "2026-07-20": "S2", "2026-08-03": "S3", "2026-08-17": "S4" }[date] || "";
+/** Occupancy of every session of a s\u00e9jour (archived files excluded), keyed by sessionId. */
+async function sejourOccupancy(sejourId) {
+  const snap = await getDocs(query(collection(db, "reservations"), where("sejour.id", "==", sejourId)));
+  return computeSessionOccupancy(
+    snap.docs.map((entry) => entry.data()).filter((data) => data.archived !== true),
+  );
 }
 
-function transportStopCities(transport) {
-  const cities = new Set();
-  [...(transport.segments || []), ...(transport.branches || [])].forEach((segment) => {
-    [segment.from, segment.to].filter(Boolean).forEach((city) => cities.add(city));
-    (segment.stops || []).forEach((stop) => stop.city && cities.add(stop.city));
-  });
-  if (transport.departureCity) cities.add(transport.departureCity);
-  if (transport.arrivalCity) cities.add(transport.arrivalCity);
-  return [...cities];
-}
-
-async function syncReservationToMatchingTransports(reservationId, reservation) {
-  if (normalizePlace(reservation.status) !== "validated") return 0;
-  const week = weekFromStartDate(reservation.sejour?.startDate);
-  if (!week) return 0;
-  const departureCity = reservation.transport?.departureCity || "";
-  const returnCity = reservation.transport?.returnCity || "";
+async function syncReservationToMatchingTransports(reservationId, reservation, legacyWeek) {
+  if (normalizeReservationStatus(reservation.status) !== "validated") return 0;
   const transportsSnap = await getDocs(collection(db, "transports"));
   const transports = transportsSnap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }));
   let synced = 0;
-
-  for (const direction of ["aller", "retour"]) {
-    const city = direction === "retour" ? returnCity : departureCity;
-    if (!city || normalizePlace(city) === "sur place") continue;
-    const matches = transports.filter((transport) =>
-      transport.week === week
-      && transport.direction === direction
-      && normalizePlace(transport.status) !== "annule"
-      && transportStopCities(transport).some((stopCity) => normalizePlace(stopCity) === normalizePlace(city))
-    );
-    if (matches.length !== 1) continue;
-    const transport = matches[0];
+  for (const { transport, city } of matchReservationTransports(transports, reservation, { legacyWeek })) {
     const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
     if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
     await updateDoc(doc(db, "transports", transport.id), {
@@ -61,6 +42,40 @@ async function syncReservationToMatchingTransports(reservationId, reservation) {
     synced += 1;
   }
   return synced;
+}
+
+/**
+ * GET /api/reservation?sejour=<id> \u2014 public fill state of a s\u00e9jour's sessions, so the booking
+ * pages can show "Liste d'attente" without reading the reservations themselves.
+ */
+export async function GET(request) {
+  try {
+    const sejourParam = new URL(request.url).searchParams.get("sejour") || "";
+    let sejourId = "";
+    let sejourData = null;
+    for (const candidate of sejourIdCandidates(sejourParam)) {
+      const sejourSnap = await getDoc(doc(db, "sejours", candidate));
+      if (sejourSnap.exists()) {
+        sejourId = candidate;
+        sejourData = sejourSnap.data();
+        break;
+      }
+    }
+    if (!sejourData) return NextResponse.json({ sessions: [] }, { status: 404 });
+    const occupancy = await sejourOccupancy(sejourId);
+    const sessions = (sejourData.dates || []).map((entry) => {
+      const startDate = String(entry.startDate || "").slice(0, 10);
+      const state = sessionFillState(
+        sessionCapacity(entry, sejourData),
+        occupancy.get(reservationSessionKey(sejourId, startDate)),
+      );
+      return { startDate, endDate: String(entry.endDate || "").slice(0, 10), full: state.full, remaining: state.remaining };
+    });
+    return NextResponse.json({ sessions });
+  } catch (error) {
+    console.error("Erreur lecture des disponibilit\u00e9s:", error);
+    return NextResponse.json({ sessions: [] }, { status: 500 });
+  }
 }
 
 export async function POST(request) {
@@ -78,11 +93,14 @@ export async function POST(request) {
       );
     }
     const body = JSON.parse(fields);
-    const requestedStartDate = String(body.urlStartDate || "").slice(0, 10);
+    // The booking page sends the chosen session as `sessionId` ("<sejourId>__<startDate>"); the
+    // séjour and dates in the URL are kept as a fallback for links built before 2027.
+    const [sessionSejour = "", sessionStart = ""] = String(body.sessionId || "").split("__");
+    const requestedStartDate = String(sessionStart || body.urlStartDate || "").slice(0, 10);
     const requestedEndDate = String(body.urlEndDate || "").slice(0, 10);
     let requestedSejour = "";
     let sejourData = null;
-    for (const candidate of sejourIdCandidates(body.urlSejour)) {
+    for (const candidate of sejourIdCandidates(sessionSejour || body.urlSejour)) {
       const sejourSnap = await getDoc(doc(db, "sejours", candidate));
       if (sejourSnap.exists()) {
         requestedSejour = candidate;
@@ -90,18 +108,37 @@ export async function POST(request) {
         break;
       }
     }
-    if (body.urlSejour && requestedStartDate) {
-      const selectedSession = (sejourData?.dates || []).find(
+    let selectedSession = null;
+    let reservationStatus = "pending";
+    if ((sessionSejour || body.urlSejour) && requestedStartDate) {
+      selectedSession = (sejourData?.dates || []).find(
         (dateEntry) => (
           String(dateEntry.startDate || "").slice(0, 10) === requestedStartDate
-          && String(dateEntry.endDate || "").slice(0, 10) === requestedEndDate
+          && (sessionStart || String(dateEntry.endDate || "").slice(0, 10) === requestedEndDate)
         ),
-      );
+      ) || null;
       if (!isPublicBookableSession(requestedSejour, selectedSession)) {
         return NextResponse.json(
           { error: "Cette session n'est plus disponible (complète ou déjà commencée). Choisissez une autre session." },
           { status: 409 },
         );
+      }
+
+      // Capacity: a request that no longer fits next to the validated children is still recorded,
+      // as "waitlist", so the family keeps its place in line if a validated file is cancelled.
+      // No deposit link is sent for it. A session closed by hand (bookingOpen false / "full")
+      // stays refused above.
+      const capacity = sessionCapacity(selectedSession, sejourData);
+      if (capacity > 0) {
+        try {
+          const occupancy = await sejourOccupancy(requestedSejour);
+          const state = sessionFillState(capacity, occupancy.get(reservationSessionKey(requestedSejour, requestedStartDate)));
+          const requestedChildren = Math.max(Number.parseInt(body.childCount || body.numberOfChildren || 1, 10) || 1, 1);
+          if (state.validated + requestedChildren > capacity) reservationStatus = "waitlist";
+        } catch (error) {
+          // Counting must never block a booking: keep it as an ordinary request.
+          console.error("Occupation de la session illisible:", error);
+        }
       }
     }
 
@@ -227,14 +264,19 @@ export async function POST(request) {
       depositStatus: "pending",
     };
 
-    // E) Informations sur le séjour
+    // E) Informations sur le séjour, rattachées à leur session (docs/MODELE-DONNEES.md §4)
+    const sessionStartDate = String(selectedSession?.startDate || urlStartDate || "").slice(0, 10);
+    const sessionEndDate = String(selectedSession?.endDate || urlEndDate || "").slice(0, 10);
+    const sejourId = requestedSejour || urlSejour;
     const safeSejour = {
-      id: requestedSejour || urlSejour,
+      id: sejourId,
       name: sejourData?.name || urlSejour,
-      startDate: urlStartDate,
-      endDate: urlEndDate,
+      startDate: sessionStartDate,
+      endDate: sessionEndDate,
       ageGroup: urlAgeGroup,
+      sessionId: reservationSessionKey(sejourId, sessionStartDate),
     };
+    const legacyWeek = legacyWeekOf(sejourData?.dates, sessionStartDate);
 
     // F) Informations de transport (villes de départ et de retour)
     const safeTransport = {
@@ -270,24 +312,26 @@ export async function POST(request) {
       transport: safeTransport,
       tokenUnique,
       createdAt: new Date().toISOString(),
-      status: "pending",
+      status: reservationStatus,
+      season: sessionStartDate.slice(0, 4),
       numeroDeReservation,
     };
+    const isWaitlist = reservationStatus === "waitlist";
 
     // ───────────────────────────────────────────────
     // 6) ENREGISTRER LA RÉSERVATION DANS FIRESTORE
     // ───────────────────────────────────────────────
     const docRef = await addDoc(collection(db, "reservations"), newReservation);
-    const syncedTransports = await syncReservationToMatchingTransports(docRef.id, newReservation);
+    await syncReservationToMatchingTransports(docRef.id, newReservation, legacyWeek);
 
     // ───────────────────────────────────────────────
-    // 7) CRÉER LA SESSION STRIPE ACOMPTE (100€)
+    // 7) CRÉER LA SESSION STRIPE ACOMPTE (100€) — pas pour la liste d'attente
     // ───────────────────────────────────────────────
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const lienAcces = `${baseUrl}/reservation/${tokenUnique}`;
 
     let stripeDepositUrl = null;
-    try {
+    if (!isWaitlist) try {
       const stripeRes = await fetch(`${baseUrl}/api/create-stripe-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -339,6 +383,7 @@ export async function POST(request) {
         transport: newReservation.transport,
         estimatedPriceString: newReservation.payment.estimatedPriceString,
         stripeDepositUrl,
+        waitlist: isWaitlist,
       }),
     });
 
@@ -354,6 +399,8 @@ export async function POST(request) {
       reservationId: docRef.id,
       tokenUnique,
       justificatifUrl: pdfUrl,
+      status: reservationStatus,
+      sessionId: safeSejour.sessionId,
     });
   } catch (error) {
     console.error("Erreur lors de la création de la réservation:", error);
