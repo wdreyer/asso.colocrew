@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Règles Storage ColoCrew — PROPOSITION, NON DÉPLOYÉE. Lire docs/REGLES-FIREBASE.md.
+//
+// Rappel : une URL de téléchargement (getDownloadURL, avec ?token=…) déjà enregistrée en base
+// reste lisible par tous, quelles que soient ces règles. Les images du site, les billets de
+// convoyage (transports/*/billets) et les justificatifs restent donc affichables via leur URL.
+//
+// CE QUI RESTE OUVERT, ET POURQUOI
+//   - justificatifs/ : création anonyme (PDF/image ≤ 10 Mo) par app/api/reservation, qui
+//     utilise le SDK client sans authentification, puis lecture d'un fichier précis (get) pour
+//     obtenir son URL. Pas de listage du dossier.
+//   - banqueimage/, sejours/, retours/ : lecture publique (contenus publiés du site).
+// Tout le reste est réservé aux admins (dossier admins/{uid} dans Firestore), sauf :
+//   - staff-documents/{memberId}/… : dépôt par la personne elle-même (compte équipe approuvé) ;
+//   - staff-contracts/{memberId}/… : lecture de ses contrats signés par la personne elle-même.
+// Les anciennes pages publiques /rh et /deroules écrivaient sans compte : elles sont remplacées
+// par l'espace équipe, ces écritures anonymes sont donc fermées.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
+    function account() {
+      return firestore.get(/databases/(default)/documents/staff_accounts/$(request.auth.uid)).data;
+    }
+
+    function isApprovedMember(memberId) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/staff_accounts/$(request.auth.uid))
+        && account().status == 'approved'
+        && account().get('memberId', '') == memberId;
+    }
+
+    function acceptableFile() {
+      return request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/.*|application/octet-stream');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Pièces administratives : dépôt (jamais de remplacement ni de suppression) par la personne.
+    match /staff-documents/{memberId}/{rest=**} {
+      allow create: if isApprovedMember(memberId) && acceptableFile();
+    }
+
+    // Contrats signés (DocuSign) rangés par le tableau de bord RH.
+    match /staff-contracts/{memberId}/{rest=**} {
+      allow read: if isApprovedMember(memberId);
+    }
+
+    // OUVERTURE TEMPORAIRE : justificatif CAF/QF déposé par app/api/reservation (sans compte).
+    // L'API appelle getDownloadURL juste après l'envoi : la lecture d'un fichier dont on connaît
+    // le nom (horodatage + nom d'origine) doit rester permise ; pas de listage du dossier.
+    match /justificatifs/{fileName} {
+      allow create: if acceptableFile();
+      allow get: if true;
+    }
+
+    match /banqueimage/{rest=**} { allow read: if true; }
+    match /sejours/{rest=**} { allow read: if true; }
+    match /retours/{rest=**} { allow read: if true; }
+  }
+}
