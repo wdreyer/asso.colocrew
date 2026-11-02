@@ -71,7 +71,7 @@ staffMemberIds: [memberId…]         // copie à plat pour les requêtes du por
 - `staff_members/{memberId}` : la personne (identité, coordonnées, documents). Ajout :
   `accountUid` (compte Firebase lié), `email`.
 - `staff_accounts/{uid}` : la demande de compte de l'espace équipe.
-  `{ uid, email, firstName, lastName, phone, requestedRole: "animateur" | "directeur",
+  `{ uid, email, firstName, lastName, phone, requestedRole: "animateur" | "adjoint" | "directeur",
      status: "pending" | "approved" | "rejected", memberId, createdAt, reviewedAt, reviewedBy }`.
   Créé par la personne à l'inscription (`status: "pending"`), validé par un admin qui le lie à
   un `staff_members` existant ou nouveau.

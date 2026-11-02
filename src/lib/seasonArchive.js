@@ -12,6 +12,7 @@ import {
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { seasonOfDate, seasonOfRecord } from "@/src/lib/seasons";
+import { transportStaffMemberIds } from "@/src/lib/transports";
 
 /**
  * Closing a season tags every reservation, convoy, contract and day plan of that season with
@@ -241,11 +242,17 @@ export async function applySeasonArchive(season, { includeIds = [], adminEmail =
     const chosen = [...bucket.matched, ...bucket.undetermined.filter((item) => included.has(item.key))];
     itemsByKey[meta.key] = [...chosen, ...bucket.archived];
     chosen.forEach((item) => {
+      // Older convoys only list their staff in `staff[]`: copy the flat ids so each member's
+      // history in the team space still finds them.
+      const staffMemberIds = meta.key === "transports" && !item.data.staffMemberIds?.length
+        ? transportStaffMemberIds(item.data)
+        : [];
       operations.push((batch) => batch.update(doc(db, meta.collection, item.id), {
         archived: true,
         season: target,
         archivedAt: serverTimestamp(),
         archivedBy,
+        ...(staffMemberIds.length ? { staffMemberIds } : {}),
       }));
     });
   });

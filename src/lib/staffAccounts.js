@@ -18,6 +18,7 @@ export const STAFF_ACCOUNT_STATUS = {
 
 export const STAFF_ACCOUNT_ROLES = {
   animateur: "Animateur·ice",
+  adjoint: "Directeur·ice adjoint·e",
   directeur: "Directeur·ice",
 };
 
@@ -147,7 +148,7 @@ export async function approveStaffAccountWithNewMember({ account, reviewer }) {
     name: `${firstName} ${lastName}`.trim(),
     email: normalizeEmail(account.email),
     phone: String(account.phone || "").trim(),
-    staffType: account.requestedRole === "directeur" ? "directeur" : "animateur",
+    staffType: ["directeur", "adjoint"].includes(account.requestedRole) ? "directeur" : "animateur",
     active: true,
     accountUid: account.uid,
     createdAt: serverTimestamp(),
