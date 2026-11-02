@@ -64,6 +64,11 @@ export default function Footer() {
             <p className="mt-4 text-sm text-gray-400">
               Pour toute demande, n'hésitez pas à nous contacter.
             </p>
+            <p className="mt-4 text-xs">
+              <Link href="/espace-equipe" className="text-gray-500 transition-colors hover:text-white">
+                Espace équipe
+              </Link>
+            </p>
           </div>
         </div>
       </div>
