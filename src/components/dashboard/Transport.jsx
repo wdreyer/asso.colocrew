@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   addDoc, collection, deleteDoc, doc, getDoc,
@@ -12,6 +12,17 @@ import { useToast } from "@/src/contexts/ToastContext";
 import { db, storage } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 import { ReservationPanel, mapReservation } from "@/src/components/dashboard/Reservations";
+import { isArchivedRecord, seasonOfRecord, useSeasons } from "@/src/lib/seasons";
+import { formatDateRange, useSessionCatalog } from "@/src/lib/sessions";
+import {
+  EMPTY_TRANSPORT_CALENDAR,
+  buildTransportCalendar,
+  periodKeyForReservation,
+  periodKeyForTransport,
+  reservationSessionId,
+  transportLinkFields,
+  travelDayFor,
+} from "@/src/lib/transports";
 
 /* Constants */
 
@@ -21,25 +32,6 @@ const ROUTE_GROUPS = [
   { value: "sud-ouest", label: "Sud / Ouest" },
   { value: "direct", label: "Direct / autre" },
 ];
-const WEEKS = ["S2", "S3", "S4"];
-const KEY_DATES = [
-  { date: "2026-07-06", week: "S1", direction: "aller",  label: "Jour de départ S1" },
-  { date: "2026-07-17", week: "S1", direction: "retour", label: "Jour de retour S1" },
-  { date: "2026-07-20", week: "S2", direction: "aller",  label: "Jour de départ S2" },
-  { date: "2026-07-31", week: "S2", direction: "retour", label: "Jour de retour S2" },
-  { date: "2026-08-03", week: "S3", direction: "aller",  label: "Jour de départ S3" },
-  { date: "2026-08-14", week: "S3", direction: "retour", label: "Jour de retour S3" },
-  { date: "2026-08-17", week: "S4", direction: "aller",  label: "Jour de départ S4" },
-  { date: "2026-08-28", week: "S4", direction: "retour", label: "Jour de retour S4" },
-];
-
-const WEEK_INFO = {
-  S1: { label: "Semaine 1", dates: "6 - 17 juil.",  aller: "2026-07-06", retour: "2026-07-17" },
-  S2: { label: "Semaine 2", dates: "20 - 31 juil.", aller: "2026-07-20", retour: "2026-07-31" },
-  S3: { label: "Semaine 3", dates: "3 - 14 août",   aller: "2026-08-03", retour: "2026-08-14" },
-  S4: { label: "Semaine 4", dates: "17 - 28 août",  aller: "2026-08-17", retour: "2026-08-28" },
-};
-
 const STATUS_CFG = {
   brouillon: { label: "Brouillon",  variant: "neutral"  },
   "confirmé":  { label: "Confirmé",   variant: "success"  },
@@ -63,12 +55,20 @@ const ONSITE_ADDRESSES = {
   EVCC: "1050 Plazako bidea, 64780 Bidarray",
 };
 
+/* Season calendar: travel days and départs of the selected season, built from the séjours' sessions */
+
+const TransportCalendarContext = createContext(EMPTY_TRANSPORT_CALENDAR);
+
+function useTransportCalendar() {
+  return useContext(TransportCalendarContext);
+}
+
 /* Utilities */
 
-/** Strips week/route info from sejourName: "Été 2026 - S1 - Convoi Sud" -> "Été 2026" */
+/** Strips week/route info from sejourName: "Été - S1 - Convoi Sud" -> "Été" */
 function shortSejourName(name) {
   if (!name || name === "") return name;
-  return name.replace(/\s*-\s*S[1-4]\b.*$/i, "").trim() || name;
+  return name.replace(/\s*-\s*S\d+\b.*$/i, "").trim() || name;
 }
 
 function useSejours() {
@@ -126,16 +126,6 @@ function fmtBirthDate(iso) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function weekFromStartDate(value) {
-  const date = String(value || "").slice(0, 10);
-  return {
-    "2026-07-06": "S1",
-    "2026-07-20": "S2",
-    "2026-08-03": "S3",
-    "2026-08-17": "S4",
-  }[date] || "";
-}
-
 function countChildren(passengers) {
   return (passengers || []).reduce(
     (total, passenger) => total + Math.max(passenger.children?.length || 0, 1),
@@ -153,6 +143,12 @@ function countUniqueChildrenAcrossTransports(transports) {
     });
   });
   return [...passengers.values()].reduce((total, count) => total + count, 0);
+}
+
+/** A reservation rides a convoy when its session leaves (aller) or comes back (retour) that day. */
+function reservationTravelsWith(reservation, transport) {
+  if (transport?.sessionIds?.length && reservation?.sessionId) return transport.sessionIds.includes(reservation.sessionId);
+  return !transport?.week || reservation?.week === transport.week;
 }
 
 function passengerLabel(passenger) {
@@ -1303,6 +1299,10 @@ function mapTransport(snap) {
     routeGroup:      d.routeGroup      || "direct",
     routeLabel:      d.routeLabel      || "",
     week:            d.week            || "",
+    season:          seasonOfRecord(d),
+    archived:        d.archived === true,
+    sessionIds:      Array.isArray(d.sessionIds) ? d.sessionIds : [],
+    staffMemberIds:  Array.isArray(d.staffMemberIds) ? d.staffMemberIds : [],
     segments:        Array.isArray(d.segments) ? d.segments : [],
     branches:        Array.isArray(d.branches) ? d.branches : [],
     staff:           Array.isArray(d.staff) ? d.staff : [],
@@ -1350,7 +1350,13 @@ function mapReservationForTransport(snap) {
     childName: `${first.firstName || ""} ${first.lastName || ""}`.trim() || "-",
     sejourName:    sejour.name       || "-",
     sejourStartDate: sejour.startDate || "",
-    week: weekFromStartDate(sejour.startDate),
+    sejourEndDate: sejour.endDate || "",
+    sejourRef: { id: sejour.id || "", name: sejour.name || "", startDate: sejour.startDate || "", sessionId: sejour.sessionId || "" },
+    season: seasonOfRecord(d),
+    archived: d.archived === true,
+    // Session and départ are resolved against the season calendar in Transport().
+    sessionId: "",
+    week: "",
     departureCity: transport.departureCity || "",
     returnCity:    transport.returnCity    || "",
     transportAmount: Number(finance.transportAmount ?? transport.fee ?? 0) || 0,
@@ -1364,7 +1370,6 @@ function mapReservationForTransport(snap) {
     registrationSourceIsTotemia: Boolean(d.registrationSourceIsTotemia || d.finance?.entries?.some((entry) => normalizeSearchKey(entry.source).includes("totemia"))),
     convocationReminderDone: Boolean(d.convocationReminderDoneAt || d.convocationReminderSentAt),
     convocationReminderDoneAt: d.convocationReminderDoneAt || d.convocationReminderSentAt || null,
-    isImported2026: d.validationSource === "ete26_validated_workbook",
     childCount: Math.max(children.length, 1),
   };
 }
@@ -1444,6 +1449,8 @@ function mapStaffContract(snap) {
     stayCode: data.stayCode || "",
     stayName: data.stayName || "",
     week: data.week || "",
+    season: seasonOfRecord(data),
+    sessionId: data.sessionId || "",
     startDate: data.startDate || "",
     endDate: data.endDate || "",
     role: data.role || "Animateur convoyeur",
@@ -1557,7 +1564,7 @@ function buildGroupConvocHTML(transport) {
   const dirColor  = isAller ? "#16a34a" : "#ea580c";
   const dirBg     = isAller ? "#f0fdf4" : "#fff7ed";
   const dirLabel  = isAller ? "↑ ALLER" : "↓ RETOUR";
-  const weekInfo  = WEEK_INFO[transport.week] || null;
+  const weekInfo  = transport.weekInfo || null;
   const sejourDates = weekInfo ? `du ${weekInfo.aller ? fmtDateLong(weekInfo.aller) : "?"} au ${weekInfo.retour ? fmtDateLong(weekInfo.retour) : "?"}` : "";
 
   /* Retour trips: generate a simple arrival notice */
@@ -1729,94 +1736,8 @@ ${pages.join("\n")}
 function buildSingleConvocHTML(transport, passenger) {
   return buildGroupConvocHTML({ ...transport, passengers: [passenger] });
 }
-
-function buildOnSiteConvocHTML(reservations, week, options = {}) {
-  const weekInfo = WEEK_INFO[week] || {};
-  const today = new Date().toLocaleDateString("fr-FR");
-  const arrivalTime = options.arrivalTime || "À compléter";
-  const returnTime = options.returnTime || "À compléter";
-  const arrivalPoint = options.arrivalPoint || "Lieu du séjour";
-  const returnPoint = options.returnPoint || arrivalPoint;
-  const sejourLabel = reservations[0]?.sejourName && reservations[0].sejourName !== "-"
-    ? shortSejourName(reservations[0].sejourName)
-    : "Séjour ColoCrew";
-
-  const pages = reservations.map((reservation, idx) => {
-    const children = reservation.children || [];
-    const childRows = children.length > 0
-      ? children.map((child, childIndex) => `<tr>
-          <td>${children.length > 1 ? `Enfant ${childIndex + 1}` : "Jeune"}</td>
-          <td><strong>${child.firstName || ""} ${child.lastName || ""}</strong>
-          ${child.birthDate ? `<br><span class="sub">Né(e) le ${fmtBirthDate(child.birthDate)}</span>` : ""}
-          ${child.birthPlace ? `<br><span class="sub">à ${child.birthPlace}</span>` : ""}
-          </td></tr>`).join("")
-      : `<tr><td>Jeune</td><td><strong>${reservation.childName || "-"}</strong></td></tr>`;
-    const isLast = idx === reservations.length - 1;
-
-    return `<div class="page${isLast ? "" : " pb"}">
-      <div class="doc-header">
-        <div><div class="logo">ColoCrew</div><div class="logo-sub">Association de séjours éducatifs</div></div>
-        <div class="hdr-right"><div>Réf. <strong>${reservation.numeroDeReservation || reservation.id?.slice(0, 8) || "-"}</strong></div><div>${today}</div></div>
-      </div>
-      <div class="doc-title">CONVOCATION SUR PLACE</div>
-      <div class="dir-badge">
-        ${sejourLabel}${weekInfo.dates ? `<br><span style="font-size:12px;font-weight:600;letter-spacing:0">${weekInfo.dates}</span>` : ""}
-      </div>
-      <div class="city-badge">MODE DE RENDEZ-VOUS : SUR PLACE</div>
-      <div class="sec">Participant(s)</div>
-      <table><tbody>${childRows}</tbody></table>
-      <div class="sec">Responsable légal</div>
-      <table><tbody>
-        <tr><td>Nom</td><td>${reservation.nom}</td></tr>
-        <tr><td>Téléphone</td><td><strong>${reservation.phone}</strong></td></tr>
-        <tr><td>Email</td><td>${contactsDisplay([reservation.emails, reservation.email])}</td></tr>
-      </tbody></table>
-      <div class="sec">Rendez-vous aller</div>
-      <div class="transport-card" style="border-color:#16a34a;background:#f0fdf4;margin-bottom:12px">
-        <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(weekInfo.aller)}</strong></div>
-        <div class="tr-row"><span class="tr-lbl">Heure de RDV</span><strong>${arrivalTime}</strong></div>
-        <div class="tr-row"><span class="tr-lbl">Lieu</span><strong>${arrivalPoint}</strong></div>
-        <div class="tr-row"><span class="tr-lbl">Consigne</span>Remise de l'enfant directement à l'équipe ColoCrew sur le lieu du séjour.</div>
-      </div>
-      <div class="sec">Rendez-vous retour</div>
-      <div class="transport-card" style="border-color:#ea580c;background:#fff7ed;margin-bottom:12px">
-        <div class="tr-row"><span class="tr-lbl">Date</span><strong>${fmtDateLong(weekInfo.retour)}</strong></div>
-        <div class="tr-row"><span class="tr-lbl">Heure de RDV</span><strong>${returnTime}</strong></div>
-        <div class="tr-row"><span class="tr-lbl">Lieu</span><strong>${returnPoint}</strong></div>
-        <div class="tr-row"><span class="tr-lbl">Consigne</span>Reprise de l'enfant directement auprès de l'équipe ColoCrew sur le lieu du séjour.</div>
-      </div>
-      <div class="sec">Contacts utiles</div>
-      <table><tbody>
-        <tr><td>Urgences</td><td><strong>${EMERGENCY_PHONES.join(" / ")}</strong></td></tr>
-      </tbody></table>
-      <div class="sig-grid" style="grid-template-columns:1fr 1fr">
-        <div class="sig-box"><h4>Signature responsable légal<br>(remise de l'enfant)</h4></div>
-        <div class="sig-box"><h4>Signature responsable légal<br>(reprise de l'enfant)</h4></div>
-      </div>
-    </div>`;
-  });
-
-  if (pages.length === 0) {
-    pages.push(`<div class="page"><p style="text-align:center;padding:60px;color:#aaa">Aucun enfant sur place pour cette semaine.</p></div>`);
-  }
-
-  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-<title>Convocations sur place - ${week}</title>
-<style>
-  ${SHARED_CSS}
-  .page{max-width:760px;margin:0 auto;padding:36px 32px}
-  .pb{page-break-after:always}
-  .doc-title{font-size:21px;font-weight:900;text-transform:uppercase;letter-spacing:0.15em;color:#166534;text-align:center;border:2px solid #16a34a;padding:12px 20px;margin:0 0 18px;border-radius:6px}
-  .dir-badge{text-align:center;font-weight:800;font-size:13.5px;border:1.5px solid #16a34a;color:#166534;background:#f0fdf4;border-radius:8px;padding:10px;margin-bottom:18px;letter-spacing:0.04em}
-  .city-badge{text-align:center;font-weight:900;font-size:14px;color:#166534;background:#dcfce7;border-radius:8px;padding:9px 12px;margin:-8px 0 18px}
-</style></head><body>
-${pages.join("\n")}
-<div class="print-btn"><button onclick="window.print()">Imprimer les convocations sur place (${reservations.length} page${reservations.length > 1 ? "s" : ""})</button></div>
-</body></html>`;
-}
-
 function buildOnSiteEmailHtml(reservation, week, options = {}, customIntro = "", animInfo = {}) {
-  const weekInfo = WEEK_INFO[week] || {};
+  const weekInfo = reservation.weekInfo || {};
   const arrivalTime = options.arrivalTime || "À confirmer";
   const returnTime = options.returnTime || arrivalTime;
   const arrivalPoint = options.arrivalPoint || "Lieu du séjour";
@@ -1982,7 +1903,7 @@ function buildStaffBriefingHTML(transport) {
     .city-row td{background:#f3edf9;color:#5f3374;font-weight:900;text-transform:uppercase;letter-spacing:0.05em}
   </style></head><body>
     <div class="doc-header"><div><div class="logo">ColoCrew</div><div class="logo-sub">Convoyage ${routeLabel}</div></div>
-    <div class="hdr-right"><h1>CONVOCATION ÉQUIPE</h1><div>${transport.week || "Semaine à compléter"} · ${transport.direction === "aller" ? "ALLER" : "RETOUR"}</div></div></div>
+    <div class="hdr-right"><h1>CONVOCATION ÉQUIPE</h1><div>${transport.weekLabel || transport.week || "Session à compléter"} · ${transport.direction === "aller" ? "ALLER" : "RETOUR"}</div></div></div>
     <div class="alert"><strong>${transport.departureCity || "-"} → ${transport.arrivalCity || "-"}</strong> · ${fmtDateLong(transport.date)} · RDV ${transport.meetingTime || "à compléter"} à ${transport.meetingPoint || "lieu à compléter"}</div>
     <div class="sec">Équipe de convoyage</div>
     <table><thead><tr><th>Nom</th><th>Rôle</th><th>Téléphone</th><th>Prise de service</th></tr></thead><tbody>${staffRows || "<tr><td colspan='4'>Équipe à compléter</td></tr>"}</tbody></table>
@@ -2023,17 +1944,16 @@ function CapacityBar({ current, total }) {
   );
 }
 
-function coverageSummary(reservations, transports, week, direction) {
-      const validated = reservations.filter((reservation) => reservation.status === "validated" && reservation.week);
+/** Coverage of one travel day: every validated child of the sessions leaving/returning that day. */
+function coverageSummary(reservations, transports, day) {
+      const { date, direction } = day;
+      const sessionIds = new Set(day.sessionIds || []);
+      const validated = reservations.filter((reservation) => reservation.status === "validated" && sessionIds.has(reservation.sessionId));
       const cityKey = direction === "aller" ? "departureCity" : "returnCity";
-      const expected = validated.filter((reservation) =>
-        reservation.week === week && normalizePlace(reservation[cityKey]) !== "sur place",
-      );
-      const onSite = validated.filter((reservation) =>
-        reservation.week === week && normalizePlace(reservation[cityKey]) === "sur place",
-      );
+      const expected = validated.filter((reservation) => normalizePlace(reservation[cityKey]) !== "sur place");
+      const onSite = validated.filter((reservation) => normalizePlace(reservation[cityKey]) === "sur place");
       const relevantTrips = transports.filter((transport) =>
-        transport.week === week
+        transport.date === date
         && transport.direction === direction
         && transport.status !== "annulé"
         && !transport.coverageExcluded,
@@ -2055,10 +1975,10 @@ function coverageSummary(reservations, transports, week, direction) {
         return result;
       }, {});
       return {
-        key: `${week}-${direction}`,
-        week,
+        key: day.key,
+        label: day.label,
         direction,
-        date: relevantTrips[0]?.date || "",
+        date,
         expectedChildren,
         coveredChildren: expectedChildren - missingChildren,
         missingChildren,
@@ -2069,11 +1989,11 @@ function coverageSummary(reservations, transports, week, direction) {
 }
 
 function TransportCoverage({ reservations, transports }) {
-  const summaries = useMemo(() => {
-    return WEEKS.flatMap((week) => ["aller", "retour"].map((direction) =>
-      coverageSummary(reservations, transports, week, direction),
-    ));
-  }, [reservations, transports]);
+  const calendar = useTransportCalendar();
+  const summaries = useMemo(
+    () => calendar.travelDays.map((day) => coverageSummary(reservations, transports, day)),
+    [calendar, reservations, transports],
+  );
   const noWeek = reservations
     .filter((reservation) => reservation.status === "validated" && !reservation.week)
     .reduce((sum, reservation) => sum + reservation.childCount, 0);
@@ -2082,15 +2002,16 @@ function TransportCoverage({ reservations, transports }) {
     <section className="tr-coverage">
       <div className="tr-coverage-head">
         <div><h2>Récapitulatif des départs et retours</h2><p>Chaque enfant hors « Sur Place » doit être couvert exactement une fois.</p></div>
-        {noWeek > 0 && <span className="tr-coverage-warning">{noWeek} enfant sans semaine</span>}
+        {noWeek > 0 && <span className="tr-coverage-warning">{noWeek} enfant sans session reconnue</span>}
       </div>
+      {summaries.length === 0 && <p className="dash-muted">Aucune session de séjour sur cette saison : ajoutez des dates aux séjours pour voir les jours de départ et de retour.</p>}
       <div className="tr-coverage-grid">
         {summaries.map((summary) => {
           const complete = summary.missingChildren === 0 && summary.duplicateChildren === 0;
           return (
             <article key={summary.key} className={`tr-coverage-card${complete ? " is-complete" : " has-issue"}`}>
               <div className="tr-coverage-card-head">
-                <div><strong>{summary.week} · {summary.direction === "aller" ? "Premier jour" : "Dernier jour"}</strong><span>{summary.direction === "aller" ? "Aller" : "Retour"} · {fmtDate(summary.date)}</span></div>
+                <div><strong>{summary.label} · {summary.direction === "aller" ? "Premier jour" : "Dernier jour"}</strong><span>{summary.direction === "aller" ? "Aller" : "Retour"} · {fmtDate(summary.date)}</span></div>
                 <span className="tr-coverage-state">{complete ? "Complet" : "À corriger"}</span>
               </div>
               <div className="tr-coverage-numbers">
@@ -2109,194 +2030,6 @@ function TransportCoverage({ reservations, transports }) {
     </section>
   );
 }
-
-function AllTransportsList({ transports, selectedId, onSelectTrip }) {
-  return (
-    <div className="tr-all-list">
-      {WEEKS.map((week) => {
-        const info = WEEK_INFO[week];
-        return (
-          <section key={week} className="tr-all-week">
-            <div className="tr-all-week-head">
-              <strong>{info.label}</strong>
-              <span>{info.dates}</span>
-            </div>
-            {[
-              { date: info.aller, direction: "aller", label: "Aller" },
-              { date: info.retour, direction: "retour", label: "Retour" },
-            ].map(({ date, direction, label }) => {
-              const trips = transports.filter((t) => t.date === date);
-              const totalChildren = countUniqueChildrenAcrossTransports(trips);
-              const totalStaff = trips.reduce((s, t) => s + (t.staff || []).length, 0);
-              const missingTix = trips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
-              return (
-                <div key={date} className="tr-all-day">
-                  <div className="tr-all-day-label">
-                    <span className={`tr-all-dir is-${direction}`}>{direction === "aller" ? "?" : "?"} {label}</span>
-                    <time className="tr-all-day-date">{fmtDateLong(date)}</time>
-                    {totalChildren > 0 && <span className="tr-all-day-stat">{totalChildren} enf.</span>}
-                    {totalStaff > 0 && <span className="tr-all-day-stat">{totalStaff} anim.</span>}
-                    {missingTix > 0 && <span className="tr-all-day-warn">{missingTix} billet{missingTix > 1 ? "s" : ""} manquant{missingTix > 1 ? "s" : ""}</span>}
-                  </div>
-                  <div className="tr-all-day-trips">
-                    {ROUTE_GROUPS.filter((g) => g.value !== "direct").map((group) => {
-                      const trip = trips.find((t) => t.routeGroup === group.value);
-                      if (!trip) return (
-                        <div key={group.value} className="tr-all-trip is-missing">
-                          <span className="tr-all-trip-zone">{group.label}</span>
-                          <span style={{ fontSize: 11, color: "var(--dash-muted)" }}>À créer</span>
-                        </div>
-                      );
-                      const active = selectedId === trip.id;
-                      return (
-                        <button key={trip.id} type="button"
-                          className={`tr-all-trip${active ? " is-active" : ""}`}
-                          onClick={() => onSelectTrip(trip)}
-                        >
-                          <span className="tr-all-trip-zone">{group.label}</span>
-                          <span className="tr-all-trip-route">{trip.departureCity || "?"} → {trip.arrivalCity || "?"}</span>
-                          <div className="tr-all-trip-meta">
-                            <span>{countChildren(trip.passengers)} enf.</span>
-                            <span>{routePortionCount(trip)} étape{routePortionCount(trip) !== 1 ? "s" : ""}</span>
-                            {trip.departureTime && <span>{trip.departureTime}</span>}
-                          </div>
-                          <Badge label={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).label} variant={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).variant} />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-/* WeeksOverview */
-
-function WeeksOverview({ transports, selectedId, onSelectTrip }) {
-  return (
-    <div className="wo-root">
-      {WEEKS.map((week) => {
-        const info = WEEK_INFO[week];
-        return (
-          <section key={week} className="wo-week">
-            <div className="wo-week-head">
-              <span className="wo-badge">{week}</span>
-              <div className="wo-week-meta">
-                <strong>{info.label}</strong>
-                <span>{info.dates}</span>
-              </div>
-            </div>
-            <div className="wo-week-body">
-              {[
-                { dir: "aller",  date: info.aller,  label: "Aller",  icon: "?" },
-                { dir: "retour", date: info.retour, label: "Retour", icon: "?" },
-              ].map(({ dir, date, label, icon }) => {
-                const trips = transports.filter((t) => t.date === date);
-                const totalChildren = countUniqueChildrenAcrossTransports(trips);
-                const totalSegs = trips.reduce((s, t) => s + routePortionCount(t), 0);
-                const boughtTickets = trips.reduce((s, t) => s + (t.tickets || []).filter(ticketCountsAsPurchased).length, 0);
-                const totalTickets = trips.reduce((s, t) => s + (t.tickets || []).length, 0);
-                const missingSegs = trips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
-                const tickPct = totalTickets > 0 ? Math.round((boughtTickets / totalTickets) * 100) : 0;
-                const allOk = missingSegs === 0 && totalTickets > 0 && boughtTickets === totalTickets;
-
-                return (
-                  <div key={dir} className={`wo-dir wo-dir-${dir}`}>
-                    <div className="wo-dir-head">
-                      <span className={`wo-dir-arrow wo-dir-arrow-${dir}`}>{icon}</span>
-                      <div className="wo-dir-info">
-                        <strong>{label}</strong>
-                        <time>{fmtDateLong(date)}</time>
-                      </div>
-                      {totalChildren > 0 && (
-                        <span className="wo-chip-children">{totalChildren} enfants</span>
-                      )}
-                      {missingSegs > 0 && (
-                        <span className="wo-chip-alert">
-                          {missingSegs} billet{missingSegs > 1 ? "s" : ""} manquant{missingSegs > 1 ? "s" : ""}
-                        </span>
-                      )}
-                    </div>
-
-                    {totalSegs > 0 && (
-                      <div className="wo-tix-row">
-                        <div className="wo-tix-track">
-                          <div
-                            className={`wo-tix-fill${allOk ? " is-ok" : " is-partial"}`}
-                            style={{ width: `${tickPct}%` }}
-                          />
-                        </div>
-                        <span className={`wo-tix-count${allOk ? " is-ok" : " is-warn"}`}>
-                          {boughtTickets}/{totalTickets} billets
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="wo-trips">
-                      {trips.length === 0 ? (
-                        <div className="wo-trip-empty">Aucun trajet configuré</div>
-                      ) : trips.map((trip) => {
-                        const segs = ticketPortions(trip);
-                        const tix = trip.tickets || [];
-                        const tripBought = tix.filter(ticketCountsAsPurchased).length;
-                        const tripMissing = segs.filter((seg) => !tix.some((tk) => tk.segmentId === seg.id)).length;
-                        const tripPending = tix.filter((tk) => !ticketCountsAsPurchased(tk)).length;
-                        const isOk = tripMissing === 0 && tripPending === 0 && tix.length > 0;
-                        const isActive = selectedId === trip.id;
-                        const mod = isOk ? "ok" : tripMissing > 0 ? "missing" : tripPending > 0 ? "pending" : "none";
-
-                        return (
-                          <button
-                            key={trip.id}
-                            type="button"
-                            className={`wo-trip wo-trip-${mod}${isActive ? " is-active" : ""}`}
-                            onClick={() => onSelectTrip(trip)}
-                          >
-                            <div className="wo-trip-left">
-                              <span className="wo-trip-zone">
-                                {ROUTE_GROUPS.find((g) => g.value === trip.routeGroup)?.label || trip.routeGroup || "Zone"}
-                              </span>
-                              <span className="wo-trip-route">
-                                {trip.departureCity || "?"} → {trip.arrivalCity || "?"}
-                              </span>
-                              <div className="wo-trip-sub">
-                                {trip.departureTime && <span>{trip.departureTime}</span>}
-                                {countChildren(trip.passengers) > 0 && <span>{countChildren(trip.passengers)} enf.</span>}
-                                {segs.length > 1 && <span>{segs.length} étapes</span>}
-                              </div>
-                            </div>
-                            <div className="wo-trip-right">
-                              <span className={`wo-tix-badge wo-tix-${mod}`}>
-                                {isOk && "✓ Billets OK"}
-                                {!isOk && tripMissing > 0 && `⚠ ${tripMissing} manquant${tripMissing > 1 ? "s" : ""}`}
-                                {!isOk && tripMissing === 0 && tripPending > 0 && `⏳ ${tripPending} non acheté${tripPending > 1 ? "s" : ""}`}
-                                {!isOk && tripMissing === 0 && tripPending === 0 && "Aucun billet"}
-                              </span>
-                              <Badge
-                                label={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).label}
-                                variant={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).variant}
-                              />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
 /* TripTimeline */
 
 function TripTimeline({ transport, onToggleStaff }) {
@@ -2306,12 +2039,12 @@ function TripTimeline({ transport, onToggleStaff }) {
   const leadStaffId = effectiveLeadStaffId(transport);
   if (segments.length === 0) return null;
 
-  const isS2 = transport.week === "S2";
-  const parallelBranchesForSegment = (segment) => isS2 ? branches.filter((branch) => {
+  // A branch joining the main line where a segment ends (aller) or starts (retour) is drawn beside it.
+  const parallelBranchesForSegment = (segment) => branches.filter((branch) => {
     const joinCity = normalizePlace(branchJoinCity(transport, branch));
     const mainCity = normalizePlace(transport.direction === "retour" ? segment.from : segment.to);
     return joinCity && joinCity === mainCity;
-  }) : [];
+  });
   const parallelBranchIds = new Set(segments.flatMap((segment) =>
     parallelBranchesForSegment(segment).map((branch) => branch.id),
   ));
@@ -2530,107 +2263,18 @@ function TripTimeline({ transport, onToggleStaff }) {
     </div>
   );
 }
-
-function TransportHomeHeader({ reservations, transports, onCreate }) {
-  const stats = useMemo(() => {
-    const valid = reservations.filter((reservation) => reservation.status === "validated" && reservation.isImported2026);
-    const transportChildren = valid.reduce((sum, reservation) => {
-      const needsAller = normalizePlace(reservation.departureCity) !== "sur place";
-      const needsRetour = normalizePlace(reservation.returnCity) !== "sur place";
-      return sum + (needsAller || needsRetour ? reservation.childCount : 0);
-    }, 0);
-    const surPlace = valid.reduce((sum, reservation) => {
-      const bothOnSite = normalizePlace(reservation.departureCity) === "sur place"
-        && normalizePlace(reservation.returnCity) === "sur place";
-      return sum + (bothOnSite ? reservation.childCount : 0);
-    }, 0);
-    const ticketCost = transports.reduce((sum, transport) =>
-      sum + (transport.tickets || []).reduce((ticketSum, ticket) => ticketSum + Number(ticket.price || 0), 0), 0);
-    const purchasedTickets = transports.reduce((sum, transport) =>
-      sum + (transport.tickets || []).filter(ticketCountsAsPurchased).length, 0);
-    const totalTickets = transports.reduce((sum, transport) => sum + (transport.tickets || []).length, 0);
-    return {
-      validChildren: valid.reduce((sum, reservation) => sum + reservation.childCount, 0),
-      transportChildren,
-      surPlace,
-      trips: transports.length,
-      ticketCost,
-      purchasedTickets,
-      totalTickets,
-    };
-  }, [reservations, transports]);
-
-  const weekRows = useMemo(() => WEEKS.map((week) => {
-    const info = WEEK_INFO[week];
-    const weekReservations = reservations.filter((reservation) =>
-      reservation.status === "validated" && reservation.isImported2026 && reservation.week === week,
-    );
-    const children = weekReservations.reduce((sum, reservation) => sum + reservation.childCount, 0);
-    const aller = weekReservations.reduce((sum, reservation) =>
-      sum + (normalizePlace(reservation.departureCity) !== "sur place" ? reservation.childCount : 0), 0);
-    const retour = weekReservations.reduce((sum, reservation) =>
-      sum + (normalizePlace(reservation.returnCity) !== "sur place" ? reservation.childCount : 0), 0);
-    const trips = transports.filter((transport) => transport.week === week);
-    const missingTickets = trips.reduce((sum, transport) => sum + missingTicketPortionCount(transport), 0);
-    return { week, info, children, aller, retour, trips: trips.length, missingTickets };
-  }), [reservations, transports]);
-
-  return (
-    <section className="tr-home">
-      <div className="tr-home-main">
-        <div className="tr-home-title">
-          <span>Organisation transport</span>
-          <h2>Vue opérationnelle été 2026</h2>
-          <p>Suivi des enfants à transporter, des trajets créés et des billets à acheter.</p>
-        </div>
-        <div className="tr-home-actions">
-          <button type="button" className="dash-btn dash-btn-primary" onClick={onCreate}>Nouveau transport</button>
-          <Link href="/dashboard/transport/billets" className="dash-btn">Billets</Link>
-        </div>
-      </div>
-
-      <div className="tr-home-metrics">
-        <article><span>Enfants validés</span><strong>{stats.validChildren}</strong><small>Source Excel</small></article>
-        <article><span>À transporter</span><strong>{stats.transportChildren}</strong><small>Aller ou retour</small></article>
-        <article><span>Sur place</span><strong>{stats.surPlace}</strong><small>Sans billet</small></article>
-        <article><span>Trajets</span><strong>{stats.trips}</strong><small>Créés</small></article>
-        <article><span>Billets</span><strong>{stats.purchasedTickets}/{stats.totalTickets}</strong><small>{formatMoney(stats.ticketCost)}</small></article>
-      </div>
-
-      <div className="tr-home-weeks">
-        {weekRows.map((row) => (
-          <article key={row.week} className="tr-home-week">
-            <div className="tr-home-week-head">
-              <strong>{row.week}</strong>
-              <span>{row.info.dates}</span>
-            </div>
-            <div className="tr-home-week-stats">
-              <span>{row.children}<small> enfants</small></span>
-              <span>{row.aller}<small> aller</small></span>
-              <span>{row.retour}<small> retour</small></span>
-              <span>{row.trips}<small> trajets</small></span>
-            </div>
-            <div className="tr-home-week-links">
-              <Link href={`/dashboard/transport/${row.info.aller}`}>Aller</Link>
-              <Link href={`/dashboard/transport/${row.info.retour}`}>Retour</Link>
-              {row.missingTickets > 0 && <em>{row.missingTickets} billet{row.missingTickets > 1 ? "s" : ""} manquant{row.missingTickets > 1 ? "s" : ""}</em>}
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function TransportBudgetOverview({ reservations, transports, financeSummary }) {
+  const calendar = useTransportCalendar();
   const [openLedgerGroups, setOpenLedgerGroups] = useState(new Set());
   const [openLedgerTrips,  setOpenLedgerTrips]  = useState(new Set());
   const weekData = useMemo(() => {
     const byWeek = new Map();
     const ensure = (week) => {
-      const label = week || "Sans semaine";
-      if (!byWeek.has(label)) byWeek.set(label, { week: label, revenue: 0, children: 0, days: new Map(), tickets: [] });
-      return byWeek.get(label);
+      const key = week || "~";
+      const period = calendar.periodByKey[week];
+      const label = period ? `${period.short} · ${period.dates}` : week || "Hors session";
+      if (!byWeek.has(key)) byWeek.set(key, { week: label, sortKey: key, revenue: 0, children: 0, days: new Map(), tickets: [] });
+      return byWeek.get(key);
     };
     const ensureDay = (week, transport) => {
       const weekRow = ensure(week);
@@ -2642,7 +2286,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
     };
 
     reservations
-      .filter((r) => r.status === "validated" && r.isImported2026)
+      .filter((r) => r.status === "validated")
       .forEach((r) => {
         const d = ensure(r.week);
         d.revenue += Number(r.transportAmount || 0);
@@ -2678,8 +2322,11 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
     });
 
     const accountingByWeek = financeSummary?.transportAccounting?.byWeek || {};
+    // Imported summaries are keyed by short week label ("S2"): only kept when it names one départ.
     Object.entries(accountingByWeek).forEach(([week, accounting]) => {
-      const row = ensure(week);
+      const matches = calendar.periods.filter((period) => period.short === week);
+      if (matches.length !== 1) return;
+      const row = ensure(matches[0].key);
       const amount = Number(accounting?.transportAmount);
       if (Number.isFinite(amount)) row.revenue = amount;
     });
@@ -2694,8 +2341,8 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
           }))
           .sort((a, b) => a.date.localeCompare(b.date, "fr")),
       }))
-      .sort((a, b) => a.week.localeCompare(b.week, "fr"));
-  }, [financeSummary, reservations, transports]);
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey, "fr"));
+  }, [calendar, financeSummary, reservations, transports]);
 
   const toggleLedgerTrip = (id) => {
     setOpenLedgerTrips((cur) => {
@@ -2746,7 +2393,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
         <div className="tr-ledger-kpi">
           <span className="tr-ledger-kpi-label">Enfants transport</span>
           <strong className="tr-ledger-kpi-val">{totals.children}</strong>
-          <small>validés importés</small>
+          <small>réservations validées</small>
         </div>
       </div>
 
@@ -2755,7 +2402,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
         const margin = week.revenue - weekCost;
         const purchased = week.tickets.filter((t) => t.purchased).length;
         return (
-          <div key={week.week} className="tr-ledger-week">
+          <div key={week.sortKey} className="tr-ledger-week">
             <div className="tr-ledger-week-hd">
               <span className="tr-ledger-week-badge">{week.week}</span>
               <span className="tr-ledger-week-info">{week.children} enfant{week.children !== 1 ? "s" : ""}</span>
@@ -2877,435 +2524,7 @@ function TransportBudgetOverview({ reservations, transports, financeSummary }) {
     </section>
   );
 }
-
-function SegmentSummaryTable({ transport, onEditSegment }) {
-  const segments = transport.segments || [];
-  const isRetour = transport.direction === "retour";
-  const leadMember = leadStaffMember(transport);
-  if (!segments.length) {
-    return (
-      <div className="tr-segment-summary-empty">
-        Aucune étape configurée. Ouvrez l'organisation du trajet pour ajouter les étapes.
-      </div>
-    );
-  }
-
-  return (
-    <div className="tr-segment-summary">
-      <div className="tr-segment-summary-head">
-        <strong>Étapes du trajet</strong>
-        <span>Cliquez sur une ligne pour la modifier</span>
-      </div>
-      <div className="tr-segment-summary-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Ville</th>
-              <th>Trajet</th>
-              <th>À bord avant arrêt</th>
-              <th>Mouvement à l'arrêt</th>
-              <th>Cumul à bord</th>
-              <th>RDV</th>
-              <th>Départ</th>
-              <th>Arrivée</th>
-              <th>Transport</th>
-              <th>Billet</th>
-              <th>Animateur</th>
-            </tr>
-          </thead>
-          <tbody>
-            {segments.flatMap((segment, index) => {
-              const city = transport.direction === "retour" ? segment.to : segment.from;
-              const stopPassengers = passengersAtStop(transport, city);
-              const mainStop = routeBoardingStops(transport).find((stop) =>
-                stop.type === "main" && stop.segmentIndex === index,
-              );
-              const alreadyPassengers = passengersBeforeStop(transport, mainStop?.order ?? index);
-              const onboardPassengers = passengersOnSegment(transport, index);
-              const segmentTickets = purchasedTicketsForSegment(transport.tickets, segment.id);
-              const legCoverage = segmentLegCoverage(transport, segment, index, segmentTickets);
-              const firstLegCoverage = legCoverage[0];
-              const assignedStaff = (transport.staff || []).filter((member) =>
-                (segment.assignedStaffIds || []).includes(member.id),
-              );
-              const isQuaiStop = segmentStopType(segment) === "quai";
-              const rows = [(
-                <tr key={segment.id} className={isQuaiStop ? "is-quai-stop" : ""} onClick={() => onEditSegment(transport, segment.id)}>
-                  <td><span className="tr-segment-step">{index + 1}</span></td>
-                  <td>
-                    <strong>{city || "Ville à compléter"}</strong>
-                    <small>{isQuaiStop ? "Étape quai" : stopTypeLabel(segment)} · {segmentMeetingLabel(segment)}</small>
-                  </td>
-                  <td><strong>{segment.from || "-"} → {segment.to || "-"}</strong></td>
-                  <td><strong>{countChildren(alreadyPassengers)}</strong></td>
-                  <td><strong>{countChildren(stopPassengers)}</strong></td>
-                  <td><strong>{countChildren(onboardPassengers)}</strong></td>
-                  <td>{isQuaiStop ? "Quai" : (segment.meetingTime || "-")}</td>
-                  <td>{segment.departureTime || "-"}</td>
-                  <td>{segment.arrivalTime || "-"}</td>
-                  <td>
-                    <span>{segment.mode || "-"} {segment.number || ""}</span>
-                    {segment.platform && <small>Voie {segment.platform}</small>}
-                  </td>
-                  <td>
-                    <span className={`tr-summary-ticket ${firstLegCoverage?.missingSeats ? "is-missing" : "is-bought"}`}>
-                      {firstLegCoverage
-                        ? `${firstLegCoverage.purchasedSeats}/${firstLegCoverage.neededSeats}${firstLegCoverage.missingSeats ? ` · ${firstLegCoverage.missingSeats} manq.` : " · OK"}`
-                        : "À vérifier"}
-                    </span>
-                  </td>
-                  <td>
-                    {assignedStaff.length
-                      ? assignedStaff.map((member) => `${member.name || "Animateur"}${member.id === leadMember?.id ? " (chef)" : ""}`).join(", ")
-                      : <span className="tr-summary-empty">Non affecté</span>}
-                  </td>
-                </tr>
-              )];
-
-              segmentSubStops(segment).forEach((stop, stopIndex) => {
-                const stopCity = stop.city;
-                const stopPassengersAtCity = passengersAtStop(transport, stopCity);
-                const leavingPassengersAtCity = passengersLeavingAtStop(transport, stopCity);
-                const routeStop = routeBoardingStops(transport).find((item) =>
-                  item.type === "sub" && item.segmentIndex === index && item.stopIndex === stopIndex,
-                );
-                const alreadyAtSubStop = passengersBeforeStop(transport, routeStop?.order ?? index);
-                const onboardAfterSubStop = passengersAfterStop(transport, routeStop?.order ?? index);
-                const nextLegCoverage = legCoverage[stopIndex + 1];
-                rows.push(
-                  <tr key={`${segment.id}-stop-${stop.id || stop.city || stopIndex}`} className="is-quai-stop is-sub-stop" onClick={() => onEditSegment(transport, segment.id)}>
-                    <td><span className="tr-segment-step is-small">{index + 1}.{stopIndex + 1}</span></td>
-                    <td>
-                      <strong>{stopCity || "Ville à compléter"}</strong>
-                      <small>Étape quai · {segmentMeetingLabel(stop)}</small>
-                    </td>
-                    <td><span className="tr-summary-empty">Sous-étape du billet {segment.from || "-"} → {segment.to || "-"}</span></td>
-                    <td><strong>{countChildren(alreadyAtSubStop)}</strong></td>
-                    <td>
-                      <strong>
-                        {leavingPassengersAtCity.length > 0
-                          ? `↓ ${countChildren(leavingPassengersAtCity)}`
-                          : `↑ ${countChildren(stopPassengersAtCity)}`}
-                      </strong>
-                    </td>
-                    <td><strong>{nextLegCoverage ? Math.max(0, nextLegCoverage.neededSeats - assignedStaff.length) : countChildren(onboardAfterSubStop)}</strong></td>
-                    <td>Quai</td>
-                    <td>{stop.departureTime || "-"}</td>
-                    <td>{stop.arrivalTime || "-"}</td>
-                    <td>
-                      <span>{stop.mode || segment.mode || "-"} {stop.number || segment.number || ""}</span>
-                      {stop.platform && <small>Voie {stop.platform}</small>}
-                    </td>
-                    <td>
-                      <span className={`tr-summary-ticket ${nextLegCoverage?.missingSeats ? "is-missing" : "is-bought"}`}>
-                        {nextLegCoverage
-                          ? `${nextLegCoverage.purchasedSeats}/${nextLegCoverage.neededSeats}${nextLegCoverage.missingSeats ? ` · ${nextLegCoverage.missingSeats} manq.` : " · OK"}`
-                          : "Arrivée"}
-                      </span>
-                    </td>
-                    <td>
-                      {assignedStaff.length
-                        ? assignedStaff.map((member) => `${member.name || "Animateur"}${member.id === leadMember?.id ? " (chef)" : ""}`).join(", ")
-                        : <span className="tr-summary-empty">Non affecté</span>}
-                    </td>
-                  </tr>,
-                );
-              });
-              return isRetour ? [...rows.slice(1), rows[0]] : rows;
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function DateTripCards({ transports, selectedId, onSelectTrip, onEditSegment }) {
-  return (
-    <section className="tr-date-trips">
-      <div className="tr-principal-grid">
-        {ROUTE_GROUPS.filter((group) => group.value !== "direct").map((group) => {
-          const trip = transports.find((transport) => transport.routeGroup === group.value);
-          if (!trip) {
-            return (
-              <article key={group.value} className="tr-principal-card is-missing">
-                <span className="tr-principal-zone">{group.label}</span>
-                <h2>Trajet manquant</h2>
-                <p>Ce trajet principal doit être créé pour cette date.</p>
-              </article>
-            );
-          }
-          const active = selectedId === trip.id;
-          return (
-            <button key={trip.id} type="button" className={`tr-principal-card${active ? " is-active" : ""}`} onClick={() => onSelectTrip(trip)}>
-              <div className="tr-principal-head">
-                <span className="tr-principal-zone">{group.label}</span>
-                <Badge label={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).label} variant={(STATUS_CFG[trip.status] || STATUS_CFG.brouillon).variant} />
-              </div>
-              <h2>{trip.departureCity || "Départ à compléter"} → {trip.arrivalCity || "Arrivée à compléter"}</h2>
-              <div className="tr-principal-stats is-compact">
-                <div><strong>{countChildren(trip.passengers)}</strong><span>enfants</span></div>
-                <div><strong>{routePortionCount(trip)}</strong><span>étapes</span></div>
-                <div><strong>{trip.departureTime || "-"}</strong><span>départ</span></div>
-                <div><strong>{trip.arrivalTime || "-"}</strong><span>arrivée</span></div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      {selectedId && transports.find((t) => t.id === selectedId) && (
-        <SegmentSummaryTable
-          transport={transports.find((t) => t.id === selectedId)}
-          onEditSegment={onEditSegment}
-        />
-      )}
-    </section>
-  );
-}
-
-const CONVOYAGE_MAP_CITIES = {
-  lille: [292, 48],
-  paris: [282, 122],
-  nantes: [145, 190],
-  lyon: [360, 268],
-  valence: [355, 315],
-  marseille: [365, 425],
-  montpellier: [300, 395],
-  toulouse: [228, 368],
-  bordeaux: [145, 310],
-  dax: [130, 365],
-  messanges: [112, 390],
-  "vieux boucau": [112, 390],
-  bidarray: [145, 420],
-};
-
-const CONVOYAGE_MAP_LABELS = {
-  lille: [10, -8], paris: [10, -7], nantes: [-70, -7], lyon: [10, -7],
-  valence: [10, 10], marseille: [10, 14], montpellier: [-82, 14],
-  toulouse: [-74, 15], bordeaux: [-75, -8], dax: [-58, -8],
-  messanges: [-88, 14], "vieux boucau": [-88, 14], bidarray: [10, 17],
-};
-
-function convoyageMapPoint(city) {
-  return CONVOYAGE_MAP_CITIES[normalizePlace(city)] || null;
-}
-
-function ConvoyageDayMap({ transports, reservations, week, direction }) {
-  const coverage = coverageSummary(reservations, transports, week, direction);
-  const complete = coverage.missingChildren === 0 && coverage.duplicateChildren === 0;
-  const edges = [];
-  const cityData = new Map();
-  const seenSharedLegs = new Set();
-  const seenPassengers = new Set();
-
-  const ensureCity = (city) => {
-    const key = normalizePlace(city);
-    if (!key || !convoyageMapPoint(city)) return null;
-    if (!cityData.has(key)) cityData.set(key, { key, city, up: 0, down: 0, times: new Set() });
-    return cityData.get(key);
-  };
-  const addTime = (city, time) => {
-    const row = ensureCity(city);
-    if (row && time) row.times.add(time);
-  };
-
-  transports.forEach((transport) => {
-    (transport.passengers || []).forEach((passenger) => {
-      const passengerKey = passenger.reservationId || `${transport.id}-${passenger.nom}`;
-      if (seenPassengers.has(passengerKey)) return;
-      seenPassengers.add(passengerKey);
-      const row = ensureCity(passengerCity(transport, passenger));
-      if (row) {
-        if (direction === "retour") row.down += Math.max(passenger.children?.length || 0, 1);
-        else row.up += Math.max(passenger.children?.length || 0, 1);
-      }
-      if (direction === "aller") {
-        const dropoff = ensureCity(passengerDropoffCity(passenger));
-        if (dropoff) dropoff.down += Math.max(passenger.children?.length || 0, 1);
-      }
-    });
-
-    [...(transport.segments || []), ...transportBranches(transport)].forEach((portion) => {
-      const stops = [portion.from, ...segmentSubStops(portion).map((stop) => stop.city), portion.to].filter(Boolean);
-      stops.forEach(ensureCity);
-      addTime(portion.from, portion.departureTime);
-      segmentSubStops(portion).forEach((stop) => {
-        addTime(stop.city, stop.arrivalTime || stop.departureTime);
-        if (portion.sharedBus && direction === "retour" && Number(stop.sharedPickupChildren || 0) > 0) {
-          const sharedKey = `${portion.sharedBusId}-${normalizePlace(stop.city)}-pickup`;
-          if (!seenSharedLegs.has(sharedKey)) {
-            seenSharedLegs.add(sharedKey);
-            ensureCity(stop.city).up += Number(stop.sharedPickupChildren);
-          }
-        }
-      });
-      addTime(portion.to, portion.arrivalTime);
-      if (portion.sharedBus && direction === "retour" && Number(portion.sharedStartChildren || 0) > 0) {
-        const sharedKey = `${portion.sharedBusId}-start`;
-        if (!seenSharedLegs.has(sharedKey)) {
-          seenSharedLegs.add(sharedKey);
-          ensureCity(portion.from).up += Number(portion.sharedStartChildren);
-        }
-      }
-      for (let index = 0; index < stops.length - 1; index += 1) {
-        const from = stops[index];
-        const to = stops[index + 1];
-        if (!convoyageMapPoint(from) || !convoyageMapPoint(to)) continue;
-        const sharedKey = portion.sharedBus ? `${portion.sharedBusId || portion.id}-${normalizePlace(from)}-${normalizePlace(to)}` : "";
-        if (sharedKey && seenSharedLegs.has(sharedKey)) continue;
-        if (sharedKey) seenSharedLegs.add(sharedKey);
-        edges.push({
-          key: sharedKey || `${transport.id}-${portion.id}-${index}`,
-          from,
-          to,
-          sharedBus: Boolean(portion.sharedBus),
-          branch: isBranchSegment(portion),
-          routeGroup: transport.routeGroup,
-        });
-      }
-    });
-  });
-
-  const routeColors = { nord: "#2563eb", "sud-ouest": "#b8336a", sudouest: "#b8336a", direct: "#64748b" };
-
-  return (
-    <section className="tr-map-overview">
-      <div className="tr-map-head">
-        <div>
-          <span>Schéma général de la journée</span>
-          <strong>{direction === "aller" ? "Convergences vers les séjours" : "Retours vers les familles"}</strong>
-        </div>
-        <span className={`tr-map-coverage${complete ? " is-complete" : " has-issue"}`}>
-          {complete
-            ? `Tous les enfants affectés · ${coverage.expectedChildren}/${coverage.expectedChildren}`
-            : `${coverage.missingChildren} sans trajet · ${coverage.duplicateChildren} en doublon`}
-        </span>
-      </div>
-      <div className="tr-map-layout">
-        <div className="tr-map-canvas">
-          <svg viewBox="55 15 405 465" role="img" aria-label="Schéma des convoyages sur la France">
-            <defs>
-              <marker id={`convoyage-arrow-${week}-${direction}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L8,4 L0,8 z" fill="context-stroke" />
-              </marker>
-              <filter id={`convoyage-shadow-${week}-${direction}`} x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.12" />
-              </filter>
-            </defs>
-            <path className="tr-map-france" d="M258 25 L348 65 L420 155 L397 270 L430 394 L359 456 L258 468 L167 435 L92 365 L72 270 L105 172 L173 83 Z" />
-            {edges.map((edge) => {
-              const [x1, y1] = convoyageMapPoint(edge.from);
-              const [x2, y2] = convoyageMapPoint(edge.to);
-              const color = edge.sharedBus ? "#d97706" : routeColors[edge.routeGroup] || "#6d5a86";
-              return <line key={edge.key} className={`tr-map-edge${edge.sharedBus ? " is-bus" : ""}${edge.branch ? " is-branch" : ""}`} x1={x1} y1={y1} x2={x2} y2={y2} style={{ stroke: color }} markerEnd={`url(#convoyage-arrow-${week}-${direction})`} />;
-            })}
-            {[...cityData.values()].map((row) => {
-              const [x, y] = convoyageMapPoint(row.city);
-              const [dx, dy] = CONVOYAGE_MAP_LABELS[row.key] || [9, -8];
-              const movement = [row.up ? `+${row.up}` : "", row.down ? `-${row.down}` : ""].filter(Boolean).join(" / ");
-              return (
-                <g key={row.key} className="tr-map-city" transform={`translate(${x} ${y})`}>
-                  <circle r="6" filter={`url(#convoyage-shadow-${week}-${direction})`} />
-                  <g transform={`translate(${dx} ${dy})`}>
-                    <text className="tr-map-city-name">{row.city}</text>
-                    {(movement || row.times.size > 0) && <text className="tr-map-city-meta" y="13">{[movement, [...row.times][0]].filter(Boolean).join(" · ")}</text>}
-                  </g>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-        <div className="tr-map-routes">
-          {transports.map((transport) => {
-            const lead = leadStaffMember(transport);
-            const branches = transportBranches(transport);
-            const sharedBus = (transport.segments || []).find((segment) => segment.sharedBus);
-            return (
-              <article key={transport.id}>
-                <div className="tr-map-route-title">
-                  <i style={{ background: routeColors[transport.routeGroup] || "#6d5a86" }} />
-                  <strong>{ROUTE_GROUPS.find((group) => group.value === transport.routeGroup)?.label || "Trajet"}</strong>
-                  <span>{countChildren(transport.passengers)} enf.</span>
-                </div>
-                <p>{transport.departureCity || "?"} → {transport.arrivalCity || "?"}</p>
-                {branches.map((branch) => <small key={branch.id}>Embranchement {segmentRouteLabel(branch)} · {countChildren(passengersOnBranch(transport, branch))} enf.</small>)}
-                {sharedBus && <small className="is-bus">Autocar partagé · regroupement à Bordeaux · {sharedBus.sharedChildrenCount || countChildren(transport.passengers)} enf.</small>}
-                <small>Chef : {lead?.name || "à désigner"}</small>
-              </article>
-            );
-          })}
-          <div className="tr-map-legend"><span><i className="is-north" />Nord</span><span><i className="is-south" />Sud/Ouest</span><span><i className="is-bus" />Autocar partagé</span><span><b>+ monte</b> / <b>- descend</b></span></div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /* Panel tabs */
-
-const TRANSPORT_HOME_VIEWS = [
-  { key: "organisation", label: "Organisation" },
-  { key: "jours", label: "Jour par jour" },
-  { key: "cities", label: "Villes/RDV" },
-  { key: "budget", label: "Budget" },
-  { key: "recap", label: "Récap" },
-];
-
-function TransportHomeTabs({ value, onChange }) {
-  return (
-    <nav className="tr-home-tabs">
-      {TRANSPORT_HOME_VIEWS.map((view) => (
-        <button
-          key={view.key}
-          type="button"
-          className={value === view.key ? "is-active" : ""}
-          onClick={() => onChange(view.key)}
-        >
-          {view.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function DayByDayOverview({ transports, selectedId, onSelectTrip, onEditSegment }) {
-  return (
-    <section className="tr-days-page">
-      {KEY_DATES.map((day) => {
-        const dayTransports = transports.filter((transport) => transport.date === day.date);
-        return (
-          <article key={day.date} className="tr-days-block">
-            <div className="tr-days-head">
-              <div>
-                <span className={`tr-days-dir is-${day.direction}`}>{day.direction === "aller" ? "Aller" : "Retour"}</span>
-                <h2>{day.label}</h2>
-                <time>{fmtDateLong(day.date)}</time>
-              </div>
-              <Link href={`/dashboard/transport/${day.date}`} className="dash-btn">Ouvrir en page dédiée</Link>
-            </div>
-            {dayTransports.length ? (
-              <>
-                <DateTripCards
-                  transports={dayTransports}
-                  selectedId={selectedId}
-                  onSelectTrip={onSelectTrip}
-                  onEditSegment={onEditSegment}
-                />
-              </>
-            ) : (
-              <div className="tr-day-empty">
-                <strong>Aucun trajet configuré</strong>
-                <span>Créez les trajets nécessaires pour cette journée.</span>
-              </div>
-            )}
-          </article>
-        );
-      })}
-    </section>
-  );
-}
-
 function PassengerEditModal({ passenger, transport, onSave, onClose }) {
   const { showToast } = useToast();
   const [form, setForm] = useState({
@@ -3464,7 +2683,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
     return allReservations.filter(r =>
       !assignedIds.has(r.id) &&
       r.status === "validated" &&
-      (!transport.week || r.week === transport.week) &&
+      reservationTravelsWith(r, transport) &&
       (showAll || stopCityKeys.has(normalizePlace(r[cityKey]))),
     ).sort((a, b) => {
       const aCity = (a[cityKey] || "").toLowerCase();
@@ -3473,7 +2692,7 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
       const bMatch = stopCityKeys.has(normalizePlace(b[cityKey])) || (cityVal && bCity.includes(cityVal)) ? 0 : 1;
       return aMatch - bMatch;
     });
-  }, [allReservations, assignedIds, cityKey, cityVal, showAll, stopCityKeys, transport.week]);
+  }, [allReservations, assignedIds, cityKey, cityVal, showAll, stopCityKeys, transport]);
 
   const candidates = useMemo(
     () => (search ? allCandidates.filter(r => reservationMatchesQuery(r, search)) : allCandidates),
@@ -3485,10 +2704,10 @@ function PassengersTab({ transport, allReservations, onUpdate }) {
     return allReservations.filter(r =>
       !assignedIds.has(r.id) &&
       r.status === "validated" &&
-      (!transport.week || r.week === transport.week) &&
+      reservationTravelsWith(r, transport) &&
       !stopCityKeys.has(normalizePlace(r[cityKey])),
     ).length;
-  }, [allReservations, assignedIds, cityKey, showAll, stopCityKeys, transport.week]);
+  }, [allReservations, assignedIds, cityKey, showAll, stopCityKeys, transport]);
 
   const addSelected = async () => {
     if (selected.size === 0) return;
@@ -3730,7 +2949,6 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const staffTicketAttachments = transport.staffTicketAttachments || [];
   const [meta, setMeta] = useState({
     routeGroup: transport.routeGroup || "direct",
-    week: transport.week || "",
     emergencyContact: transport.emergencyContact || "",
     emergencyPhone: transport.emergencyPhone || "",
   });
@@ -3740,7 +2958,9 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
   const [resModal, setResModal] = useState(null);
+  const calendar = useTransportCalendar();
 
   const openReservationById = async (reservationId) => {
     if (!reservationId) return;
@@ -3774,7 +2994,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     return staffContracts
       .filter((contract) => {
         if (assignedMemberIds.has(contract.memberId)) return false;
-        if (transport.week && contract.week === transport.week) return true;
+        if (contract.sessionId && (transport.sessionIds || []).includes(contract.sessionId)) return true;
         return Boolean(
           transport.date
           && contract.startDate
@@ -3784,7 +3004,13 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         );
       })
       .sort((a, b) => a.memberName.localeCompare(b.memberName, "fr", { sensitivity: "base" }));
-  }, [staff, staffContracts, transport.date, transport.week]);
+  }, [staff, staffContracts, transport.date, transport.sessionIds]);
+  const availableMembers = useMemo(() => {
+    const assignedMemberIds = new Set(staff.map((member) => member.memberId).filter(Boolean));
+    return (staffMembers || [])
+      .filter((member) => !assignedMemberIds.has(member.id))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "fr", { sensitivity: "base" }));
+  }, [staff, staffMembers]);
   const assignedStaffIds = useMemo(() => [...new Set([
     ...segments.flatMap((segment) => segment.assignedStaffIds || []),
     ...branches.flatMap((branch) => branch.assignedStaffIds || []),
@@ -3812,7 +3038,6 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     setTickets(transport.tickets || []);
     setMeta({
       routeGroup: transport.routeGroup || "direct",
-      week: transport.week || "",
       emergencyContact: transport.emergencyContact || "",
       emergencyPhone: transport.emergencyPhone || "",
     });
@@ -3989,13 +3214,41 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
     setTickets((items) => items.filter((ticket) => ticket.segmentId !== branchId));
   };
 
-  const addStaff = () => setStaff((items) => [...items, {
-    id: crypto.randomUUID(),
-    name: "",
-    role: "Animateur convoyeur",
-    phone: "",
-    boardingCity: "",
-  }]);
+  /* Convoy staff always point at a staff_members record (memberId), so the staff space finds the convoy. */
+  const memberStaffFields = (member) => ({
+    memberId: member.id,
+    name: member.name || "",
+    phone: member.phone || "",
+    email: member.email || "",
+    birthDate: member.birthDate || "",
+  });
+
+  const addStaffFromMember = () => {
+    const member = staffMembers.find((item) => item.id === selectedMemberId);
+    if (!member) return;
+    const contract = staffContracts.find((item) =>
+      item.memberId === member.id && availableContracts.some((candidate) => candidate.id === item.id),
+    );
+    setStaff((items) => [...items, {
+      id: crypto.randomUUID(),
+      ...memberStaffFields(member),
+      ...(contract ? { contractId: contract.id, stayCode: contract.stayCode, week: contract.week } : {}),
+      role: contract?.role || "Animateur convoyeur",
+      boardingCity: "",
+    }]);
+    setSelectedMemberId("");
+  };
+
+  /* Older convoys typed staff names by hand: link such an entry to its staff_members record. */
+  const linkStaffToMember = (staffId, memberId) => {
+    const member = staffMembers.find((item) => item.id === memberId);
+    if (!member) return;
+    setStaff((items) => items.map((item) => item.id === staffId ? {
+      ...item,
+      ...memberStaffFields(member),
+      phone: member.phone || item.phone || "",
+    } : item));
+  };
 
   const addStaffFromContract = () => {
     const contract = staffContracts.find((item) => item.id === selectedContractId);
@@ -4183,6 +3436,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         } : {}),
         convoyeur: leadMember?.name || transport.convoyeur,
         convoyeurPhone: leadMember?.phone || transport.convoyeurPhone,
+        ...transportLinkFields({ ...transport, staff }, calendar),
         updatedAt: serverTimestamp(),
       };
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), patch);
@@ -4307,10 +3561,10 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         const segmentStops = segmentSubStops(seg);
         const trainLabel = `${seg.mode || "Transport"}${seg.number ? ` ${seg.number}` : ""}`;
         const segmentCityChoices = cityChoicesFor(seg.from, seg.to);
-        const attachedBranches = activeT.week === "S2" ? branches.filter((branch) =>
+        const attachedBranches = branches.filter((branch) =>
           normalizePlace(branchJoinCity(activeT, branch))
             === normalizePlace(activeT.direction === "retour" ? seg.from : seg.to),
-        ) : [];
+        );
 
         return (
           <div key={seg.id} className="tr-ops-seg" style={{ order: portionDisplayOrder.get(seg.id) ?? i }}>
@@ -4497,7 +3751,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                 </select>
               )}
               {availableContracts.length === 0 && staff.length === 0 && (
-                <span className="tr-ops-anims-empty">Aucun contrat disponible pour cette semaine</span>
+                <span className="tr-ops-anims-empty">Aucun contrat RH sur ce jour de voyage</span>
               )}
               </div>
             </details>
@@ -4873,7 +4127,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
                       </select>
                     )}
                     {availableContracts.length === 0 && staff.length === 0 && (
-                      <span className="tr-ops-anims-empty">Aucun contrat disponible pour cette semaine</span>
+                      <span className="tr-ops-anims-empty">Aucun contrat RH sur ce jour de voyage</span>
                     )}
                   </div>
                 </details>
@@ -5007,7 +4261,16 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
             ))}
           </select>
           <button type="button" className="dash-btn dash-btn-primary" onClick={addStaffFromContract} disabled={!selectedContractId}>Affecter</button>
-          <button type="button" className="dash-btn" onClick={addStaff}>+ Manuel</button>
+        </div>
+        <div className="tr-ops-team-head">
+          <span className="tr-ops-anims-label">Autre membre</span>
+          <select className="dash-input" value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
+            <option value="">Choisir dans l&apos;équipe…</option>
+            {availableMembers.map((member) => (
+              <option key={member.id} value={member.id}>{member.name || member.email || "Sans nom"}</option>
+            ))}
+          </select>
+          <button type="button" className="dash-btn" onClick={addStaffFromMember} disabled={!selectedMemberId}>Ajouter</button>
         </div>
         <div className="tr-ops-team-head">
           <span className="tr-ops-anims-label">Chef de convoi</span>
@@ -5027,11 +4290,21 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
         <div className="tr-staff-list">
           {staff.map((member) => (
             <article className="tr-staff-editor" key={member.id}>
-              <input className="dash-input" value={member.name} onChange={(e) => updateItem(setStaff, member.id, "name", e.target.value)} placeholder="Prénom Nom" />
+              {member.memberId ? (
+                <input className="dash-input" value={member.name} readOnly title="Nom repris de la fiche équipe" />
+              ) : (
+                <select className="dash-input" value="" onChange={(e) => linkStaffToMember(member.id, e.target.value)} title={`Saisi à la main : « ${member.name || "sans nom"} »`}>
+                  <option value="">{member.name || "Sans nom"} · lier à un membre…</option>
+                  {availableMembers.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>{candidate.name || candidate.email || "Sans nom"}</option>
+                  ))}
+                </select>
+              )}
               <input className="dash-input" value={member.role} onChange={(e) => updateItem(setStaff, member.id, "role", e.target.value)} placeholder="Rôle" />
               <input className="dash-input" value={member.phone} onChange={(e) => updateItem(setStaff, member.id, "phone", e.target.value)} placeholder="Téléphone" />
               <input className="dash-input" value={member.boardingCity} onChange={(e) => updateItem(setStaff, member.id, "boardingCity", e.target.value)} placeholder="Prise de service" />
-              {member.contractId && <span className="tr-staff-contract">{member.week} · {member.stayCode}</span>}
+              {member.contractId && <span className="tr-staff-contract">{[member.week, member.stayCode].filter(Boolean).join(" · ")}</span>}
+              {!member.memberId && <span className="tr-staff-contract is-unlinked">Non lié à l&apos;équipe</span>}
               {member.id === resolvedLeadStaffId && <span className="tr-staff-contract">Chef de convoi</span>}
               <button type="button" className="tr-pax-remove" title="Retirer" onClick={() => setStaff((items) => items.filter((it) => it.id !== member.id))}>×</button>
             </article>
@@ -5279,6 +4552,7 @@ function DocumentsTab({ transport }) {
 
 function TransportEditTab({ transport, onSave }) {
   const { showToast } = useToast();
+  const calendar = useTransportCalendar();
   const [saving, setSaving] = useState(false);
   const sejours = useSejours();
   const [form, setForm] = useState({
@@ -5309,6 +4583,7 @@ function TransportEditTab({ transport, onSave }) {
       const payload = {
         ...form,
         capacity: form.capacity !== "" ? Number(form.capacity) : 0,
+        ...transportLinkFields({ ...transport, ...form }, calendar),
         updatedAt: serverTimestamp(),
       };
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), payload);
@@ -5419,135 +4694,6 @@ function TransportEditTab({ transport, onSave }) {
 }
 
 /* Right panel */
-
-function cityRowsFromTransport(transport) {
-  const rows = new Map();
-  const ingestSegment = (segment, city) => {
-    const key = normalizePlace(city);
-    if (!key || rows.has(key)) return;
-    rows.set(key, {
-      city,
-      meetingPoint: segment.meetingPoint || "",
-      meetingTime: segment.meetingTime || "",
-      platform: segment.platform || "",
-      stopType: segmentStopType(segment),
-      instructions: segment.instructions || "",
-    });
-  };
-  (transport.segments || []).forEach((segment) => {
-    ingestSegment(segment, segmentStopCity(transport, segment));
-  });
-  transportBranches(transport).forEach((branch) => {
-    ingestSegment(branch, branchStopCity(transport, branch));
-  });
-  return [...rows.values()].sort((a, b) => cityRouteOrder(transport, a.city) - cityRouteOrder(transport, b.city));
-}
-
-function CityStopsTab({ transport, onUpdate }) {
-  const { showToast } = useToast();
-  const [rows, setRows] = useState(() => cityRowsFromTransport(transport));
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setRows(cityRowsFromTransport(transport));
-  }, [transport]);
-
-  const updateRow = (city, key, value) => {
-    setRows((items) => items.map((item) => item.city === city ? { ...item, [key]: value } : item));
-  };
-
-  const patchSegmentsWithRows = (targetTransport, cityMap) => ({
-    ...targetTransport,
-    segments: (targetTransport.segments || []).map((segment) => {
-      const city = segmentStopCity(targetTransport, segment);
-      const patch = cityMap.get(normalizePlace(city));
-      return patch ? { ...segment, ...patch } : segment;
-    }),
-    branches: transportBranches(targetTransport).map((branch) => {
-      const city = branchStopCity(targetTransport, branch);
-      const patch = cityMap.get(normalizePlace(city));
-      return patch ? { ...branch, ...patch } : branch;
-    }),
-  });
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const cityMap = new Map(rows.map((row) => [normalizePlace(row.city), {
-        meetingPoint: row.meetingPoint || "",
-        meetingTime: row.meetingTime || "",
-        platform: row.platform || "",
-        stopType: row.stopType || "rdv",
-        instructions: row.instructions || "",
-      }]));
-      const snap = await getDocs(collection(db, COLLECTIONS.TRANSPORTS));
-      let updatedCount = 0;
-      let updatedCurrent = transport;
-
-      for (const transportDoc of snap.docs) {
-        const current = { id: transportDoc.id, ...transportDoc.data() };
-        const patched = patchSegmentsWithRows(current, cityMap);
-        if (
-          JSON.stringify(current.segments || []) === JSON.stringify(patched.segments || [])
-          && JSON.stringify(transportBranches(current)) === JSON.stringify(patched.branches || [])
-        ) continue;
-        await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, current.id), {
-          segments: patched.segments,
-          branches: patched.branches,
-          updatedAt: serverTimestamp(),
-        });
-        updatedCount += 1;
-        if (current.id === transport.id) updatedCurrent = { ...transport, segments: patched.segments, branches: patched.branches };
-      }
-
-      onUpdate(updatedCurrent);
-      showToast(`Points de RDV enregistres sur ${updatedCount} trajet(s)`, "success");
-    } catch (error) {
-      console.error(error);
-      showToast("Erreur lors de l'enregistrement des villes", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="tr-city-tab">
-      <div className="tr-city-head">
-        <div>
-          <strong>Villes et points de RDV</strong>
-          <small>Une modification est appliquée à tous les trajets qui utilisent la même ville.</small>
-        </div>
-        <button type="button" className="dash-btn dash-btn-primary" onClick={save} disabled={saving}>
-          {saving ? "Replication..." : "Repliquer partout"}
-        </button>
-      </div>
-      <div className="tr-city-list">
-        {rows.map((row) => (
-          <article key={row.city} className="tr-city-card">
-            <div className="tr-city-card-title">
-              <strong>{row.city}</strong>
-              <span>{row.stopType === "quai" ? "Quai uniquement" : "RDV organisé"}</span>
-            </div>
-            <div className="tr-city-simple">
-              <label>
-                <span>Type d'arrêt</span>
-                <select className="dash-input" value={row.stopType} onChange={(event) => updateRow(row.city, "stopType", event.target.value)}>
-                  <option value="rdv">RDV organisé</option>
-                  <option value="quai">Quai uniquement</option>
-                </select>
-              </label>
-              <label style={{ flex: 2 }}>
-                <span>Lieu de RDV</span>
-                <input className="dash-input" value={row.meetingPoint} onChange={(event) => updateRow(row.city, "meetingPoint", event.target.value)} placeholder="Ex : Hall principal de la gare, côté boulevard..." />
-              </label>
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function cityRowsFromAllTransports(transports, cityStops = []) {
   const rows = new Map();
   const ingestCity = (transport, segment, city, useStopDetails = false) => {
@@ -5694,6 +4840,7 @@ function groupTicketRows(rows) {
 
 function BilletsTab({ transports, onBulkUpdate }) {
   const { showToast } = useToast();
+  const calendar = useTransportCalendar();
   const [filterWeek, setFilterWeek]     = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [editingKey, setEditingKey]     = useState("");
@@ -5706,11 +4853,7 @@ function BilletsTab({ transports, onBulkUpdate }) {
     for (const transport of transports) {
       out.push(...ticketRowsForTransport(transport));
     }
-    const weekOrder = { S1: 0, S2: 1, S3: 2, S4: 3 };
     return out.sort((a, b) => {
-      const wa = weekOrder[a.transport.week] ?? 99;
-      const wb = weekOrder[b.transport.week] ?? 99;
-      if (wa !== wb) return wa - wb;
       const dateOrder = (a.transport.date || "").localeCompare(b.transport.date || "");
       if (dateOrder !== 0) return dateOrder;
       const routeOrder = transportRouteLabel(a.transport).localeCompare(transportRouteLabel(b.transport), "fr");
@@ -5845,8 +4988,8 @@ function BilletsTab({ transports, onBulkUpdate }) {
       <div className="tr-bil-filter-bar">
         <div className="dash-subtabs">
           <button type="button" className={`dash-subtab${filterWeek === "all" ? " is-active" : ""}`} onClick={() => setFilterWeek("all")}>Toutes semaines</button>
-          {WEEKS.map((w) => (
-            <button key={w} type="button" className={`dash-subtab${filterWeek === w ? " is-active" : ""}`} onClick={() => setFilterWeek(w)}>{w}</button>
+          {calendar.periods.map((period) => (
+            <button key={period.key} type="button" className={`dash-subtab${filterWeek === period.key ? " is-active" : ""}`} onClick={() => setFilterWeek(period.key)} title={period.dates}>{period.short}</button>
           ))}
         </div>
         <div className="dash-subtabs">
@@ -5866,7 +5009,7 @@ function BilletsTab({ transports, onBulkUpdate }) {
         <div key={day} className="tr-bil-week">
           <div className="tr-bil-week-hd">
             <span>{fmtDate(day)}</span>
-            <small>{[...trips.values()][0]?.transport.week || ""}</small>
+            <small>{[...trips.values()][0]?.transport.weekLabel || ""}</small>
           </div>
           {[...trips.values()].sort((a, b) => transportRouteLabel(a.transport).localeCompare(transportRouteLabel(b.transport), "fr")).map(({ transport, rows }) => {
             const tripCost      = rows.reduce((s, r) => s + Number(r.ticket.price || 0), 0);
@@ -6046,13 +5189,13 @@ function sortCityRows(rows) {
   });
 }
 
+/** Cities actually served this season: convoys of the selected season carrying validated children. */
 function relevantCityRows(transports, cityStops, reservations) {
   const activeReservationIds = new Set((reservations || [])
-    .filter((reservation) => reservation.status === "validated" && ["S1", "S2"].includes(reservation.week))
+    .filter((reservation) => reservation.status === "validated")
     .map((reservation) => reservation.id));
   const relevantTransports = (transports || []).filter((transport) =>
-    ["S1", "S2"].includes(transport.week)
-    && (transport.passengers || []).some((passenger) => activeReservationIds.has(passenger.reservationId))
+    (transport.passengers || []).some((passenger) => activeReservationIds.has(passenger.reservationId))
   );
   const routeRows = cityRowsFromAllTransports(relevantTransports, []);
   const routeCities = new Set(routeRows.map((row) => normalizePlace(row.city)));
@@ -6162,7 +5305,7 @@ function GlobalCityStopsTab({ transports, reservations, cityStops, onBulkUpdate,
           const patchedStops = segmentSubStops(segment).map((stop) => {
             const stopPatch = cityMap.get(normalizePlace(stop.city));
             if (!stopPatch) return stop;
-            const railStage = !isRoadMode(segment.mode || segment.trainType || transport.trainType);
+            const railStage = !isRoadTransportMode(segment.mode || segment.trainType || transport.trainType);
             return railStage
               ? { ...stop, meetingPoint: STAGE_QUAI_RDV, stopType: "quai" }
               : { ...stop, meetingPoint: stopPatch.meetingPoint, stopType: stopPatch.stopType };
@@ -6183,7 +5326,7 @@ function GlobalCityStopsTab({ transports, reservations, cityStops, onBulkUpdate,
           const patchedStops = segmentSubStops(branch).map((stop) => {
             const stopPatch = cityMap.get(normalizePlace(stop.city));
             if (!stopPatch) return stop;
-            const railStage = !isRoadMode(branch.mode || branch.trainType || transport.trainType);
+            const railStage = !isRoadTransportMode(branch.mode || branch.trainType || transport.trainType);
             return railStage
               ? { ...stop, meetingPoint: STAGE_QUAI_RDV, stopType: "quai" }
               : { ...stop, meetingPoint: stopPatch.meetingPoint, stopType: stopPatch.stopType };
@@ -6317,6 +5460,7 @@ function TripDetail({
   const [tab, setTab]             = useState("segments");
   const [deleting, setDeleting]   = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const calendar = useTransportCalendar();
 
   useEffect(() => setTransport(ext), [ext]);
 
@@ -6341,7 +5485,7 @@ function TripDetail({
   const confirmTrip = async () => {
     setConfirming(true);
     try {
-      const patch = { status: "confirmé", updatedAt: serverTimestamp() };
+      const patch = { status: "confirmé", ...transportLinkFields(transport, calendar), updatedAt: serverTimestamp() };
       await updateDoc(doc(db, COLLECTIONS.TRANSPORTS, transport.id), patch);
       handleUpdate({ ...transport, ...patch });
       showToast("Trajet confirmé", "success");
@@ -6354,16 +5498,17 @@ function TripDetail({
   };
 
   const createReverseTrip = async () => {
-    const returnDates = { S1: "2026-07-17", S2: "2026-07-31", S3: "2026-08-14", S4: "2026-08-28" };
+    // The reverse trip runs on the other end of the same départ (return day of the sessions, or their first day).
+    const period = calendar.periodByKey[transport.week] || null;
+    const reverseDate = transport.direction === "aller" ? (period?.retour || "") : (period?.aller || "");
     try {
       const payload = {
         sejourName: transport.sejourName,
         direction: transport.direction === "aller" ? "retour" : "aller",
         routeGroup: transport.routeGroup,
-        week: transport.week,
         departureCity: transport.arrivalCity,
         arrivalCity: transport.departureCity,
-        date: transport.direction === "aller" ? (returnDates[transport.week] || "") : "",
+        date: reverseDate,
         departureTime: "", arrivalTime: "",
         trainType: transport.trainType, trainNumber: "",
         meetingPoint: "", meetingTime: "", platform: "",
@@ -6391,6 +5536,7 @@ function TripDetail({
         staff: transport.staff || [], tickets: [],
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       };
+      Object.assign(payload, transportLinkFields(payload, calendar));
       const created = await addDoc(collection(db, COLLECTIONS.TRANSPORTS), payload);
       onCreated({ ...payload, id: created.id, dateMs: Date.now() });
       showToast("Trajet inverse créé en brouillon", "success");
@@ -6418,7 +5564,7 @@ function TripDetail({
             {transport.departureCity || "-"} → {transport.arrivalCity || "-"}
           </strong>
           <Badge label={sCfg.label} variant={sCfg.variant} />
-          {transport.week && <span className="tr-train-chip">{transport.week}</span>}
+          {transport.weekLabel && <span className="tr-train-chip">{transport.weekLabel}</span>}
           {transport.routeGroup && (
             <span className="tr-train-chip">{ROUTE_GROUPS.find(g => g.value === transport.routeGroup)?.label}</span>
           )}
@@ -6680,16 +5826,48 @@ function DayRecapModal({ day, transports, onClose }) {
   );
 }
 
+const OTHER_PERIOD = "__other__";
+
+/** Next départ still to come, else the last one of the season. */
+function defaultPeriodKey(calendar) {
+  const today = new Date().toISOString().slice(0, 10);
+  const periods = calendar.periods || [];
+  return (periods.find((period) => (period.retour || period.aller) >= today) || periods.at(-1))?.key || "";
+}
+
 function TrajetsTab({ transports, reservations, staffMembers, staffContracts, cityStops, onSave, onDelete, onCreated, onCreate }) {
-  const [selectedWeek, setSelectedWeek] = useState("S2");
+  const calendar = useTransportCalendar();
+  const [pickedWeek, setSelectedWeek]   = useState("");
   const [expandedId, setExpandedId]     = useState(null);
   const [recapDay, setRecapDay]         = useState(null);
   const cityOptions = useMemo(() => cityOptionsFromTransports(transports, cityStops), [transports, cityStops]);
 
-  const weekTransports = useMemo(
-    () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t)),
-    [transports, selectedWeek],
+  // Convoys whose day matches no session of the season (dates moved, hand-made trips) stay reachable.
+  const otherTransports = useMemo(
+    () => transports.filter((t) => isActiveTransport(t) && !calendar.periodByKey[t.week]),
+    [calendar, transports],
   );
+  const selectedWeek = pickedWeek === OTHER_PERIOD || calendar.periodByKey[pickedWeek]
+    ? pickedWeek
+    : defaultPeriodKey(calendar) || (otherTransports.length ? OTHER_PERIOD : "");
+  const selectedPeriod = calendar.periodByKey[selectedWeek] || null;
+
+  const weekTransports = useMemo(
+    () => selectedWeek === OTHER_PERIOD
+      ? otherTransports
+      : transports.filter((t) => t.week === selectedWeek && isActiveTransport(t)),
+    [otherTransports, transports, selectedWeek],
+  );
+
+  const days = selectedPeriod
+    ? [
+      { dir: "aller", date: selectedPeriod.aller, label: "Premier jour - Aller" },
+      ...selectedPeriod.retourDates.map((date) => ({ dir: "retour", date, label: "Dernier jour - Retour" })),
+    ]
+    : [...new Set(weekTransports.map((t) => `${t.date}|${t.direction}`))].sort().map((key) => {
+      const [date, dir] = key.split("|");
+      return { dir, date, label: dir === "retour" ? "Retour hors calendrier" : "Aller hors calendrier" };
+    });
 
   const toggle = (tripId) => setExpandedId((prev) => (prev === tripId ? null : tripId));
 
@@ -6698,18 +5876,27 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
       {/* Semaine selector */}
       <div className="tr-trajets-toolbar">
         <nav className="dash-subtabs">
-          {WEEKS.map((week) => {
-            const info = WEEK_INFO[week];
+          {calendar.periods.map((info) => {
+            const week = info.key;
             const count = transports.filter((t) => t.week === week && isActiveTransport(t)).length;
             return (
               <button key={week} type="button"
                 className={`dash-subtab${selectedWeek === week ? " is-active" : ""}`}
-                onClick={() => { setSelectedWeek(week); setExpandedId(null); }}>
-                {info.label}&nbsp;<em>{info.dates}</em>
+                onClick={() => { setSelectedWeek(week); setExpandedId(null); }}
+                title={info.label}>
+                {info.short}&nbsp;<em>{info.dates}</em>
                 {count > 0 && <span className="tr-week-count">{count}</span>}
               </button>
             );
           })}
+          {otherTransports.length > 0 && (
+            <button type="button"
+              className={`dash-subtab${selectedWeek === OTHER_PERIOD ? " is-active" : ""}`}
+              onClick={() => { setSelectedWeek(OTHER_PERIOD); setExpandedId(null); }}>
+              Hors calendrier
+              <span className="tr-week-count">{otherTransports.length}</span>
+            </button>
+          )}
         </nav>
         <button type="button" className="dash-btn dash-btn-primary" onClick={onCreate}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
@@ -6720,16 +5907,13 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
       </div>
 
       {/* Aller + Retour de la semaine sélectionnée */}
-      {[
-        { dir: "aller",  date: WEEK_INFO[selectedWeek].aller,  label: "Premier jour - Aller" },
-        { dir: "retour", date: WEEK_INFO[selectedWeek].retour, label: "Dernier jour - Retour" },
-      ].map(({ dir, date, label }) => {
-        const dayTrips  = weekTransports.filter((t) => t.date === date);
+      {days.map(({ dir, date, label }) => {
+        const dayTrips  = weekTransports.filter((t) => t.date === date && t.direction === dir);
         const dayKids   = countUniqueChildrenAcrossTransports(dayTrips);
         const missingSegTix = dayTrips.reduce((s, t) => s + missingTicketPortionCount(t), 0);
 
         return (
-          <section key={dir} className={`tr-day-section tr-day-${dir}`}>
+          <section key={`${date}-${dir}`} className={`tr-day-section tr-day-${dir}`}>
             <div className="tr-day-section-head">
               <div className="tr-day-section-label">
                 <span className={`tr-days-dir is-${dir}`}>{dir === "aller" ? "↑ Aller" : "↓ Retour"}</span>
@@ -6806,7 +5990,9 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
 
       {weekTransports.length === 0 && (
         <div style={{ padding: "32px", textAlign: "center", color: "var(--dash-muted)" }}>
-          Aucun trajet pour {WEEK_INFO[selectedWeek].label}.
+          {selectedPeriod
+            ? <>Aucun trajet pour {selectedPeriod.label} ({selectedPeriod.dates}).</>
+            : <>Aucune session de séjour sur cette saison.</>}
           <br />
           <button type="button" className="dash-btn dash-btn-primary" style={{ marginTop: 12 }} onClick={onCreate}>
             + Créer un trajet
@@ -6818,39 +6004,6 @@ function TrajetsTab({ transports, reservations, staffMembers, staffContracts, ci
 }
 
 /* ConvocationsTab */
-
-function ConvocIndividuelle({ transport }) {
-  const [idx, setIdx] = useState(0);
-  const passengers = transport.passengers || [];
-  if (!passengers.length) return null;
-
-  const openDoc = (html) => {
-    const win = openPrintableDocument(html);
-    if (!win) return;
-    win.focus();
-    setTimeout(() => win.print(), 800);
-  };
-
-  return (
-    <div className="tr-convoc-individual">
-      <div className="tr-convoc-section-title">Convocation individuelle</div>
-      <div className="tr-convoc-ind-row">
-        <select className="dash-input" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>
-          {passengers.map((p, i) => (
-            <option key={p.reservationId || i} value={i}>
-              {p.nom} - {p.children?.length > 0 ? p.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ") : p.childName}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="dash-btn dash-btn-primary"
-          onClick={() => openDoc(buildSingleConvocHTML(transport, passengers[idx]))}>
-          Générer PDF
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function getEmailRdvInfo(transport, passenger) {
   const city = passengerCity(transport, passenger);
   const routeStop = routeStopForCity(transport, city);
@@ -6910,65 +6063,6 @@ function getRetourInfo(transport, passenger, allTransports) {
   }
   return null;
 }
-
-function buildEmailBody(transport, passenger, rdvInfo, allTransports, convocSettings = {}) {
-  const children = passenger.children?.length
-    ? passenger.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
-    : passenger.childName;
-  const { city, rdvTime, trainTime, meetingPoint, stopType, platform } = rdvInfo;
-  const weekInfo = WEEK_INFO[transport.week] || null;
-  const sejourShort = shortSejourName(transport.sejourName);
-  const sejourDatesStr = weekInfo
-    ? `du ${fmtDateLong(weekInfo.aller)} au ${fmtDateLong(weekInfo.retour)}`
-    : "";
-  const retourInfo = getRetourInfo(transport, passenger, allTransports);
-
-  const lines = [
-    `Bonjour ${passenger.nom || ""},`,
-    ``,
-    `Nous vous adressons la convocation de transport pour ${children} dans le cadre du séjour « ${sejourShort} »${sejourDatesStr ? ` (${sejourDatesStr})` : ""}.`,
-    ``,
-    `- CONVOCATION ALLER -`,
-    `Date : ${fmtDateLong(transport.date)}`,
-    `Trajet : ${transport.departureCity} → ${transport.arrivalCity}`,
-    `Ville d'embarquement : ${city}`,
-    rdvTime ? `Heure de RDV : ${rdvTime}${trainTime ? ` (départ train prévu ${trainTime})` : ""}` : null,
-    rdvInfo.trainLabel ? `Train : ${rdvInfo.trainLabel}` : null,
-    stopType === "quai" && rdvInfo.stopArrivalTime ? `Arrivée du train en gare : ${rdvInfo.stopArrivalTime}` : null,
-    stopType === "quai" && rdvInfo.stopDepartureTime ? `Départ du train : ${rdvInfo.stopDepartureTime}` : null,
-    stopType === "quai" && rdvInfo.stopDuration ? `Temps d'arrêt : ${rdvInfo.stopDuration}` : null,
-    rdvInfo.arrivalTime ? `Arrivée prévue : ${rdvInfo.arrivalTime}` : null,
-    stopType === "quai" ? `${STAGE_QUAI_RDV}. ${STAGE_QUAI_DETAILS}` : (meetingPoint ? `Lieu de RDV : ${meetingPoint}` : null),
-    ``,
-    retourInfo ? `- RETOUR -` : null,
-    retourInfo ? `Date de retour : ${fmtDateLong(retourInfo.date)}` : null,
-    retourInfo?.arrivalTime ? `Heure de rendez-vous retour : ${retourInfo.arrivalTime}` : null,
-    retourInfo?.trainLabel ? `Train retour : ${retourInfo.trainLabel}` : null,
-    retourInfo?.arrivalTime ? `Arrivée prévue : ${retourInfo.arrivalTime}${retourInfo.arrivalCity ? ` à ${retourInfo.arrivalCity}` : ""}` : null,
-    retourInfo ? `Lieu de récupération : à la descente du quai — communiqué par l'animateur·ice` : null,
-    retourInfo?.shortStopMinutes ? `Attention : arrêt très court, environ ${retourInfo.shortStopMinutes} minutes pour récupérer l'enfant sur le quai.` : null,
-    retourInfo?.familyPickupNote ? retourInfo.familyPickupNote : null,
-    retourInfo ? `` : null,
-    `- CONSIGNES -`,
-    ...buildConvocationReminderItems({
-      departureTime: rdvInfo.departureTime || trainTime,
-      arrivalTime: rdvInfo.arrivalTime,
-      returnDepartureTime: retourInfo?.departureTime,
-      returnArrivalTime: retourInfo?.arrivalTime,
-      city,
-      stopType,
-    }, convocSettings).map((item) => `• ${plainReminderText(item)}`),
-    `• En cas d'urgence ou d'imprévu, contactez-nous immédiatement :`,
-    ...(convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : EMERGENCY_PHONES).map((n) => `  ${n}`),
-    ``,
-    `La convocation individuelle est jointe à cet email (document PDF à imprimer).`,
-    ``,
-    `Cordialement,`,
-    `L'équipe ColoCrew`,
-  ].filter((l) => l !== null);
-  return lines.join("\n");
-}
-
 function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, customIntro, animInfo = {}, convocSettings = {}) {
   const children = passenger.children?.length
     ? passenger.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).join(", ")
@@ -6978,7 +6072,7 @@ function buildConvocEmailHtml(transport, passenger, rdvInfo, allTransports, cust
     : passenger.childName || "";
   const nbChildren = passenger.children?.length || 0;
   const { city, rdvTime, trainTime, meetingPoint, stopType, platform } = rdvInfo;
-  const weekInfo = WEEK_INFO[transport.week] || null;
+  const weekInfo = transport.weekInfo || null;
   // Use the real séjour name from the reservation, not the transport doc (which may say "Été 2026")
   const sejourReal = (passenger.sejourName && passenger.sejourName !== "-")
     ? passenger.sejourName
@@ -7128,382 +6222,6 @@ function buildReminderHtml(html, targetDate) {
     `<title>Rappel ${dayLabel} — $1</title>`,
   );
 }
-
-function ConvocEmailSender({ transport, allTransports }) {
-  const { showToast } = useToast();
-  const passengers = transport.passengers || [];
-
-  const [sentStatus, setSentStatus] = useState(() => {
-    const m = {};
-    passengers.forEach((p) => { if (p.convocationSent) m[p.reservationId] = true; });
-    return m;
-  });
-  const [preview, setPreview]           = useState(null);
-  const [sendingId, setSendingId]       = useState(null);
-  const [sendingAll, setSendingAll]     = useState(false);
-  const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, errors: [] });
-  const [showEditor, setShowEditor]     = useState(false);
-  const [customIntro, setCustomIntro]   = useState("");
-
-  const emailSubject = (() => {
-    const short = shortSejourName(transport.sejourName);
-    const wi = WEEK_INFO[transport.week];
-    const dates = wi ? ` (${wi.dates})` : "";
-    return `Convocation transport - ${short}${dates} - ${fmtDateLong(transport.date)}`;
-  })();
-
-  const getAnimForPassenger = useCallback((passenger) => {
-    const assigned = staffMemberForPassengerStop(transport, passenger);
-    if (!assigned) return {};
-    return {
-      name: assigned.name || "",
-      phone: assigned.phone || "",
-    };
-  }, [transport]);
-
-  const markSent = useCallback(async (reservationId) => {
-    if (!reservationId) return;
-    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId), {
-      convocationSent: true,
-      convocationSentAt: serverTimestamp(),
-    });
-    setSentStatus((prev) => ({ ...prev, [reservationId]: true }));
-  }, []);
-
-  const markUnsent = useCallback(async (reservationId) => {
-    if (!reservationId) return;
-    await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservationId), {
-      convocationSent: false,
-      convocationSentAt: null,
-    });
-    setSentStatus((prev) => ({ ...prev, [reservationId]: false }));
-  }, []);
-
-  const doSendGroup = useCallback(async (groupPax) => {
-    const primary  = groupPax[0];
-    const destinationEmails = contactEmailsFromItem(primary);
-    const destinationEmail = destinationEmails.join(", ");
-    if (!destinationEmails.length) throw new Error("Adresse e-mail manquante");
-    const merged   = mergeFamily(groupPax);
-    const rdvInfo  = getEmailRdvInfo(transport, primary);
-    const retourInfo = getRetourInfo(transport, primary, allTransports);
-    const animInfo = getAnimForPassenger(primary);
-    const html     = buildConvocEmailHtml(transport, merged, rdvInfo, allTransports, customIntro, animInfo);
-    const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(transport.sejourName);
-    const convocData = {
-      sejourName: sejourReal,
-      departureCity: transport.departureCity,
-      dateLabel: fmtDateLong(transport.date),
-      responsable: { nom: primary.nom, phone: primary.phone },
-      children: merged.children?.length ? merged.children : [{ firstName: primary.childName || "", lastName: "" }],
-      rdvInfo: {
-        city: rdvInfo.city,
-        rdvTime: rdvInfo.rdvTime,
-        trainTime: rdvInfo.trainTime || rdvInfo.departureTime,
-        meetingPoint: rdvInfo.meetingPoint,
-        platform: rdvInfo.platform,
-        stopType: rdvInfo.stopType,
-        trainLabel: rdvInfo.trainLabel,
-        arrivalTime: rdvInfo.arrivalTime,
-        arrivalCity: transport.arrivalCity,
-      },
-      retour: retourInfo ? {
-        dateLabel: fmtDateLong(retourInfo.date),
-        trainLabel: retourInfo.trainLabel,
-        arrivalTime: retourInfo.arrivalTime,
-        arrivalCity: retourInfo.arrivalCity,
-      } : null,
-      emergencyPhones: convocSettings.emergencyPhones?.length ? convocSettings.emergencyPhones : null,
-    };
-    const resp = await fetch("/api/communication/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: destinationEmail,
-        subject: emailSubject,
-        html,
-        from_name: "ColoCrew",
-        from_email: "contact@colocrew.com",
-        includeDecharge: true,
-        convocData,
-      }),
-    });
-    if (!resp.ok) { const t = await resp.text(); throw new Error(t || `HTTP ${resp.status}`); }
-    await Promise.all(groupPax.map((p) => p.reservationId ? markSent(p.reservationId) : null));
-  }, [transport, allTransports, emailSubject, customIntro, convocSettings, markSent, getAnimForPassenger]);
-
-  const handleSendAll = useCallback(async () => {
-    const groups  = groupPassengersByFamily(passengers, transport);
-    const toSend  = groups.filter((g) => {
-      const allIds = g.map((p) => p.reservationId).filter(Boolean);
-      return !allIds.every((id) => sentStatus[id]) && g[0].email && g[0].email !== "-";
-    });
-    if (!toSend.length) { showToast("Toutes les convocations ont été envoyées", "info"); return; }
-    setSendingAll(true);
-    setSendProgress({ done: 0, total: toSend.length, errors: [] });
-    const errors = [];
-    for (let i = 0; i < toSend.length; i++) {
-      try { await doSendGroup(toSend[i]); } catch (e) { errors.push({ email: toSend[i][0].email, error: e.message }); }
-      setSendProgress({ done: i + 1, total: toSend.length, errors: [...errors] });
-      if (i < toSend.length - 1) await new Promise((r) => setTimeout(r, 350));
-    }
-    setSendingAll(false);
-    if (errors.length === 0) showToast(`${toSend.length} email(s) envoyé(s)`, "success");
-    else showToast(`${toSend.length - errors.length} succès · ${errors.length} erreur(s)`, "error");
-  }, [passengers, sentStatus, doSendGroup, showToast]);
-
-  if (!passengers.length) {
-    return <p className="tr-convoc-empty-msg">Aucun passager assigné à ce trajet.</p>;
-  }
-
-  const familyGroups  = groupPassengersByFamily(passengers, transport);
-  const pendingCount  = familyGroups.filter((g) => {
-    const allIds = g.map((p) => p.reservationId).filter(Boolean);
-    return !allIds.every((id) => sentStatus[id]) && g[0].email && g[0].email !== "-";
-  }).length;
-  const sentCount = familyGroups.length - pendingCount;
-
-  return (
-    <div className="tr-convoc-email-list">
-
-      {/* ── Barre d'actions ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, color: "#64748b", flex: 1 }}>
-          <span style={{ fontWeight: 700, color: "#1e1040" }}>{familyGroups.length}</span> famille{familyGroups.length > 1 ? "s" : ""}
-          {sentCount > 0 && <span style={{ color: "#16a34a", marginLeft: 8, fontWeight: 600 }}>· {sentCount} envoyée{sentCount > 1 ? "s" : ""}</span>}
-          {pendingCount > 0 && <span style={{ color: "#ef4444", marginLeft: 8, fontWeight: 600 }}>· {pendingCount} en attente</span>}
-        </div>
-        <button
-          type="button"
-          className="dash-btn"
-          onClick={() => setShowEditor((v) => !v)}
-          style={{ fontSize: 12, gap: 5, display: "inline-flex", alignItems: "center" }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-          {showEditor ? "Fermer éditeur" : "Éditer le message"}
-        </button>
-        {sendingAll ? (
-          <div style={{ minWidth: 160 }}>
-            <div style={{ fontSize: 12, color: "#374151", marginBottom: 3 }}>
-              Envoi {sendProgress.done}/{sendProgress.total}
-              {sendProgress.errors.length > 0 && <span style={{ color: "#ef4444", marginLeft: 6 }}>- {sendProgress.errors.length} err.</span>}
-            </div>
-            <div style={{ height: 4, background: "#f3f4f6", borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ height: "100%", background: "#B8336A", borderRadius: 999, transition: "width 0.3s", width: `${Math.round((sendProgress.done / sendProgress.total) * 100)}%` }} />
-            </div>
-          </div>
-        ) : (
-          <button type="button" className="dash-btn dash-btn-primary" onClick={handleSendAll} disabled={pendingCount === 0} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-            Envoyer tout ({pendingCount})
-          </button>
-        )}
-      </div>
-
-      {/* ── Editeur de message global ── */}
-      {showEditor && (
-        <div style={{ marginBottom: 16, padding: "14px 16px", background: "#fdf8fc", border: "1.5px solid #e8d5f0", borderRadius: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Message d'introduction (optionnel)
-          </div>
-          <textarea
-            value={customIntro}
-            onChange={(e) => setCustomIntro(e.target.value)}
-            placeholder={`Bonjour,\n\nNous avons le plaisir de vous transmettre les informations de transport pour le sejour de votre enfant.\n\n(Laisser vide pour utiliser le texte par defaut)`}
-            rows={5}
-            style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #d4c0e8", borderRadius: 8, fontSize: 13, color: "#374151", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
-          />
-          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
-            Ce texte remplace l'introduction par defaut dans tous les emails de ce trajet. Le tableau ALLER/RETOUR reste genere automatiquement.
-          </div>
-        </div>
-      )}
-
-      {/* ── Tableau ── */}
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflowX: "auto", overflowY: "visible", maxWidth: "100%" }}>
-        <table style={{ width: "100%", minWidth: 1540, borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#f8f9fa", borderBottom: "1px solid #e5e7eb" }}>
-              <th style={thS}>Famille</th>
-              <th style={thS}>Enfants</th>
-              <th style={thS}>Ville RDV</th>
-              <th style={thS}>Heure RDV</th>
-              <th style={thS}>Email</th>
-              <th style={{ ...thS, textAlign: "center" }}>Envoyee</th>
-              <th style={{ ...thS, textAlign: "right" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {familyGroups.map((groupPax, i) => {
-              const primary  = groupPax[0];
-              const merged   = mergeFamily(groupPax);
-              const allIds   = groupPax.map((p) => p.reservationId).filter(Boolean);
-              const isSent   = allIds.length > 0 && allIds.every((id) => sentStatus[id]);
-              const primaryEmailList = contactEmailsFromItem(primary);
-              const isSending = sendingId === (primaryEmailList.join(", ") || primary.reservationId);
-              const children  = merged.children?.length
-                ? merged.children.map((c) => `${c.firstName || ""} ${c.lastName || ""}`.trim()).filter(Boolean).join(", ")
-                : merged.childName || "-";
-              const city     = passengerCity(transport, primary);
-              const hasEmail = primaryEmailList.length > 0;
-              const rdvInfo  = getEmailRdvInfo(transport, primary);
-              const groupKey = primaryEmailList.join(", ") || primary.reservationId;
-
-              return (
-                <tr key={groupKey || i} style={{ background: isSent ? "#f0fdf4" : i % 2 === 0 ? "#fff" : "#fdfcff", borderTop: i === 0 ? "none" : "1px solid #f0f0f0" }}>
-
-                  {/* Famille */}
-                  <td style={tdS}>
-                    <div style={{ fontWeight: 600, color: "#1e1040" }}>{primary.nom}</div>
-                    {groupPax.length > 1 && <div style={{ fontSize: 11, color: "#94a3b8" }}>{groupPax.length} inscriptions groupées</div>}
-                  </td>
-
-                  {/* Enfants */}
-                  <td style={tdS}>
-                    <div style={{ color: "#7c3aed", fontSize: 12 }}>{children}</div>
-                  </td>
-
-                  {/* Ville RDV */}
-                  <td style={tdS}>
-                    <div style={{ color: "#374151" }}>{rdvInfo.meetingPoint || city || "-"}</div>
-                  </td>
-
-                  {/* Heure */}
-                  <td style={tdS}>
-                    {rdvInfo.rdvTime
-                      ? <span style={{ fontWeight: 700, color: "#16a34a" }}>{rdvInfo.rdvTime}</span>
-                      : <span style={{ color: "#94a3b8" }}>-</span>}
-                  </td>
-
-                  {/* Email */}
-                  <td style={tdS}>
-                    {hasEmail
-                      ? <span style={{ color: "#374151", fontSize: 12 }}>{primaryEmailList.join(", ")}</span>
-                      : <span style={{ color: "#ef4444", fontSize: 12, fontStyle: "italic" }}>Manquant</span>}
-                  </td>
-
-                  {/* Checkbox envoyee */}
-                  <td style={{ ...tdS, textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => isSent
-                        ? Promise.all(allIds.map((id) => markUnsent(id)))
-                        : Promise.all(allIds.map((id) => markSent(id)))
-                      }
-                      title={isSent ? "Cliquer pour annuler" : "Marquer envoyée"}
-                      style={{
-                        width: 24, height: 24, borderRadius: 6,
-                        border: `2px solid ${isSent ? "#86efac" : "#d1d5db"}`,
-                        background: isSent ? "#dcfce7" : "#fff",
-                        cursor: "pointer",
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      }}
-                    >
-                      {isSent && (
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                          <polyline points="2,6 5,9 10,3" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </button>
-                  </td>
-
-                  {/* Actions */}
-                  <td style={{ ...tdS, textAlign: "right" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        className="dash-btn"
-                        style={{ fontSize: 12, padding: "4px 10px" }}
-                        onClick={() => setPreview(preview?._groupKey === groupKey ? null : { ...merged, _groupKey: groupKey, _groupPax: groupPax, _primary: primary, _rdvInfo: rdvInfo })}
-                      >
-                        Aperçu
-                      </button>
-                      <button
-                        type="button"
-                        className={`dash-btn${isSent ? "" : " dash-btn-primary"}`}
-                        style={{ fontSize: 12, padding: "4px 10px" }}
-                        disabled={!hasEmail || isSending || sendingAll}
-                        onClick={async () => {
-                          setSendingId(groupKey);
-                          try {
-                            await doSendGroup(groupPax);
-                            showToast(`Convocation envoyée à ${primaryEmailList.join(", ")}`, "success");
-                          } catch (e) {
-                            showToast(`Erreur : ${e.message}`, "error");
-                          } finally {
-                            setSendingId(null);
-                          }
-                        }}
-                      >
-                        {isSending ? "..." : isSent ? "Renvoyer" : "Envoyer"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Modal Aperçu ── */}
-      {preview && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-          onClick={() => setPreview(null)}
-        >
-          <div
-            style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 720, maxHeight: "92vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.3)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: "14px 20px", borderBottom: "1px solid #f0e8f5", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#1e1040" }}>{preview.nom}</div>
-                <div style={{ fontSize: 12, color: "#94a3b8" }}>{preview.email} &middot; {emailSubject}</div>
-                {preview._groupPax?.length > 1 && <div style={{ fontSize: 11, color: "#7c3aed", marginTop: 2 }}>{preview._groupPax.length} inscriptions — 1 email groupé + 1 PDF par enfant</div>}
-              </div>
-              <button type="button" onClick={() => setPreview(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "#64748b", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>x</button>
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", background: "#f5f0ff" }}>
-              <div dangerouslySetInnerHTML={{ __html: buildConvocEmailHtml(transport, preview, preview._rdvInfo, allTransports, customIntro, getAnimForPassenger(preview._primary || preview)) }} />
-            </div>
-            <div style={{ padding: "12px 20px", borderTop: "1px solid #f0e8f5", display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
-              <button type="button" onClick={() => setPreview(null)} style={{ padding: "8px 16px", background: "#f1f5f9", border: "none", borderRadius: 8, color: "#64748b", fontWeight: 600, cursor: "pointer" }}>Fermer</button>
-              <button
-                type="button"
-                disabled={!!sendingId}
-                onClick={async () => {
-                  const groupPax = preview._groupPax || [preview];
-                  setSendingId(preview._groupKey || preview.email);
-                  try {
-                    await doSendGroup(groupPax);
-                    showToast(`Convocation envoyée à ${preview.email}`, "success");
-                    setPreview(null);
-                  } catch (e) {
-                    showToast(`Erreur : ${e.message}`, "error");
-                  } finally {
-                    setSendingId(null);
-                  }
-                }}
-                style={{ padding: "8px 16px", background: sendingId ? "#f1f5f9" : "#B8336A", border: "none", borderRadius: 8, color: sendingId ? "#94a3b8" : "#fff", fontWeight: 700, cursor: sendingId ? "not-allowed" : "pointer" }}
-              >
-                {sendingId ? "Envoi..." : "Envoyer cette convocation"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const thS = { padding: "9px 12px", fontWeight: 700, fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" };
-const tdS = { padding: "10px 12px", verticalAlign: "middle" };
-
 function normalizeEmailAddress(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -7635,7 +6353,10 @@ function isFamilyConvocationPassenger(transport, passenger) {
 function ConvocationsTab({ transports, reservations, staffMembers = [], staffContracts = [] }) {
   const { showToast } = useToast();
   const convocationTableRef = useRef(null);
-  const [selectedWeek, setSelectedWeek] = useState("S2");
+  const calendar = useTransportCalendar();
+  const [pickedWeek, setSelectedWeek]   = useState("");
+  const selectedWeek = calendar.periodByKey[pickedWeek] ? pickedWeek : defaultPeriodKey(calendar);
+  const selectedPeriod = calendar.periodByKey[selectedWeek] || null;
   const [sentStatus, setSentStatus]     = useState({});
   const [reminderStatus, setReminderStatus] = useState({});
   const [sendingKey, setSendingKey]     = useState(null);
@@ -7755,7 +6476,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t) && t.direction === "aller"),
     [transports, selectedWeek],
   );
-  const selectedReminderLabel = reminderDayLabel(WEEK_INFO[selectedWeek]?.aller);
+  const selectedReminderLabel = reminderDayLabel(selectedPeriod?.aller);
 
   const weekAllTrips = useMemo(
     () => transports.filter((t) => t.week === selectedWeek && isActiveTransport(t)),
@@ -7999,7 +6720,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const reminderLabel = reminderDayLabel(trip.date);
     const html     = reminder ? buildReminderHtml(convocationHtml, trip.date) : convocationHtml;
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
-    const wi = WEEK_INFO[trip.week];
+    const wi = trip.weekInfo;
     const subject  = `${reminder ? `Rappel ${reminderLabel} — ` : ""}Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
     const resp = await fetch("/api/communication/send", {
       method: "POST",
@@ -8024,10 +6745,10 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
       arrivalPoint: cfg.lieu || "Lieu du séjour",
       returnPoint:  cfg.lieu || "Lieu du séjour",
     }, customIntro, animInfo);
-    const reminderDate = WEEK_INFO[selectedWeek]?.aller;
+    const reminderDate = reservation.weekInfo?.aller || selectedPeriod?.aller;
     const reminderLabel = reminderDayLabel(reminderDate);
     const html = reminder ? buildReminderHtml(convocationHtml, reminderDate) : convocationHtml;
-    const wi = WEEK_INFO[selectedWeek];
+    const wi = reservation.weekInfo || selectedPeriod;
     const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
     const subject = `${reminder ? `Rappel ${reminderLabel} — ` : ""}Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
     const resp = await fetch("/api/communication/send", {
@@ -8039,7 +6760,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const ids = reservation._reservationIds?.length ? reservation._reservationIds : [reservation.id];
     if (reminder) await markReminderSent(ids);
     else await markAllSent(ids);
-  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, emailsFor]);
+  }, [customIntro, getOnSiteConfig, getAnimForOnSite, markAllSent, markReminderSent, selectedWeek, selectedPeriod, emailsFor]);
 
   const doSendLastMinuteFamily = useCallback(async (trip, passengers) => {
     const primary = passengers[0];
@@ -8284,13 +7005,15 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     <div className="tr-convoc-tab">
       {/* Chips semaine */}
       <nav className="dash-subtabs" style={{ marginBottom: 16 }}>
-        {WEEKS.map((week) => (
-          <button key={week} type="button"
-            className={`dash-subtab${selectedWeek === week ? " is-active" : ""}`}
-            onClick={() => setSelectedWeek(week)}>
-            {week} — {WEEK_INFO[week].dates}
+        {calendar.periods.map((period) => (
+          <button key={period.key} type="button"
+            className={`dash-subtab${selectedWeek === period.key ? " is-active" : ""}`}
+            onClick={() => setSelectedWeek(period.key)}
+            title={period.label}>
+            {period.short} — {period.dates}
           </button>
         ))}
+        {calendar.periods.length === 0 && <span className="dash-muted">Aucune session de séjour sur cette saison.</span>}
       </nav>
 
       {/* Barre d'actions */}
@@ -8957,7 +7680,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
                     returnPoint:  preview.cfg.lieu || "Lieu du séjour",
                   }, customIntro, getAnimForOnSite(preview.reservation?.sejourName || "Séjour"))
                   : buildConvocEmailHtml(preview._trip, preview, preview._rdvInfo, transports, customIntro, getConvocationAnimForTrip(preview._trip, preview._primary || preview), convocSettings);
-                const reminderDate = preview.type === "onsite" ? WEEK_INFO[selectedWeek]?.aller : preview._trip?.date;
+                const reminderDate = preview.type === "onsite" ? (preview.reservation?.weekInfo?.aller || selectedPeriod?.aller) : preview._trip?.date;
                 return preview._isReminder ? buildReminderHtml(html, reminderDate) : html;
               })() }} />
             </div>
@@ -9091,7 +7814,7 @@ const cTd = { padding: "10px 12px", verticalAlign: "middle" };
 
 const EMPTY_TRANSPORT = {
   sejourName: "", direction: "aller",
-  routeGroup: "nord", week: "",
+  routeGroup: "nord",
   departureCity: "", arrivalCity: "",
   date: "", departureTime: "", arrivalTime: "",
   trainType: "TGV", trainNumber: "",
@@ -9101,12 +7824,16 @@ const EMPTY_TRANSPORT = {
   capacity: "", status: "brouillon", notes: "",
 };
 
-function NewTransportModal({ onClose, onCreated }) {
+function NewTransportModal({ staffMembers = [], onClose, onCreated }) {
   const { showToast } = useToast();
+  const calendar = useTransportCalendar();
   const [saving, setSaving] = useState(false);
   const [form, setForm]     = useState(EMPTY_TRANSPORT);
+  const [leadMemberId, setLeadMemberId] = useState("");
   const sejours = useSejours();
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const selectedDay = travelDayFor(calendar, form.date, form.direction);
+  const leadMember = staffMembers.find((member) => member.id === leadMemberId) || null;
 
   const save = async () => {
     if (!form.departureCity || !form.arrivalCity || !form.date) {
@@ -9116,6 +7843,8 @@ function NewTransportModal({ onClose, onCreated }) {
     try {
       const payload = {
         ...form,
+        convoyeur: leadMember?.name || "",
+        convoyeurPhone: leadMember?.phone || form.convoyeurPhone,
         capacity: form.capacity !== "" ? Number(form.capacity) : 0,
         passengers: [],
         segments: [{
@@ -9133,10 +7862,13 @@ function NewTransportModal({ onClose, onCreated }) {
           instructions: "",
           assignedStaffIds: [],
         }],
-        staff: form.convoyeur ? [{
+        staff: leadMember ? [{
           id: crypto.randomUUID(),
-          name: form.convoyeur,
-          phone: form.convoyeurPhone,
+          memberId: leadMember.id,
+          name: leadMember.name,
+          phone: leadMember.phone || form.convoyeurPhone,
+          email: leadMember.email || "",
+          birthDate: leadMember.birthDate || "",
           role: "Responsable de convoi",
           boardingCity: form.departureCity,
         }] : [],
@@ -9144,6 +7876,7 @@ function NewTransportModal({ onClose, onCreated }) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+      Object.assign(payload, transportLinkFields(payload, calendar));
       const ref = await addDoc(collection(db, COLLECTIONS.TRANSPORTS), payload);
       showToast("Transport créé !", "success");
       onCreated({ id: ref.id, ...payload, passengers: [], dateMs: Date.now() });
@@ -9202,14 +7935,16 @@ function NewTransportModal({ onClose, onCreated }) {
               </select>
             </div>
             <div className="rp-edit-field">
-              <span>Semaine</span>
-              <select className="dash-input" value={form.week} onChange={e => {
-                set("week", e.target.value);
-                const kd = KEY_DATES.find(k => k.week === e.target.value && k.direction === form.direction);
-                if (kd) set("date", kd.date);
+              <span>Jour de voyage</span>
+              <select className="dash-input" value={selectedDay?.key || ""} onChange={e => {
+                const day = calendar.travelDays.find((item) => item.key === e.target.value);
+                if (!day) return;
+                setForm((current) => ({ ...current, date: day.date, direction: day.direction }));
               }}>
-                <option value="">À compléter</option>
-                {WEEKS.map(week => <option key={week} value={week}>{WEEK_INFO[week]?.label || week} ({WEEK_INFO[week]?.dates})</option>)}
+                <option value="">{form.date ? "Hors calendrier des sessions" : "Choisir un jour…"}</option>
+                {calendar.travelDays.map((day) => (
+                  <option key={day.key} value={day.key}>{fmtDate(day.date)} · {day.label}</option>
+                ))}
               </select>
             </div>
             <div className="rp-edit-field">
@@ -9237,7 +7972,13 @@ function NewTransportModal({ onClose, onCreated }) {
             <F label="Point de RDV"        k="meetingPoint" placeholder="ex : Gare de Lyon, voie 12" span2 />
             <F label="Voie / Quai"         k="platform"     placeholder="ex : Voie 12" />
             <F label="Capacité (places)"   k="capacity"     type="number" placeholder="20" />
-            <F label="Nom du convoyeur"    k="convoyeur"    placeholder="Prénom Nom" />
+            <label className="rp-edit-field">
+              <span>Responsable de convoi</span>
+              <select className="dash-input" value={leadMemberId} onChange={e => setLeadMemberId(e.target.value)}>
+                <option value="">À affecter plus tard</option>
+                {staffMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email || "Sans nom"}</option>)}
+              </select>
+            </label>
             <F label="Tél. convoyeur"      k="convoyeurPhone" placeholder="06…" />
             <label className="rp-edit-field rp-edit-span2">
               <span>Notes</span>
@@ -9269,9 +8010,39 @@ const TRANSPORT_MAIN_TABS = [
   { key: "villes",       label: "Points de RDV" },
 ];
 
+/** Season-scoped view of a reservation: its session, its départ and the dates printed on convocations. */
+function hydrateReservationForSeason(reservation, calendar) {
+  const sessionId = reservationSessionId(reservation.sejourRef, calendar);
+  const week = periodKeyForReservation(calendar, sessionId, reservation.sejourStartDate);
+  const period = calendar.periodByKey[week] || null;
+  const aller = reservation.sejourStartDate || period?.aller || "";
+  const retour = reservation.sejourEndDate || period?.retour || "";
+  return {
+    ...reservation,
+    sessionId,
+    week,
+    weekLabel: period?.short || "",
+    weekInfo: period ? { ...period, aller, retour, dates: formatDateRange(aller, retour) || period.dates } : null,
+  };
+}
+
+/** Season-scoped view of a convoy: départ key/label and the sessions it serves. */
+function hydrateTransportForSeason(transport, calendar) {
+  const week = periodKeyForTransport(calendar, transport);
+  const period = calendar.periodByKey[week] || null;
+  const day = travelDayFor(calendar, transport.date, transport.direction);
+  return {
+    ...transport,
+    week,
+    weekLabel: period?.short || transport.week || "",
+    weekInfo: period,
+    sessionIds: transport.sessionIds?.length ? transport.sessionIds : (day?.sessionIds || []),
+  };
+}
+
 export default function Transport({ focusDate = "" }) {
-  const [transports, setTransports]         = useState([]);
-  const [reservations, setReservations]     = useState([]);
+  const [rawTransports, setTransports]      = useState([]);
+  const [rawReservations, setReservations]  = useState([]);
   const [staffMembers, setStaffMembers]     = useState([]);
   const [staffContracts, setStaffContracts] = useState([]);
   const [cityStops, setCityStops]           = useState([]);
@@ -9279,45 +8050,83 @@ export default function Transport({ focusDate = "" }) {
   const [loading, setLoading]               = useState(true);
   const [showNew, setShowNew]               = useState(false);
   const [activeTab, setActiveTab]           = useState("overview");
+  const [pickedSeason, setPickedSeason]     = useState(() => seasonOfRecord({ date: focusDate }));
   const { showToast } = useToast();
+  const { activeSeason, archivedSeasons, seasons } = useSeasons();
+  const catalog = useSessionCatalog();
+
+  /* Working seasons only: archived ones are read in /dashboard/archives. */
+  const seasonOptions = useMemo(() => {
+    const keys = new Set([activeSeason]);
+    seasons.forEach((item) => keys.add(item.id));
+    catalog.sessions.forEach((session) => keys.add(session.season));
+    return [...keys].filter((key) => key && !archivedSeasons.has(key)).sort();
+  }, [activeSeason, archivedSeasons, catalog.sessions, seasons]);
+  const season = seasonOptions.includes(pickedSeason) ? pickedSeason : activeSeason;
+
+  const calendar = useMemo(
+    () => buildTransportCalendar(catalog.sessions.filter((session) => session.season === season), season),
+    [catalog.sessions, season],
+  );
+
+  const reservations = useMemo(() => rawReservations
+    .filter((reservation) => !isArchivedRecord(reservation, archivedSeasons) && reservation.season === season)
+    .map((reservation) => hydrateReservationForSeason(reservation, calendar)),
+  [archivedSeasons, calendar, rawReservations, season]);
+
+  // Convoys without a date yet are shown in the active season so they are never lost.
+  const transports = useMemo(() => rawTransports
+    .filter((transport) => !isArchivedRecord(transport, archivedSeasons))
+    .filter((transport) => transport.season ? transport.season === season : season === activeSeason)
+    .map((transport) => hydrateTransportForSeason(hydrateTransportPassengers(transport, rawReservations), calendar)),
+  [activeSeason, archivedSeasons, calendar, rawReservations, rawTransports, season]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [tSnap, rSnap, staffSnap, contractsSnap, cityStopsSnap, financeSnap] = await Promise.all([
+      const [tSnap, rSnap, staffSnap, contractsSnap, cityStopsSnap] = await Promise.all([
         getDocs(query(collection(db, COLLECTIONS.TRANSPORTS), orderBy("date", "desc"))),
         getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
         getDocs(collection(db, COLLECTIONS.STAFF_MEMBERS)),
         getDocs(collection(db, COLLECTIONS.STAFF_CONTRACTS)),
         getDocs(collection(db, COLLECTIONS.TRANSPORT_RDV_POINTS)),
-        getDoc(doc(db, COLLECTIONS.FINANCE_SUMMARIES, "ete-2026")),
       ]);
-      const reservationRows = rSnap.docs.map(mapReservationForTransport);
-      const transportRows = tSnap.docs.map(mapTransport);
-      setReservations(reservationRows);
-      setTransports(transportRows.map((transport) => hydrateTransportPassengers(transport, reservationRows)));
+      setReservations(rSnap.docs.map(mapReservationForTransport));
+      setTransports(tSnap.docs.map(mapTransport));
       setStaffMembers(staffSnap.docs.map(mapStaffMember).filter((m) => m.active));
       setStaffContracts(contractsSnap.docs.map(mapStaffContract).filter((c) => c.status !== "cancelled"));
       setCityStops(cityStopsSnap.docs.map(mapCityStop).filter((row) => row.city));
-      setFinanceSummary(financeSnap.exists() ? financeSnap.data() : null);
     } catch { showToast("Erreur de chargement", "error"); }
     finally { setLoading(false); }
   }, [showToast]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Imported accounting summary of the season, when one exists ("ete-2026").
+  useEffect(() => {
+    let cancelled = false;
+    setFinanceSummary(null);
+    getDoc(doc(db, COLLECTIONS.FINANCE_SUMMARIES, `ete-${season}`))
+      .then((snap) => { if (!cancelled) setFinanceSummary(snap.exists() ? snap.data() : null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [season]);
+
+  // The season filter reads `season`: keep it in sync with the date of an edited convoy.
+  const withSeason = (item) => ({ ...item, season: seasonOfRecord({ date: item.date }) || item.season || "" });
+
   const handleSave = (updated) =>
-    setTransports((prev) => prev.map((t) => (t.id === updated.id ? hydrateTransportPassengers(updated, reservations) : t)));
+    setTransports((prev) => prev.map((t) => (t.id === updated.id ? withSeason(updated) : t)));
 
   const handleBulkSave = (updatedItems) => {
-    const byId = new Map(updatedItems.map((item) => [item.id, hydrateTransportPassengers(item, reservations)]));
+    const byId = new Map(updatedItems.map((item) => [item.id, withSeason(item)]));
     setTransports((prev) => prev.map((t) => byId.get(t.id) || t));
   };
 
   const handleDelete = (id) => setTransports((prev) => prev.filter((t) => t.id !== id));
 
   const handleCreated = (t) => {
-    setTransports((prev) => [hydrateTransportPassengers(t, reservations), ...prev]);
+    setTransports((prev) => [withSeason(t), ...prev]);
     setActiveTab("trajets");
   };
 
@@ -9347,6 +8156,7 @@ export default function Transport({ focusDate = "" }) {
   }, [financeSummary, reservations, transports]);
 
   return (
+    <TransportCalendarContext.Provider value={calendar}>
     <div className="tr-main-page">
       {/* Header */}
       <div className="tr-main-header">
@@ -9354,8 +8164,13 @@ export default function Transport({ focusDate = "" }) {
           <Link href="/dashboard/transport" className="tr-back-link">← Retour</Link>
         )}
         <div className="tr-main-header-row">
-          <h1 className="tr-main-title">Convoyages été 2026</h1>
+          <h1 className="tr-main-title">Convoyages {season}</h1>
           <div className="dash-row-actions">
+            <select className="dash-input" value={season} onChange={(event) => setPickedSeason(event.target.value)} aria-label="Saison">
+              {seasonOptions.map((key) => (
+                <option key={key} value={key}>Saison {key}{key === activeSeason ? " (active)" : ""}</option>
+              ))}
+            </select>
             <button type="button" className="dash-btn" onClick={loadAll}>Actualiser</button>
             <button type="button" className="dash-btn dash-btn-primary" onClick={() => setShowNew(true)}>
               + Nouveau convoyage
@@ -9382,7 +8197,7 @@ export default function Transport({ focusDate = "" }) {
       </div>
 
       {/* Contenu */}
-      {loading ? (
+      {loading || catalog.loading ? (
         <div className="dash-section" style={{ padding: 24 }}>
           <p className="dash-muted">Chargement des transports…</p>
         </div>
@@ -9405,7 +8220,7 @@ export default function Transport({ focusDate = "" }) {
                 <article className="tr-ov-metric">
                   <span>Trajets créés</span>
                   <strong>{globalStats.trips}</strong>
-                  <small>toutes semaines confondues</small>
+                  <small>sur la saison {season}</small>
                 </article>
                 <article className={`tr-ov-metric${globalStats.missingSegTix > 0 ? " is-warn" : " is-ok"}`}>
                   <span>Billets segments</span>
@@ -9486,10 +8301,12 @@ export default function Transport({ focusDate = "" }) {
 
       {showNew && (
         <NewTransportModal
+          staffMembers={staffMembers}
           onClose={() => setShowNew(false)}
           onCreated={(t) => { handleCreated(t); setShowNew(false); }}
         />
       )}
     </div>
+    </TransportCalendarContext.Provider>
   );
 }
