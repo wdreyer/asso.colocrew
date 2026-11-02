@@ -89,6 +89,21 @@ function reservationStartDate(reservation) {
   return normalizeDateValue(reservation?.sejour?.startDate || reservation?.sejourStartDate || reservation?.startDate);
 }
 
+function seasonOfIsoDate(value) {
+  const match = String(value || "").match(/^(\d{4})-\d{2}-\d{2}/);
+  return match ? match[1] : "";
+}
+
+/** Same rule as src/lib/seasons.js (client module): stored season, else the year of the session start. */
+function reservationSeason(reservation) {
+  return reservation?.season ? String(reservation.season) : seasonOfIsoDate(reservationStartDate(reservation));
+}
+
+async function archivedSeasonKeys() {
+  const snap = await getDocs(collection(db, COLLECTIONS.SEASONS));
+  return new Set(snap.docs.filter((item) => item.data()?.status === "archived").map((item) => item.id));
+}
+
 function maskEmail(email) {
   const [name, domain] = String(email || "").split("@");
   if (!name || !domain) return "";
@@ -180,9 +195,18 @@ async function handle(request) {
     return Response.json({ error: "Date invalide. Format attendu : YYYY-MM-DD." }, { status: 400 });
   }
 
-  const snap = await getDocs(collection(db, COLLECTIONS.RESERVATIONS));
+  // Any departure date works; archived seasons and archived reservations are never reminded.
+  const [snap, archivedSeasons] = await Promise.all([
+    getDocs(collection(db, COLLECTIONS.RESERVATIONS)),
+    archivedSeasonKeys(),
+  ]);
+  if (archivedSeasons.has(seasonOfIsoDate(targetDate))) {
+    return Response.json({ dryRun, baseDate, targetDate, count: 0, candidates: [], sent: 0, errors: [], archivedSeason: true });
+  }
   const candidates = snap.docs
     .map((item) => ({ id: item.id, ...item.data() }))
+    .filter((reservation) => reservation.archived !== true)
+    .filter((reservation) => !archivedSeasons.has(reservationSeason(reservation)))
     .filter((reservation) => reservation.status === "validated")
     .filter((reservation) => reservation.convocationSent === true)
     .filter((reservation) => reservation.convocationJ7ReminderSent !== true)

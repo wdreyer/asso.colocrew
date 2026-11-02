@@ -5,6 +5,7 @@ import Link from "next/link";
 import { collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { isArchivedRecord, seasonOfRecord, useSeasons } from "@/src/lib/seasons";
 
 const fmt = (n) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(n) || 0);
 
@@ -97,6 +98,16 @@ export default function TousBilletsPage() {
   const [editingKey, setEditingKey] = useState("");
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [pickedSeason, setPickedSeason] = useState("");
+  const { activeSeason, archivedSeasons } = useSeasons();
+
+  /* Archived seasons stay out of this working list (see /dashboard/archives). */
+  const seasonOptions = useMemo(() => {
+    const keys = new Set([activeSeason]);
+    transports.forEach((transport) => keys.add(seasonOfRecord(transport)));
+    return [...keys].filter((key) => key && !archivedSeasons.has(key)).sort();
+  }, [activeSeason, archivedSeasons, transports]);
+  const season = seasonOptions.includes(pickedSeason) ? pickedSeason : activeSeason;
 
   useEffect(() => {
     (async () => {
@@ -111,7 +122,12 @@ export default function TousBilletsPage() {
 
   const rows = useMemo(() => {
     const out = [];
-    for (const transport of transports.filter(isActiveTransport)) {
+    const seasonTransports = transports.filter((transport) =>
+      isActiveTransport(transport)
+      && !isArchivedRecord(transport, archivedSeasons)
+      && (seasonOfRecord(transport) || activeSeason) === season,
+    );
+    for (const transport of seasonTransports) {
       out.push(...ticketRowsForTransport(transport));
     }
     return out.sort((a, b) => {
@@ -123,7 +139,7 @@ export default function TousBilletsPage() {
       const bSegmentIndex = (b.transport.segments || []).findIndex((segment) => segment.id === b.ticket.segmentId);
       return aSegmentIndex - bSegmentIndex;
     });
-  }, [transports]);
+  }, [activeSeason, archivedSeasons, season, transports]);
 
   const filtered = useMemo(() => {
     if (filter === "purchased") return rows.filter((r) => r.ticket.purchased);
@@ -209,7 +225,12 @@ export default function TousBilletsPage() {
   return (
     <div className="res-page">
       <div className="res-page-header">
-        <h1 className="res-page-title">Tous les billets</h1>
+        <h1 className="res-page-title">Tous les billets · {season}</h1>
+        <select className="dash-input" value={season} onChange={(event) => setPickedSeason(event.target.value)} aria-label="Saison" style={{ maxWidth: 180 }}>
+          {seasonOptions.map((key) => (
+            <option key={key} value={key}>Saison {key}{key === activeSeason ? " (active)" : ""}</option>
+          ))}
+        </select>
         <Link href="/dashboard/transport" className="dash-btn" style={{ fontSize: 12 }}>
           ← Transport
         </Link>
@@ -255,7 +276,7 @@ export default function TousBilletsPage() {
         <section key={day} className="tr-bil-week" style={{ marginTop: 18 }}>
           <div className="tr-bil-week-hd">
             <span>{fmtDate(day)}</span>
-            <small>{[...trips.values()][0]?.transport.week || ""}</small>
+            <small>{[...trips.values()][0]?.transport.direction === "retour" ? "Retour" : "Aller"}</small>
           </div>
           {[...trips.values()]
             .sort((a, b) => transportRouteLabel(a.transport).localeCompare(transportRouteLabel(b.transport), "fr"))
