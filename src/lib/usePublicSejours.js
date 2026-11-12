@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
-import { upcomingSessions } from "@/src/lib/availability";
+import { isHiddenSejour, upcomingSessions } from "@/src/lib/availability";
 
 const firstStart = (sejour) => String(sejour.dates[0]?.startDate || "").slice(0, 10);
 
 /**
- * Séjours shown on the public site: every séjour with a session still to come, with only those sessions,
+ * Séjours shown on the public site: every séjour online in the dashboard with a session still to come, with only those sessions,
  * sorted by their next departure. `null` while loading.
  */
 export function usePublicSejours() {
@@ -24,7 +24,7 @@ export function usePublicSejours() {
           const dates = upcomingSessions(data.dates).sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
           return { ...data, id: entry.id, dates };
         })
-        .filter((sejour) => sejour.dates.length > 0)
+        .filter((sejour) => sejour.dates.length > 0 && !isHiddenSejour(sejour))
         .sort((a, b) => firstStart(a).localeCompare(firstStart(b)));
       setSejours(next);
     },

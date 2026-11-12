@@ -35,9 +35,17 @@ export function upcomingSessions(sessions = []) {
   return (Array.isArray(sessions) ? sessions : []).filter(isUpcomingSession);
 }
 
-/** Every séjour with an upcoming session is online, whatever its status in the dashboard. */
+/** Taken off the site from the dashboard ("Hors ligne" or archived): same rule as the dashboard list. */
+export function isHiddenSejour(sejour) {
+  const status = String(sejour?.status || "").toLowerCase();
+  return sejour?.archived === true
+    || sejour?.isOnline === false
+    || ["archived", "offline", "draft", "hidden"].includes(status);
+}
+
+/** A séjour is online while one of its sessions is still to come, unless it was taken offline in the dashboard. */
 export function isPublicSejour(sejour) {
-  return upcomingSessions(sejour?.dates).length > 0;
+  return !isHiddenSejour(sejour) && upcomingSessions(sejour?.dates).length > 0;
 }
 
 export function isPublicBookableSession(_sejourId, session) {

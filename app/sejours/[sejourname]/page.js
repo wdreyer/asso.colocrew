@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/app/firebase";
 import { resolveSejourPriceRange } from "@/src/lib/pricing";
-import { firstBookableSession, isPublicBookableSession, isSessionFull, upcomingSessions } from "@/src/lib/availability";
+import { firstBookableSession, isHiddenSejour, isPublicBookableSession, isSessionFull, upcomingSessions } from "@/src/lib/availability";
 
 import GenericSejour from "@/app/components/sejour/GenericSejour";
 import SejourTabs from "@/app/components/sejour/SejourTabs";
@@ -225,7 +225,8 @@ export default function SejourDetail() {
         }
 
         const rawData = docSnap.data();
-        const data = { id: docSnap.id, ...rawData, dates: upcomingSessions(rawData.dates) };
+        // A séjour taken offline in the dashboard keeps its page but cannot be booked.
+        const data = { id: docSnap.id, ...rawData, dates: isHiddenSejour(rawData) ? [] : upcomingSessions(rawData.dates) };
         setSejour(data);
 
         if (Array.isArray(data.dates) && data.dates.length > 0) {

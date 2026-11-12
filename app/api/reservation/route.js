@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
 import { collection, addDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { isPublicBookableSession, sejourIdCandidates } from "@/src/lib/availability";
+import { isHiddenSejour, isPublicBookableSession, sejourIdCandidates } from "@/src/lib/availability";
 import {
   computeSessionOccupancy,
   legacyWeekOf,
@@ -117,7 +117,7 @@ export async function POST(request) {
           && (sessionStart || String(dateEntry.endDate || "").slice(0, 10) === requestedEndDate)
         ),
       ) || null;
-      if (!isPublicBookableSession(requestedSejour, selectedSession)) {
+      if ((sejourData && isHiddenSejour(sejourData)) || !isPublicBookableSession(requestedSejour, selectedSession)) {
         return NextResponse.json(
           { error: "Cette session n'est plus disponible (complète ou déjà commencée). Choisissez une autre session." },
           { status: 409 },
