@@ -102,7 +102,8 @@ export function reservationSessionId(raw, sessions) {
 /** Same rule as `seasonOfRecord` in seasons.js, for server code. */
 export function reservationSeason(raw) {
   if (!raw) return "";
-  if (raw.season) return String(raw.season);
+  const tagged = String(raw.season || "").match(/\d{4}/);
+  if (tagged) return tagged[0];
   return dateKey(raw.sejour?.startDate || raw.sejourStartDate || raw.startDate || raw.date).slice(0, 4);
 }
 

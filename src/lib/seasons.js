@@ -20,7 +20,9 @@ export function seasonOfDate(value) {
 /** Reservations booked before this new system have no `season`: infer it from the session date. */
 export function seasonOfRecord(record) {
   if (!record) return "";
-  if (record.season) return String(record.season);
+  // Some 2026 convoys were tagged "ete-2026": keep only the year.
+  const tagged = String(record.season || "").match(/\d{4}/);
+  if (tagged) return tagged[0];
   return seasonOfDate(
     record.sejour?.startDate
     || record.startDate
