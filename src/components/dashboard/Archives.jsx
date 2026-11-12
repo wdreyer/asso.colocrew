@@ -12,10 +12,12 @@ import { parseSessionId } from "@/src/lib/sessions";
 import {
   ARCHIVED_COLLECTIONS,
   amount,
+  applyArchiveBefore,
   applySeasonArchive,
   childCountOf,
   loadArchivedRecords,
   normalizeReservationStatus,
+  previewArchiveBefore,
   previewSeasonArchive,
   reservationPaid,
   reservationRevenue,
@@ -469,6 +471,112 @@ function CloseSeasonPanel({ candidates, defaultSeason, adminEmail, onDone }) {
   );
 }
 
+/* ── Everything before the active season, in one go ─────────────────── */
+
+function ArchiveAllPanel({ activeSeason, adminEmail, onDone }) {
+  const { showToast } = useToast();
+  const [preview, setPreview] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [includeUndated, setIncludeUndated] = useState(true);
+  const [confirmText, setConfirmText] = useState("");
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(null);
+
+  const analyze = async () => {
+    setAnalyzing(true);
+    setProgress(null);
+    try {
+      setPreview(await previewArchiveBefore(activeSeason));
+      setConfirmText("");
+    } catch (error) {
+      showToast(error?.message || "Analyse impossible.", "error");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const toTag = preview
+    ? ARCHIVED_COLLECTIONS.reduce((sum, meta) => {
+      const bucket = preview.collections[meta.key];
+      return sum + bucket.toArchive.length + (includeUndated ? bucket.undated.length : 0);
+    }, 0)
+    : 0;
+  const expected = "TOUT ARCHIVER";
+
+  const apply = async () => {
+    if (confirmText.trim() !== expected) return;
+    setRunning(true);
+    try {
+      const result = await applyArchiveBefore(activeSeason, { includeUndated, adminEmail, onProgress: setProgress, preview });
+      showToast(`${result.tagged} documents archivés (saisons ${result.seasons.join(", ") || "—"}).`, "success");
+      setPreview(null);
+      setConfirmText("");
+      onDone?.(result.seasons.at(-1));
+    } catch (error) {
+      showToast(error?.message || "Archivage interrompu.", "error");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="arc-close">
+      <div className="arc-close-bar">
+        <button type="button" className="dash-btn" onClick={analyze} disabled={analyzing || running}>
+          {analyzing ? "Analyse…" : preview ? "Relancer l'analyse" : "Analyser"}
+        </button>
+        <p className="dash-muted">
+          Archive toutes les réservations, convoyages, contrats et déroulés antérieurs à {activeSeason}, quelle que soit leur année,
+          ainsi que les fiches sans date. Ce qui concerne {activeSeason} et après n&apos;est pas touché.
+        </p>
+      </div>
+
+      {preview ? (
+        <>
+          <div className="arc-preview">
+            {ARCHIVED_COLLECTIONS.map((meta) => {
+              const bucket = preview.collections[meta.key];
+              return (
+                <article key={meta.key} className="arc-preview-card">
+                  <header><strong>{meta.label}</strong><small>{bucket.total} au total</small></header>
+                  <dl>
+                    <div><dt>Avant {activeSeason}</dt><dd>{bucket.toArchive.length}</dd></div>
+                    <div><dt>Sans date</dt><dd>{bucket.undated.length}</dd></div>
+                    <div><dt>Déjà archivés</dt><dd>{bucket.archived}</dd></div>
+                    <div><dt>Gardés ({activeSeason}+)</dt><dd>{bucket.kept}</dd></div>
+                  </dl>
+                </article>
+              );
+            })}
+          </div>
+
+          <label className="arc-undetermined-head">
+            <span>
+              <input type="checkbox" checked={includeUndated} onChange={(event) => setIncludeUndated(event.target.checked)} disabled={running} />{" "}
+              Archiver aussi les fiches sans date (rangées dans l&apos;année de leur création, au plus tard {Number(activeSeason) - 1})
+            </span>
+          </label>
+
+          <div className="arc-confirm">
+            <p>
+              <strong>{toTag}</strong> document{toTag > 1 ? "s" : ""} vont être archivés
+              {preview.seasons.length ? ` (saisons ${preview.seasons.join(", ")})` : ""}. Pour confirmer, tapez <code>{expected}</code>.
+            </p>
+            <div className="arc-confirm-row">
+              <input className="dash-input" value={confirmText} onChange={(event) => setConfirmText(event.target.value)} placeholder={expected} disabled={running || !toTag} />
+              <button type="button" className="dash-btn dash-btn-primary" onClick={apply} disabled={running || !toTag || confirmText.trim() !== expected}>
+                {running ? "Archivage…" : "Tout archiver"}
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      <ProgressBar progress={progress} />
+    </div>
+  );
+}
+
 /* ── Read-only consultation ──────────────────────────────────────────── */
 
 function SeasonConsultation({ season, adminEmail, onRestored }) {
@@ -646,6 +754,11 @@ export default function Archives() {
           <SeasonCard key={season.id} season={season} selected={selected === season.id} onSelect={() => setSelected(season.id)} />
         ))}
       </div>
+
+      <section className="dash-card dash-section arc-close-card">
+        <div className="dash-section-head"><h2>Tout archiver avant {activeSeason}</h2></div>
+        <ArchiveAllPanel activeSeason={activeSeason} adminEmail={adminEmail} onDone={afterArchive} />
+      </section>
 
       <section className="dash-card dash-section arc-close-card">
         <div className="dash-section-head"><h2>Clôturer une saison</h2></div>

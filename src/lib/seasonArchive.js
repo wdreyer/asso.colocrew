@@ -272,6 +272,101 @@ export async function applySeasonArchive(season, { includeIds = [], adminEmail =
   return { tagged: operations.length, stats };
 }
 
+/**
+ * Season given to a record that has no usable date: the year it was created, capped to the last
+ * season before the active one, so nothing undated ends up in the season being sold.
+ */
+function fallbackSeason(data, activeSeason) {
+  const lastClosed = String(Number(activeSeason) - 1);
+  const createdMs = timestampToMs(data?.createdAt);
+  const created = createdMs ? String(new Date(createdMs).getFullYear()) : "";
+  return created && created < activeSeason ? created : lastClosed;
+}
+
+/**
+ * Read-only analysis for "archive everything before the active season": every record of an
+ * earlier season, plus every undated record. Records of the active season and later are kept.
+ * Each item carries the season it will be tagged with.
+ */
+export async function previewArchiveBefore(activeSeason) {
+  const active = String(activeSeason);
+  const results = await Promise.all(ARCHIVED_COLLECTIONS.map((item) => readCollection(item.collection)));
+  const collections = {};
+  const seasons = new Set();
+
+  results.forEach((records, index) => {
+    const meta = ARCHIVED_COLLECTIONS[index];
+    const bucket = { ...meta, total: records.length, toArchive: [], undated: [], archived: 0, kept: 0 };
+    records.forEach(({ id, data }) => {
+      if (data.archived === true) { bucket.archived += 1; return; }
+      const inferred = inferSeason(meta.key, data, id);
+      const item = { id, key: recordKey(meta.collection, id), data };
+      if (!inferred) {
+        item.season = fallbackSeason(data, active);
+        bucket.undated.push(item);
+      } else if (inferred < active) {
+        item.season = inferred;
+        bucket.toArchive.push(item);
+      } else {
+        bucket.kept += 1;
+        return;
+      }
+      seasons.add(item.season);
+    });
+    collections[meta.key] = bucket;
+  });
+
+  return { activeSeason: active, collections, seasons: [...seasons].sort(), scannedAt: Date.now() };
+}
+
+/**
+ * Tags every record found by `previewArchiveBefore` (undated ones only with `includeUndated`),
+ * then marks each season concerned as archived with its own frozen figures.
+ */
+export async function applyArchiveBefore(activeSeason, { includeUndated = true, adminEmail = "", onProgress, preview } = {}) {
+  const active = String(activeSeason);
+  const analysis = preview?.activeSeason === active ? preview : await previewArchiveBefore(active);
+  const archivedBy = adminEmail || "";
+
+  const operations = [];
+  const touchedSeasons = new Set();
+  ARCHIVED_COLLECTIONS.forEach((meta) => {
+    const bucket = analysis.collections[meta.key];
+    const chosen = [...bucket.toArchive, ...(includeUndated ? bucket.undated : [])];
+    chosen.forEach((item) => {
+      touchedSeasons.add(item.season);
+      const staffMemberIds = meta.key === "transports" && !item.data.staffMemberIds?.length
+        ? transportStaffMemberIds(item.data)
+        : [];
+      operations.push((batch) => batch.update(doc(db, meta.collection, item.id), {
+        archived: true,
+        season: item.season,
+        archivedAt: serverTimestamp(),
+        archivedBy,
+        ...(staffMemberIds.length ? { staffMemberIds } : {}),
+      }));
+    });
+  });
+
+  onProgress?.({ phase: "records", done: 0, total: operations.length });
+  await commitInBatches(operations, onProgress, "records");
+
+  // Stats are recomputed from the database so they include records archived in earlier runs.
+  for (const season of [...touchedSeasons].sort()) {
+    const itemsByKey = {};
+    for (const meta of ARCHIVED_COLLECTIONS) itemsByKey[meta.key] = await loadArchivedRecords(season, meta.key);
+    await setDoc(doc(db, COLLECTIONS.SEASONS, season), {
+      status: "archived",
+      archivedAt: serverTimestamp(),
+      archivedBy,
+      stats: { ...computeSeasonStats(itemsByKey), computedAt: new Date().toISOString() },
+    }, { merge: true });
+  }
+  onProgress?.({ phase: "done", done: operations.length, total: operations.length });
+
+  return { tagged: operations.length, seasons: [...touchedSeasons].sort() };
+}
+
 /** Records of an archived season, for read-only consultation. */
 export async function loadArchivedRecords(season, key) {
   const meta = ARCHIVED_COLLECTIONS.find((item) => item.key === key);
