@@ -1,6 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
-import { FaArrowRight, FaClock, FaEnvelope, FaExternalLinkAlt, FaHeart, FaPhoneAlt, FaTshirt } from "react-icons/fa";
+import {
+  FaArrowRight,
+  FaClock,
+  FaEnvelope,
+  FaExternalLinkAlt,
+  FaFacebookF,
+  FaHeart,
+  FaInstagram,
+  FaPenNib,
+  FaPhoneAlt,
+  FaTiktok,
+  FaTshirt,
+} from "react-icons/fa";
 import { EDITO_2026 } from "@/src/content/edito2026";
 import { HELLOASSO_MEMBERSHIP_URL } from "@/src/lib/volunteers";
 import { MERCH_SHIPPING, merchStartingPrice } from "@/src/lib/merchConfig";
@@ -8,13 +20,15 @@ import VolunteerForm from "./VolunteerForm";
 import MissionButton from "./MissionButton";
 import styles from "./edito.module.css";
 
+const SOCIAL_ICONS = { Instagram: <FaInstagram />, TikTok: <FaTiktok />, Facebook: <FaFacebookF /> };
+
 export const metadata = {
-  title: "Édito 2026 - ColoCrew",
-  description: "Le mot de l'équipe ColoCrew sur 2026, et comment nous aider à préparer 2027 : bénévolat, adhésion, tee-shirt.",
+  title: "Bilan de l'été 2026 - ColoCrew",
+  description: "Le mot de l'équipe ColoCrew après l'été 2026, et comment nous aider à continuer : bénévolat, adhésion, tee-shirt.",
   alternates: { canonical: "https://www.colocrew.com/edito-2026" },
   robots: EDITO_2026.draft ? { index: false, follow: false } : undefined,
   openGraph: {
-    title: "Édito 2026 - ColoCrew",
+    title: "Bilan de l'été 2026 - ColoCrew",
     description: "Comment nous aider à préparer 2027 : bénévolat, adhésion, tee-shirt.",
     url: "https://www.colocrew.com/edito-2026",
     images: [{ url: `https://www.colocrew.com${EDITO_2026.heroImage.src}` }],
@@ -92,7 +106,14 @@ export default function Edito2026Page() {
             <p className={styles.eyebrow}>{edito.eyebrow}</p>
             <h1>{edito.title}</h1>
             <p className={styles.chapo}>{edito.chapo}</p>
-            <a href="#edito" className={styles.readLink}>Lire l&apos;édito <FaArrowRight /></a>
+            <div className={styles.socials}>
+              <span>Nous suivre</span>
+              {edito.socials.map((social) => (
+                <a key={social.label} href={social.href} target="_blank" rel="noreferrer" aria-label={social.label} title={social.label}>
+                  {SOCIAL_ICONS[social.label]}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -170,11 +191,18 @@ export default function Edito2026Page() {
 
       {/* ── L'édito ── */}
       <section id="edito" className={styles.articleSection}>
-        <article className={styles.article}>
-          <p className={styles.eyebrow}>L&apos;édito · {edito.dateLabel}</p>
-          {edito.article.map((block, index) => <ArticleBlock key={index} block={block} />)}
-          <p className={styles.signature}>{edito.signature}</p>
-        </article>
+        {edito.article.length ? (
+          <article className={styles.article}>
+            <p className={styles.eyebrow}>L&apos;édito · {edito.dateLabel}</p>
+            {edito.article.map((block, index) => <ArticleBlock key={index} block={block} />)}
+            <p className={styles.signature}>{edito.signature}</p>
+          </article>
+        ) : (
+          <div className={styles.editoPending}>
+            <FaPenNib aria-hidden="true" />
+            <p>Édito en cours d&apos;écriture</p>
+          </div>
+        )}
       </section>
 
       {/* ── Rappel final ── */}

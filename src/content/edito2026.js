@@ -1,8 +1,8 @@
 /**
  * Texte de la page /edito-2026.
  *
- * `draft: true` garde la page hors des moteurs de recherche (noindex) tant que le texte définitif
- * n'est pas posé. Pour publier : remplacer `article`, passer `draft` à false.
+ * `draft: true` garde la page hors des moteurs de recherche (noindex). L'édito lui-même est en cours
+ * d'écriture : tant que `article` est vide, la page affiche « Édito en cours d'écriture ».
  *
  * Blocs possibles dans `article` :
  *   { type: "p", text }                 paragraphe (**gras** accepté)
@@ -13,10 +13,15 @@
 
 export const EDITO_2026 = {
   draft: true,
-  eyebrow: "Édito · 2026",
-  title: "Merci pour 2026. On construit la suite avec vous.",
+  eyebrow: "Le mot de l'équipe",
+  title: "Bilan de l'été 2026",
   chapo:
-    "Une saison de colos et une association qui grandit. Pour la suite, on a besoin de toi : un peu de temps, une adhésion ou un tee-shirt, tout compte.",
+    "Après deux ans d'existence, nous nous sommes posé la question d'arrêter : notre moral, notre fatigue et notre situation financière se sont lourdement dégradés cet été 2026. Pourtant, nous avons envie de continuer. Mais pour cela, nous avons besoin de vous : que cette association devienne enfin un vrai collectif et ne repose plus sur deux personnes. Pour nous aider, vous pouvez remplir ce formulaire, adhérer, commander un tee-shirt, ou simplement nous suivre sur les réseaux sociaux.",
+  socials: [
+    { label: "Instagram", href: "https://www.instagram.com/_colocrew/" },
+    { label: "TikTok", href: "https://www.tiktok.com/@colocrew" },
+    { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61571533102707" },
+  ],
   signature: "L'équipe ColoCrew",
   dateLabel: "Novembre 2026",
   heroImage: {
@@ -35,27 +40,8 @@ export const EDITO_2026 = {
     phone: "01 84 21 02 30",
   },
 
-  // Texte provisoire : à remplacer par l'édito définitif.
-  article: [
-    {
-      type: "p",
-      text: "Cette année, des jeunes sont partis avec nous à la montagne l'hiver, puis à l'océan et en rivière l'été. Ils ont skié, surfé, créé des chansons, des clips et des souvenirs qu'ils racontent encore. Derrière chaque séjour, il y a une équipe d'animateurs et d'animatrices, de directeurs et de directrices, et des bénévoles qui préparent tout en amont.",
-    },
-    {
-      type: "p",
-      text: "ColoCrew est une **association d'éducation populaire**. Ça veut dire que les colos ne sont pas un produit : ce sont des projets collectifs, construits par des gens qui y croient. Et plus on est nombreux à porter ces projets, plus on peut emmener de jeunes, à des prix accessibles.",
-    },
-    {
-      type: "quote",
-      text: "Une colo réussie, ça commence bien avant le départ : dans les réunions, les dossiers, les coups de fil aux familles.",
-      author: "L'équipe ColoCrew",
-    },
-    { type: "h2", text: "Ce dont on a besoin pour 2027" },
-    {
-      type: "p",
-      text: "On cherche des personnes pour imaginer et encadrer les séjours, accompagner les familles au moment de l'inscription, nous aider sur l'administratif, et rejoindre le conseil d'administration. Pas besoin d'y passer toutes vos semaines : une demi-journée par mois, c'est déjà énorme pour nous.",
-    },
-  ],
+  // L'édito est en cours d'écriture : laisser vide tant qu'il n'est pas prêt.
+  article: [],
 
   missions: [
     {
