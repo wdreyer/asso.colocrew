@@ -16,22 +16,23 @@ export const EDITO_2026 = {
   eyebrow: "Édito · 2026",
   title: "Merci pour 2026. On construit la suite avec vous.",
   chapo:
-    "Une saison de colos, des centaines de souvenirs, et une association qui grandit. Pour continuer, on a besoin de nouvelles personnes autour de la table : un peu de temps, une compétence, ou simplement votre soutien.",
+    "Une saison de colos et une association qui grandit. Pour la suite, on a besoin de toi : un peu de temps, une adhésion ou un tee-shirt, tout compte.",
   signature: "L'équipe ColoCrew",
   dateLabel: "Novembre 2026",
   heroImage: {
-    src: "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/banqueimage%2Fdashboard-pages%2F1775596119960-pxl_20250703_133944806.jpg?alt=media&token=aa8c8440-1cf9-49f8-950c-686d26f8a162",
-    alt: "L'équipe d'animation ColoCrew, bras dessus bras dessous face à l'océan à Bidart",
+    src: "/images/edito/equipe-ete-2026.jpg",
+    alt: "L'équipe d'animation ColoCrew de l'été 2026 en tee-shirts rouges et blancs",
   },
-  // Bande de photos d'équipe sous l'édito.
-  teamPhotos: [
-    {
-      src: "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/Ski%2F1775477468176-pxl_20260219_235357864.night.jpg?alt=media&token=53e061c9-347c-4893-820b-2bb77b154886",
-      alt: "L'équipe d'animatrices de Ski and Music, février 2026",
-    },
-    { src: "/images/merch/white-shirt-sunset.jpeg", alt: "Deux animatrices ColoCrew au coucher du soleil, été 2026" },
-    { src: "/images/merch/red-shirt-crew-candid.jpg", alt: "Des animateurs ColoCrew pendant l'été 2026" },
-  ],
+
+  // Contact mis en avant sous le formulaire.
+  contact: {
+    name: "Marion",
+    role: "L'une des responsables de ColoCrew",
+    text: "Une question avant de te lancer ? Écris-nous ou appelle : Marion et l'équipe te répondent.",
+    photo: "/images/edito/marion.jpg",
+    email: "contact@colocrew.com",
+    phone: "01 84 21 02 30",
+  },
 
   // Texte provisoire : à remplacer par l'édito définitif.
   article: [
