@@ -124,6 +124,21 @@ service cloud.firestore {
       allow read, create, update: if true;
     }
 
+    // ── Bénévoles (/edito-2026) et commandes de tee-shirts (/merch) ──────────────────────
+    // Écrits par app/api/benevoles et le webhook Stripe (client SDK sans authentification) :
+    // création publique d'une fiche « new » ; lecture et suivi réservés aux admins.
+    match /benevoles/{id} {
+      allow create: if request.resource.data.status == 'new'
+        && request.resource.data.keys().hasOnly(['firstName', 'lastName', 'phone', 'email', 'interests', 'availability', 'message', 'status', 'notes', 'source', 'createdAt', 'updatedAt']);
+      allow read, update, delete: if isAdmin();
+    }
+    match /merch_orders/{id} {
+      // Cible : écriture par le webhook via firebase-admin uniquement.
+      // OUVERTURE TEMPORAIRE (webhook sans authentification) : get pour l'idempotence, create.
+      allow get, create: if true;
+      allow list, update: if isAdmin();
+    }
+
     // ── Routes API de campagnes et d'acomptes (OUVERTURE TEMPORAIRE) ─────────────────────
     match /acompte_18_juin/{id} { allow read, write: if true; }
     match /campagne_runs/{runId} { allow read, write: if true; }

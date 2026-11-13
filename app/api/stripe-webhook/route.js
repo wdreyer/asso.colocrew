@@ -9,6 +9,8 @@ import {
   getDocs,
   doc,
   updateDoc,
+  setDoc,
+  getDoc,
   serverTimestamp,
   arrayUnion,
 } from "firebase/firestore";
@@ -25,6 +27,44 @@ function toMoney(value) {
 
 function amountFromStripeCents(value) {
   return toMoney(Number(value || 0) / 100);
+}
+
+/** Paid tee-shirt order → merch_orders/{sessionId} (Stripe may send the event twice: the first write wins). */
+async function saveMerchOrder(session) {
+  const meta = session.metadata || {};
+  const shipping = session.collected_information?.shipping_details || session.shipping_details || {};
+  const address = shipping.address || session.customer_details?.address || {};
+  const ref = doc(db, "merch_orders", session.id);
+  if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, {
+    stripeSessionId: session.id,
+    stripePaymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || "",
+    paymentStatus: session.payment_status || "",
+    productId: meta.productId || "",
+    productName: meta.productName || "",
+    size: meta.size || "",
+    priceOption: meta.priceOption || "",
+    unitAmount: Number(meta.unitAmount) || 0,
+    quantity: Number(meta.quantity) || 1,
+    shippingAmount: amountFromStripeCents(session.shipping_cost?.amount_total ?? session.total_details?.amount_shipping),
+    totalAmount: amountFromStripeCents(session.amount_total),
+    customer: {
+      name: shipping.name || session.customer_details?.name || "",
+      email: session.customer_details?.email || "",
+      phone: session.customer_details?.phone || "",
+    },
+    address: {
+      line1: address.line1 || "",
+      line2: address.line2 || "",
+      postalCode: address.postal_code || "",
+      city: address.city || "",
+      country: address.country || "",
+    },
+    status: "to_ship",
+    paidAt: new Date((session.created || Date.now() / 1000) * 1000).toISOString(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
 }
 
 function knownReservationTotal(payment = {}) {
@@ -232,6 +272,17 @@ export async function POST(request) {
   // Traiter l'événement checkout.session.completed
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
+
+    // Tee-shirts (/merch) : on garde la commande pour l'expédition, rien à voir avec les réservations.
+    if (session.metadata?.source === "colocrew-merch") {
+      try {
+        await saveMerchOrder(session);
+        return new Response(JSON.stringify({ received: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      } catch (err) {
+        console.error("[stripe-webhook] commande tee-shirt non enregistrée:", err);
+        return new Response("Erreur enregistrement commande tee-shirt", { status: 500 });
+      }
+    }
     const tokenUnique = session.metadata?.tokenUnique;
     const paymentType = session.metadata?.paymentType; // "deposit" ou undefined
     const amountPaid = amountFromStripeCents(session.amount_total);

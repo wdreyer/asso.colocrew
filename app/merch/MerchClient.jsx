@@ -1,415 +1,229 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  FaArrowRight,
-  FaCheck,
-  FaChevronLeft,
-  FaChevronRight,
-  FaLock,
-  FaMinus,
-  FaPlus,
-  FaShoppingBag,
-  FaTimes,
-} from "react-icons/fa";
-import { MERCH_PREORDER, MERCH_PRODUCTS } from "@/src/lib/merchConfig";
+import { FaCheck, FaHeart, FaLock, FaMinus, FaPlus, FaTimes, FaTruck } from "react-icons/fa";
+import { MERCH_MAX_QUANTITY, MERCH_PRODUCTS, MERCH_SHIPPING } from "@/src/lib/merchConfig";
 import styles from "./MerchClient.module.css";
 
-function formatPrice(amount) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+const euros = (amount) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(amount)} €`;
 
-function findProduct(productId) {
-  return MERCH_PRODUCTS.find((product) => product.id === productId) || MERCH_PRODUCTS[0];
-}
-
-function getOption(product, optionId) {
-  return product.priceOptions.find((option) => option.id === optionId) || product.priceOptions[0];
-}
+const RETURN_MESSAGES = {
+  ok: {
+    tone: "success",
+    title: "Merci, ta commande est confirmée !",
+    text: `Tu reçois un reçu par email. Ton tee-shirt part ${MERCH_SHIPPING.delay}.`,
+  },
+  annulee: {
+    tone: "neutral",
+    title: "Paiement annulé",
+    text: "Rien n'a été débité. Tu peux reprendre ta commande quand tu veux.",
+  },
+};
 
 export default function MerchClient() {
-  const [selectedProductId, setSelectedProductId] = useState(MERCH_PRODUCTS[0].id);
-  const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedSize, setSelectedSize] = useState("");
-  const [selectedPrice, setSelectedPrice] = useState(MERCH_PRODUCTS[0].priceOptions[0].id);
+  const [productId, setProductId] = useState(MERCH_PRODUCTS[0].id);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [size, setSize] = useState("");
+  const [priceOptionId, setPriceOptionId] = useState(MERCH_PRODUCTS[0].priceOptions[0].id);
   const [quantity, setQuantity] = useState(1);
-  const [cart, setCart] = useState([]);
-  const [message, setMessage] = useState("");
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [error, setError] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [returnMessage, setReturnMessage] = useState(null);
 
-  const product = findProduct(selectedProductId);
-  const activeImage = product.images[selectedImage] || product.images[0];
-  const selectedPriceOption = getOption(product, selectedPrice);
+  const product = MERCH_PRODUCTS.find((item) => item.id === productId) || MERCH_PRODUCTS[0];
+  const image = product.images[imageIndex] || product.images[0];
+  const priceOption = product.priceOptions.find((option) => option.id === priceOptionId) || product.priceOptions[0];
+  const itemsTotal = priceOption.amount * quantity;
+  const total = itemsTotal + MERCH_SHIPPING.amount;
 
-  const total = useMemo(
-    () =>
-      cart.reduce((sum, item) => {
-        const itemProduct = findProduct(item.productId);
-        return sum + item.quantity * getOption(itemProduct, item.priceOptionId).amount;
-      }, 0),
-    [cart]
-  );
+  // Retour de Stripe : /merch?commande=ok | annulee
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("commande");
+    if (RETURN_MESSAGES[status]) setReturnMessage(RETURN_MESSAGES[status]);
+  }, []);
 
-  const selectProduct = (nextProductId) => {
-    const nextProduct = findProduct(nextProductId);
-    setSelectedProductId(nextProductId);
-    setSelectedImage(0);
-    setSelectedSize("");
-    setSelectedPrice(nextProduct.priceOptions[0].id);
-    setMessage("");
+  const chooseProduct = (id) => {
+    setProductId(id);
+    setImageIndex(0);
+    setError("");
   };
 
-  const addToCart = () => {
-    if (!selectedSize) {
-      setMessage("Choisis une taille avant d'ajouter au panier.");
+  const pay = async () => {
+    if (!size) {
+      setError("Choisis ta taille.");
       return;
     }
-
-    setCart((current) => {
-      const existingIndex = current.findIndex(
-        (item) =>
-          item.productId === product.id &&
-          item.size === selectedSize &&
-          item.priceOptionId === selectedPrice
-      );
-
-      if (existingIndex === -1) {
-        return [
-          ...current,
-          {
-            productId: product.id,
-            size: selectedSize,
-            priceOptionId: selectedPrice,
-            quantity,
-          },
-        ];
-      }
-
-      return current.map((item, index) =>
-        index === existingIndex
-          ? { ...item, quantity: Math.min(10, item.quantity + quantity) }
-          : item
-      );
-    });
-
-    setMessage("Ajouté au panier.");
-  };
-
-  const updateCartQuantity = (index, nextQuantity) => {
-    setCart((current) =>
-      current
-        .map((item, itemIndex) =>
-          itemIndex === index ? { ...item, quantity: Math.max(0, Math.min(10, nextQuantity)) } : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
-  };
-
-  const checkout = async () => {
-    if (!cart.length) {
-      setMessage("Ton panier est vide.");
-      return;
-    }
-
-    setCheckingOut(true);
-    setMessage("");
+    setPaying(true);
+    setError("");
     try {
       const response = await fetch("/api/merch-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cart }),
+        body: JSON.stringify({ productId: product.id, size, priceOptionId: priceOption.id, quantity }),
       });
-      const payload = await response.json();
-      if (!response.ok || !payload.url) {
-        throw new Error(payload.error || "Paiement indisponible.");
-      }
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.url) throw new Error(payload.error || "Paiement indisponible.");
       window.location.href = payload.url;
-    } catch (error) {
-      setMessage(error.message || "Impossible de lancer le paiement.");
-      setCheckingOut(false);
+    } catch (err) {
+      setError(err.message || "Impossible de lancer le paiement.");
+      setPaying(false);
     }
   };
 
-  const nextImage = () => {
-    setSelectedImage((current) => (current + 1) % product.images.length);
-  };
-
-  const previousImage = () => {
-    setSelectedImage((current) => (current - 1 + product.images.length) % product.images.length);
-  };
-
   return (
-    <div className={`${styles.page} merchStandalone`}>
-      <div className={styles.merchNav}>
-        <Link href="/" className={styles.logoLink}>ColoCrew</Link>
-        <div>
-          <a href="#shop">Le drop</a>
-          <a href="#panier">Panier</a>
+    <div className={styles.page}>
+      {returnMessage ? (
+        <div className={`${styles.notice} ${returnMessage.tone === "success" ? styles.noticeSuccess : ""}`} role="status">
+          <span className={styles.noticeIcon} aria-hidden="true">{returnMessage.tone === "success" ? <FaCheck /> : <FaTimes />}</span>
+          <div>
+            <strong>{returnMessage.title}</strong>
+            <p>{returnMessage.text}</p>
+          </div>
+          <button type="button" onClick={() => setReturnMessage(null)} aria-label="Fermer"><FaTimes /></button>
         </div>
-      </div>
+      ) : null}
 
-      <section className={styles.hero}>
-        <div className={styles.heroMedia}>
-          <Image
-            src="/images/merch/crew-front-group.jpeg"
-            alt="La crew ColoCrew avec les tee-shirts Summer Tour 2k26"
-            fill
-            priority
-            sizes="100vw"
-            className={styles.heroImage}
-          />
-          <div className={styles.heroShade} />
-        </div>
+      <header className={styles.header}>
+        <p className={styles.eyebrow}>Boutique</p>
+        <h1>Le tee-shirt ColoCrew</h1>
+        <p>Celui que l&apos;équipe a porté tout l&apos;été. Chaque tee-shirt vendu aide l&apos;association.</p>
+      </header>
 
-        <div className={styles.heroContent}>
-          <p className={styles.kicker}>Drop 01 - précommande</p>
-          <h1>Summer Tour 2k26</h1>
-          <p>
-            Le tee-shirt de l'été ColoCrew. Rouge ou blanc, coupe oversize,
-            print poitrine et grand dos. Précommande ouverte maintenant,
-            livraison dans environ 1 mois.
-          </p>
-          <a href="#shop" className={styles.primaryLink}>
-            Choisir mon tee-shirt <FaArrowRight />
-          </a>
-        </div>
-      </section>
-
-      <section className={styles.dropIntro}>
-        <div>
-          <span>DROP 01</span>
-          <strong>Pas un souvenir. Un uniforme.</strong>
-        </div>
-        <p>
-          La commande sert à lancer une production groupée. Tu commandes maintenant,
-          on fabrique ensuite, et les tee-shirts arrivent dans environ 1 mois.
-          Les bénéfices repartent directement dans les activités de la colo.
-        </p>
-      </section>
-
-      <section id="shop" className={styles.shop}>
+      <section className={styles.product}>
         <div className={styles.gallery}>
-          <div className={styles.mainPhoto}>
-            <Image
-              src={activeImage.src}
-              alt={activeImage.alt}
-              fill
-              sizes="(max-width: 900px) 100vw, 54vw"
-              className={styles.productImage}
-            />
-            <button type="button" className={`${styles.galleryButton} ${styles.left}`} onClick={previousImage}>
-              <FaChevronLeft />
-            </button>
-            <button type="button" className={`${styles.galleryButton} ${styles.right}`} onClick={nextImage}>
-              <FaChevronRight />
-            </button>
+          <div className={styles.mainImage}>
+            <Image key={image.src} src={image.src} alt={image.alt} fill priority sizes="(max-width: 900px) 100vw, 52vw" />
           </div>
-
           <div className={styles.thumbs}>
-            {product.images.map((image, index) => (
+            {product.images.map((item, index) => (
               <button
-                key={image.src}
+                key={item.src}
                 type="button"
-                className={`${styles.thumb} ${selectedImage === index ? styles.activeThumb : ""}`}
-                onClick={() => setSelectedImage(index)}
-                aria-label={`Voir photo ${index + 1}`}
+                className={`${styles.thumb} ${index === imageIndex ? styles.thumbActive : ""}`}
+                onClick={() => setImageIndex(index)}
+                aria-label={`Photo ${index + 1}`}
               >
-                <Image src={image.src} alt="" fill sizes="90px" className={styles.thumbImage} />
+                <Image src={item.src} alt="" fill sizes="80px" />
               </button>
             ))}
           </div>
         </div>
 
-        <div className={styles.productPanel}>
-          {MERCH_PREORDER.enabled ? (
-            <div className={styles.preorder}>
-              <strong>{MERCH_PREORDER.shippingLabel}</strong>
-              <span>{MERCH_PREORDER.detail}</span>
-            </div>
-          ) : null}
-
-          <div className={styles.productSwitcher}>
-            {MERCH_PRODUCTS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={selectedProductId === item.id ? styles.productSelected : ""}
-                onClick={() => selectProduct(item.id)}
-              >
-                <span style={{ background: item.swatch }} />
-                {item.shortName}
-              </button>
-            ))}
-          </div>
-
-          <p className={styles.kicker}>Tee-shirt officiel Summer Tour</p>
+        <div className={styles.panel}>
           <h2>{product.name}</h2>
-          <p className={styles.tagline}>{product.tagline}</p>
           <p className={styles.description}>{product.description}</p>
 
-          <div className={styles.specs}>
-            <span>{product.fit}</span>
-            <span>{product.material}</span>
-            <span>{product.color}</span>
-            <span>{product.care}</span>
-          </div>
-
-          <div className={styles.controlGroup}>
-            <div className={styles.controlHeader}>
-              <span>Taille</span>
-              <small>Coupe oversize - S à XL</small>
-            </div>
-            <div className={styles.sizeGrid}>
-              {product.sizes.map((size) => (
+          <div className={styles.group}>
+            <span className={styles.label}>Couleur</span>
+            <div className={styles.colors}>
+              {MERCH_PRODUCTS.map((item) => (
                 <button
-                  key={size.value}
+                  key={item.id}
                   type="button"
-                  className={`${styles.sizeButton} ${selectedSize === size.value ? styles.selected : ""}`}
-                  onClick={() => setSelectedSize(size.value)}
-                  disabled={size.stock <= 0}
+                  className={`${styles.color} ${item.id === product.id ? styles.colorActive : ""}`}
+                  onClick={() => chooseProduct(item.id)}
+                  aria-pressed={item.id === product.id}
                 >
-                  <strong>{size.value}</strong>
-                  <span>{size.stock > 0 ? `${size.stock} dispo` : "Épuisé"}</span>
+                  <span className={styles.swatch} style={{ background: item.swatch }} />
+                  {item.shortName}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className={styles.controlGroup}>
-            <div className={styles.controlHeader}>
-              <span>Prix</span>
-              <small>Prix libre encadré, tee-shirt identique</small>
+          <div className={styles.group}>
+            <span className={styles.label}>Taille <small>coupe ample, prends ta taille habituelle</small></span>
+            <div className={styles.sizes}>
+              {product.sizes.map((entry) => (
+                <button
+                  key={entry.value}
+                  type="button"
+                  disabled={entry.stock <= 0}
+                  className={`${styles.size} ${size === entry.value ? styles.sizeActive : ""}`}
+                  onClick={() => { setSize(entry.value); setError(""); }}
+                  aria-pressed={size === entry.value}
+                >
+                  {entry.value}
+                </button>
+              ))}
             </div>
-            <div className={styles.priceGrid}>
+          </div>
+
+          <div className={styles.group}>
+            <span className={styles.label}>Prix</span>
+            <div className={styles.prices}>
               {product.priceOptions.map((option) => (
                 <button
                   key={option.id}
                   type="button"
-                  className={`${styles.priceButton} ${selectedPrice === option.id ? styles.selected : ""}`}
-                  onClick={() => setSelectedPrice(option.id)}
+                  className={`${styles.price} ${option.id === priceOption.id ? styles.priceActive : ""}`}
+                  onClick={() => setPriceOptionId(option.id)}
+                  aria-pressed={option.id === priceOption.id}
                 >
-                  <span>{option.label}</span>
-                  <strong>{formatPrice(option.amount)}</strong>
-                  <small>{option.helper}</small>
+                  <span className={styles.radio} aria-hidden="true" />
+                  <span className={styles.priceText}>
+                    <strong>{option.label}</strong>
+                    {option.helper ? <small>{option.helper}</small> : null}
+                  </span>
+                  <span className={styles.priceAmount}>{euros(option.amount)}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className={styles.quantityRow}>
-            <div className={styles.quantityPicker}>
-              <button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>
-                <FaMinus />
-              </button>
+          <div className={styles.group}>
+            <span className={styles.label}>Quantité</span>
+            <div className={styles.stepper}>
+              <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} disabled={quantity <= 1} aria-label="Un de moins"><FaMinus /></button>
               <span>{quantity}</span>
-              <button type="button" onClick={() => setQuantity((current) => Math.min(10, current + 1))}>
-                <FaPlus />
-              </button>
+              <button type="button" onClick={() => setQuantity((value) => Math.min(MERCH_MAX_QUANTITY, value + 1))} disabled={quantity >= MERCH_MAX_QUANTITY} aria-label="Un de plus"><FaPlus /></button>
             </div>
-            <button type="button" className={styles.addButton} onClick={addToCart}>
-              <FaShoppingBag /> Ajouter - {formatPrice(selectedPriceOption.amount * quantity)}
-            </button>
           </div>
 
-          {message ? <p className={styles.message}>{message}</p> : null}
-
-          <div className={styles.reassurance}>
-            <span><FaCheck /> Paiement sécurisé Stripe</span>
-            <span><FaCheck /> Livraison estimée : 1 mois</span>
-            <span><FaCheck /> Le supplément finance la colo</span>
+          <div className={styles.summary}>
+            <div><span>{quantity} tee-shirt{quantity > 1 ? "s" : ""}</span><span>{euros(itemsTotal)}</span></div>
+            <div><span>Frais de port</span><span>{euros(MERCH_SHIPPING.amount)}</span></div>
+            <div className={styles.summaryTotal}><span>Total</span><span>{euros(total)}</span></div>
           </div>
+
+          {error ? <p className={styles.error}>{error}</p> : null}
+
+          <button type="button" className={styles.pay} onClick={pay} disabled={paying}>
+            <FaLock /> {paying ? "Redirection vers le paiement…" : `Payer ${euros(total)}`}
+          </button>
+          <p className={styles.secure}>Paiement sécurisé par Stripe. Ton adresse de livraison est demandée à l&apos;étape suivante.</p>
         </div>
       </section>
 
-      <section className={styles.photoStrip}>
-        {[
-          "/images/merch/white-shirt-sunset.jpeg",
-          "/images/merch/beach-back-print.jpeg",
-          "/images/merch/red-shirt-front-candid.jpg",
-          "/images/merch/red-shirt-crew-candid.jpg",
-        ].map((src) => (
-          <div key={src}>
-            <Image src={src} alt="" fill sizes="(max-width: 900px) 50vw, 25vw" />
-          </div>
+      <section className={styles.facts}>
+        <div>
+          <FaTruck aria-hidden="true" />
+          <strong>Livré {MERCH_SHIPPING.delay}</strong>
+          <span>{euros(MERCH_SHIPPING.amount)} de frais de port par commande, quel que soit le nombre de tee-shirts.</span>
+        </div>
+        <div>
+          <FaHeart aria-hidden="true" />
+          <strong>Pour l&apos;association</strong>
+          <span>Le bénéfice et le soutien financent les sorties, le matériel et les projets des jeunes.</span>
+        </div>
+        <div>
+          <FaCheck aria-hidden="true" />
+          <strong>Une question ?</strong>
+          <span>Écris-nous à <a href="mailto:contact@colocrew.com">contact@colocrew.com</a>.</span>
+        </div>
+      </section>
+
+      <section className={styles.photos} aria-hidden="true">
+        {["/images/merch/crew-front-group.jpeg", "/images/merch/white-shirt-sunset.jpeg", "/images/merch/beach-back-print.jpeg"].map((src) => (
+          <div key={src}><Image src={src} alt="" fill sizes="(max-width: 700px) 100vw, 33vw" /></div>
         ))}
       </section>
 
-      <section className={styles.story}>
-        <div>
-          <p className={styles.kicker}>Pourquoi le tee-shirt</p>
-          <h2>Porter la crew, financer la suite.</h2>
-        </div>
-        <p>
-          Ce n'est pas un produit posé au hasard sur le site. C'est le tee-shirt
-          porté pendant l'été, par les anims et la crew. Le prix standard couvre
-          l'achat normal. Les options soutien ajoutent 5 ou 10 EUR pour aider à
-          financer les sorties, le matériel et les projets des prochains séjours.
-        </p>
-      </section>
-
-      <section id="panier" className={styles.cartSection}>
-        <div className={styles.cartHeader}>
-          <div>
-            <p className={styles.kicker}>Panier</p>
-            <h2>Commande</h2>
-          </div>
-          <span>{cart.length} article(s)</span>
-        </div>
-
-        {cart.length ? (
-          <div className={styles.cartItems}>
-            {cart.map((item, index) => {
-              const itemProduct = findProduct(item.productId);
-              const option = getOption(itemProduct, item.priceOptionId);
-              return (
-                <div key={`${item.productId}-${item.size}-${item.priceOptionId}`} className={styles.cartItem}>
-                  <div>
-                    <strong>{itemProduct.shortName}</strong>
-                    <span>Taille {item.size} - {option.label} {formatPrice(option.amount)}</span>
-                  </div>
-                  <div className={styles.cartActions}>
-                    <button type="button" onClick={() => updateCartQuantity(index, item.quantity - 1)}>
-                      <FaMinus />
-                    </button>
-                    <span>{item.quantity}</span>
-                    <button type="button" onClick={() => updateCartQuantity(index, item.quantity + 1)}>
-                      <FaPlus />
-                    </button>
-                    <button type="button" onClick={() => updateCartQuantity(index, 0)} aria-label="Retirer">
-                      <FaTimes />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={styles.emptyCart}>Ton panier est vide. Choisis un modèle, une taille, puis ajoute ton tee-shirt.</div>
-        )}
-
-        <div className={styles.checkoutBar}>
-          <div>
-            <span>Total</span>
-            <strong>{formatPrice(total)}</strong>
-            <small>Précommande : production groupée, livraison dans environ 1 mois.</small>
-          </div>
-          <button type="button" onClick={checkout} disabled={!cart.length || checkingOut}>
-            <FaLock /> {checkingOut ? "Redirection..." : "Payer"}
-          </button>
-        </div>
-      </section>
-
-      <section className={styles.legalBand}>
-        <span>Prix TTC. Paiement sécurisé. Précommande fabriquée après clôture des commandes.</span>
-        <Link href="/mentions-legales">Mentions légales</Link>
-        <Link href="/conditions-generales-de-ventes">CGV</Link>
-      </section>
+      <p className={styles.legal}>
+        Prix TTC. <Link href="/conditions-generales-de-ventes">Conditions générales de vente</Link> · <Link href="/mentions-legales">Mentions légales</Link>
+      </p>
     </div>
   );
 }

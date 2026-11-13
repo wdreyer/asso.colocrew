@@ -12,6 +12,8 @@
   STAFF_DOCUMENTS: "staff_documents",
   STAFF_PUBLIC_PROFILES: "staff_public_profiles",
   STAFF_ACCOUNTS: "staff_accounts",
+  VOLUNTEERS: "benevoles",
+  MERCH_ORDERS: "merch_orders",
   SEASONS: "seasons",
   DAY_PLANS: "day_plans",
   SALARY_GRID: "salary_grid",

@@ -16,6 +16,7 @@ const NAV_STRUCTURE = [
       { label: "Réservations",        href: "/dashboard/reservations", icon: "calendar" },
       { label: "Finances",            href: "/dashboard/finances",     icon: "finance" },
       { label: "Abonnements",         href: "/dashboard/abonnements",  icon: "subscription" },
+      { label: "Tee-shirts",          href: "/dashboard/tee-shirts",   icon: "shirt" },
     ],
   },
   {
@@ -29,6 +30,7 @@ const NAV_STRUCTURE = [
         ],
       },
       { label: "Convoyages",          href: "/dashboard/transport",    icon: "transport" },
+      { label: "Bénévoles",           href: "/dashboard/benevoles",    icon: "heart" },
     ],
   },
   {
@@ -71,6 +73,8 @@ function Icon({ type, size = 15 }) {
     case "quote":     return <svg {...p}><path d="M7 17h4l2-5V7H7v5h4M14 17h4l2-5V7h-6v5h4"/></svg>;
     case "mail":      return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>;
     case "send":      return <svg {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+    case "heart":     return <svg {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>;
+    case "shirt":     return <svg {...p}><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3a4 4 0 0 1-8 0z"/></svg>;
     case "archive":   return <svg {...p}><rect x="2" y="4" width="20" height="5" rx="1.5"/><path d="M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/></svg>;
     case "logout":    return <svg {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
     case "external":  return <svg {...p}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;

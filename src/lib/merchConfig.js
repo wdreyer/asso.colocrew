@@ -1,31 +1,24 @@
-export const MERCH_PREORDER = {
-  enabled: true,
-  shippingLabel: "Précommande - livraison estimée dans 1 mois",
-  detail:
-    "On regroupe les commandes, on lance la production, puis on expédie. C'est une précommande, pas un stock immédiat.",
+/**
+ * Tee-shirts vendus sur /merch. Paiement direct Stripe (une commande = un modèle, une taille,
+ * une quantité), frais de port fixes par commande. Les commandes payées sont enregistrées par le
+ * webhook Stripe dans `merch_orders` et suivies dans /dashboard/tee-shirts.
+ */
+
+export const MERCH_SHIPPING = {
+  amount: 4,
+  label: "Livraison à domicile",
+  delay: "sous 1 semaine",
 };
 
+export const MERCH_MAX_QUANTITY = 10;
+
 const priceOptions = [
-  {
-    id: "standard",
-    label: "Prix standard",
-    amount: 25,
-    helper: "Le prix normal du tee-shirt.",
-  },
-  {
-    id: "support-30",
-    label: "Je soutiens ColoCrew",
-    amount: 30,
-    helper: "+5 EUR pour aider à financer les activités.",
-  },
-  {
-    id: "support-35",
-    label: "Je soutiens fort",
-    amount: 35,
-    helper: "+10 EUR pour soutenir encore plus la colo.",
-  },
+  { id: "standard", label: "Prix normal", amount: 25, helper: "" },
+  { id: "support-30", label: "Avec un petit soutien", amount: 30, helper: "5 € de plus pour l'association" },
+  { id: "support-35", label: "Avec un gros soutien", amount: 35, helper: "10 € de plus pour l'association" },
 ];
 
+// `stock: 0` désactive une taille.
 const sizes = [
   { value: "S", stock: 18 },
   { value: "M", stock: 24 },
@@ -36,80 +29,56 @@ const sizes = [
 export const MERCH_PRODUCTS = [
   {
     id: "colocrew-summer-tour-2026-tee-red",
-    name: "Tee-shirt rouge ColoCrew Summer Tour 2k26",
-    shortName: "Tee-shirt rouge",
-    tagline: "Le rouge de la crew, celui qui se voit de loin.",
-    description:
-      "Coupe oversize, coton épais, print poitrine discret et grand visuel dos Summer Tour 2k26. Précommande ouverte maintenant, livraison dans environ 1 mois.",
-    color: "Rouge ColoCrew",
-    fit: "Coupe oversize",
-    material: "100% coton",
-    care: "Lavage à 30 degrés, retourné avant lavage",
+    name: "Tee-shirt ColoCrew rouge",
+    shortName: "Rouge",
+    description: "Coton épais, coupe ample. Petit logo devant, grand visuel de l'été 2026 au dos.",
     swatch: "#b51f35",
     images: [
-      {
-        src: "/images/merch/red-shirt-summer-tour.jpeg",
-        alt: "Dos du tee-shirt rouge ColoCrew Summer Tour 2k26",
-      },
-      {
-        src: "/images/merch/beach-back-print.jpeg",
-        alt: "Tee-shirt rouge ColoCrew porté à la plage",
-      },
-      {
-        src: "/images/merch/red-shirt-print-close.jpg",
-        alt: "Détail du print du tee-shirt rouge ColoCrew",
-      },
-      {
-        src: "/images/merch/red-shirt-front-candid.jpg",
-        alt: "Tee-shirt rouge ColoCrew porté en colo",
-      },
-      {
-        src: "/images/merch/red-shirt-crew-candid.jpg",
-        alt: "Ambiance ColoCrew avec tee-shirts rouges",
-      },
-      {
-        src: "/images/merch/red-shirt-candid-shoulder.jpg",
-        alt: "Tee-shirt rouge ColoCrew porté par la crew",
-      },
-      {
-        src: "/images/merch/red-white-back-detail.jpg",
-        alt: "Détail du print dos des tee-shirts ColoCrew",
-      },
+      { src: "/images/merch/red-shirt-summer-tour.jpeg", alt: "Dos du tee-shirt rouge ColoCrew" },
+      { src: "/images/merch/beach-back-print.jpeg", alt: "Tee-shirt rouge ColoCrew porté à la plage" },
+      { src: "/images/merch/red-shirt-print-close.jpg", alt: "Détail du visuel du tee-shirt rouge" },
+      { src: "/images/merch/red-shirt-front-candid.jpg", alt: "Tee-shirt rouge ColoCrew porté en colo" },
+      { src: "/images/merch/red-shirt-crew-candid.jpg", alt: "L'équipe ColoCrew en tee-shirts rouges" },
     ],
     sizes,
     priceOptions,
   },
   {
     id: "colocrew-summer-tour-2026-tee-white",
-    name: "Tee-shirt blanc ColoCrew Summer Tour 2k26",
-    shortName: "Tee-shirt blanc",
-    tagline: "La version blanche, plus clean, même signature ColoCrew.",
-    description:
-      "Même coupe oversize, même coton épais, print bordeaux sur base blanche. Précommande ouverte maintenant, livraison dans environ 1 mois.",
-    color: "Blanc / print bordeaux",
-    fit: "Coupe oversize",
-    material: "100% coton",
-    care: "Lavage à 30 degrés, retourné avant lavage",
+    name: "Tee-shirt ColoCrew blanc",
+    shortName: "Blanc",
+    description: "Même coupe, même coton épais. Visuel bordeaux sur fond blanc.",
     swatch: "#f8f3ee",
     images: [
-      {
-        src: "/images/merch/crew-front-group.jpeg",
-        alt: "Équipe ColoCrew portant les tee-shirts rouges et blancs",
-      },
-      {
-        src: "/images/merch/white-shirt-sunset.jpeg",
-        alt: "Tee-shirt blanc ColoCrew porté au coucher du soleil",
-      },
-      {
-        src: "/images/merch/red-white-back-detail.jpg",
-        alt: "Détail du print dos des tee-shirts ColoCrew",
-      },
-      {
-        src: "/images/merch/red-shirt-summer-tour.jpeg",
-        alt: "Comparaison avec le tee-shirt rouge ColoCrew",
-      },
+      { src: "/images/merch/white-shirt-sunset.jpeg", alt: "Tee-shirt blanc ColoCrew porté au coucher du soleil" },
+      { src: "/images/merch/crew-front-group.jpeg", alt: "L'équipe ColoCrew en tee-shirts rouges et blancs" },
+      { src: "/images/merch/red-white-back-detail.jpg", alt: "Dos des tee-shirts ColoCrew rouge et blanc" },
     ],
     sizes,
     priceOptions,
   },
 ];
+
+export function merchStartingPrice() {
+  return Math.min(...MERCH_PRODUCTS.flatMap((product) => product.priceOptions.map((option) => option.amount)));
+}
+
+/** Checks a requested order against the catalogue. Throws a readable error. */
+export function resolveMerchOrder({ productId, size, priceOptionId, quantity }) {
+  const product = MERCH_PRODUCTS.find((candidate) => candidate.id === productId);
+  if (!product) throw new Error("Modèle inconnu.");
+  const sizeEntry = product.sizes.find((candidate) => candidate.value === size);
+  if (!sizeEntry || sizeEntry.stock <= 0) throw new Error("Choisis une taille disponible.");
+  const priceOption = product.priceOptions.find((candidate) => candidate.id === priceOptionId) || product.priceOptions[0];
+  const count = Math.round(Number(quantity) || 1);
+  if (count < 1 || count > MERCH_MAX_QUANTITY) throw new Error(`Quantité entre 1 et ${MERCH_MAX_QUANTITY}.`);
+  if (count > sizeEntry.stock) throw new Error(`Plus que ${sizeEntry.stock} en taille ${size}.`);
+  return {
+    product,
+    size: sizeEntry.value,
+    priceOption,
+    quantity: count,
+    itemsTotal: priceOption.amount * count,
+    total: priceOption.amount * count + MERCH_SHIPPING.amount,
+  };
+}

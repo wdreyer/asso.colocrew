@@ -1,88 +1,75 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { MERCH_PRODUCTS } from "@/src/lib/merchConfig";
+import { MERCH_SHIPPING, resolveMerchOrder } from "@/src/lib/merchConfig";
 
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY)
-  : null;
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 function getBaseUrl() {
   return process.env.NEXT_PUBLIC_BASE_URL || "https://www.colocrew.com";
 }
 
+/** One order = one model, one size, one quantity, paid directly on Stripe with a flat shipping fee. */
 export async function POST(request) {
+  if (!stripe) return NextResponse.json({ error: "Paiement indisponible pour le moment." }, { status: 500 });
+
+  let order;
   try {
-    if (!stripe) {
-      return NextResponse.json(
-        { error: "Paiement Stripe non configure." },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
-    const items = Array.isArray(body.items) ? body.items : [];
+    order = resolveMerchOrder(body || {});
+  } catch (error) {
+    return NextResponse.json({ error: error.message || "Commande invalide." }, { status: 400 });
+  }
 
-    if (!items.length) {
-      return NextResponse.json({ error: "Panier vide." }, { status: 400 });
-    }
-
-    const lineItems = items.map((item) => {
-      const product = MERCH_PRODUCTS.find((candidate) => candidate.id === item.productId);
-      if (!product) throw new Error("Produit inconnu.");
-
-      const size = product.sizes.find((candidate) => candidate.value === item.size);
-      if (!size || size.stock <= 0) throw new Error("Taille indisponible.");
-
-      const priceOption = product.priceOptions.find((candidate) => candidate.id === item.priceOptionId);
-      if (!priceOption) throw new Error("Option de prix invalide.");
-
-      const quantity = Math.max(1, Math.min(10, Math.round(Number(item.quantity) || 1)));
-      if (quantity > size.stock) throw new Error(`Stock insuffisant en taille ${size.value}.`);
-
-      return {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: `${product.name} - Taille ${size.value}`,
-            description: `${priceOption.label} - ${priceOption.amount} EUR. Précommande, livraison estimée dans 1 mois. Le supplément finance directement ColoCrew.`,
-            images: [`${getBaseUrl()}${product.images[0].src}`],
-            metadata: {
-              productId: product.id,
-              size: size.value,
-              priceOption: priceOption.id,
-            },
-          },
-          unit_amount: priceOption.amount * 100,
-        },
-        quantity,
-      };
-    });
-
+  try {
+    const { product, size, priceOption, quantity } = order;
+    const baseUrl = getBaseUrl();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
-      line_items: lineItems,
-      shipping_address_collection: {
-        allowed_countries: ["FR", "BE", "CH", "LU"],
-      },
+      locale: "fr",
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            unit_amount: priceOption.amount * 100,
+            product_data: {
+              name: `${product.name} - taille ${size}`,
+              description: priceOption.helper ? `${priceOption.label} (${priceOption.helper})` : priceOption.label,
+              images: [`${baseUrl}${product.images[0].src}`],
+            },
+          },
+          quantity,
+        },
+      ],
+      shipping_address_collection: { allowed_countries: ["FR", "BE", "CH", "LU"] },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            display_name: `${MERCH_SHIPPING.label}, ${MERCH_SHIPPING.delay}`,
+            fixed_amount: { amount: MERCH_SHIPPING.amount * 100, currency: "eur" },
+            delivery_estimate: {
+              minimum: { unit: "business_day", value: 2 },
+              maximum: { unit: "business_day", value: 7 },
+            },
+          },
+        },
+      ],
       phone_number_collection: { enabled: true },
-      allow_promotion_codes: true,
-      success_url: `${getBaseUrl()}/merch?commande=ok&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${getBaseUrl()}/merch?commande=annulee`,
+      success_url: `${baseUrl}/merch?commande=ok`,
+      cancel_url: `${baseUrl}/merch?commande=annulee`,
       metadata: {
         source: "colocrew-merch",
-        preorder: "true",
-        shippingEstimate: "environ 1 mois",
-        itemCount: String(items.length),
+        productId: product.id,
+        productName: product.name,
+        size,
+        priceOption: priceOption.id,
+        unitAmount: String(priceOption.amount),
+        quantity: String(quantity),
       },
     });
-
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("Erreur merch checkout:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur pendant la création du paiement." },
-      { status: 400 }
-    );
+    console.error("[merch-checkout] session Stripe impossible:", error);
+    return NextResponse.json({ error: "Paiement indisponible pour le moment. Réessaie dans un instant." }, { status: 502 });
   }
 }
