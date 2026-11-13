@@ -99,8 +99,13 @@ export default function Edito2026Page() {
       <section className={styles.top}>
         {/* ── En-tête compact ── */}
         <div className={styles.hero}>
-          <div className={styles.heroPhoto}>
-            <Image src={edito.heroImage.src} alt={edito.heroImage.alt} fill priority sizes="(max-width: 860px) 100vw, 46vw" />
+          <div className={styles.heroPhotos}>
+            <div className={styles.heroPhoto}>
+              <Image src={edito.heroImage.src} alt={edito.heroImage.alt} fill priority sizes="(max-width: 860px) 50vw, 20vw" />
+            </div>
+            <div className={styles.heroPhoto}>
+              <Image src={edito.heroImageSecond.src} alt={edito.heroImageSecond.alt} fill priority sizes="(max-width: 860px) 50vw, 20vw" />
+            </div>
           </div>
           <div className={styles.heroText}>
             <p className={styles.eyebrow}>{edito.eyebrow}</p>

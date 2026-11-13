@@ -28,6 +28,11 @@ export const EDITO_2026 = {
     src: "/images/edito/equipe-ete-2026.jpg",
     alt: "L'équipe d'animation ColoCrew de l'été 2026 en tee-shirts rouges et blancs",
   },
+  // Deuxième photo, à côté de la première en haut de page.
+  heroImageSecond: {
+    src: "/images/edito/equipe-coucher-soleil-2026.jpg",
+    alt: "L'équipe ColoCrew en tee-shirts rouges et blancs au coucher du soleil, juillet 2026",
+  },
 
   // Contact mis en avant sous le formulaire.
   contact: {

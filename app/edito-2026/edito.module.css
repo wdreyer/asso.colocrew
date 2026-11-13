@@ -55,9 +55,15 @@
   align-items: center;
 }
 
+.heroPhotos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .heroPhoto {
   position: relative;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 3 / 4;
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(31, 22, 64, 0.16);
@@ -65,7 +71,11 @@
 
 .heroPhoto img {
   object-fit: cover;
-  object-position: center 40%;
+  object-position: center 55%;
+}
+
+.heroPhoto:nth-child(2) {
+  transform: translateY(14px);
 }
 
 .heroText h1 {
@@ -1079,9 +1089,17 @@
     gap: 14px;
   }
 
+  .heroPhotos {
+    gap: 8px;
+  }
+
   .heroPhoto {
-    aspect-ratio: 16 / 7;
+    aspect-ratio: 6 / 5;
     border-radius: 14px;
+  }
+
+  .heroPhoto:nth-child(2) {
+    transform: none;
   }
 
   .heroText h1 {
