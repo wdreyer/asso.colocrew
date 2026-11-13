@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { MERCH_SHIPPING, resolveMerchOrder } from "@/src/lib/merchConfig";
+import { MERCH_SHIPPING, encodeMerchLines, resolveMerchCart } from "@/src/lib/merchConfig";
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
@@ -8,38 +8,38 @@ function getBaseUrl() {
   return process.env.NEXT_PUBLIC_BASE_URL || "https://www.colocrew.com";
 }
 
-/** One order = one model, one size, one quantity, paid directly on Stripe with a flat shipping fee. */
+/**
+ * Several tee-shirts (colours × sizes) at one price level, paid directly on Stripe with a flat
+ * shipping fee per order. Body: { items: [{ productId, size, quantity }], priceOptionId }.
+ */
 export async function POST(request) {
   if (!stripe) return NextResponse.json({ error: "Paiement indisponible pour le moment." }, { status: 500 });
 
-  let order;
+  let cart;
   try {
-    const body = await request.json();
-    order = resolveMerchOrder(body || {});
+    cart = resolveMerchCart((await request.json()) || {});
   } catch (error) {
     return NextResponse.json({ error: error.message || "Commande invalide." }, { status: 400 });
   }
 
   try {
-    const { product, size, priceOption, quantity } = order;
     const baseUrl = getBaseUrl();
+    const { lines, priceOption, quantity } = cart;
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       locale: "fr",
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            unit_amount: priceOption.amount * 100,
-            product_data: {
-              name: `${product.name} - taille ${size}`,
-              description: priceOption.helper ? `${priceOption.label} (${priceOption.helper})` : priceOption.label,
-              images: [`${baseUrl}${product.images[0].src}`],
-            },
+      line_items: lines.map((line) => ({
+        price_data: {
+          currency: "eur",
+          unit_amount: priceOption.amount * 100,
+          product_data: {
+            name: `${line.product.name} - taille ${line.size}`,
+            description: priceOption.helper ? `${priceOption.label} (${priceOption.helper})` : priceOption.label,
+            images: [`${baseUrl}${line.product.images[0].src}`],
           },
-          quantity,
         },
-      ],
+        quantity: line.quantity,
+      })),
       shipping_address_collection: { allowed_countries: ["FR", "BE", "CH", "LU"] },
       shipping_options: [
         {
@@ -59,9 +59,7 @@ export async function POST(request) {
       cancel_url: `${baseUrl}/merch?commande=annulee`,
       metadata: {
         source: "colocrew-merch",
-        productId: product.id,
-        productName: product.name,
-        size,
+        lines: encodeMerchLines(lines),
         priceOption: priceOption.id,
         unitAmount: String(priceOption.amount),
         quantity: String(quantity),

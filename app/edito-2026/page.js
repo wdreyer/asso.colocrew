@@ -58,9 +58,6 @@ export default function Edito2026Page() {
             <h1>{edito.title}</h1>
             <p className={styles.chapo}>{edito.chapo}</p>
             <p className={styles.byline}>{edito.signature} · {edito.dateLabel}</p>
-            <div className={styles.heroPhoto}>
-              <Image src={edito.heroImage.src} alt={edito.heroImage.alt} fill priority sizes="(max-width: 960px) 100vw, 55vw" />
-            </div>
             <nav className={styles.quickLinks} aria-label="Comment nous aider">
               <a href="#rejoindre">Donner du temps</a>
               <a href="#soutenir">Adhérer</a>
@@ -68,9 +65,12 @@ export default function Edito2026Page() {
               <a href="#edito">Lire l&apos;édito</a>
             </nav>
           </div>
-          <div className={styles.formColumn}>
-            <VolunteerForm />
+          <div className={styles.heroPhoto}>
+            <Image src={edito.heroImage.src} alt={edito.heroImage.alt} fill priority sizes="(max-width: 960px) 100vw, 50vw" />
           </div>
+        </div>
+        <div className={styles.formWrap}>
+          <VolunteerForm />
         </div>
       </section>
 
@@ -116,6 +116,15 @@ export default function Edito2026Page() {
           {edito.article.map((block, index) => <ArticleBlock key={index} block={block} />)}
           <p className={styles.signature}>{edito.signature}</p>
         </article>
+      </section>
+
+      {/* ── L'équipe ── */}
+      <section className={styles.teamBand} aria-label="L'équipe ColoCrew">
+        {edito.teamPhotos.map((photo) => (
+          <figure key={photo.src} className={styles.teamPhoto}>
+            <Image src={photo.src} alt={photo.alt} fill sizes="(max-width: 760px) 100vw, 33vw" />
+          </figure>
+        ))}
       </section>
 
       {/* ── Comment nous aider ── */}

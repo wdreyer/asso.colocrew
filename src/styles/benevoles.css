@@ -163,6 +163,16 @@
   white-space: pre-wrap;
 }
 
+.bv-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-items li {
+  padding: 2px 0;
+}
+
 .bv-footnote {
   margin: 0;
   font-size: 11.5px;

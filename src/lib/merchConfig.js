@@ -63,22 +63,53 @@ export function merchStartingPrice() {
   return Math.min(...MERCH_PRODUCTS.flatMap((product) => product.priceOptions.map((option) => option.amount)));
 }
 
-/** Checks a requested order against the catalogue. Throws a readable error. */
-export function resolveMerchOrder({ productId, size, priceOptionId, quantity }) {
-  const product = MERCH_PRODUCTS.find((candidate) => candidate.id === productId);
-  if (!product) throw new Error("Modèle inconnu.");
-  const sizeEntry = product.sizes.find((candidate) => candidate.value === size);
-  if (!sizeEntry || sizeEntry.stock <= 0) throw new Error("Choisis une taille disponible.");
-  const priceOption = product.priceOptions.find((candidate) => candidate.id === priceOptionId) || product.priceOptions[0];
-  const count = Math.round(Number(quantity) || 1);
-  if (count < 1 || count > MERCH_MAX_QUANTITY) throw new Error(`Quantité entre 1 et ${MERCH_MAX_QUANTITY}.`);
-  if (count > sizeEntry.stock) throw new Error(`Plus que ${sizeEntry.stock} en taille ${size}.`);
-  return {
-    product,
-    size: sizeEntry.value,
-    priceOption,
-    quantity: count,
-    itemsTotal: priceOption.amount * count,
-    total: priceOption.amount * count + MERCH_SHIPPING.amount,
-  };
+export const MERCH_MAX_TOTAL_QUANTITY = 30;
+
+/** Price options are the same for every model: the chosen one applies to the whole order. */
+export const MERCH_PRICE_OPTIONS = priceOptions;
+
+/**
+ * Checks an order of several tee-shirts against the catalogue. Throws a readable error.
+ *   items: [{ productId, size, quantity }]  (one line per model + size)
+ *   priceOptionId: price per tee-shirt for the whole order
+ */
+export function resolveMerchCart({ items, priceOptionId } = {}) {
+  const priceOption = priceOptions.find((option) => option.id === priceOptionId) || priceOptions[0];
+  const merged = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const quantity = Math.round(Number(item?.quantity) || 0);
+    if (quantity <= 0) return;
+    const key = `${item.productId}|${item.size}`;
+    merged.set(key, { productId: item.productId, size: item.size, quantity: (merged.get(key)?.quantity || 0) + quantity });
+  });
+  const lines = [...merged.values()].map(({ productId, size, quantity }) => {
+    const product = MERCH_PRODUCTS.find((candidate) => candidate.id === productId);
+    if (!product) throw new Error("Modèle inconnu.");
+    const sizeEntry = product.sizes.find((candidate) => candidate.value === size);
+    if (!sizeEntry || sizeEntry.stock <= 0) throw new Error(`Taille ${size} indisponible en ${product.shortName.toLowerCase()}.`);
+    if (quantity > MERCH_MAX_QUANTITY) throw new Error(`${MERCH_MAX_QUANTITY} maximum par taille et par couleur.`);
+    if (quantity > sizeEntry.stock) throw new Error(`Plus que ${sizeEntry.stock} en ${product.shortName.toLowerCase()} taille ${size}.`);
+    return { product, size, quantity, amount: priceOption.amount * quantity };
+  });
+  if (!lines.length) throw new Error("Choisis au moins un tee-shirt.");
+  const quantity = lines.reduce((sum, line) => sum + line.quantity, 0);
+  if (quantity > MERCH_MAX_TOTAL_QUANTITY) throw new Error(`${MERCH_MAX_TOTAL_QUANTITY} tee-shirts maximum par commande. Écris-nous pour plus.`);
+  const itemsTotal = lines.reduce((sum, line) => sum + line.amount, 0);
+  return { lines, priceOption, quantity, itemsTotal, total: itemsTotal + MERCH_SHIPPING.amount };
+}
+
+/** Compact form for Stripe metadata (500 chars max): "productId:size:qty,…". */
+export function encodeMerchLines(lines) {
+  return lines.map((line) => `${line.product.id}:${line.size}:${line.quantity}`).join(",");
+}
+
+export function decodeMerchLines(value) {
+  return String(value || "")
+    .split(",")
+    .map((chunk) => {
+      const [productId, size, quantity] = chunk.split(":");
+      const product = MERCH_PRODUCTS.find((candidate) => candidate.id === productId);
+      return productId ? { productId, productName: product?.name || productId, color: product?.shortName || "", size, quantity: Number(quantity) || 0 } : null;
+    })
+    .filter(Boolean);
 }

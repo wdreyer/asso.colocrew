@@ -28,6 +28,19 @@ function fmtDate(value) {
   return Number.isNaN(ms) ? "" : new Date(ms).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Lines of an order: `items` since multi-item orders, else the single legacy item. */
+function orderItems(order) {
+  if (Array.isArray(order.items) && order.items.length) return order.items;
+  return [{ productName: order.productName || "Tee-shirt", color: "", size: order.size || "", quantity: Number(order.quantity) || 1 }];
+}
+
+/** "2 × Rouge M, 1 × Blanc L" */
+function itemsSummary(order) {
+  return orderItems(order)
+    .map((item) => `${item.quantity} × ${item.color || item.productName} ${item.size}`.trim())
+    .join(", ");
+}
+
 function addressLines(order) {
   const address = order.address || {};
   return [
@@ -75,7 +88,18 @@ function OrderDetail({ order }) {
   return (
     <div className="bv-detail">
       <dl className="bv-facts">
-        <div><dt>Article</dt><dd>{order.productName} · taille {order.size} · × {order.quantity}</dd></div>
+        <div>
+          <dt>À envoyer</dt>
+          <dd>
+            <ul className="bv-items">
+              {orderItems(order).map((item, index) => (
+                <li key={`${item.productId || item.productName}-${item.size}-${index}`}>
+                  <strong>{item.quantity} ×</strong> {item.productName} · taille {item.size}
+                </li>
+              ))}
+            </ul>
+          </dd>
+        </div>
         <div><dt>Payé</dt><dd>{euros(order.totalAmount)} <span className="dash-muted">(dont {euros(order.shippingAmount)} de port)</span></dd></div>
         <div><dt>Commande du</dt><dd>{fmtDate(order.paidAt)}</dd></div>
       </dl>
@@ -152,7 +176,7 @@ export default function MerchOrders() {
       paidMs: Date.parse(String(order.paidAt || "")) || 0,
       customerName: order.customer?.name || "",
       customerEmail: order.customer?.email || "",
-      itemText: `${order.productName || ""} ${order.size || ""} × ${order.quantity || 1}`,
+      itemText: itemsSummary(order),
       cityText: [order.address?.postalCode, order.address?.city].filter(Boolean).join(" "),
     })), [all, statusFilter]);
 
@@ -180,7 +204,7 @@ export default function MerchOrders() {
       render: (order) => <div className="bv-person"><strong>{order.customerName}</strong><span>{order.customerEmail}</span></div>,
       sortValue: (order) => order.customerName,
     },
-    { key: "itemText", label: "Article" },
+    { key: "itemText", label: "Tee-shirts" },
     { key: "cityText", label: "Ville", width: 160 },
     { key: "totalAmount", label: "Payé", width: 100, render: (order) => euros(order.totalAmount), sortValue: (order) => order.totalAmount },
     {

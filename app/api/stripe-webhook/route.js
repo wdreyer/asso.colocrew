@@ -15,6 +15,7 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { syncInstallmentSubscriptionCancellation } from "@/src/lib/stripeInstallments";
+import { decodeMerchLines } from "@/src/lib/merchConfig";
 
 // On force l'exécution en runtime Node.js
 export const runtime = "nodejs";
@@ -40,9 +41,10 @@ async function saveMerchOrder(session) {
     stripeSessionId: session.id,
     stripePaymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || "",
     paymentStatus: session.payment_status || "",
-    productId: meta.productId || "",
-    productName: meta.productName || "",
-    size: meta.size || "",
+    // One line per colour + size. Orders paid before multi-items carry productId/size instead.
+    items: meta.lines
+      ? decodeMerchLines(meta.lines)
+      : [{ productId: meta.productId || "", productName: meta.productName || "", color: "", size: meta.size || "", quantity: Number(meta.quantity) || 1 }],
     priceOption: meta.priceOption || "",
     unitAmount: Number(meta.unitAmount) || 0,
     quantity: Number(meta.quantity) || 1,

@@ -19,7 +19,19 @@ export const EDITO_2026 = {
     "Une saison de colos, des centaines de souvenirs, et une association qui grandit. Pour continuer, on a besoin de nouvelles personnes autour de la table : un peu de temps, une compétence, ou simplement votre soutien.",
   signature: "L'équipe ColoCrew",
   dateLabel: "Novembre 2026",
-  heroImage: { src: "/mcsc2026.jpg", alt: "Des jeunes de ColoCrew avec leurs planches de surf sur la plage, été 2026" },
+  heroImage: {
+    src: "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/banqueimage%2Fdashboard-pages%2F1775596119960-pxl_20250703_133944806.jpg?alt=media&token=aa8c8440-1cf9-49f8-950c-686d26f8a162",
+    alt: "L'équipe d'animation ColoCrew, bras dessus bras dessous face à l'océan à Bidart",
+  },
+  // Bande de photos d'équipe sous l'édito.
+  teamPhotos: [
+    {
+      src: "https://firebasestorage.googleapis.com/v0/b/colocrew-5edf9.appspot.com/o/Ski%2F1775477468176-pxl_20260219_235357864.night.jpg?alt=media&token=53e061c9-347c-4893-820b-2bb77b154886",
+      alt: "L'équipe d'animatrices de Ski and Music, février 2026",
+    },
+    { src: "/images/merch/white-shirt-sunset.jpeg", alt: "Deux animatrices ColoCrew au coucher du soleil, été 2026" },
+    { src: "/images/merch/red-shirt-crew-candid.jpg", alt: "Des animateurs ColoCrew pendant l'été 2026" },
+  ],
 
   // Texte provisoire : à remplacer par l'édito définitif.
   article: [
