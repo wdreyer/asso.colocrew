@@ -26,10 +26,11 @@ export const EDITO_2026 = {
 
   // Contact mis en avant sous le formulaire.
   contact: {
-    name: "Marion",
-    role: "L'une des responsables de ColoCrew",
+    name: "Marion et son équipe",
+    role: "Marion est l'une des responsables de ColoCrew",
     text: "Une question avant de te lancer ? Écris-nous ou appelle : Marion et l'équipe te répondent.",
-    photo: "/images/edito/marion.jpg",
+    photo: "/images/merch/crew-front-group.jpeg",
+    photoAlt: "Marion avec son équipe d'animation ColoCrew, en tee-shirts rouges et blancs",
     email: "contact@colocrew.com",
     phone: "01 84 21 02 30",
   },

@@ -236,16 +236,15 @@
 .contactPhoto {
   position: relative;
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
+  width: 200px;
+  aspect-ratio: 3 / 2;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--blush);
 }
 
 .contactPhoto img {
   object-fit: cover;
-  object-position: center 30%;
+  object-position: center 35%;
 }
 
 .contactText {
@@ -1161,8 +1160,8 @@
   }
 
   .contactPhoto {
-    width: 52px;
-    height: 52px;
+    width: 100%;
+    aspect-ratio: 16 / 9;
   }
 
   .contactActions a {

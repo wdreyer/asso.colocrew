@@ -129,7 +129,7 @@ export default function Edito2026Page() {
           <VolunteerForm />
           <aside className={styles.contact}>
             <div className={styles.contactPhoto}>
-              <Image src={contact.photo} alt={`${contact.name}, ${contact.role.toLowerCase()}`} fill sizes="72px" />
+              <Image src={contact.photo} alt={contact.photoAlt} fill sizes="(max-width: 640px) 100vw, 220px" />
             </div>
             <div className={styles.contactText}>
               <strong>{contact.name}</strong>
