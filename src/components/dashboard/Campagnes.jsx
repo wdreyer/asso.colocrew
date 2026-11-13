@@ -47,35 +47,27 @@ const TEMPLATES = [
       </thead>
       <tbody>
         <tr>
-          <td style="border:1px solid #d7dde5"><strong>Ski &amp; Musique</strong></td>
-          <td style="border:1px solid #d7dde5">Lanobre<br>Cantal (15)</td>
-          <td style="border:1px solid #d7dde5">21 au 27 février 2027<br>28 février au 6 mars 2027</td>
-          <td style="border:1px solid #d7dde5">A et B</td>
-          <td style="border:1px solid #d7dde5">Ski et projet musical</td>
-          <td style="border:1px solid #d7dde5"><strong>755 €</strong></td>
-        </tr>
-        <tr style="background:#f7f8fa">
-          <td style="border:1px solid #d7dde5"><strong>Ski Camp Évasion</strong></td>
-          <td style="border:1px solid #d7dde5">Saint-Michel-de-Chaillol<br>Hautes-Alpes (05)</td>
-          <td style="border:1px solid #d7dde5">13 au 20 février 2027<br>20 au 27 février 2027</td>
-          <td style="border:1px solid #d7dde5">A, B et C</td>
-          <td style="border:1px solid #d7dde5">4 sorties ski, dont 1 cours ESF</td>
-          <td style="border:1px solid #d7dde5"><strong>990 €</strong></td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #d7dde5"><strong>Ski Camp Passion</strong></td>
+          <td style="border:1px solid #d7dde5"><strong>Ski Camp Evasion</strong></td>
           <td style="border:1px solid #d7dde5">Les Contamines-Montjoie<br>Haute-Savoie (74)</td>
           <td style="border:1px solid #d7dde5">13 au 19 février 2027</td>
           <td style="border:1px solid #d7dde5">A et C</td>
-          <td style="border:1px solid #d7dde5">5 sorties ski</td>
-          <td style="border:1px solid #d7dde5"><strong>1 200 €</strong></td>
+          <td style="border:1px solid #d7dde5">Jusqu'à 5 sorties ski et projet artistique</td>
+          <td style="border:1px solid #d7dde5"><strong>500 à 1 200 €</strong><br>selon QF</td>
+        </tr>
+        <tr style="background:#f7f8fa">
+          <td style="border:1px solid #d7dde5"><strong>Ski and Music</strong></td>
+          <td style="border:1px solid #d7dde5">Lanobre<br>Cantal (15)</td>
+          <td style="border:1px solid #d7dde5">21 au 27 février 2027</td>
+          <td style="border:1px solid #d7dde5">A et B</td>
+          <td style="border:1px solid #d7dde5">3 sorties ski dont 1 cours ESF, projet musical et concert</td>
+          <td style="border:1px solid #d7dde5"><strong>350 à 950 €</strong><br>selon QF</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <p style="margin:14px 0 8px"><strong>Transport aller-retour en option :</strong> Grenoble 80 €, Lyon ou Marseille 150 €, Paris 200 €, Bordeaux 250 €.</p>
-  <p style="margin:0 0 20px;padding:12px 14px;background:#f7f8fa;border-left:4px solid #8f1d2c"><strong>Aides CAF :</strong> pour un quotient familial inférieur à 950, la réduction est généralement comprise entre 250 € et 350 €, selon votre CAF.</p>
+  <p style="margin:14px 0 8px"><strong>Transport aller-retour en option :</strong> Ski Camp Evasion : Grenoble 80 €, Lyon ou Marseille 150 €, Paris 200 €, Bordeaux 250 €. Ski and Music : Clermont-Ferrand 80 €, Lyon 100 €, Paris ou Marseille 150 €. Option pack ESF (Ski Camp Evasion) : 180 €.</p>
+  <p style="margin:0 0 20px;padding:12px 14px;background:#f7f8fa;border-left:4px solid #8f1d2c"><strong>Aides VACAF :</strong> les aides AVE et Pass Colo sont déduites du tarif, de 300 € à 600 € selon votre situation. Chèques ANCV et aides de votre département acceptés.</p>
 
   <p style="margin:0 0 24px"><strong>À la Toussaint, les formations BAFA continuent :</strong> formation générale et approfondissement. Toutes les informations sont disponibles sur <a href="https://bafa.murathenes.org/" style="color:#8f1d2c">bafa.murathenes.org</a>.</p>
 
