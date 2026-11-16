@@ -15,8 +15,8 @@ export const VOLUNTEER_PICK_EVENT = "colocrew:volunteer-pick";
 const EMPTY = { firstName: "", lastName: "", phone: "", email: "", interests: [], availability: "", message: "", website: "" };
 
 const STEPS = [
-  { title: "Toi", fields: ["firstName", "lastName", "phone", "email"] },
-  { title: "Ton aide", fields: ["interests", "availability"] },
+  { title: "Coordonnées", fields: ["firstName", "lastName", "phone", "email"] },
+  { title: "Participation", fields: ["interests", "availability"] },
 ];
 
 const CONTACT_FIELDS = [
@@ -113,7 +113,7 @@ export default function VolunteerForm() {
       }
       setState("done");
     } catch (error) {
-      setServerError(error.message || "Envoi impossible. Réessaie dans un instant.");
+      setServerError(error.message || "Envoi impossible. Veuillez réessayer dans un instant.");
       setState("error");
     }
   };
@@ -123,8 +123,8 @@ export default function VolunteerForm() {
       <div ref={cardRef} id="rejoindre" className={`${styles.formCard} ${styles.formDone}`}>
         <span className={styles.doneIcon} aria-hidden="true"><FaCheck /></span>
         <div>
-          <h2>Merci {form.firstName}, c&apos;est envoyé !</h2>
-          <p>Quelqu&apos;un de l&apos;équipe t&apos;appelle ou t&apos;écrit dans les prochains jours pour en parler.</p>
+          <h2>Votre message a été envoyé</h2>
+          <p>L’équipe vous recontactera pour échanger sur votre participation.</p>
         </div>
         <div className={styles.doneLinks}>
           <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">Adhérer à l&apos;association <FaArrowRight /></a>
@@ -138,8 +138,8 @@ export default function VolunteerForm() {
     <form ref={cardRef} id="rejoindre" className={styles.formCard} onSubmit={step === 0 ? next : submit} noValidate>
       <div className={styles.formTop}>
         <div>
-          <span className={styles.formBadge}>Bénévolat · 2 minutes</span>
-          <h2>Rejoins l&apos;équipe</h2>
+          <span className={styles.formBadge}>Prise de contact</span>
+          <h2>Proposer une participation</h2>
         </div>
         <ol className={styles.steps} aria-label="Étapes">
           {STEPS.map((item, index) => (
@@ -158,7 +158,7 @@ export default function VolunteerForm() {
 
       {step === 0 ? (
         <div className={styles.stepPane} key="step-0">
-          <p className={styles.stepIntro}>Pour qu&apos;on puisse te recontacter. <span className={styles.required}>*</span> Tous les champs sont obligatoires.</p>
+          <p className={styles.stepIntro}>Indiquez vos coordonnées pour être recontacté·e. <span className={styles.required}>*</span> Tous les champs sont obligatoires.</p>
           <div className={styles.contactRow}>
             {CONTACT_FIELDS.map((field) => (
               <label key={field.name} className={`${styles.field} ${errors[field.name] ? styles.fieldError : ""}`}>
@@ -180,7 +180,7 @@ export default function VolunteerForm() {
       ) : (
         <div className={`${styles.stepPane} ${styles.helpRow}`} key="step-1">
           <fieldset className={`${styles.question} ${errors.interests ? styles.questionError : ""}`}>
-            <legend>Tu es intéressé·e par <span className={styles.required}>*</span></legend>
+            <legend>Domaines qui vous intéressent <span className={styles.required}>*</span></legend>
             <p className={styles.questionHint}>Plusieurs réponses possibles.</p>
             <div className={styles.optionGrid}>
               {VOLUNTEER_INTEREST_GROUPS.flatMap((group) => group.options.map((option) => {
@@ -210,7 +210,7 @@ export default function VolunteerForm() {
 
           <div className={styles.helpSide}>
             <fieldset className={`${styles.question} ${errors.availability ? styles.questionError : ""}`}>
-              <legend>Ta disponibilité <span className={styles.required}>*</span></legend>
+              <legend>Vos disponibilités <span className={styles.required}>*</span></legend>
               <div className={styles.radioList} role="radiogroup">
                 {VOLUNTEER_AVAILABILITY.map((option) => {
                   const active = form.availability === option.key;
@@ -233,8 +233,8 @@ export default function VolunteerForm() {
             </fieldset>
 
             <label className={styles.field}>
-              <span>Un mot pour nous <em>(facultatif)</em></span>
-              <textarea rows={2} value={form.message} onChange={set("message")} placeholder="Ton parcours, une idée, une question…" />
+              <span>Message <em>(facultatif)</em></span>
+              <textarea rows={2} value={form.message} onChange={set("message")} placeholder="Votre expérience, une question ou une précision…" />
             </label>
           </div>
         </div>
@@ -245,7 +245,7 @@ export default function VolunteerForm() {
       {state === "error" ? <p className={styles.serverError}>{serverError}</p> : null}
 
       <div className={styles.formFooter}>
-        <p className={styles.privacy}>Tes informations servent uniquement à te recontacter. Elles ne sont jamais partagées.</p>
+        <p className={styles.privacy}>Vos coordonnées sont utilisées pour vous recontacter au sujet de votre participation.</p>
         <div className={styles.formButtons}>
           {step === 1 ? (
             <button type="button" className={styles.back} onClick={() => setStep(0)}>

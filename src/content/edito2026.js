@@ -16,7 +16,7 @@ export const EDITO_2026 = {
   eyebrow: "Le mot de l'équipe",
   title: "Bilan de l'été 2026",
   chapo:
-    "Après deux ans d'existence, nous nous sommes posé la question d'arrêter : notre moral, notre fatigue et notre situation financière se sont lourdement dégradés cet été 2026. Pourtant, nous avons envie de continuer. Mais pour cela, nous avons besoin de vous : que cette association devienne enfin un vrai collectif et ne repose plus sur deux personnes. Pour nous aider, vous pouvez remplir ce formulaire, adhérer, commander un tee-shirt, ou simplement nous suivre sur les réseaux sociaux.",
+    "Après deux ans d’activité, l’été 2026 a mis en évidence des difficultés financières et une charge de travail concentrée sur deux personnes. Nous souhaitons poursuivre les activités de ColoCrew en répartissant davantage les responsabilités. Cette page présente les missions auxquelles vous pouvez contribuer et les autres moyens de soutenir l’association.",
   socials: [
     { label: "Instagram", href: "https://www.instagram.com/_colocrew/" },
     { label: "TikTok", href: "https://www.tiktok.com/@colocrew" },
@@ -34,17 +34,6 @@ export const EDITO_2026 = {
     alt: "L'équipe ColoCrew en tee-shirts rouges et blancs au coucher du soleil, juillet 2026",
   },
 
-  // Contact mis en avant sous le formulaire.
-  contact: {
-    name: "Marion et son équipe",
-    role: "Marion est l'une des responsables de ColoCrew",
-    text: "Une question avant de te lancer ? Écris-nous ou appelle : Marion et l'équipe te répondent.",
-    photo: "/images/merch/crew-front-group.jpeg",
-    photoAlt: "Marion avec son équipe d'animation ColoCrew, en tee-shirts rouges et blancs",
-    email: "contact@colocrew.com",
-    phone: "01 84 21 02 30",
-  },
-
   // L'édito est en cours d'écriture : laisser vide tant qu'il n'est pas prêt.
   article: [],
 
@@ -53,7 +42,7 @@ export const EDITO_2026 = {
       id: "sejours",
       interests: ["conception", "direction", "animation"],
       title: "Les séjours",
-      lead: "Imaginer, diriger ou animer une colo.",
+      lead: "Préparation et encadrement des séjours.",
       points: [
         "Concevoir un séjour : lieu, programme, budget, partenaires",
         "Diriger une équipe sur place (BAFD ou en cours)",
@@ -64,7 +53,7 @@ export const EDITO_2026 = {
       id: "inscriptions",
       interests: ["inscriptions"],
       title: "Les inscriptions",
-      lead: "Faire connaître les colos et accompagner les familles.",
+      lead: "Information des familles et suivi des inscriptions.",
       points: [
         "Présenter les séjours aux structures et aux mairies",
         "Répondre aux questions des parents",
@@ -75,22 +64,22 @@ export const EDITO_2026 = {
       id: "administratif",
       interests: ["administratif"],
       title: "L'administratif",
-      lead: "Ce qui ne se voit pas, mais sans quoi rien ne part.",
+      lead: "Suivi des dossiers et des démarches de l’association.",
       points: [
         "Monter les demandes de subvention",
         "Préparer et classer les documents",
-        "Améliorer nos process et nos outils",
+        "Mettre à jour les outils de suivi",
       ],
     },
     {
       id: "ca",
       interests: ["ca"],
       title: "Le conseil d'administration",
-      lead: "Décider et suivre la vie de l'association.",
+      lead: "Participation aux décisions et au suivi de l’association.",
       points: [
-        "Participer aux décisions importantes",
+        "Participer aux réunions et aux décisions",
         "Suivre le budget et les projets",
-        "Porter la voix de ColoCrew",
+        "Suivre les orientations de l’association",
       ],
     },
   ],

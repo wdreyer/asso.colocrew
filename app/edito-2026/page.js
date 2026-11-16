@@ -2,16 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   FaArrowRight,
-  FaClock,
-  FaEnvelope,
   FaExternalLinkAlt,
   FaFacebookF,
-  FaHeart,
   FaInstagram,
   FaPenNib,
-  FaPhoneAlt,
   FaTiktok,
-  FaTshirt,
 } from "react-icons/fa";
 import { EDITO_2026 } from "@/src/content/edito2026";
 import { HELLOASSO_MEMBERSHIP_URL } from "@/src/lib/volunteers";
@@ -62,33 +57,28 @@ function ArticleBlock({ block }) {
 
 export default function Edito2026Page() {
   const edito = EDITO_2026;
-  const contact = edito.contact;
 
   // Les trois façons d'aider, visibles dès l'ouverture de la page.
   const ways = [
     {
       key: "temps",
       href: "#rejoindre",
-      icon: <FaClock />,
-      title: "Donner du temps",
-      meta: "Bénévolat · 2 min",
+      title: "Participer aux activités",
+      meta: "Bénévolat",
       text: "Séjours, inscriptions, administratif ou CA.",
-      primary: true,
     },
     {
       key: "adherer",
       href: HELLOASSO_MEMBERSHIP_URL,
       external: true,
-      icon: <FaHeart />,
       title: "Adhérer",
       meta: "Prix libre",
-      text: "Tu reçois nos actus, et l'asso pèse plus.",
+      text: "Devenir membre de l’association.",
     },
     {
       key: "tee",
       href: "/merch",
-      icon: <FaTshirt />,
-      title: "Porter le tee-shirt",
+      title: "Commander un tee-shirt",
       meta: `Dès ${merchStartingPrice()} €`,
       text: `Livré ${MERCH_SHIPPING.delay}, ${MERCH_SHIPPING.amount} € de port.`,
     },
@@ -124,12 +114,11 @@ export default function Edito2026Page() {
 
         {/* ── Les 3 façons d'aider ── */}
         <nav className={styles.ways} aria-label="Comment nous aider">
-          <p className={styles.waysTitle}>Comment veux-tu nous aider ?</p>
+          <p className={styles.waysTitle}>Participer à la vie de l’association</p>
           <div className={styles.waysGrid}>
             {ways.map((way) => {
               const content = (
                 <>
-                  <span className={styles.wayIcon} aria-hidden="true">{way.icon}</span>
                   <span className={styles.wayBody}>
                     <strong>{way.title}</strong>
                     <span className={styles.wayMeta}>{way.meta}</span>
@@ -138,7 +127,7 @@ export default function Edito2026Page() {
                   <span className={styles.wayArrow} aria-hidden="true">{way.external ? <FaExternalLinkAlt /> : <FaArrowRight />}</span>
                 </>
               );
-              const className = `${styles.way} ${way.primary ? styles.wayPrimary : ""}`;
+              const className = styles.way;
               if (way.external) {
                 return <a key={way.key} href={way.href} target="_blank" rel="noreferrer" className={className}>{content}</a>;
               }
@@ -150,7 +139,7 @@ export default function Edito2026Page() {
           </div>
         </nav>
 
-        {/* ── Formulaire + contact ── */}
+        {/* ── Formulaire de contact ── */}
         <div className={styles.formWrap}>
           <VolunteerForm />
         </div>
@@ -159,22 +148,22 @@ export default function Edito2026Page() {
       {/* ── Les missions, en bref ── */}
       <section id="missions" className={styles.missions}>
         <div className={styles.sectionHead}>
-          <p className={styles.eyebrow}>Donner du temps</p>
-          <h2>Ce que tu peux faire avec nous</h2>
-          <p>On s&apos;adapte à ton temps et on t&apos;accompagne au début.</p>
+          <h2>Les missions de l’association</h2>
+          <p>Les besoins concernent la préparation des séjours et le fonctionnement de l’association.</p>
         </div>
         <div className={styles.missionGrid}>
-          {edito.missions.map((mission, index) => (
+          {edito.missions.map((mission) => (
             <article key={mission.id} className={styles.missionCard}>
               <div className={styles.missionHead}>
-                <span className={styles.missionNumber}>{String(index + 1).padStart(2, "0")}</span>
                 <h3>{mission.title}</h3>
               </div>
-              <p className={styles.missionLead}>{mission.lead}</p>
-              <ul>
-                {mission.points.map((point) => <li key={point}>{point}</li>)}
-              </ul>
-              <MissionButton interests={mission.interests} />
+              <div className={styles.missionDetails}>
+                <p className={styles.missionLead}>{mission.lead}</p>
+                <ul>
+                  {mission.points.map((point) => <li key={point}>{point}</li>)}
+                </ul>
+              </div>
+              <MissionButton interests={mission.interests} label={`Choisir : ${mission.title.toLowerCase()}`} />
             </article>
           ))}
         </div>
@@ -196,15 +185,6 @@ export default function Edito2026Page() {
         )}
       </section>
 
-      {/* ── Rappel final ── */}
-      <section className={styles.closing}>
-        <h2>Une demi-journée par mois, c&apos;est déjà beaucoup.</h2>
-        <div className={styles.closingActions}>
-          <a className={styles.closingPrimary} href="#rejoindre">Je donne du temps <FaArrowRight /></a>
-          <a className={styles.closingSecondary} href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">J&apos;adhère</a>
-          <Link className={styles.closingSecondary} href="/merch">Le tee-shirt</Link>
-        </div>
-      </section>
     </div>
   );
 }
