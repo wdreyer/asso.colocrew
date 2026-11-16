@@ -5,7 +5,6 @@ import { FaArrowLeft, FaArrowRight, FaCheck } from "react-icons/fa";
 import {
   HELLOASSO_MEMBERSHIP_URL,
   VOLUNTEER_AVAILABILITY,
-  VOLUNTEER_INTEREST_GROUPS,
   validateVolunteer,
 } from "@/src/lib/volunteers";
 import styles from "./edito.module.css";
@@ -17,6 +16,19 @@ const EMPTY = { firstName: "", lastName: "", phone: "", email: "", interests: []
 const STEPS = [
   { title: "Coordonnées", fields: ["firstName", "lastName", "phone", "email"] },
   { title: "Participation", fields: ["interests", "availability"] },
+];
+
+const PARTICIPATION_GROUPS = [
+  { title: "Les séjours", options: [
+    { key: "conception", label: "Préparer un séjour", hint: "Programme, lieu et organisation" },
+    { key: "direction", label: "Diriger un séjour", hint: "Équipe et organisation sur place" },
+    { key: "animation", label: "Animer un séjour", hint: "Activités et vie quotidienne" },
+  ] },
+  { title: "La vie de l’association", options: [
+    { key: "inscriptions", label: "Suivre les inscriptions", hint: "Familles et dossiers" },
+    { key: "administratif", label: "Aider à l’administratif", hint: "Documents et subventions" },
+    { key: "ca", label: "Participer au CA", hint: "Décisions et suivi de l’association" },
+  ] },
 ];
 
 const CONTACT_FIELDS = [
@@ -73,10 +85,6 @@ export default function VolunteerForm() {
     clearError("interests");
   };
 
-  const pickAvailability = (key) => {
-    setForm((current) => ({ ...current, availability: key }));
-    clearError("availability");
-  };
 
   const next = (event) => {
     event.preventDefault();
@@ -123,8 +131,8 @@ export default function VolunteerForm() {
       <div ref={cardRef} id="rejoindre" className={`${styles.formCard} ${styles.formDone}`}>
         <span className={styles.doneIcon} aria-hidden="true"><FaCheck /></span>
         <div>
-          <h2>Votre message a été envoyé</h2>
-          <p>L’équipe vous recontactera pour échanger sur votre participation.</p>
+          <h2>Ton message a été envoyé</h2>
+          <p>L’équipe te recontactera pour échanger sur ta participation.</p>
         </div>
         <div className={styles.doneLinks}>
           <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">Adhérer à l&apos;association <FaArrowRight /></a>
@@ -158,7 +166,7 @@ export default function VolunteerForm() {
 
       {step === 0 ? (
         <div className={styles.stepPane} key="step-0">
-          <p className={styles.stepIntro}>Indiquez vos coordonnées pour être recontacté·e. <span className={styles.required}>*</span> Tous les champs sont obligatoires.</p>
+          <p className={styles.stepIntro}>Indique tes coordonnées pour que nous puissions te recontacter. <span className={styles.required}>*</span> Tous les champs sont obligatoires.</p>
           <div className={styles.contactRow}>
             {CONTACT_FIELDS.map((field) => (
               <label key={field.name} className={`${styles.field} ${errors[field.name] ? styles.fieldError : ""}`}>
@@ -178,63 +186,43 @@ export default function VolunteerForm() {
           </div>
         </div>
       ) : (
-        <div className={`${styles.stepPane} ${styles.helpRow}`} key="step-1">
-          <fieldset className={`${styles.question} ${errors.interests ? styles.questionError : ""}`}>
-            <legend>Domaines qui vous intéressent <span className={styles.required}>*</span></legend>
-            <p className={styles.questionHint}>Plusieurs réponses possibles.</p>
-            <div className={styles.optionGrid}>
-              {VOLUNTEER_INTEREST_GROUPS.flatMap((group) => group.options.map((option) => {
-                const active = form.interests.includes(option.key);
-                const label = group.options.length > 1 ? `${option.label} de séjour` : group.label;
-                const hint = group.options.length > 1 ? "" : group.hint;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    role="checkbox"
-                    aria-checked={active}
-                    className={`${styles.option} ${active ? styles.optionActive : ""}`}
-                    onClick={() => toggleInterest(option.key)}
-                  >
-                    <span className={styles.checkbox} aria-hidden="true">{active ? <FaCheck /> : null}</span>
-                    <span className={styles.optionText}>
-                      <strong>{label}</strong>
-                      {hint ? <span>{hint}</span> : null}
-                    </span>
-                  </button>
-                );
-              }))}
-            </div>
-            {errors.interests ? <small className={styles.questionMessage}>{errors.interests}</small> : null}
+        <div className={styles.stepPane} key="step-1">
+          <fieldset className={styles.interestsFieldset} aria-describedby="interests-hint interests-error">
+            <legend>Qu’est-ce qui t’intéresse ? <span className={styles.required}>*</span></legend>
+            <p id="interests-hint" className={styles.questionHint}>Tu peux choisir plusieurs domaines. Nous en discuterons ensuite.</p>
+            {PARTICIPATION_GROUPS.map((group) => (
+              <div className={styles.interestGroup} key={group.title}>
+                <h3>{group.title}</h3>
+                <div className={styles.interestChoices}>
+                  {group.options.map((option) => (
+                    <label className={styles.interestChoice} key={option.key}>
+                      <input type="checkbox" name="interests" value={option.key}
+                        checked={form.interests.includes(option.key)} onChange={() => toggleInterest(option.key)}
+                        aria-invalid={Boolean(errors.interests)} />
+                      <span><strong>{option.label}</strong><small>{option.hint}</small></span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <p id="interests-error" className={styles.questionMessage} aria-live="polite">{errors.interests || ""}</p>
           </fieldset>
 
-          <div className={styles.helpSide}>
-            <fieldset className={`${styles.question} ${errors.availability ? styles.questionError : ""}`}>
-              <legend>Vos disponibilités <span className={styles.required}>*</span></legend>
-              <div className={styles.radioList} role="radiogroup">
-                {VOLUNTEER_AVAILABILITY.map((option) => {
-                  const active = form.availability === option.key;
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      className={`${styles.option} ${active ? styles.optionActive : ""}`}
-                      onClick={() => pickAvailability(option.key)}
-                    >
-                      <span className={styles.radio} aria-hidden="true" />
-                      <span className={styles.optionText}><strong>{option.label}</strong></span>
-                    </button>
-                  );
-                })}
-              </div>
-              {errors.availability ? <small className={styles.questionMessage}>{errors.availability}</small> : null}
-            </fieldset>
-
+          <div className={styles.participationDetails}>
             <label className={styles.field}>
-              <span>Message <em>(facultatif)</em></span>
-              <textarea rows={2} value={form.message} onChange={set("message")} placeholder="Votre expérience, une question ou une précision…" />
+              <span>Quel temps pourrais-tu y consacrer ? <span className={styles.required}>*</span></span>
+              <select name="availability" value={form.availability} onChange={set("availability")}
+                aria-invalid={Boolean(errors.availability)} aria-describedby="availability-hint availability-error">
+                <option value="" disabled>Choisir une disponibilité</option>
+                {VOLUNTEER_AVAILABILITY.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+              </select>
+              <span id="availability-hint" className={styles.fieldHint}>Une estimation suffit. Tu peux préciser tes contraintes dans le message.</span>
+              <small id="availability-error" aria-live="polite">{errors.availability || ""}</small>
+            </label>
+            <label className={styles.field}>
+              <span>Une précision à ajouter ? <em>(facultatif)</em></span>
+              <textarea name="message" rows={3} maxLength={1500} value={form.message} onChange={set("message")}
+                placeholder="Ton expérience, tes disponibilités ou une question…" />
             </label>
           </div>
         </div>
@@ -245,7 +233,7 @@ export default function VolunteerForm() {
       {state === "error" ? <p className={styles.serverError}>{serverError}</p> : null}
 
       <div className={styles.formFooter}>
-        <p className={styles.privacy}>Vos coordonnées sont utilisées pour vous recontacter au sujet de votre participation.</p>
+        <p className={styles.privacy}>Tes coordonnées servent à te recontacter au sujet de ta participation.</p>
         <div className={styles.formButtons}>
           {step === 1 ? (
             <button type="button" className={styles.back} onClick={() => setStep(0)}>

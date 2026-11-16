@@ -562,3 +562,29 @@
 @media (prefers-reduced-motion: reduce) {
   .page *, .page *::before, .page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Participation : deux groupes courts, puis les disponibilités. */
+.interestsFieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.interestsFieldset > legend { font-size: 1.05rem; font-weight: 650; padding: 0; margin-bottom: 8px; }
+.interestGroup { margin-top: 22px; }
+.interestGroup h3 { margin: 0 0 10px; font-size: .78rem; font-weight: 600; color: var(--ink-soft); }
+.interestChoices { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
+.interestChoice { display: flex; align-items: start; gap: 10px; padding: 16px 12px; min-height: 80px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; background: #fff; transition: border-color .15s, background .15s; }
+.interestChoice:hover { border-color: #c5abb9; background: #fdfafb; }
+.interestChoice:has(input:checked) { border-color: var(--pink); background: #fcf3f7; }
+.interestChoice:has(input:focus-visible) { outline: 2px solid var(--pink); outline-offset: 3px; }
+.interestChoice input { width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--pink); flex-shrink: 0; }
+.interestChoice strong { display: block; font-size: .83rem; line-height: 1.5; font-weight: 600; }
+.interestChoice small { display: block; font-size: .72rem; color: var(--ink-soft); line-height: 1.5; margin-top: 4px; }
+.participationDetails { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--line); align-items: start; }
+.field select { width: 100%; min-width: 0; min-height: 48px; border: 1px solid var(--line); border-radius: 8px; background: #fdfcfd; padding: 10px; font: inherit; font-size: .86rem; color: var(--ink); }
+.field select:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+.field select[aria-invalid="true"] { border-color: #c0263d; }
+.field > .fieldHint { font-size: .74rem; color: var(--ink-soft); font-weight: 400; line-height: 1.6; }
+.participationDetails textarea { font-size: .86rem; min-height: 102px; }
+@media (max-width: 640px) {
+  .interestChoices { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .interestChoice { padding: 12px; min-height: 64px; }
+  .participationDetails { grid-template-columns: minmax(0,1fr); gap: 20px; }
+  .field select { font-size: 16px; }
+}

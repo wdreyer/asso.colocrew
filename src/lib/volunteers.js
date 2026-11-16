@@ -54,9 +54,11 @@ export const VOLUNTEER_INTERESTS = VOLUNTEER_INTEREST_GROUPS.flatMap((group) =>
 );
 
 export const VOLUNTEER_AVAILABILITY = [
-  { key: "half-day-week", label: "½ journée par semaine" },
-  { key: "day-week", label: "1 journée par semaine et +" },
-  { key: "day-month", label: "1 journée par mois" },
+  { key: "occasional", label: "Ponctuellement, selon les besoins" },
+  { key: "day-month", label: "Environ une journée par mois" },
+  { key: "half-day-week", label: "Environ une demi-journée par semaine" },
+  { key: "day-week", label: "Une journée par semaine ou davantage" },
+  { key: "to-discuss", label: "À préciser ensemble" },
 ];
 
 export const VOLUNTEER_STATUSES = [
