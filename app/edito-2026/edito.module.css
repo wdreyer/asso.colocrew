@@ -39,38 +39,34 @@
 .hero,
 .ways,
 .formWrap {
-  max-width: 1120px;
-  margin-left: auto;
-  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
-  gap: 32px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
 }
 
 .heroPhotos {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: 1.50094fr 1.328125fr;
+  gap: 16px;
+  align-items: start;
 }
 
 .heroPhoto {
-  position: relative;
-  aspect-ratio: 3 / 4;
-  border-radius: var(--radius);
-  overflow: hidden;
+  margin: 0;
+  min-width: 0;
 }
 
 .heroPhoto img {
-  object-fit: cover;
-  object-position: center 55%;
-}
-
-.heroPhoto:nth-child(2) {
-  transform: none;
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
 }
 
 .heroText h1 {
@@ -81,11 +77,11 @@
 }
 
 .chapo {
-  margin: 0 0 12px;
-  max-width: 44em;
-  font-size: 0.94rem;
-  line-height: 1.6;
-  color: #3d3360;
+  margin: 0 0 18px;
+  max-width: 72ch;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
 }
 
 .socials {
@@ -122,7 +118,7 @@
 /* Les 3 façons d'aider */
 
 .ways {
-  margin-top: 22px;
+  margin-top: 32px;
 }
 
 .waysTitle {
@@ -185,7 +181,7 @@
   color: var(--ink-soft);
 }
 
-/* Formulaire + contact */
+/* Formulaire de participation */
 
 .formWrap {
   margin-top: 16px;
@@ -673,7 +669,7 @@
 
 .missionCard {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.7fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 28px;
   align-items: start;
   padding: 24px 0;
@@ -869,21 +865,11 @@
   }
 
   .hero {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
+    gap: 24px;
   }
 
   .heroPhotos {
     gap: 8px;
-  }
-
-  .heroPhoto {
-    aspect-ratio: 6 / 5;
-    border-radius: 14px;
-  }
-
-  .heroPhoto:nth-child(2) {
-    transform: none;
   }
 
   .heroText h1 {
@@ -1021,4 +1007,26 @@
 @media (max-width: 640px) {
   .missionCard { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .missionButton { grid-column: 1; }
+}
+
+.participation {
+  padding: 0 20px 56px;
+}
+
+@media (max-width: 640px) {
+  .heroPhotos {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .heroText h1 { font-size: 1.6rem; line-height: 1.25; }
+  .ways { margin-top: 24px; }
+  .participation { padding: 0 14px 40px; }
+}
+
+.formDescription {
+  margin: 10px 0 0;
+  max-width: 60ch;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
 }

@@ -12,7 +12,6 @@ import { EDITO_2026 } from "@/src/content/edito2026";
 import { HELLOASSO_MEMBERSHIP_URL } from "@/src/lib/volunteers";
 import { MERCH_SHIPPING, merchStartingPrice } from "@/src/lib/merchConfig";
 import VolunteerForm from "./VolunteerForm";
-import MissionButton from "./MissionButton";
 import styles from "./edito.module.css";
 
 const SOCIAL_ICONS = { Instagram: <FaInstagram />, TikTok: <FaTiktok />, Facebook: <FaFacebookF /> };
@@ -87,16 +86,8 @@ export default function Edito2026Page() {
   return (
     <div className={styles.page}>
       <section className={styles.top}>
-        {/* ── En-tête compact ── */}
+        {/* ── Introduction et photos ── */}
         <div className={styles.hero}>
-          <div className={styles.heroPhotos}>
-            <div className={styles.heroPhoto}>
-              <Image src={edito.heroImage.src} alt={edito.heroImage.alt} fill priority sizes="(max-width: 860px) 50vw, 20vw" />
-            </div>
-            <div className={styles.heroPhoto}>
-              <Image src={edito.heroImageSecond.src} alt={edito.heroImageSecond.alt} fill priority sizes="(max-width: 860px) 50vw, 20vw" />
-            </div>
-          </div>
           <div className={styles.heroText}>
             <p className={styles.eyebrow}>{edito.eyebrow}</p>
             <h1>{edito.title}</h1>
@@ -109,6 +100,21 @@ export default function Edito2026Page() {
                 </a>
               ))}
             </div>
+          </div>
+
+          <div className={styles.heroPhotos}>
+            {[edito.heroImage, edito.heroImageSecond].map((photo, index) => (
+              <figure key={photo.src} className={styles.heroPhoto}>
+                <Image
+                  src={photo.src}
+                  alt={photo.alt}
+                  width={photo.width}
+                  height={photo.height}
+                  priority={index === 0}
+                  sizes="(max-width: 640px) calc(100vw - 28px), (max-width: 1160px) 52vw, 585px"
+                />
+              </figure>
+            ))}
           </div>
         </div>
 
@@ -138,11 +144,6 @@ export default function Edito2026Page() {
             })}
           </div>
         </nav>
-
-        {/* ── Formulaire de contact ── */}
-        <div className={styles.formWrap}>
-          <VolunteerForm />
-        </div>
       </section>
 
       {/* ── Les missions, en bref ── */}
@@ -163,9 +164,14 @@ export default function Edito2026Page() {
                   {mission.points.map((point) => <li key={point}>{point}</li>)}
                 </ul>
               </div>
-              <MissionButton interests={mission.interests} label={`Choisir : ${mission.title.toLowerCase()}`} />
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className={styles.participation} aria-label="Proposer une participation">
+        <div className={styles.formWrap}>
+          <VolunteerForm />
         </div>
       </section>
 

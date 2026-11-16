@@ -138,8 +138,8 @@ export default function VolunteerForm() {
     <form ref={cardRef} id="rejoindre" className={styles.formCard} onSubmit={step === 0 ? next : submit} noValidate>
       <div className={styles.formTop}>
         <div>
-          <span className={styles.formBadge}>Prise de contact</span>
-          <h2>Proposer une participation</h2>
+          <h2>Le projet ColoCrew te parle ?</h2>
+          <p className={styles.formDescription}>Si tu souhaites y participer, indique-nous ce qui t&apos;intéresse et tes disponibilités.</p>
         </div>
         <ol className={styles.steps} aria-label="Étapes">
           {STEPS.map((item, index) => (

@@ -1,10 +1,10 @@
 "use client";
 
-import { FaArrowUp } from "react-icons/fa";
+import { FaArrowDown } from "react-icons/fa";
 import { VOLUNTEER_PICK_EVENT } from "./VolunteerForm";
 import styles from "./edito.module.css";
 
-/** Pre-checks the mission in the form at the top of the page and scrolls back to it. */
+/** Pre-checks the mission and scrolls to the participation form. */
 export default function MissionButton({ interests, label = "Ça m'intéresse" }) {
   return (
     <button
@@ -12,7 +12,7 @@ export default function MissionButton({ interests, label = "Ça m'intéresse" })
       className={styles.missionButton}
       onClick={() => window.dispatchEvent(new CustomEvent(VOLUNTEER_PICK_EVENT, { detail: { interests } }))}
     >
-      {label} <FaArrowUp />
+      {label} <FaArrowDown />
     </button>
   );
 }

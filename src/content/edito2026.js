@@ -26,11 +26,15 @@ export const EDITO_2026 = {
   dateLabel: "Novembre 2026",
   heroImage: {
     src: "/images/edito/equipe-ete-2026.jpg",
+    width: 1600,
+    height: 1066,
     alt: "L'équipe d'animation ColoCrew de l'été 2026 en tee-shirts rouges et blancs",
   },
-  // Deuxième photo, à côté de la première en haut de page.
+  // Dimensions d’origine pour un affichage sans recadrage.
   heroImageSecond: {
     src: "/images/edito/equipe-coucher-soleil-2026.jpg",
+    width: 4080,
+    height: 3072,
     alt: "L'équipe ColoCrew en tee-shirts rouges et blancs au coucher du soleil, juillet 2026",
   },
 
