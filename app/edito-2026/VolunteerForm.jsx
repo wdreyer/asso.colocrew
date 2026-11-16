@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { FaArrowLeft, FaArrowRight, FaCheck } from "react-icons/fa";
 import { HELLOASSO_MEMBERSHIP_URL, VOLUNTEER_AVAILABILITY, validateVolunteer } from "@/src/lib/volunteers";
 import styles from "./edito.module.css";
+import { EDITO_2026 } from "@/src/content/edito2026";
 export const VOLUNTEER_PICK_EVENT = "colocrew:volunteer-pick";
 const EMPTY = {
   firstName: "",
@@ -24,36 +25,23 @@ const STEPS = [{
   title: "Participation",
   fields: ["interests", "availability"]
 }];
+// Reuse the same source strings as the mission descriptions. Inline edits share
+// their text keys, so changes made in the missions also appear in the form.
+const stayMission = EDITO_2026.missions.find(mission => mission.id === "sejours");
 const PARTICIPATION_GROUPS = [{
-  title: "Les séjours",
-  options: [{
-    key: "conception",
-    label: "Préparer un séjour",
-    hint: "Programme, lieu et organisation"
-  }, {
-    key: "direction",
-    label: "Diriger un séjour",
-    hint: "Équipe et organisation sur place"
-  }, {
-    key: "animation",
-    label: "Animer un séjour",
-    hint: "Activités et vie quotidienne"
-  }]
+  title: stayMission.title,
+  options: stayMission.interests.map((key, index) => ({
+    key,
+    label: { conception: "Préparer un séjour", direction: "Diriger un séjour", animation: "Animer un séjour" }[key],
+    hint: stayMission.points[index],
+  })),
 }, {
   title: "La vie de l’association",
-  options: [{
-    key: "inscriptions",
-    label: "Suivre les inscriptions",
-    hint: "Familles et dossiers"
-  }, {
-    key: "administratif",
-    label: "Aider à l’administratif",
-    hint: "Documents et subventions"
-  }, {
-    key: "ca",
-    label: "Participer au CA",
-    hint: "Décisions et suivi de l’association"
-  }]
+  options: EDITO_2026.missions.filter(mission => mission.id !== "sejours").map(mission => ({
+    key: mission.interests[0],
+    label: mission.title,
+    hint: mission.lead,
+  })),
 }];
 const CONTACT_FIELDS = [{
   name: "firstName",
