@@ -1,197 +1,24 @@
+
 .page {
-  --ink: #292735;
-  --ink-soft: #625e6b;
-  --pink: #b8336a;
-  --pink-dark: #962657;
-  --cream: #f7f7f6;
-  --blush: #fce8f0;
-  --lavender: #efe7f7;
-  --line: #dedde1;
-  --radius: 8px;
-  color: var(--ink);
-  background: #fff;
-  font-family: "Manrope", sans-serif;
+  --ink: #2b223e; --ink-soft: #6a6274; --pink: #a82f62; --pink-dark: #84264e;
+  --line: #e8e1e6; --blush: #faedf3; --radius: 18px;
+  background: #faf8f6; color: var(--ink); font-family: "Manrope", sans-serif;
+  padding: 36px 24px 0;
 }
-
-.page h1,
-.page h2,
-.page h3 {
-  font-family: "Manrope", sans-serif;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
-
-.eyebrow {
-  margin: 0 0 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--ink-soft);
-}
-
-/* ── Haut de page ─────────────────────────────────────────── */
-
-.top {
-  padding: 36px 20px 48px;
-  background: var(--cream);
-}
-
-.hero,
-.ways,
-.formWrap {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.hero {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.heroPhotos {
-  display: grid;
-  grid-template-columns: 1.50094fr 1.328125fr;
-  gap: 16px;
-  align-items: start;
-}
-
-.heroPhoto {
-  margin: 0;
-  min-width: 0;
-}
-
-.heroPhoto img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: var(--radius);
-}
-
-.heroText h1 {
-  margin: 0 0 16px;
-  font-size: clamp(1.6rem, 2.5vw, 2.1rem);
-  line-height: 1.2;
-  font-weight: 650;
-}
-
-.chapo {
-  margin: 0 0 18px;
-  max-width: 72ch;
-  font-size: 1rem;
-  line-height: 1.75;
-  color: var(--ink-soft);
-}
-
-.socials {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.socials span {
-  margin-right: 2px;
-  font-size: 0.78rem;
-  font-weight: 800;
-  color: var(--ink-soft);
-}
-
-.socials a {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1.5px solid var(--line);
-  color: var(--ink);
-  font-size: 0.85rem;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.socials a:hover {
-  border-color: var(--pink);
-  color: var(--pink);
-}
-
-/* Les 3 façons d'aider */
-
-.ways {
-  margin-top: 32px;
-}
-
-.waysTitle {
-  margin: 0 0 12px;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.waysGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.way {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 6px;
-  background: #fff;
-  border: 1px solid var(--line);
-  color: var(--ink);
-  text-decoration: none;
-  transition: border-color 0.15s;
-}
-
-.way:hover {
-  border-color: var(--ink-soft);
-}
-
-.wayBody {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.3;
-}
-
-.wayBody strong {
-  font-size: 0.94rem;
-  font-weight: 600;
-}
-
-.wayMeta {
-  margin-top: 5px;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-}
-
-.wayText {
-  margin-top: 4px;
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-}
-
-.wayArrow {
-  margin-left: auto;
-  align-self: center;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-
-/* Formulaire de participation */
-
-.formWrap {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* ── Formulaire (façon Google Form, 2 étapes) ── */
-
+.page *, .page *::before, .page *::after { box-sizing: border-box; }
+.shell { max-width: 1040px; margin: auto; }
+.page h1, .page h2, .page h3 { color: var(--ink); font-family: inherit; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 44px; align-items: center; margin-bottom: 30px; }
+.eyebrow { color: var(--pink); font-size: .75rem; font-weight: 700; letter-spacing: .04em; margin: 0 0 12px; }
+.eyebrow span { color: var(--ink-soft); font-weight: 400; }
+.heroText h1 { font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 750; letter-spacing: -.045em; line-height: 1.15; margin: 0 0 18px; }
+.chapo { font-size: .96rem; line-height: 1.8; margin: 0; color: #51485c; }
+.heroPhotos { display: grid; gap: 12px; }
+.heroPhoto { margin: 0; overflow: hidden; border-radius: 12px; background: #eee8e3; }
+.heroPhoto img { display: block; width: 100%; height: 142px; object-fit: cover; object-position: center 58%; }
+.heroPhoto:nth-child(2) { width: 90%; justify-self: end; }
+.heroPhoto:nth-child(2) img { height: 132px; object-position: center 62%; }
+.participation { margin-bottom: 56px; }
 .formCard {
   scroll-margin-top: 120px;
   background: #fff;
@@ -636,397 +463,102 @@
   color: var(--pink);
 }
 
-/* ── Missions ─────────────────────────────────────────────── */
 
-.sectionHead {
-  max-width: 1120px;
-  margin: 0 auto 28px;
-  text-align: left;
+/* Formulaire : un seul point d’entrée, puis le choix des missions. */
+.formCard { padding: 28px; border-color: #e4d7df; box-shadow: 0 8px 30px #39243c08; }
+.formTop { align-items: center; }
+.formTop h2 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -.025em; }
+.formDescription { margin: 8px 0 0; font-size: .86rem; line-height: 1.6; color: var(--ink-soft); max-width: 52ch; }
+.steps { gap: 12px; }
+.stepItem { font-size: .73rem; color: #777080; }
+.stepCurrent { color: var(--pink); }
+.progress { height: 3px; margin: 22px 0; }
+.field input, .field textarea { border: 1px solid var(--line); border-radius: 8px; background: #fdfcfd; min-height: 46px; }
+.field input:focus, .field textarea:focus { border-color: var(--pink); background: #fff; outline: 2px solid #a82f6215; }
+.submit, .back { font-size: .9rem; font-weight: 650; border-radius: 8px; min-height: 46px; }
+.stepIntro { font-size: .8rem; }
+.option { border-radius: 8px; }
+.sectionHead { margin: 0 0 22px; }
+.sectionHead h2 { font-size: 1.5rem; letter-spacing: -.035em; font-weight: 650; margin: 0; }
+.sectionHead p:not(.eyebrow) { font-size: .88rem; color: var(--ink-soft); margin: 10px 0 0; line-height: 1.6; }
+.support { margin-bottom: 48px; }
+.waysGrid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+.way { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: start; transition: border-color .2s, box-shadow .2s; }
+.way:hover { border-color: #cdb7c4; box-shadow: 0 6px 20px #39243c08; }
+.wayNumber { font-size: .75rem; color: var(--pink); margin-bottom: 22px; font-weight: 650; }
+.way h3 { font-size: 1.03rem; margin: 0 0 8px; font-weight: 700; line-height: 1.4; }
+.wayMeta { font-size: .74rem; color: var(--pink); }
+.way p { color: var(--ink-soft); font-size: .85rem; line-height: 1.7; margin: 16px 0 22px; }
+.wayLink { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: auto; color: var(--ink); font-size: .8rem; font-weight: 650; text-decoration: none; min-height: 44px; border-top: 1px solid var(--line); padding-top: 14px; }
+.wayLink:hover { color: var(--pink); }
+.wayLink svg { flex-shrink: 0; transition: transform .2s; }
+.wayLink:hover svg { transform: translateX(3px); }
+.missions { display: grid; grid-template-columns: 1fr 1.8fr; gap: 48px; padding: 30px 0 48px; border-top: 1px solid var(--line); }
+.mission { border-bottom: 1px solid var(--line); }
+.mission summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; list-style: none; cursor: pointer; padding: 18px 0; font-size: .92rem; font-weight: 600; }
+.mission summary::-webkit-details-marker { display: none; }
+.mission summary:hover { color: var(--pink); }
+.expand { position: relative; width: 22px; height: 22px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 50%; }
+.expand::before, .expand::after { content: ""; position: absolute; background: currentColor; top: 10px; left: 6px; width: 8px; height: 1px; }
+.expand::after { transform: rotate(90deg); transition: transform .2s; }
+.mission[open] .expand::after { transform: rotate(0); }
+.missionDetails { color: var(--ink-soft); font-size: .85rem; line-height: 1.75; padding: 0 24px 18px 0; }
+.missionDetails p { margin: 0 0 8px; }
+.missionDetails ul { margin: 0; padding-left: 18px; }
+.socials { border-top: 1px solid var(--line); padding: 24px 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: .8rem; color: var(--ink-soft); }
+.socials > div { display: flex; gap: 8px; }
+.socials a { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: #fff; }
+.socials a:hover { border-color: var(--pink); color: var(--pink); }
+.articleSection { padding: 0 0 40px; }
+.article { max-width: 680px; margin: auto; line-height: 1.8; }
+.quote { border-left: 2px solid var(--pink); margin-left: 0; padding-left: 20px; }
+.signature { color: var(--pink); }
+.page a:focus-visible, .page button:focus-visible, .page summary:focus-visible { outline: 2px solid var(--pink); outline-offset: 4px; }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: minmax(0,1fr) 190px; gap: 24px; }
+  .heroPhoto img { height: 126px; }
+  .heroPhoto:nth-child(2) img { height: 112px; }
+  .formTop { align-items: start; }
+  .contactRow { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .helpRow { grid-template-columns: minmax(0,1fr); }
+  .way { padding: 18px; }
+  .formDone { grid-template-columns: auto minmax(0,1fr); }
+  .doneLinks { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
 }
-
-.sectionHead h2 {
-  margin: 0;
-  font-size: clamp(1.3rem, 2.2vw, 1.6rem);
-  line-height: 1.35;
-  font-weight: 600;
-}
-
-.sectionHead p:not(.eyebrow) {
-  margin: 8px 0 0;
-  color: var(--ink-soft);
-}
-
-.missions {
-  padding: 56px 20px;
-}
-
-.missionGrid {
-  max-width: 1120px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.missionCard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: 28px;
-  align-items: start;
-  padding: 24px 0;
-  border-top: 1px solid var(--line);
-}
-
-.missionHead {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.missionCard h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
-.missionLead {
-  margin: 0 0 10px;
-  font-size: 0.92rem;
-  font-weight: 400;
-  color: var(--ink);
-  line-height: 1.6;
-}
-
-.missionCard ul {
-  margin: 0;
-  padding-left: 18px;
-  list-style: disc;
-}
-
-.missionCard li {
-  margin-bottom: 5px;
-  font-size: 0.88rem;
-  line-height: 1.6;
-  color: var(--ink-soft);
-}
-
-.missionCard li::before {
-  content: none;
-}
-
-.missionButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-weight: 500;
-  font-size: 0.82rem;
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  cursor: pointer;
-}
-
-.missionButton:hover {
-  color: var(--pink);
-}
-
-/* ── L'édito ──────────────────────────────────────────────── */
-
-.articleSection {
-  padding: 8px 20px 56px;
-}
-
-.article {
-  max-width: 680px;
-  margin: 0 auto;
-  font-size: 1.06rem;
-  line-height: 1.75;
-  color: #2c2350;
-}
-
-.article > p {
-  margin: 0 0 1.1em;
-}
-
-.article > p:nth-of-type(2)::first-letter {
-  float: left;
-  margin: 0.08em 0.12em 0 0;
-  font-family: "Manrope", sans-serif;
-  font-size: 3.4em;
-  line-height: 0.8;
-  font-weight: 800;
-  color: var(--pink);
-}
-
-.article strong {
-  color: var(--ink);
-}
-
-.article h2 {
-  margin: 1.6em 0 0.5em;
-  font-size: 1.55rem;
-  font-weight: 800;
-  line-height: 1.15;
-}
-
-.article ul {
-  margin: 0 0 1.1em;
-  padding-left: 1.2em;
-}
-
-.quote {
-  margin: 1.6em 0;
-  padding: 4px 0 4px 22px;
-  border-left: 4px solid var(--pink);
-}
-
-.quote blockquote {
-  margin: 0;
-  font-family: "Manrope", sans-serif;
-  font-size: 1.4rem;
-  line-height: 1.3;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.quote figcaption {
-  margin-top: 6px;
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.signature {
-  margin-top: 1.6em;
-  font-family: "Manrope", sans-serif;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--pink);
-}
-
-.editoPending {
-  max-width: 680px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 14px;
-  border: 1.5px dashed var(--line);
-  color: var(--ink-soft);
-}
-
-.editoPending p {
-  margin: 0;
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.editoPending svg {
-  color: var(--pink);
-}
-
-/* ── Responsive ───────────────────────────────────────────── */
-
-@media (max-width: 1080px) {
-
-  .contactRow {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .helpRow {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .formDone {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .doneLinks {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .wayText {
-    display: none;
-  }
-}
-
-@media (max-width: 860px) {
-  .top {
-    padding: 14px 14px 40px;
-  }
-
-  .hero {
-    gap: 24px;
-  }
-
-  .heroPhotos {
-    gap: 8px;
-  }
-
-  .heroText h1 {
-    font-size: 1.3rem;
-    margin-bottom: 4px;
-  }
-
-  .chapo {
-    font-size: 0.82rem;
-    line-height: 1.45;
-    margin-bottom: 8px;
-  }
-
-  .eyebrow {
-    margin-bottom: 4px;
-  }
-
-  .ways {
-    margin-top: 12px;
-  }
-
-  .waysTitle {
-    font-size: 0.95rem;
-    margin-bottom: 6px;
-  }
-
-  .waysGrid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .way {
-    align-items: center;
-    padding: 8px 12px 8px 10px;
-    gap: 10px;
-  }
-
-  .wayBody {
-    flex-direction: row;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 2px 8px;
-  }
-
-  .wayBody strong {
-    font-size: 0.95rem;
-  }
-
-}
-
 @media (max-width: 640px) {
-  .formCard {
-    padding: 18px 14px 16px;
-    border-radius: 16px;
-  }
-
-  .formTop {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .formTop h2 {
-    font-size: 1.45rem;
-  }
-
-  .contactRow,
-  .optionGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .formFooter {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
-
-  .formButtons {
-    width: 100%;
-  }
-
-  .submit {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .privacy {
-    text-align: center;
-  }
-
-  .formDone {
-    grid-template-columns: minmax(0, 1fr);
-    text-align: center;
-    justify-items: center;
-  }
-
-  .doneLinks {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .missions {
-    padding: 40px 14px;
-  }
-
-  .articleSection {
-    padding: 0 16px 44px;
-  }
-
-  .article {
-    font-size: 1rem;
-  }
-
-  .quote blockquote {
-    font-size: 1.22rem;
-  }
+  .page { padding: 24px 16px 0; }
+  .hero { grid-template-columns: minmax(0,1fr); gap: 18px; margin-bottom: 22px; }
+  .heroText h1 { font-size: 1.85rem; margin-bottom: 14px; }
+  .eyebrow { font-size: .7rem; }
+  .chapo { font-size: .9rem; line-height: 1.75; }
+  .heroPhotos { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .heroPhoto:nth-child(2) { width: 100%; }
+  .heroPhoto img, .heroPhoto:nth-child(2) img { height: 100px; }
+  .formCard { padding: 20px 16px; border-radius: 14px; }
+  .formTop { flex-direction: column; gap: 18px; }
+  .formTop h2 { font-size: 1.2rem; }
+  .steps { gap: 18px; }
+  .progress { margin: 16px 0 18px; }
+  .contactRow { gap: 14px 10px; }
+  .field > span { font-size: .78rem; }
+  .field input { padding: 10px 8px; min-width: 0; }
+  .formFooter { flex-direction: column-reverse; align-items: stretch; gap: 14px; }
+  .formButtons { width: 100%; }
+  .submit { flex: 1; min-width: 0; }
+  .privacy { font-size: .7rem; line-height: 1.6; }
+  .optionGrid { grid-template-columns: minmax(0,1fr); }
+  .formDone { grid-template-columns: minmax(0,1fr); gap: 16px; }
+  .doneLinks { flex-direction: column; }
+  .doneLinks a { white-space: normal; }
+  .participation { margin-bottom: 38px; }
+  .waysGrid { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .way { padding: 20px; }
+  .wayNumber { margin-bottom: 12px; }
+  .way p { margin: 12px 0; }
+  .missions { grid-template-columns: minmax(0,1fr); gap: 0; padding: 28px 0 32px; }
+  .sectionHead h2 { font-size: 1.3rem; }
+  .socials { align-items: start; flex-direction: column; }
 }
-
-.missionDetails { min-width: 0; }
-
-.page a:focus-visible,
-.page button:focus-visible {
-  outline: 2px solid var(--pink);
-  outline-offset: 4px;
-}
-
-@media (max-width: 860px) {
-  .missionCard {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-    gap: 12px 24px;
-  }
-  .missionButton { grid-column: 2; justify-self: start; }
-  .chapo { font-size: 0.94rem; line-height: 1.65; }
-}
-
-@media (max-width: 640px) {
-  .missionCard { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .missionButton { grid-column: 1; }
-}
-
-.participation {
-  padding: 0 20px 56px;
-}
-
-@media (max-width: 640px) {
-  .heroPhotos {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-  }
-  .heroText h1 { font-size: 1.6rem; line-height: 1.25; }
-  .ways { margin-top: 24px; }
-  .participation { padding: 0 14px 40px; }
-}
-
-.formDescription {
-  margin: 10px 0 0;
-  max-width: 60ch;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: var(--ink-soft);
+@media (prefers-reduced-motion: reduce) {
+  .page *, .page *::before, .page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

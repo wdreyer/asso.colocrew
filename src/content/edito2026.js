@@ -16,7 +16,7 @@ export const EDITO_2026 = {
   eyebrow: "Le mot de l'équipe",
   title: "Bilan de l'été 2026",
   chapo:
-    "Après deux ans d’activité, l’été 2026 a mis en évidence des difficultés financières et une charge de travail concentrée sur deux personnes. Nous souhaitons poursuivre les activités de ColoCrew en répartissant davantage les responsabilités. Cette page présente les missions auxquelles vous pouvez contribuer et les autres moyens de soutenir l’association.",
+    "Après deux ans d'existence, nous nous sommes posé la question d'arrêter : notre moral, notre fatigue et notre situation financière se sont lourdement dégradés cet été 2026. Pourtant, nous avons envie de continuer. Mais pour cela, nous avons besoin de vous : que cette association devienne enfin un vrai collectif et ne repose plus sur deux personnes. Pour nous aider, vous pouvez remplir ce formulaire, adhérer, commander un tee-shirt, ou simplement nous suivre sur les réseaux sociaux.",
   socials: [
     { label: "Instagram", href: "https://www.instagram.com/_colocrew/" },
     { label: "TikTok", href: "https://www.tiktok.com/@colocrew" },
