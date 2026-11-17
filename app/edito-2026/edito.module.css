@@ -483,8 +483,10 @@
 .sectionHead p:not(.eyebrow) { font-size: .88rem; color: var(--ink-soft); margin: 10px 0 0; line-height: 1.6; }
 .support { margin-bottom: 48px; }
 .waysGrid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
-.way { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: start; transition: border-color .2s, box-shadow .2s; }
-.way:hover { border-color: #cdb7c4; box-shadow: 0 6px 20px #39243c08; }
+.way { position: relative; cursor: pointer; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: start; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background .2s ease; }
+.way:hover { transform: translateY(-3px); border-color: #c9a6b8; background: #fffdfE; box-shadow: 0 10px 26px #39243c0d; }
+.way:active { transform: translateY(-1px) scale(.995); }
+.way:has(.wayLink:focus-visible) { outline: 2px solid var(--pink); outline-offset: 4px; }
 .wayNumber { font-size: .75rem; color: var(--pink); margin-bottom: 22px; font-weight: 650; }
 .way h3 { font-size: 1.03rem; margin: 0 0 8px; font-weight: 700; line-height: 1.4; }
 .wayMeta { font-size: .74rem; color: var(--pink); }
@@ -492,7 +494,10 @@
 .wayLink { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: auto; color: var(--ink); font-size: .8rem; font-weight: 650; text-decoration: none; min-height: 44px; border-top: 1px solid var(--line); padding-top: 14px; }
 .wayLink:hover { color: var(--pink); }
 .wayLink svg { flex-shrink: 0; transition: transform .2s; }
-.wayLink:hover svg { transform: translateX(3px); }
+.way:hover .wayLink svg, .wayLink:focus-visible svg { transform: translateX(3px); }
+.way:hover .wayLink { color: var(--pink); }
+/* Expand the existing semantic link over the card without nesting links. */
+.wayLink::after { content: ""; position: absolute; inset: 0; border-radius: 14px; }
 .missions { display: grid; grid-template-columns: 1fr 1.8fr; gap: 48px; padding: 30px 0 48px; border-top: 1px solid var(--line); }
 .mission { border-bottom: 1px solid var(--line); }
 .mission summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; list-style: none; cursor: pointer; padding: 18px 0; font-size: .92rem; font-weight: 600; }

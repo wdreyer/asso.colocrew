@@ -1,6 +1,6 @@
 .toolbar { position: sticky; top: 0; z-index: 45; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px; background: #2b223e; color: white; font: 13px sans-serif; }
 .toolbar button { background: white; color: #2b223e; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
-.editable { outline: 1px dashed #a82f6280; outline-offset: 3px; cursor: text; border-radius: 2px; }
+.editable { position: relative; z-index: 2; outline: 1px dashed #a82f6280; outline-offset: 3px; cursor: text; border-radius: 2px; }
 .editable:hover, .editable:focus { background: #a82f6215; outline: 2px solid #a82f62; }
 .dialog { width: min(600px, calc(100% - 32px)); max-height: 85dvh; overflow: auto; padding: 24px; border: 1px solid #e8e1e6; border-radius: 14px; color: #2b223e; }
 .dialog::backdrop { background: #2b223e80; }
