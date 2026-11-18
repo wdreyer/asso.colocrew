@@ -2,7 +2,7 @@ import InlineEditor from "./InlineEditor";
 import { EditableText } from "./InlineEditor";
 import Image from "next/image";
 import Link from "next/link";
-import { FaArrowRight, FaExternalLinkAlt, FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
+import { FaArrowRight, FaClock, FaExternalLinkAlt, FaFacebookF, FaHeart, FaInstagram, FaTiktok, FaTshirt } from "react-icons/fa";
 import { EDITO_2026 } from "@/src/content/edito2026";
 import { HELLOASSO_MEMBERSHIP_URL } from "@/src/lib/volunteers";
 import { MERCH_SHIPPING, merchStartingPrice } from "@/src/lib/merchConfig";
@@ -61,20 +61,24 @@ export default function Edito2026Page() {
     meta: "Selon vos disponibilités",
     text: "Préparer les séjours, suivre les inscriptions ou participer au fonctionnement de l’association.",
     href: "#rejoindre",
-    action: "Remplir le formulaire"
+    action: "Remplir le formulaire",
+    icon: <FaClock />,
+    featured: true
   }, {
     title: "Adhérer à l’association",
     meta: "Prix libre",
     text: "Devenir membre de ColoCrew et soutenir les activités de l’association.",
     href: HELLOASSO_MEMBERSHIP_URL,
     external: true,
-    action: "Adhérer sur HelloAsso"
+    action: "Adhérer sur HelloAsso",
+    icon: <FaHeart />
   }, {
     title: "Commander un tee-shirt",
     meta: "Dès " + merchStartingPrice() + " €",
     text: "Les tee-shirts ColoCrew sont disponibles en ligne. Livraison " + MERCH_SHIPPING.delay + ", " + MERCH_SHIPPING.amount + " € de port.",
     href: "/merch",
-    action: "Voir les tee-shirts"
+    action: "Voir les tee-shirts",
+    icon: <FaTshirt />
   }];
   return <InlineEditor><div className={styles.page}>
       <div className={styles.shell}>
@@ -101,12 +105,15 @@ export default function Edito2026Page() {
             <h2 id="support-title"><EditableText>{"Trois mani\xE8res de participer"}</EditableText></h2>
           </div>
           <div className={styles.waysGrid}>
-            {ways.map((way, index) => <article key={way.href} className={styles.way}>
-                <span className={styles.wayNumber}><EditableText>{"0"}</EditableText>{index + 1}</span>
+            {ways.map((way, index) => <article key={way.href} className={`${styles.way} ${way.featured ? styles.wayFeatured : ""}`}>
+                <div className={styles.wayTop}>
+                  <span className={styles.wayIcon} aria-hidden="true">{way.icon}</span>
+                  <span className={styles.wayNumber}><EditableText>{"0"}</EditableText>{index + 1}</span>
+                </div>
                 <h3><EditableText>{way.title}</EditableText></h3>
                 <span className={styles.wayMeta}><EditableText>{way.meta}</EditableText></span>
                 <p><EditableText>{way.text}</EditableText></p>
-                {way.external ? <a className={styles.wayLink} href={way.href} target="_blank" rel="noreferrer"><EditableText>{way.action}</EditableText> <FaExternalLinkAlt aria-hidden="true" /></a> : <Link className={styles.wayLink} href={way.href}><EditableText>{way.action}</EditableText> <FaArrowRight aria-hidden="true" /></Link>}
+                {way.external ? <a className={styles.wayLink} href={way.href} target="_blank" rel="noreferrer"><EditableText>{way.action}</EditableText> <span className={styles.wayArrow} aria-hidden="true"><FaExternalLinkAlt /></span></a> : <Link className={styles.wayLink} href={way.href}><EditableText>{way.action}</EditableText> <span className={styles.wayArrow} aria-hidden="true"><FaArrowRight /></span></Link>}
               </article>)}
           </div>
         </section>

@@ -483,18 +483,27 @@
 .sectionHead p:not(.eyebrow) { font-size: .88rem; color: var(--ink-soft); margin: 10px 0 0; line-height: 1.6; }
 .support { margin-bottom: 48px; }
 .waysGrid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
-.way { position: relative; cursor: pointer; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: start; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background .2s ease; }
-.way:hover { transform: translateY(-3px); border-color: #c9a6b8; background: #fffdfE; box-shadow: 0 10px 26px #39243c0d; }
-.way:active { transform: translateY(-1px) scale(.995); }
+.way { position: relative; overflow: hidden; cursor: pointer; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: start; transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease, background .25s ease; }
+/* Liseré rose qui se déploie en haut de la carte au survol. */
+.way::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--pink), #d8659a); transform: scaleX(0); transform-origin: left; transition: transform .35s ease; }
+.way:hover::before, .way:has(.wayLink:focus-visible)::before { transform: scaleX(1); }
+.way:hover { transform: translateY(-4px); border-color: #d9b9c8; background: #fff; box-shadow: 0 16px 34px #39243c14; }
+.way:active { transform: translateY(-1px) scale(.99); }
 .way:has(.wayLink:focus-visible) { outline: 2px solid var(--pink); outline-offset: 4px; }
-.wayNumber { font-size: .75rem; color: var(--pink); margin-bottom: 22px; font-weight: 650; }
+.wayFeatured { border-color: #e6c9d6; background: linear-gradient(180deg, #fff 0%, #fdf6f9 100%); }
+.wayFeatured::before { transform: scaleX(1); }
+.wayTop { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 20px; }
+.wayIcon { display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--blush); color: var(--pink); font-size: 1rem; transition: background .25s ease, color .25s ease, transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.way:hover .wayIcon { background: var(--pink); color: #fff; transform: rotate(-8deg) scale(1.08); }
+.wayNumber { font-size: .75rem; color: var(--pink); font-weight: 650; padding: 3px 9px; border-radius: 999px; background: var(--blush); transition: background .25s ease, color .25s ease; }
+.way:hover .wayNumber { background: transparent; }
 .way h3 { font-size: 1.03rem; margin: 0 0 8px; font-weight: 700; line-height: 1.4; }
 .wayMeta { font-size: .74rem; color: var(--pink); }
 .way p { color: var(--ink-soft); font-size: .85rem; line-height: 1.7; margin: 16px 0 22px; }
 .wayLink { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: auto; color: var(--ink); font-size: .8rem; font-weight: 650; text-decoration: none; min-height: 44px; border-top: 1px solid var(--line); padding-top: 14px; }
 .wayLink:hover { color: var(--pink); }
-.wayLink svg { flex-shrink: 0; transition: transform .2s; }
-.way:hover .wayLink svg, .wayLink:focus-visible svg { transform: translateX(3px); }
+.wayArrow { display: inline-grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); color: var(--ink); font-size: .72rem; transition: background .25s ease, border-color .25s ease, color .25s ease, transform .25s ease; }
+.way:hover .wayArrow, .wayLink:focus-visible .wayArrow { background: var(--pink); border-color: var(--pink); color: #fff; transform: translateX(3px); }
 .way:hover .wayLink { color: var(--pink); }
 /* Expand the existing semantic link over the card without nesting links. */
 .wayLink::after { content: ""; position: absolute; inset: 0; border-radius: 14px; }
