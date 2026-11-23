@@ -288,8 +288,8 @@ function WaveUp({ fill }) {
 ───────────────────────────────────────── */
 function Hero({ content }) {
   const textData = content.text;
-  const heroMedia = content.media?.heroSrc || "/video.mp4";
-  const heroPoster = content.media?.heroPoster || "/load.png";
+  const heroMedia = content.media?.heroSrc || "/videoski.mp4";
+  const heroPoster = content.media?.heroPoster || "/images/ski-hero-poster.jpg";
   const isVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(heroMedia);
 
   return (
@@ -570,8 +570,8 @@ const DEFAULT_HOME_LINKS = {
 };
 
 const DEFAULT_HOME_MEDIA = {
-  heroSrc: "/video.mp4",
-  heroPoster: "/load.png",
+  heroSrc: "/videoski.mp4",
+  heroPoster: "/images/ski-hero-poster.jpg",
   streamPortraitImage: "/banqueimage/portraits/portraits_001.jpg",
   streamAmbianceImage: "/banqueimage/groupes/groupes_082.jpg",
 };
