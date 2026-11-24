@@ -1012,7 +1012,7 @@ function TabCampagne({ lists }) {
           <EmailWysiwygEditor value={html} onChange={setHtml} />
         )}
         <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 5 }}>
-          Perso : <code>{"{{params.PRENOM}}"}</code> · <code>{"{{params.NOM}}"}</code>
+          Perso : <code>{"{{params.PRENOM}}"}</code> · <code>{"{{params.NOM}}"}</code> · Lien de désinscription : <code>{"{{unsubscribe}}"}</code> (ajouté automatiquement en bas du mail s'il manque)
         </p>
       </div>
 

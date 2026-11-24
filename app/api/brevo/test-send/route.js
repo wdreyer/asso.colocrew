@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { unsubscribeHeaders, withUnsubscribeLink } from "@/src/lib/unsubscribe";
 
 export async function POST(request) {
   const { to, sender, subject, htmlContent, replyTo } = await request.json();
@@ -23,7 +24,8 @@ export async function POST(request) {
       to,
       replyTo: replyTo || sender.email,
       subject: `[TEST] ${subject}`,
-      html:    htmlContent.replace(/\{\{params\.PRENOM\}\}/gi, "Prénom").replace(/\{\{params\.NOM\}\}/gi, "Nom").replace(/\{+unsubscribe\}+/gi, "#"),
+      headers: unsubscribeHeaders(to),
+      html:    withUnsubscribeLink(htmlContent, to).replace(/\{\{params\.PRENOM\}\}/gi, "Prénom").replace(/\{\{params\.NOM\}\}/gi, "Nom"),
     });
     return Response.json({ ok: true });
   } catch (err) {

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { db } from "@/src/lib/firebase";
+import { unsubscribeHeaders, withUnsubscribeLink } from "@/src/lib/unsubscribe";
 import {
   addDoc,
   collection,
@@ -37,10 +38,9 @@ function jitteredDelay(baseMs) {
 }
 
 function personalize(html, contact) {
-  return html
+  return withUnsubscribeLink(html, contact.email)
     .replace(/\{\{params\.PRENOM\}\}/gi, contact.prenom || "")
-    .replace(/\{\{params\.NOM\}\}/gi, contact.nom || "")
-    .replace(/\{+unsubscribe\}+/gi, "#");
+    .replace(/\{\{params\.NOM\}\}/gi, contact.nom || "");
 }
 
 function sendMailWithTimeout(transporter, message) {
@@ -217,6 +217,7 @@ export async function POST(request, context) {
             replyTo: run.replyTo,
             subject: run.subject,
             html: personalize(run.htmlContent, contact),
+            headers: unsubscribeHeaders(contact.email),
           });
           sent++;
           nextIndex = index + 1;

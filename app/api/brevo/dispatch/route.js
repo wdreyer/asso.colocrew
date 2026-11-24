@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { db } from "@/src/lib/firebase";
+import { unsubscribeHeaders, withUnsubscribeLink } from "@/src/lib/unsubscribe";
 import {
   addDoc,
   collection,
@@ -44,10 +45,9 @@ function jitteredDelay(baseMs) {
 }
 
 function personalize(html, contact) {
-  return html
+  return withUnsubscribeLink(html, contact.email)
     .replace(/\{\{params\.PRENOM\}\}/gi, contact.prenom || "")
-    .replace(/\{\{params\.NOM\}\}/gi, contact.nom || "")
-    .replace(/\{+unsubscribe\}+/gi, "#");
+    .replace(/\{\{params\.NOM\}\}/gi, contact.nom || "");
 }
 
 function normalizeEmail(value) {
@@ -292,6 +292,7 @@ export async function POST(request) {
             replyTo,
             subject,
             html: personalize(htmlContent, contact),
+            headers: unsubscribeHeaders(contact.email),
           });
           sent++;
           await updateDoc(runRef, {
