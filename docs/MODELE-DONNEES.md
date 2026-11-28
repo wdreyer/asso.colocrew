@@ -53,6 +53,25 @@ attendu ou reçu) → `cancelled` | `waitlist`. Le paiement suit son propre stat
 `payment.paymentStatus`. Une session est complète quand le nombre d'enfants des réservations
 `validated` atteint `capacity`.
 
+Suivi des demandes (CRM, statuts `pending` et `waitlist`), dans `crm` — règles dans
+`src/lib/reservationCrm.js` :
+
+```
+crm: {
+  lastContactAt, lastContactType: "call" | "manualEmail" | "email",  // emails automatiques exclus
+  nextFollowUpAt: "2027-03-04", nextFollowUpNote,                    // "" : pas de relance prévue
+  ownerUid, ownerName,                                               // qui suit le dossier
+  closeReason,                                                       // motif d'annulation d'une demande
+}
+```
+
+L'étape (nouvelle demande → tarif à définir → en attente de la famille → paiement reçu à valider)
+n'est pas enregistrée : elle se déduit du prix, du paiement et du dernier contact. Chaque
+action est aussi journalisée dans `reservations/{id}/activity` (types `call`, `manualEmail`,
+`note`, `email`, `price`, `status`, `followUp`, `assign`). Valider ou annuler une demande efface
+la relance prévue. `scripts/backfill-reservation-crm.mjs` reconstitue `lastContactAt` des
+demandes antérieures à partir de leur historique.
+
 ## 5. Convoyage — `transports/{id}`
 
 ```
@@ -67,6 +86,16 @@ staffMemberIds: [memberId…]         // copie à plat pour les requêtes du por
 `week` (S1–S4) reste lisible sur les anciennes fiches 2026 uniquement.
 
 ## 6. RH
+
+Pages du dashboard (groupe « Ressources humaines », une adresse par section) :
+`/dashboard/rh` vue d'ensemble et choses à faire · `/rh/equipe` tableau de toute l'équipe, une
+ligne par personne (affectations, contrats, documents, fiche, compte, paie), filtrable par
+session (`?session=<id>`) · `/rh/equipe/<memberId>` fiche complète : profil, affectations &
+contrats, documents, compte & droits du dashboard (administrateurs), historique (`?onglet=…`,
+`?modifier=1`) · `/rh/contrats` et `/rh/documents` listes de travail transversales ·
+`/rh/deroules` déroulés de séjour (droit `dayPlans`) · `/rh/comptes` et `/rh/acces` demandes de
+compte et droits du dashboard (administrateurs seulement). Les pages RH partagent le droit `hr` ;
+`/dashboard/acces` et `/dashboard/rh/sejours` redirigent vers leur nouvelle page.
 
 - `staff_members/{memberId}` : la personne (identité, coordonnées, documents). Ajout :
   `accountUid` (compte Firebase lié), `email`.

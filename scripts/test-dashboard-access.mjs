@@ -55,6 +55,12 @@ try {
   assert.equal(canOpenDashboardPath("/dashboard/acces", false, ["reservations"]), false);
   assert.equal(canOpenDashboardPath("/dashboard/rh/comptes", false, ["hr"]), false);
   assert.equal(canOpenDashboardPath("/dashboard/rh/deroules", false, ["dayPlans"]), true);
+  assert.equal(canOpenDashboardPath("/dashboard/rh/contrats", false, ["hr"]), true);
+  assert.equal(canOpenDashboardPath("/dashboard/rh/acces", false, ["hr"]), false);
+  assert.equal(canOpenDashboardPath("/dashboard/rh", false, ["dayPlans"]), false);
+  assert.equal(canOpenDashboardPath("/dashboard/acces", true, []), true);
+  assert.equal(canOpenDashboardPath("/dashboard/rh/equipe/crew-member", false, ["hr"]), true);
+  assert.equal(canOpenDashboardPath("/dashboard/rh/equipe/crew-member", false, ["dayPlans"]), false);
 
   const booking = doc(operator, "reservations", "booking");
   assert.equal((await getDocs(collection(operator, "reservations"))).size, 1);

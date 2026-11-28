@@ -12253,3 +12253,76 @@
 .hr-dayplans-back{display:flex;gap:14px;margin-bottom:10px;font-size:13px;font-weight:800}
 .hr-dayplans-back a{color:#5b3674}
 @media(max-width:640px){.hr-account-list,.hr-session-links{grid-template-columns:1fr}}
+
+/* ── Espace RH : sous-navigation par pages et vue d'ensemble ── */
+a.hr-main-tab { text-decoration: none; }
+.hr-main-nav + :not(.hr-content) { margin-top: 16px; }
+.hr-dayplans-page > .hr-main-nav { margin-top: 0; margin-bottom: 4px; }
+.hr-overview { display: grid; gap: 16px; }
+.hr-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px; }
+.hr-overview-card {
+  display: grid; gap: 4px; padding: 16px 18px; border-radius: var(--dash-radius);
+  background: var(--dash-card-bg); box-shadow: var(--dash-shadow); color: var(--dash-text);
+  text-decoration: none; border-left: 4px solid transparent; transition: transform .15s, box-shadow .15s;
+}
+.hr-overview-card:hover { transform: translateY(-1px); box-shadow: var(--dash-shadow-lg); }
+.hr-overview-card.is-warning { border-left-color: #f59e0b; }
+.hr-overview-card.is-alert { border-left-color: var(--dash-accent); }
+.hr-overview-card-title { font-size: 12px; font-weight: 700; color: var(--dash-muted); text-transform: uppercase; letter-spacing: .04em; }
+.hr-overview-card-value { font-size: 1.6rem; line-height: 1.15; }
+.hr-overview-card-caption { font-size: 12.5px; color: var(--dash-muted); }
+.hr-overview-todo, .hr-overview-sessions { padding: 18px 20px; }
+.hr-overview-todo h2, .hr-overview-sessions h2 { font-size: 1rem; margin: 0 0 10px; }
+.hr-overview-todo ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.hr-overview-todo a { color: var(--dash-accent); font-weight: 600; }
+.hr-overview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.hr-overview-table th { text-align: left; font-size: 11px; color: var(--dash-muted); text-transform: uppercase; padding: 6px 8px; }
+.hr-overview-table td { padding: 8px; border-top: var(--dash-border); }
+
+/* ── Équipe : tableau unique ── */
+.hr-team { display: grid; gap: 12px; }
+.hr-team-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.hr-team-toolbar .res-crm-pipeline { margin: 0; }
+.hr-team-session { max-width: 340px; }
+.hr-team-person { display: flex; align-items: center; gap: 10px; min-width: 190px; }
+.hr-team-person > span:last-child { display: grid; gap: 1px; }
+.hr-team-person small { color: var(--dash-muted); font-size: 11.5px; }
+.hr-team-chips, .hr-team-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.hr-team-chip { padding: 2px 8px; border-radius: 999px; background: #f3effa; color: var(--dash-text); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.hr-team-chip.is-current { background: #fdeef5; color: var(--dash-accent); }
+.hr-team-docs { font-weight: 700; color: #b45309; white-space: nowrap; }
+.hr-team-docs.is-complete { color: #047857; }
+.hr-team-docs small { font-weight: 600; color: var(--dash-muted); }
+.hr-team-session-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; border-radius: var(--dash-radius); background: #fff; box-shadow: var(--dash-shadow);
+}
+.hr-team-session-banner > div:first-child { display: grid; gap: 2px; }
+.hr-team-session-banner span { color: var(--dash-muted); font-size: 13px; }
+
+/* ── Fiche d'une personne ── */
+.hr-member-page { display: grid; gap: 4px; }
+.hr-member-back { color: var(--dash-accent); font-weight: 600; font-size: 13px; text-decoration: none; margin-bottom: 8px; }
+.hr-member-season { display: flex; justify-content: flex-end; margin-bottom: -8px; }
+.hr-member-header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 20px 22px;
+  border-radius: var(--dash-radius); background: linear-gradient(135deg, #f5f0ff 0%, #fff 70%); box-shadow: var(--dash-shadow);
+}
+.hr-member-identity { flex: 1; min-width: 240px; display: grid; gap: 6px; }
+.hr-member-identity h1 { margin: 0; font-size: clamp(1.3rem, 2.6vw, 1.75rem); }
+.hr-member-contact, .hr-member-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
+.hr-member-contact a { color: var(--dash-text); }
+.hr-member-section { padding: 20px 22px; }
+.hr-member-section h2 { font-size: 1.05rem; margin: 0; }
+.hr-member-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.hr-member-subtitle { font-size: .95rem; margin: 22px 0 10px; }
+.hr-member-warning { margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; background: #fff7ed; color: #9a3412; font-size: 13px; }
+.hr-member-contracts { display: grid; gap: 12px; }
+.hr-member-contract { display: grid; gap: 8px; padding: 14px 16px; border: var(--dash-border); border-radius: 12px; background: #fff; }
+.hr-member-contract header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.hr-member-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.hr-member-contract-actions { flex-wrap: wrap; }
+.hr-member-account { max-width: 520px; margin-bottom: 12px; }
+.hr-member-link { display: grid; gap: 8px; margin-top: 12px; }
+.hr-member-link-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: var(--dash-border); border-radius: 10px; }
+.hr-member-link-row select { flex: 1; min-width: 220px; }

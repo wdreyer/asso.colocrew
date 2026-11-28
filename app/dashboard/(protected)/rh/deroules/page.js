@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSeasons } from "@/src/lib/seasons";
 import { useSessionCatalog } from "@/src/lib/sessions";
+import RhNav from "@/src/components/dashboard/rh/RhNav";
 
 // Liste des sessions d'une saison, chacune menant à ses déroulés de journées.
 export default function DashboardDayPlansIndexPage() {
@@ -23,7 +24,7 @@ export default function DashboardDayPlansIndexPage() {
     <div className="dash-page">
       <header className="dash-page-header-row">
         <div className="dash-page-header">
-          <h1>Déroulés des journées</h1>
+          <h1>Déroulés de séjour</h1>
           <p>Choisissez une session pour organiser ses journées, ses repas et les congés de l’équipe.</p>
         </div>
         <div className="dash-row-actions">
@@ -32,9 +33,10 @@ export default function DashboardDayPlansIndexPage() {
               <option key={key} value={key}>Saison {key}{archivedSeasons.has(key) ? " (archivée)" : ""}</option>
             ))}
           </select>
-          <Link className="dash-btn" href="/dashboard/rh">Ressources humaines</Link>
         </div>
       </header>
+      <RhNav />
+
       {catalog.loading ? (
         <p className="dash-muted">Chargement des sessions…</p>
       ) : !sessions.length ? (

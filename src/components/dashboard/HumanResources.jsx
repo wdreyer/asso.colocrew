@@ -6,6 +6,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import DataTable from "@/src/components/dashboard/ui/DataTable";
 import Badge from "@/src/components/dashboard/ui/Badge";
 import Modal from "@/src/components/dashboard/ui/Modal";
@@ -15,8 +16,11 @@ import { openContractPrint, openContractsBatchPrint } from "@/src/lib/contractTe
 import { useToast } from "@/src/contexts/ToastContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { DEFAULT_SALARY_GRID, REFERENCE_DAYS, computeSalary, ensureSalaryGridSeeded, splitPaidLeaveIncluded } from "@/src/lib/salaryGrid";
-import StaffDocumentsPanel from "@/src/components/dashboard/StaffDocumentsPanel";
-import { STAFF_DOCUMENT_TYPES, documentsByType, latestDocumentByType, uploadStaffDocument } from "@/src/lib/staffDocuments";
+import StaffDocumentsPanel, { MemberDocuments } from "@/src/components/dashboard/StaffDocumentsPanel";
+import { AccessForm } from "@/src/components/dashboard/DashboardAccess";
+import { dashboardFetch } from "@/src/lib/dashboardFetch";
+import RhNav from "@/src/components/dashboard/rh/RhNav";
+import { STAFF_DOCUMENT_TYPES, documentsByType } from "@/src/lib/staffDocuments";
 import { isArchivedRecord, seasonOfDate, seasonOfRecord, useSeasons } from "@/src/lib/seasons";
 import { formatDateRange, useSessionCatalog } from "@/src/lib/sessions";
 import {
@@ -60,10 +64,6 @@ function nbDaysBetween(start, end) {
   return Math.max(Math.round((b - a) / 86400000) + 1, 1);
 }
 
-const TYPE_LABEL   = { animateur: "Animateur", directeur: "Directeur", benevole: "Benevole", "": "—" };
-const TYPE_VARIANT = { animateur: "info", directeur: "primary", benevole: "success" };
-const TYPE_COLOR   = { animateur: "#1d4ed8", directeur: "#7c3aed", benevole: "#047857" };
-const TYPE_BG      = { animateur: "#eff6ff", directeur: "#f5f0ff", benevole: "#ecfdf5" };
 
 const AVATAR_COLORS = [
   ["#1d4ed8","#eff6ff"], ["#7c3aed","#f5f0ff"], ["#0891b2","#ecfeff"],
@@ -286,290 +286,223 @@ function Avatar({ member, size = 44 }) {
   );
 }
 
-// ─── Vue "Par séjour" ─────────────────────────────────────────────────────────
+// ─── Vue "Équipe" : un seul tableau, une ligne par personne ──────────────────
+//
+// Chaque ligne résume ce qui concerne la personne sur la saison (affectations, contrats,
+// documents, fiche, compte, paie). Un clic ouvre sa fiche complète.
 
-function SejoursView({ members, contracts, sessions, season, onFiche, onContract, onEditContract, onBatchContracts, onNewContract }) {
-  const groups = useMemo(() => {
-    const map = new Map();
-    // Toutes les sessions de la saison, même sans contrat, pour pouvoir y recruter.
-    sessions.forEach((session) => {
-      map.set(session.id, {
-        key: session.id, sessionId: session.id, session,
-        stay: session.sejourName, stayCode: session.sejourCode, week: session.week,
-        startDate: session.startDate, endDate: session.endDate,
-        contracts: [],
-      });
-    });
-    contracts.forEach((c) => {
-      const key = contractSessionKey(c);
-      if (!map.has(key)) {
-        map.set(key, {
-          key, sessionId: c.sessionId, session: null,
-          stay: c.stay, stayCode: c.stayCode, week: c.week,
-          startDate: c.startDate, endDate: c.endDate,
-          contracts: [],
-        });
-      }
-      const g = map.get(key);
-      if (!g.startDate && c.startDate) g.startDate = c.startDate;
-      if (!g.endDate   && c.endDate)   g.endDate   = c.endDate;
-      g.contracts.push(c);
-    });
-    return [...map.values()].sort((a, b) => (
-      String(a.startDate || "9999").localeCompare(String(b.startDate || "9999"))
-      || String(a.stay).localeCompare(String(b.stay), "fr")
-    ));
-  }, [contracts, sessions]);
+function contractSignatureState(contract) {
+  if (isContractSigned(contract)) return "signed";
+  if (contract.docusignEnvelopeId && contract.docusignStatus !== "voided") return "awaiting";
+  return "toSend";
+}
 
-  if (!groups.length) {
-    return (
-      <div className="hr-empty">
-        <p>Aucune session pour la saison {season}. Ajoutez des dates aux séjours pour créer les sessions, puis les contrats.</p>
-      </div>
-    );
-  }
+function accountForMember(member, accounts) {
+  return (accounts || []).find((account) => account.memberId === member.id)
+    || (member.accountUid ? (accounts || []).find((account) => account.uid === member.accountUid) : null)
+    || null;
+}
 
+function teamRow(member, contracts, documents, accounts) {
+  const memberContracts = contracts.filter((contract) => contract.memberId === member.id)
+    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+  const signatures = { signed: 0, awaiting: 0, toSend: 0 };
+  memberContracts.forEach((contract) => { signatures[contractSignatureState(contract)] += 1; });
+  const docs = structuredDocumentCompletion(member.id, documents);
+  const missing = missingPersonalInformation(member);
+  const account = accountForMember(member, accounts);
+  const direction = member.staffType === "directeur" || memberContracts.some(isDirectionContract);
+  return {
+    ...member,
+    member,
+    memberContracts,
+    sessionIds: memberContracts.map(contractSessionKey),
+    assignmentsText: memberContracts.map((contract) => `${contractShortLabel(contract)} ${contract.role}`).join(" "),
+    direction,
+    signatures,
+    docs,
+    docsToReview: docs.received - docs.validated,
+    missing,
+    account,
+    netDue: memberContracts.reduce((total, contract) => total + (contract.paymentValidated ? 0 : contract.outstandingAmount), 0),
+  };
+}
+
+function SignatureSummary({ signatures, count }) {
+  if (!count) return <span className="dash-muted">Pas de contrat</span>;
   return (
-    <div className="hr-sejour-list">
-      {groups.map((g) => {
-        const contractsByMember = g.contracts;
-        const memberIds = [...new Set(contractsByMember.map((c) => c.memberId))];
-        const groupMembers = memberIds
-          .map((id) => members.find((m) => m.id === id))
-          .filter(Boolean);
-
-        const dirs  = groupMembers.filter((m) => m.staffType === "directeur");
-        const anims = groupMembers.filter((m) => m.staffType !== "directeur" || !m.staffType);
-
-        const memberContract = (m) => contractsByMember.find((c) => c.memberId === m.id);
-
-        return (
-          <section key={g.key} className="hr-sejour-block">
-            <div className="hr-sejour-header">
-              <div className="hr-sejour-title-row">
-                <span className="hr-sejour-week">{g.week}</span>
-                <h2 className="hr-sejour-name">{g.stay}</h2>
-                {!g.sessionId && <Badge label="Ancien contrat" variant="neutral" />}
-              </div>
-              <div className="hr-sejour-dates">
-                {g.startDate && g.endDate
-                  ? `${fmtDate(g.startDate)} → ${fmtDate(g.endDate)}`
-                  : "Dates à compléter"}
-                <span className="hr-sejour-count">
-                  {groupMembers.length} personne{groupMembers.length > 1 ? "s" : ""}
-                  {g.session?.capacity ? ` · ${g.session.capacity} enfants max.` : ""}
-                </span>
-                {g.session && (
-                  <button type="button" className="dash-btn" onClick={() => onNewContract(null, g.session)}>
-                    + Contrat
-                  </button>
-                )}
-                {g.sessionId && (
-                  <Link className="dash-btn" href={`/dashboard/rh/deroules/${encodeURIComponent(g.sessionId)}`}>
-                    Déroulés
-                  </Link>
-                )}
-                <button type="button" className="dash-btn" onClick={() => onBatchContracts(g)} disabled={!groupMembers.length}>
-                  PDF groupé recto-verso
-                </button>
-              </div>
-            </div>
-
-            {!groupMembers.length && (
-              <p className="hr-sejour-empty">Aucun contrat sur cette session pour l’instant.</p>
-            )}
-
-            {dirs.length > 0 && (
-              <div className="hr-sejour-team-section">
-                <div className="hr-team-label">Direction</div>
-                <div className="hr-team-row">
-                  {dirs.map((m) => {
-                    const c = memberContract(m);
-                    return <MiniCard key={m.id} member={m} contract={c} onFiche={onFiche} onContract={onContract} onEditContract={onEditContract} />;
-                  })}
-                </div>
-              </div>
-            )}
-
-            {anims.length > 0 && (
-              <div className="hr-sejour-team-section">
-                <div className="hr-team-label">Animateurs</div>
-                <div className="hr-team-row">
-                  {anims.map((m) => {
-                    const c = memberContract(m);
-                    return <MiniCard key={m.id} member={m} contract={c} onFiche={onFiche} onContract={onContract} onEditContract={onEditContract} />;
-                  })}
-                </div>
-              </div>
-            )}
-          </section>
-        );
-      })}
-    </div>
+    <span className="hr-team-badges">
+      {signatures.signed > 0 && <Badge label={`${signatures.signed} signé${signatures.signed > 1 ? "s" : ""}`} variant="success" />}
+      {signatures.awaiting > 0 && <Badge label={`${signatures.awaiting} en signature`} variant="info" />}
+      {signatures.toSend > 0 && <Badge label={`${signatures.toSend} à envoyer`} variant="warning" />}
+    </span>
   );
 }
 
-function MiniCard({ member, contract, onFiche, onContract, onEditContract }) {
+function AccountSummary({ account }) {
+  if (!account) return <span className="dash-muted">Aucun</span>;
+  const status = STAFF_ACCOUNT_STATUS[account.status] || STAFF_ACCOUNT_STATUS.pending;
+  const sections = account.status === "approved" && Array.isArray(account.dashboardSections) ? account.dashboardSections.length : 0;
   return (
-    <div className="hr-mini-card">
-      <Avatar member={member} size={44} />
-      <div className="hr-mini-info">
-        <div className="hr-mini-name">{member.firstName} <strong>{member.lastName}</strong></div>
-        <div className="hr-mini-role">{contract?.role || TYPE_LABEL[member.staffType] || "—"}</div>
-        {contract && (
-          <div className={`hr-mini-status ${contract.status === "Payé" ? "is-paid" : "is-due"}`}>
-            {contract.status}
-          </div>
-        )}
-      </div>
-      <div className="hr-mini-actions">
-        <button type="button" className="hr-btn-sm" onClick={() => onFiche(member)}>Fiche</button>
-        {contract && (
-          <>
-            <button type="button" className="hr-btn-sm is-contract" onClick={() => onContract(member, contract)}>
-              Contrat
-            </button>
-            <button type="button" className="hr-btn-sm" onClick={() => onEditContract(member, contract)}>
-              Modifier
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+    <span className="hr-team-badges">
+      <Badge label={status.label} variant={status.variant} />
+      {sections > 0 && <small className="dash-muted">dashboard · {sections}</small>}
+    </span>
   );
 }
 
-// ─── Vue "Équipe" ─────────────────────────────────────────────────────────────
+function TeamView({ members, contracts, documents, accounts, sessions, season, isAdmin, canDayPlans, initialSession = "", onOpen, onNewContract, onBatchContracts }) {
+  const [filter, setFilter] = useState(contracts.length ? "season" : "all");
+  const [sessionId, setSessionId] = useState(initialSession);
+  const session = sessions.find((entry) => entry.id === sessionId) || null;
 
-function EquipeView({ members, contracts, documents, onFiche, onContract, onEditContract }) {
-  const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const rows = useMemo(
+    () => members.map((member) => teamRow(member, contracts, documents, accounts)),
+    [members, contracts, documents, accounts],
+  );
 
-  const filtered = useMemo(() => {
-    let list = members;
-    if (filter !== "all") list = list.filter((m) => m.staffType === filter);
-    if (search.trim()) {
-      const s = search.toLowerCase();
-      list = list.filter((m) =>
-        [m.firstName, m.lastName, m.email, m.phone, m.address, m.dateOfBirth].some((v) => v.toLowerCase().includes(s))
-      );
-    }
-    return list;
-  }, [members, filter, search]);
+  const tests = {
+    season: (row) => row.memberContracts.length > 0,
+    all: () => true,
+    direction: (row) => row.direction,
+    animation: (row) => !row.direction,
+    incomplete: (row) => row.memberContracts.length > 0 && row.missing.length > 0,
+    toSend: (row) => row.signatures.toSend > 0,
+    docs: (row) => row.docsToReview > 0,
+    noAccount: (row) => row.memberContracts.length > 0 && !row.account,
+  };
+  const filters = [
+    { key: "season", label: `Saison ${season}` },
+    { key: "all", label: "Toute l’équipe" },
+    { key: "direction", label: "Direction" },
+    { key: "animation", label: "Animation" },
+    { key: "incomplete", label: "Fiche à compléter", tone: "warning" },
+    { key: "toSend", label: "Contrat à envoyer", tone: "warning" },
+    { key: "docs", label: "Documents à vérifier", tone: "warning" },
+    ...(isAdmin ? [{ key: "noAccount", label: "Sans compte" }] : []),
+  ];
 
-  const animCount = members.filter((m) => m.staffType === "animateur").length;
-  const dirCount  = members.filter((m) => m.staffType === "directeur").length;
+  const sessionRows = session ? rows.filter((row) => row.sessionIds.includes(session.id)) : rows;
+  const visible = sessionRows.filter(tests[filter] || tests.all);
+
+  const sessionGroup = session ? {
+    stay: session.sejourName, stayCode: session.sejourCode, week: session.week, startDate: session.startDate,
+    contracts: contracts.filter((contract) => contractSessionKey(contract) === session.id),
+  } : null;
+
+  const columns = [
+    {
+      key: "name", label: "Personne",
+      sortValue: (row) => row.name,
+      render: (row) => (
+        <span className="hr-team-person">
+          <Avatar member={row.member} size={34} />
+          <span>
+            <strong>{`${row.firstName || ""} ${row.lastName || ""}`.trim() || row.name}</strong>
+            <small>{row.email || row.phone || "Coordonnées à compléter"}</small>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "direction", label: "Rôle",
+      sortValue: (row) => (row.direction ? 0 : 1),
+      render: (row) => <Badge label={row.direction ? "Direction" : "Animation"} variant={row.direction ? "info" : "neutral"} />,
+    },
+    {
+      key: "assignmentsText", label: `Affectations ${season}`,
+      sortValue: (row) => row.memberContracts[0]?.startDate || "9999",
+      render: (row) => row.memberContracts.length ? (
+        <span className="hr-team-chips">
+          {row.memberContracts.map((contract) => (
+            <span key={contract.id} className={`hr-team-chip${session && contractSessionKey(contract) === session.id ? " is-current" : ""}`} title={contract.role}>
+              {contractShortLabel(contract) || "Sans séjour"} · {compactRole(contract)}
+            </span>
+          ))}
+        </span>
+      ) : <span className="dash-muted">—</span>,
+    },
+    {
+      key: "contracts", label: "Contrats",
+      sortValue: (row) => row.signatures.toSend * 100 + row.signatures.awaiting,
+      render: (row) => <SignatureSummary signatures={row.signatures} count={row.memberContracts.length} />,
+    },
+    {
+      key: "documents", label: "Documents",
+      sortValue: (row) => row.docs.validated,
+      render: (row) => (
+        <span className={`hr-team-docs${row.docs.validated === STAFF_DOCUMENT_TYPES.length ? " is-complete" : ""}`}>
+          {row.docs.validated}/{STAFF_DOCUMENT_TYPES.length}
+          {row.docsToReview > 0 && <small> · {row.docsToReview} à vérifier</small>}
+        </span>
+      ),
+    },
+    {
+      key: "profile", label: "Fiche",
+      sortValue: (row) => row.missing.length,
+      render: (row) => row.missing.length
+        ? <span title={row.missing.map((item) => item.label).join(", ")}><Badge label={`${row.missing.length} info${row.missing.length > 1 ? "s" : ""} manquante${row.missing.length > 1 ? "s" : ""}`} variant="warning" /></span>
+        : <Badge label="Complète" variant="success" />,
+    },
+    ...(isAdmin ? [{
+      key: "account", label: "Compte",
+      sortValue: (row) => row.account?.status || "~",
+      render: (row) => <AccountSummary account={row.account} />,
+    }] : []),
+    {
+      key: "netDue", label: "Reste à payer",
+      sortValue: (row) => row.netDue,
+      render: (row) => row.netDue > 0 ? <span className="hr-due">{currency(row.netDue)}</span> : <span className="dash-muted">—</span>,
+    },
+  ];
 
   return (
-    <div className="hr-equipe-wrap">
-      <div className="hr-equipe-toolbar">
-        <div className="hr-equipe-filters">
-          <button type="button" className={`hr-filter-btn${filter === "all" ? " is-active" : ""}`} onClick={() => setFilter("all")}>
-            Tous <span>{members.length}</span>
-          </button>
-          <button type="button" className={`hr-filter-btn${filter === "animateur" ? " is-active" : ""}`} onClick={() => setFilter("animateur")}>
-            Animateurs <span>{animCount}</span>
-          </button>
-          <button type="button" className={`hr-filter-btn${filter === "directeur" ? " is-active" : ""}`} onClick={() => setFilter("directeur")}>
-            Direction <span>{dirCount}</span>
-          </button>
-        </div>
-        <input
-          type="search"
-          className="hr-equipe-search"
-          placeholder="Rechercher…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {!filtered.length ? (
-        <div className="hr-empty"><p>Aucun membre trouvé.</p></div>
-      ) : (
-        <div className="hr-equipe-grid">
-          {filtered.map((m) => (
-            <StaffCard key={m.id} member={m} contracts={contracts} documents={documents} onFiche={onFiche} onContract={onContract} onEditContract={onEditContract} />
+    <div className="hr-team">
+      <div className="hr-team-toolbar">
+        <div className="res-crm-pipeline" role="group" aria-label="Filtrer l’équipe">
+          {filters.map((entry) => (
+            <button key={entry.key} type="button" aria-pressed={filter === entry.key}
+              className={`res-crm-chip${entry.tone ? ` is-${entry.tone}` : ""}${filter === entry.key ? " is-active" : ""}`}
+              onClick={() => setFilter(entry.key)}>
+              {entry.label}
+              <span className="res-view-count">{sessionRows.filter(tests[entry.key]).length}</span>
+            </button>
           ))}
         </div>
-      )}
-    </div>
-  );
-}
+        <select className="dash-input hr-team-session" value={sessionId} onChange={(event) => setSessionId(event.target.value)} aria-label="Session">
+          <option value="">Toutes les sessions</option>
+          {sessions.map((entry) => (
+            <option key={entry.id} value={entry.id}>{entry.sejourName} · {entry.week} · {formatDateRange(entry.startDate, entry.endDate)}</option>
+          ))}
+        </select>
+      </div>
 
-function StaffCard({ member: m, contracts, documents, onFiche, onContract, onEditContract }) {
-  const memberContracts = contracts.filter((c) => c.memberId === m.id);
-  const documentCompletion = structuredDocumentCompletion(m.id, documents);
-  const [color, bg] = avatarColor(m.id);
-
-  const firstContract = memberContracts[0];
-
-  return (
-    <div className="hr-staff-card">
-      <div className="hr-staff-card-top" style={{ background: bg, borderBottom: `2px solid ${color}20` }}>
-        <Avatar member={m} size={64} />
-        <div className="hr-staff-card-identity">
-          <div className="hr-staff-card-name">{m.firstName} {m.lastName}</div>
-          {m.staffType && (
-            <span className="hr-staff-type-badge"
-              style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}>
-              {TYPE_LABEL[m.staffType] || m.staffType}
+      {session && (
+        <div className="hr-team-session-banner">
+          <div>
+            <strong>{session.sejourName} · {session.week}</strong>
+            <span>
+              {formatDateRange(session.startDate, session.endDate)} · {sessionRows.length} personne{sessionRows.length > 1 ? "s" : ""}
+              {sessionGroup.contracts.some(isDirectionContract) ? " · direction affectée" : " · direction à affecter"}
             </span>
-          )}
+          </div>
+          <div className="dash-row-actions">
+            <button type="button" className="dash-btn dash-btn-primary" onClick={() => onNewContract(null, session)}>+ Contrat sur cette session</button>
+            <button type="button" className="dash-btn" disabled={!sessionGroup.contracts.length} onClick={() => onBatchContracts(sessionGroup)}>PDF groupé recto-verso</button>
+            {canDayPlans && <Link className="dash-btn" href={`/dashboard/rh/deroules/${encodeURIComponent(session.id)}`}>Déroulé</Link>}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="hr-staff-card-body">
-        {m.phone && (
-          <div className="hr-staff-row">
-            <span className="hr-staff-icon">📞</span>
-            <a href={`tel:${m.phone}`} className="hr-staff-link">{m.phone}</a>
-          </div>
-        )}
-        {m.email && (
-          <div className="hr-staff-row">
-            <span className="hr-staff-icon">✉</span>
-            <a href={`mailto:${m.email}`} className="hr-staff-link">{m.email}</a>
-          </div>
-        )}
-        {m.dateOfBirth && (
-          <div className="hr-staff-row">
-            <span className="hr-staff-icon">🎂</span>
-            <span>{m.dateOfBirth}{m.birthPlace ? ` — ${m.birthPlace}` : ""}</span>
-          </div>
-        )}
-        {m.address && (
-          <div className="hr-staff-row">
-            <span className="hr-staff-icon">📍</span>
-            <span>{m.address}</span>
-          </div>
-        )}
-        {memberContracts.length > 0 && (
-          <div className="hr-staff-contracts-summary">
-            <span className="hr-staff-contracts-count">{memberContracts.length} contrat{memberContracts.length > 1 ? "s" : ""}</span>
-            {" · "}{[...new Set(memberContracts.map((c) => c.week))].join(", ")}
-          </div>
-        )}
-        <div className={`hr-staff-doc-progress${documentCompletion.validated === STAFF_DOCUMENT_TYPES.length ? " is-complete" : ""}`}>
-          Documents : {documentCompletion.validated}/{STAFF_DOCUMENT_TYPES.length} validés
-          {documentCompletion.received > documentCompletion.validated ? ` · ${documentCompletion.received - documentCompletion.validated} à vérifier` : ""}
-        </div>
-      </div>
-
-      <div className="hr-staff-card-footer">
-        <button type="button" className="hr-card-btn" onClick={() => onFiche(m)}>
-          Voir la fiche
-        </button>
-        {firstContract && (
-          <>
-            <button type="button" className="hr-card-btn is-secondary" onClick={() => onContract(m, firstContract)}>
-              Contrat
-            </button>
-            <button type="button" className="hr-card-btn is-secondary" onClick={() => onEditContract(m, firstContract)}>
-              Modifier
-            </button>
-          </>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={visible}
+        searchableKeys={["name", "email", "phone", "assignmentsText"]}
+        defaultSortKey="name"
+        onRowClick={(row) => onOpen(row.member)}
+        emptyLabel={session ? "Personne sur cette session pour ce filtre." : "Personne ne correspond à ce filtre."}
+        toolsInline
+      />
     </div>
   );
 }
@@ -932,8 +865,6 @@ function ContratsView({ contracts, members, onContract, onEditContract, onDelete
   );
 }
 
-// ─── Fiche animateur (modal) ──────────────────────────────────────────────────
-
 const EDIT_FIELDS = [
   { key: "firstName",            label: "Prénom", placeholder: "Prénom complet" },
   { key: "lastName",             label: "Nom", placeholder: "Nom de naissance" },
@@ -946,372 +877,399 @@ const EDIT_FIELDS = [
   { key: "nationality",          label: "Nationalité", placeholder: "Française" },
 ];
 
-function FicheModal({ member: initial, contracts, allContracts = [], archivedSeasons, sessionsById, structuredDocuments, initialEdit = false, onClose, onUpdate, onEditContract, onDocumentChange }) {
+// ─── Fiche d'une personne (page complète) ─────────────────────────────────────
+//
+// Tout ce qui concerne une personne au même endroit : identité, affectations et contrats de la
+// saison (signature, déclarations, paie), documents, compte de l'espace équipe et droits du
+// dashboard (administrateurs), historique de toutes les saisons.
+
+const MEMBER_TABS = [
+  { key: "profil", label: "Profil" },
+  { key: "contrats", label: "Affectations & contrats" },
+  { key: "documents", label: "Documents" },
+  { key: "compte", label: "Compte & droits", adminOnly: true },
+  { key: "historique", label: "Historique" },
+];
+
+function MemberProfileTab({ member, startEdit, onUpdate }) {
+  const [editMode, setEdit] = useState(startEdit);
+  const [form, setForm] = useState({ ...member });
+  const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
-  const [member, setMember]   = useState(initial);
-  const [editMode, setEdit]   = useState(initialEdit);
-  const [form, setForm]       = useState({ ...initial });
-  const [saving, setSaving]   = useState(false);
-  const [tab, setTab]         = useState("info"); // info | docs
-  const [uploading, setUpl]   = useState(false);
-  const [typedDocumentBusy, setTypedDocumentBusy] = useState("");
-  const photoInputRef         = useRef(null);
-  const docInputRef           = useRef(null);
+  const missing = missingPersonalInformation(member);
 
-  const memberContracts = contracts.filter((c) => c.memberId === member.id);
-  const historyContracts = allContracts.filter((c) => c.memberId === member.id);
-
-  // ── Sauvegarde des infos ──
   const saveInfo = async () => {
     setSaving(true);
     try {
       const updateData = memberIdentityUpdateData(form);
       await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), updateData);
-      const updated = { ...member, ...updateData };
-      setMember(updated);
-      onUpdate(updated);
+      onUpdate({ ...member, ...updateData });
       setEdit(false);
+      showToast("Fiche enregistrée.", "success");
+    } catch (error) {
+      showToast(error?.message || "Enregistrement impossible.", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  // ── Upload photo ──
-  const handlePhoto = async (e) => {
-    const file = e.target.files?.[0];
+  return (
+    <section className="dash-section hr-member-section">
+      {missing.length > 0 && (
+        <div className="hr-member-warning">
+          <strong>Informations à compléter avant signature :</strong> {missing.map((item) => item.label).join(", ")}.
+        </div>
+      )}
+      {!editMode ? (
+        <>
+          <div className="hr-info-grid">
+            <InfoField label="Téléphone" value={member.phone} href={`tel:${member.phone}`} />
+            <InfoField label="E-mail" value={member.email} href={`mailto:${member.email}`} />
+            <InfoField label="Adresse" value={member.address} />
+            <InfoField label="Date & lieu de naissance" value={[member.dateOfBirth, member.birthPlace].filter(Boolean).join(" — ")} />
+            <InfoField label="N° Sécurité sociale" value={member.socialSecurityNumber} sensitive />
+            <InfoField label="Nationalité" value={member.nationality} />
+          </div>
+          <button type="button" className="hr-edit-trigger" onClick={() => { setForm({ ...member }); setEdit(true); }}>
+            Modifier les informations
+          </button>
+        </>
+      ) : (
+        <div className="hr-edit-form">
+          {EDIT_FIELDS.map(({ key, label, type, placeholder, inputMode }) => (
+            <label key={key} className="hr-edit-label">
+              <span>{label}</span>
+              <input type={type || "text"} placeholder={placeholder || ""} inputMode={inputMode}
+                value={form[key] || ""} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} />
+            </label>
+          ))}
+          <label className="hr-edit-label">
+            <span>Rôle</span>
+            <select value={form.staffType || ""} onChange={(e) => setForm((p) => ({ ...p, staffType: e.target.value }))}>
+              <option value="">— Choisir —</option>
+              <option value="animateur">Animateur</option>
+              <option value="directeur">Directeur</option>
+            </select>
+          </label>
+          <div className="hr-edit-actions">
+            <button type="button" className="hr-btn-cancel" onClick={() => setEdit(false)} disabled={saving}>Annuler</button>
+            <button type="button" className="hr-btn-save" onClick={saveInfo} disabled={saving}>{saving ? "Enregistrement…" : "Enregistrer"}</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MemberContractCard({ member, contract, busy, actions }) {
+  const signature = signatureLabel(contract);
+  const waiting = docusignWaitingLabel(contract.docusignWaitingFor);
+  return (
+    <article className="hr-member-contract">
+      <header>
+        <div>
+          <strong>{contract.role}</strong>
+          <span> · {contract.stay} · {contract.week}</span>
+          <div className="dash-muted">{contract.datesLabel}{contract.place ? ` · ${contract.place}` : ""}</div>
+        </div>
+        <span className="hr-team-badges">
+          <Badge label={signature.label} variant={signature.variant} />
+          {waiting && contract.docusignStatus !== "completed" && <small className="dash-muted">{waiting}</small>}
+        </span>
+      </header>
+      <div className="hr-fiche-contract-salary">
+        <span>{currency(contract.netSalary)} net</span>
+        <span>{currency(contract.grossSalary)} brut</span>
+        {contract.convoyagePrime && <span>+ prime convoyage</span>}
+        {contract.outstandingAmount > 0 && <span className="hr-due">{currency(contract.outstandingAmount)} restant</span>}
+      </div>
+      <SocialSalaryBreakdown grossSalary={contract.grossSalary} netSalary={contract.netSalary} compact />
+      <div className="hr-member-checks">
+        <label className="hr-contract-check">
+          <input type="checkbox" checked={contract.ceaDeclarationValidated} onChange={(event) => actions.onToggleCea(contract, event.target.checked)} />
+          <span>Déclaration CEA</span>
+        </label>
+        <label className="hr-contract-check">
+          <input type="checkbox" checked={contract.socialSectionDone} onChange={(event) => actions.onToggleSocialSection(contract, event.target.checked)} />
+          <span>Volet social</span>
+        </label>
+        <label className="hr-contract-check">
+          <input type="checkbox" checked={contract.paymentValidated} onChange={(event) => actions.onTogglePayment(contract, event.target.checked)} />
+          <span>Salaire payé</span>
+        </label>
+      </div>
+      <div className="dash-row-actions hr-member-contract-actions">
+        <button type="button" className="dash-btn" onClick={() => openContractPrint(member, contract)}>Aperçu PDF</button>
+        <button type="button" className="dash-btn" onClick={() => actions.onEditContract(member, contract)}>Modifier</button>
+        {!contract.docusignEnvelopeId && (
+          <button type="button" className="dash-btn dash-btn-primary" disabled={busy || !member.email} title={member.email ? "" : "Ajoutez l’e-mail dans le profil"}
+            onClick={() => actions.onDocusignSend(member, contract)}>Envoyer en signature</button>
+        )}
+        {contract.docusignEnvelopeId && contract.docusignStatus !== "completed" && (
+          <button type="button" className="dash-btn" disabled={busy} onClick={() => actions.onDocusignRefresh(contract)}>Actualiser la signature</button>
+        )}
+        {contract.contractFileUrl && <a className="dash-btn" href={contract.contractFileUrl} target="_blank" rel="noopener noreferrer">PDF signé</a>}
+        <select className="hr-contract-actions-select" defaultValue="" disabled={busy} aria-label="Autres actions"
+          onChange={(event) => {
+            const action = event.target.value;
+            event.target.value = "";
+            if (action === "attach") actions.onDocusignAttach(contract);
+            if (action === "reset") actions.onDocusignReset(contract);
+            if (action === "delete") actions.onDeleteContract(contract);
+          }}>
+          <option value="">Autres…</option>
+          <option value="attach">Rattacher une enveloppe DocuSign</option>
+          {contract.docusignEnvelopeId && <option value="reset">Réinitialiser la signature</option>}
+          <option value="delete">Supprimer le contrat</option>
+        </select>
+      </div>
+    </article>
+  );
+}
+
+function MemberContractsTab({ member, contracts, season, busy, actions }) {
+  return (
+    <section className="dash-section hr-member-section">
+      <div className="hr-member-section-head">
+        <h2>Saison {season}</h2>
+        <button type="button" className="dash-btn dash-btn-primary" onClick={() => actions.onNewContract(member)}>+ Contrat pour {member.firstName || member.name}</button>
+      </div>
+      {contracts.length ? (
+        <div className="hr-member-contracts">
+          {contracts.map((contract) => (
+            <MemberContractCard key={contract.id} member={member} contract={contract} busy={busy} actions={actions} />
+          ))}
+        </div>
+      ) : <p className="dash-muted">Aucune affectation sur la saison {season}. Les saisons précédentes sont dans l’onglet Historique.</p>}
+    </section>
+  );
+}
+
+function MemberAccountTab({ member, accounts, onMemberLinked }) {
+  const { currentUser } = useAuth();
+  const { showToast } = useToast();
+  const [administrators, setAdministrators] = useState(null);
+  const [choice, setChoice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const account = accountForMember(member, accounts);
+  const pending = accounts.filter((entry) => entry.status !== "approved" && !entry.memberId);
+  const suggested = pending.filter((entry) => rankMemberCandidates(entry, [member]).length > 0);
+
+  useEffect(() => {
+    const request = new AbortController();
+    dashboardFetch("/api/dashboard/admins", { signal: request.signal })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((list) => { if (!request.signal.aborted) setAdministrators(list.map((entry) => entry.id)); })
+      .catch(() => { if (!request.signal.aborted) setAdministrators([]); });
+    return () => request.abort();
+  }, []);
+
+  const run = async (action, success) => {
+    setBusy(true);
+    try {
+      await action();
+      showToast(success, "success");
+    } catch (error) {
+      showToast(error?.message || "Action impossible.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const link = (entry) => run(async () => {
+    await approveStaffAccount({ account: entry, memberId: member.id, reviewer: currentUser });
+    onMemberLinked(member.id, entry);
+  }, `Compte ${entry.email} validé et lié à la fiche.`);
+
+  const suspend = () => {
+    const reason = window.prompt("Motif de la suspension (visible par la personne) :", account.rejectionReason || "");
+    if (reason == null) return;
+    run(() => rejectStaffAccount({ account, reason, reviewer: currentUser }), "Compte suspendu.");
+  };
+
+  const unlink = () => {
+    if (!window.confirm(`Délier le compte ${account.email} de cette fiche ?\n\nLe compte repasse en attente ; la fiche et ses contrats ne changent pas.`)) return;
+    run(async () => {
+      await unlinkStaffAccount({ account, reviewer: currentUser });
+      onMemberLinked(member.id, null);
+    }, "Compte délié.");
+  };
+
+  if (!account) {
+    return (
+      <section className="dash-section hr-member-section">
+        <h2>Compte de l’espace équipe</h2>
+        <p className="dash-muted">
+          Pas de compte relié à cette fiche. La personne crée son compte depuis l’espace équipe, puis il se valide ici ou dans Comptes équipe.
+        </p>
+        {pending.length > 0 && (
+          <div className="hr-member-link">
+            {suggested.length > 0 && (
+              <p>Demande{suggested.length > 1 ? "s" : ""} qui correspond{suggested.length > 1 ? "ent" : ""} à cette fiche :</p>
+            )}
+            {suggested.map((entry) => (
+              <div key={entry.uid} className="hr-member-link-row">
+                <span><strong>{staffAccountName(entry)}</strong> · {entry.email}</span>
+                <button type="button" className="dash-btn dash-btn-primary" disabled={busy} onClick={() => link(entry)}>Valider et lier</button>
+              </div>
+            ))}
+            <div className="hr-member-link-row">
+              <select className="dash-input" value={choice} onChange={(event) => setChoice(event.target.value)}>
+                <option value="">— Lier une autre demande en attente —</option>
+                {pending.map((entry) => <option key={entry.uid} value={entry.uid}>{staffAccountName(entry)} · {entry.email}</option>)}
+              </select>
+              <button type="button" className="dash-btn" disabled={busy || !choice} onClick={() => link(pending.find((entry) => entry.uid === choice))}>Lier</button>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  const status = STAFF_ACCOUNT_STATUS[account.status] || STAFF_ACCOUNT_STATUS.pending;
+  const isAdministrator = administrators?.includes(account.uid);
+
+  return (
+    <section className="dash-section hr-member-section">
+      <div className="hr-member-section-head">
+        <h2>Compte de l’espace équipe</h2>
+        <Badge label={status.label} variant={status.variant} />
+      </div>
+      <dl className="crm-facts hr-member-account">
+        <div><dt>Adresse de connexion</dt><dd>{account.email}</dd></div>
+        {account.createdAt && <div><dt>Demande créée le</dt><dd>{fmtDate(account.createdAt)}</dd></div>}
+        {account.reviewedBy && <div><dt>Validé par</dt><dd>{account.reviewedBy}{account.reviewedAt ? ` le ${fmtDate(account.reviewedAt)}` : ""}</dd></div>}
+        {account.rejectionReason && <div><dt>Motif</dt><dd>{account.rejectionReason}</dd></div>}
+      </dl>
+      <div className="dash-row-actions">
+        {account.status === "approved" && <button type="button" className="dash-btn" disabled={busy} onClick={suspend}>Suspendre le compte</button>}
+        {account.status !== "approved" && <button type="button" className="dash-btn dash-btn-primary" disabled={busy} onClick={() => link(account)}>Valider le compte</button>}
+        <button type="button" className="dash-btn" disabled={busy} onClick={unlink}>Délier de la fiche</button>
+      </div>
+
+      <h3 className="hr-member-subtitle">Droits du dashboard</h3>
+      {administrators === null ? <p className="dash-muted">Chargement…</p> : (
+        <AccessForm
+          key={`${account.uid}:${account.dashboardReviewedAt?.toMillis?.() || 0}`}
+          embedded
+          account={{ ...account, id: account.uid, administrator: isAdministrator }}
+          onSaved={(message) => showToast(message, "success")}
+        />
+      )}
+    </section>
+  );
+}
+
+function MemberPage({ member, contracts, allContracts, documents, accounts, season, isAdmin, archivedSeasons, sessionsById, startEdit, initialTab, busy, actions, onUpdate, onDocumentChange, onDocumentDelete, onMemberLinked }) {
+  const tabs = MEMBER_TABS.filter((entry) => isAdmin || !entry.adminOnly);
+  const [tab, setTab] = useState(tabs.some((entry) => entry.key === initialTab) ? initialTab : "profil");
+  const [uploading, setUploading] = useState(false);
+  const photoInputRef = useRef(null);
+  const { showToast } = useToast();
+
+  const memberContracts = contracts.filter((contract) => contract.memberId === member.id)
+    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+  const historyContracts = allContracts.filter((contract) => contract.memberId === member.id);
+  const row = teamRow(member, contracts, documents, accounts);
+
+  const handlePhoto = async (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    setUpl(true);
+    setUploading(true);
     try {
       const storageRef = ref(storage, `staff-photos/${member.id}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), { photoUrl: url });
-      const updated = { ...member, photoUrl: url };
-      setMember(updated);
-      setForm((p) => ({ ...p, photoUrl: url }));
-      onUpdate(updated);
-    } finally {
-      setUpl(false);
-    }
-  };
-
-  // ── Upload document ──
-  const handleDoc = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUpl(true);
-    try {
-      const storageRef = ref(storage, `staff-docs/${member.id}/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      const docEntry = { name: file.name, url, uploadedAt: new Date().toISOString() };
-      await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, member.id), { documents: arrayUnion(docEntry) });
-      const updated = { ...member, documents: [...(member.documents || []), docEntry] };
-      setMember(updated);
-      onUpdate(updated);
-    } finally {
-      setUpl(false);
-      if (docInputRef.current) docInputRef.current.value = "";
-    }
-  };
-
-  const openTypedDocument = async (document) => {
-    if (!document?.storagePath) return;
-    const key = `${document.id}-open`;
-    setTypedDocumentBusy(key);
-    try {
-      const url = await getDownloadURL(ref(storage, document.storagePath));
-      window.open(url, "_blank", "noopener,noreferrer");
+      onUpdate({ ...member, photoUrl: url });
     } catch (error) {
-      showToast(error?.message || "Ouverture du document impossible.", "error");
+      showToast(error?.message || "Photo non enregistrée.", "error");
     } finally {
-      setTypedDocumentBusy("");
+      setUploading(false);
     }
   };
 
-  const uploadTypedDocuments = async (documentType, selectedFiles) => {
-    const files = Array.from(selectedFiles || []);
-    if (!files.length) return;
-    const key = `${documentType}-upload`;
-    setTypedDocumentBusy(key);
-    try {
-      for (const file of files) {
-        const created = await uploadStaffDocument({ member, documentType, file, source: "admin-team" });
-        onDocumentChange(created);
-      }
-      showToast(`${files.length} fichier${files.length > 1 ? "s" : ""} ajouté${files.length > 1 ? "s" : ""}.`, "success");
-    } catch (error) {
-      showToast(error?.message || "Ajout du document impossible.", "error");
-    } finally {
-      setTypedDocumentBusy("");
-    }
+  const counts = {
+    contrats: memberContracts.length,
+    documents: row.docsToReview || null,
+    historique: historyContracts.length,
   };
-
-  const [typeColor] = [TYPE_COLOR[member.staffType] || "#7c3aed"];
-  const [, typeBg]  = [TYPE_BG[member.staffType]   || "#f5f0ff"];
 
   return (
-    <div className="hr-overlay" onClick={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <div className="hr-fiche-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="hr-member-page">
+      <Link className="hr-member-back" href="/dashboard/rh/equipe">← Toute l’équipe</Link>
 
-        {/* ── En-tête ── */}
-        <div className="hr-fiche-header" style={{ background: `linear-gradient(135deg, ${TYPE_BG[member.staffType] || "#f5f0ff"} 0%, #fff 100%)` }}>
-          <div className="hr-fiche-avatar-wrap">
-            <Avatar member={member} size={64} />
-            <button
-              type="button"
-              className="hr-photo-change"
-              onClick={() => photoInputRef.current?.click()}
-              disabled={uploading}
-              title="Changer la photo"
-            >
-              {uploading ? "…" : "📷"}
-            </button>
-            <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
-          </div>
-
-          <div className="hr-fiche-identity">
-            <div className="hr-fiche-name">{member.firstName} {member.lastName}</div>
-            {member.staffType && (
-              <span className="hr-staff-type-badge"
-                style={{ background: `${TYPE_COLOR[member.staffType]}18`, color: TYPE_COLOR[member.staffType], border: `1px solid ${TYPE_COLOR[member.staffType]}30` }}>
-                {TYPE_LABEL[member.staffType]}
-              </span>
-            )}
-            {memberContracts.length > 0 && (
-              <div className="hr-fiche-contracts-meta">
-                {memberContracts.length} contrat{memberContracts.length > 1 ? "s" : ""} · {[...new Set(memberContracts.map((c) => c.week))].join(", ")}
-              </div>
-            )}
-          </div>
-
-          <button type="button" className="hr-fiche-close" onClick={onClose}>✕</button>
+      <header className="hr-member-header">
+        <div className="hr-fiche-avatar-wrap">
+          <Avatar member={member} size={72} />
+          <button type="button" className="hr-photo-change" onClick={() => photoInputRef.current?.click()} disabled={uploading} title="Changer la photo">
+            {uploading ? "…" : "📷"}
+          </button>
+          <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
         </div>
-
-        {/* ── Tabs ── */}
-        <div className="hr-fiche-tabs">
-          <button type="button" className={tab === "info" ? "is-active" : ""} onClick={() => setTab("info")}>
-            Informations
-          </button>
-          <button type="button" className={tab === "docs" ? "is-active" : ""} onClick={() => setTab("docs")}>
-            Documents <span>{member.documents?.length || 0}</span>
-          </button>
-          {memberContracts.length > 0 && (
-            <button type="button" className={tab === "contracts" ? "is-active" : ""} onClick={() => setTab("contracts")}>
-              Contrats <span>{memberContracts.length}</span>
-            </button>
-          )}
-          <button type="button" className={tab === "history" ? "is-active" : ""} onClick={() => setTab("history")}>
-            Historique <span>{historyContracts.length}</span>
-          </button>
+        <div className="hr-member-identity">
+          <h1>{`${member.firstName || ""} ${member.lastName || ""}`.trim() || member.name}</h1>
+          <div className="hr-member-contact">
+            <Badge label={row.direction ? "Direction" : "Animation"} variant={row.direction ? "info" : "neutral"} />
+            {member.phone && <a href={`tel:${member.phone}`}>{member.phone}</a>}
+            {member.email && <a href={`mailto:${member.email}`}>{member.email}</a>}
+          </div>
+          <div className="hr-member-status">
+            {row.missing.length
+              ? <Badge label={`${row.missing.length} info${row.missing.length > 1 ? "s" : ""} manquante${row.missing.length > 1 ? "s" : ""}`} variant="warning" />
+              : <Badge label="Fiche complète" variant="success" />}
+            <Badge label={`Documents ${row.docs.validated}/${STAFF_DOCUMENT_TYPES.length}`} variant={row.docs.validated === STAFF_DOCUMENT_TYPES.length ? "success" : "warning"} />
+            <SignatureSummary signatures={row.signatures} count={memberContracts.length} />
+            {isAdmin && <AccountSummary account={row.account} />}
+            {row.netDue > 0 && <span className="hr-due">{currency(row.netDue)} à payer</span>}
+          </div>
         </div>
+        <div className="dash-row-actions">
+          <button type="button" className="dash-btn dash-btn-primary" onClick={() => actions.onNewContract(member)}>+ Contrat</button>
+        </div>
+      </header>
 
-        {/* ── Contenu ── */}
-        <div className="hr-fiche-body">
+      <nav className="hr-main-nav" aria-label="Sections de la fiche">
+        {tabs.map((entry) => (
+          <button key={entry.key} type="button" className={`hr-main-tab${tab === entry.key ? " is-active" : ""}`}
+            aria-pressed={tab === entry.key} onClick={() => setTab(entry.key)}>
+            {entry.label}
+            {counts[entry.key] ? <span className="hr-tab-count">{counts[entry.key]}</span> : null}
+          </button>
+        ))}
+      </nav>
 
-          {/* INFO */}
-          {tab === "info" && (
-            <>
-              {missingPersonalInformation(member).length > 0 && (
-                <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 10, background: "#fff7ed", color: "#9a3412", fontSize: 13 }}>
-                  <strong>Informations à compléter :</strong>{" "}
-                  {missingPersonalInformation(member).map((item) => item.label).join(", ")}.
-                </div>
-              )}
-              {!editMode ? (
-                <>
-                  <div className="hr-info-grid">
-                    <InfoField label="Téléphone"         value={member.phone}   href={`tel:${member.phone}`} />
-                    <InfoField label="E-mail"            value={member.email}   href={`mailto:${member.email}`} />
-                    <InfoField label="Adresse"           value={member.address} />
-                    <InfoField
-                      label="Date & lieu de naissance"
-                      value={[member.dateOfBirth, member.birthPlace].filter(Boolean).join(" — ")}
-                    />
-                    <InfoField label="N° Sécurité sociale" value={member.socialSecurityNumber} sensitive />
-                    <InfoField label="Nationalité"       value={member.nationality} />
-                  </div>
-                  <button type="button" className="hr-edit-trigger" onClick={() => { setForm({ ...member }); setEdit(true); }}>
-                    Modifier les informations
-                  </button>
-                </>
-              ) : (
-                <div className="hr-edit-form">
-                  {EDIT_FIELDS.map(({ key, label, type, placeholder, inputMode }) => (
-                    <label key={key} className="hr-edit-label">
-                      <span>{label}</span>
-                      <input
-                        type={type || "text"}
-                        placeholder={placeholder || ""}
-                        inputMode={inputMode}
-                        value={form[key] || ""}
-                        onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
-                      />
-                    </label>
-                  ))}
-                  <label className="hr-edit-label">
-                    <span>Rôle</span>
-                    <select value={form.staffType || ""} onChange={(e) => setForm((p) => ({ ...p, staffType: e.target.value }))}>
-                      <option value="">— Choisir —</option>
-                      <option value="animateur">Animateur</option>
-                      <option value="directeur">Directeur</option>
-                    </select>
-                  </label>
-                  <div className="hr-edit-actions">
-                    <button type="button" className="hr-btn-cancel" onClick={() => setEdit(false)} disabled={saving}>Annuler</button>
-                    <button type="button" className="hr-btn-save"   onClick={saveInfo}          disabled={saving}>
-                      {saving ? "Enregistrement…" : "Enregistrer"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* DOCUMENTS */}
-          {tab === "docs" && (
-            <div className="hr-docs-section">
-              <div className="hr-structured-docs">
-                {STAFF_DOCUMENT_TYPES.map((type) => {
-                  const typeDocuments = documentsByType(structuredDocuments, member.id, type.key);
-                  const current = typeDocuments.find((document) => document.status === "validated" && document.locked) || latestDocumentByType(structuredDocuments, member.id, type.key);
-                  const validated = typeDocuments.some((document) => document.status === "validated" && document.locked);
-                  return (
-                    <div key={type.key} className={`hr-structured-doc${validated ? " is-valid" : current ? " is-pending" : ""}`}>
-                      <strong>{type.label}</strong>
-                      <span>{validated ? `Validé et verrouillé · ${typeDocuments.length} élément${typeDocuments.length > 1 ? "s" : ""}` : current ? `${typeDocuments.length} reçu${typeDocuments.length > 1 ? "s" : ""} · à vérifier` : "Manquant"}</span>
-                      {typeDocuments.length > 0 && (
-                        <div className="hr-team-doc-files">
-                          {typeDocuments.map((document) => document.storagePath ? (
-                            <button
-                              key={document.id}
-                              type="button"
-                              onClick={() => openTypedDocument(document)}
-                              disabled={Boolean(typedDocumentBusy)}
-                              title={document.originalName}
-                            >
-                              <span>📄 {document.originalName}</span>
-                              <em>{typedDocumentBusy === `${document.id}-open` ? "Ouverture…" : "Ouvrir"}</em>
-                            </button>
-                          ) : (
-                            <div key={document.id} className="hr-team-doc-virtual">✓ Validation sans fichier</div>
-                          ))}
-                        </div>
-                      )}
-                      <label className="hr-team-doc-upload">
-                        <input
-                          type="file"
-                          multiple
-                          accept={type.accept}
-                          disabled={Boolean(typedDocumentBusy)}
-                          onChange={(event) => {
-                            uploadTypedDocuments(type.key, event.target.files);
-                            event.target.value = "";
-                          }}
-                        />
-                        <span>{typedDocumentBusy === `${type.key}-upload` ? "Ajout…" : "+ Ajouter dans cette catégorie"}</span>
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="hr-docs-hint">Les fichiers ajoutés ci-dessus sont aussi disponibles dans l’onglet Documents principal. La liste ci-dessous conserve les anciens fichiers non classés.</p>
-              <div className="hr-docs-upload">
-                <button
-                  type="button"
-                  className="hr-upload-btn"
-                  onClick={() => docInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading ? "Envoi en cours…" : "+ Ajouter un document"}
-                </button>
-                <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={handleDoc} />
-                <span className="hr-docs-hint">PDF, Word ou image — fiche sanitaire, diplôme, BAFA, etc.</span>
-              </div>
-              {!member.documents?.length ? (
-                <p className="hr-docs-empty">Aucun document enregistré.</p>
-              ) : (
+      <div className="hr-content">
+        {tab === "profil" && <MemberProfileTab member={member} startEdit={startEdit} onUpdate={onUpdate} />}
+        {tab === "contrats" && <MemberContractsTab member={member} contracts={memberContracts} season={season} busy={busy} actions={actions} />}
+        {tab === "documents" && (
+          <section className="dash-section hr-member-section">
+            <MemberDocuments member={member} documents={documents} onDocumentChange={onDocumentChange} onDocumentDelete={onDocumentDelete} />
+            {member.documents?.length > 0 && (
+              <>
+                <h3 className="hr-member-subtitle">Autres fichiers (contrats signés, anciens dépôts)</h3>
                 <div className="hr-docs-list">
-                  {member.documents.map((doc, i) => (
-                    <a key={i} href={doc.url} target="_blank" rel="noopener noreferrer" className="hr-doc-item">
+                  {member.documents.map((file, index) => (
+                    <a key={`${file.url}-${index}`} href={file.url} target="_blank" rel="noopener noreferrer" className="hr-doc-item">
                       <span className="hr-doc-icon">📄</span>
                       <div>
-                        <div className="hr-doc-name">{doc.name}</div>
-                        {doc.uploadedAt && (
-                          <div className="hr-doc-date">
-                            {new Date(doc.uploadedAt).toLocaleDateString("fr-FR")}
-                          </div>
-                        )}
+                        <div className="hr-doc-name">{file.name}</div>
+                        {file.uploadedAt && <div className="hr-doc-date">{new Date(file.uploadedAt).toLocaleDateString("fr-FR")}</div>}
                       </div>
                       <span className="hr-doc-open">Ouvrir →</span>
                     </a>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* CONTRATS */}
-          {tab === "contracts" && (
-            <div className="hr-fiche-contracts-list">
-              {memberContracts.map((c) => (
-                <div key={c.id} className="hr-fiche-contract-card">
-                  <div className="hr-fiche-contract-head">
-                    <div>
-                      <strong>{c.role}</strong>
-                      <span className="hr-fiche-contract-meta"> · {c.stay} · {c.week}</span>
-                    </div>
-                    <Badge label={c.status} variant={c.status === "Payé" ? "success" : "warning"} />
-                  </div>
-                  <div className="hr-fiche-contract-dates">{c.datesLabel}</div>
-                  <div className="hr-fiche-contract-salary">
-                    <span>{currency(c.netSalary)} net</span>
-                    <span>{currency(c.grossSalary)} brut</span>
-                    <span className="hr-paid">{currency(c.paidAmount)} réglé</span>
-                    {c.outstandingAmount > 0 && <span className="hr-due">{currency(c.outstandingAmount)} restant</span>}
-                  </div>
-                  <div style={{ marginTop: 6 }}>
-                    <SocialSalaryBreakdown grossSalary={c.grossSalary} netSalary={c.netSalary} compact />
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button
-                      type="button"
-                      className="hr-btn-contract"
-                      onClick={() => openContractPrint(member, c)}
-                    >
-                      Générer le contrat CEE
-                    </button>
-                    <button
-                      type="button"
-                      className="hr-btn-contract"
-                      onClick={() => onEditContract(member, c)}
-                    >
-                      Modifier le contrat
-                    </button>
-                    {c.contractFileUrl && (
-                      <a
-                        className="hr-btn-contract"
-                        href={c.contractFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Ouvrir le contrat signé
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* HISTORIQUE */}
-          {tab === "history" && (
+              </>
+            )}
+          </section>
+        )}
+        {tab === "compte" && isAdmin && <MemberAccountTab member={member} accounts={accounts} onMemberLinked={onMemberLinked} />}
+        {tab === "historique" && (
+          <section className="dash-section hr-member-section">
             <MemberHistory member={member} contracts={historyContracts} archivedSeasons={archivedSeasons} sessionsById={sessionsById} />
-          )}
-
-        </div>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -2112,9 +2070,144 @@ function SalaryGridModal({ isOpen, gridRows, onClose, onChange }) {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export default function HumanResources({ initialTab = "sejours" }) {
+// ─── Vue d'ensemble RH ────────────────────────────────────────────────────────
+
+function isContractSigned(contract) {
+  return contract.docusignStatus === "completed" || Boolean(contract.contractFileUrl);
+}
+
+function contractProgress(contracts) {
+  const progress = { toSend: 0, awaitingSignature: 0, signed: 0, toPay: 0, netDue: 0, ceaTodo: 0, socialTodo: 0 };
+  contracts.forEach((contract) => {
+    const signed = isContractSigned(contract);
+    if (signed) progress.signed += 1;
+    else if (contract.docusignEnvelopeId && contract.docusignStatus !== "voided") progress.awaitingSignature += 1;
+    else progress.toSend += 1;
+    if (!contract.paymentValidated && contract.outstandingAmount > 0) {
+      progress.toPay += 1;
+      progress.netDue += contract.outstandingAmount;
+    }
+    if (!contract.ceaDeclarationValidated) progress.ceaTodo += 1;
+    if (!contract.socialSectionDone) progress.socialTodo += 1;
+  });
+  return progress;
+}
+
+function RhOverviewCard({ href, title, value, caption, tone = "", children }) {
+  return (
+    <Link href={href} className={`hr-overview-card${tone ? ` is-${tone}` : ""}`}>
+      <span className="hr-overview-card-title">{title}</span>
+      <strong className="hr-overview-card-value">{value}</strong>
+      {caption && <span className="hr-overview-card-caption">{caption}</span>}
+      {children}
+    </Link>
+  );
+}
+
+function RhOverview({ season, members, contracts, sessions, staffDocuments, pendingAccounts, isAdmin, canDayPlans }) {
+  const progress = useMemo(() => contractProgress(contracts), [contracts]);
+  const memberById = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
+
+  // Fiches de la saison (au moins un contrat) auxquelles il manque des informations de contrat.
+  const incompleteMembers = useMemo(() => {
+    const ids = new Set(contracts.map((contract) => contract.memberId));
+    return [...ids].map((id) => memberById.get(id)).filter((member) => member && missingPersonalInformation(member).length);
+  }, [contracts, memberById]);
+
+  const documentsToReview = staffDocuments.filter((document) => document.status !== "validated").length;
+
+  const sessionCoverage = useMemo(() => sessions.map((session) => {
+    const team = contracts.filter((contract) => contractSessionKey(contract) === session.id);
+    return { session, staff: team.length, direction: team.some(isDirectionContract) };
+  }), [sessions, contracts]);
+  const sessionsWithoutDirection = sessionCoverage.filter((entry) => !entry.direction).length;
+
+  const todo = [
+    pendingAccounts && isAdmin && { href: "/dashboard/rh/comptes", label: `${pendingAccounts} demande${pendingAccounts > 1 ? "s" : ""} de compte à valider` },
+    progress.toSend && { href: "/dashboard/rh/contrats", label: `${progress.toSend} contrat${progress.toSend > 1 ? "s" : ""} à envoyer en signature` },
+    incompleteMembers.length && { href: "/dashboard/rh/equipe", label: `${incompleteMembers.length} fiche${incompleteMembers.length > 1 ? "s" : ""} à compléter avant signature` },
+    documentsToReview && { href: "/dashboard/rh/documents", label: `${documentsToReview} document${documentsToReview > 1 ? "s" : ""} à vérifier` },
+    sessionsWithoutDirection && { href: "/dashboard/rh/equipe", label: `${sessionsWithoutDirection} session${sessionsWithoutDirection > 1 ? "s" : ""} sans direction affectée` },
+    progress.toPay && { href: "/dashboard/rh/contrats", label: `${progress.toPay} salaire${progress.toPay > 1 ? "s" : ""} à régler (${currency(progress.netDue)} net)` },
+  ].filter(Boolean);
+
+  return (
+    <div className="hr-overview">
+      <section className="dash-section hr-overview-todo">
+        <h2>À faire · saison {season}</h2>
+        {todo.length ? (
+          <ul>
+            {todo.map((entry) => (
+              <li key={entry.label}><Link href={entry.href}>{entry.label}</Link></li>
+            ))}
+          </ul>
+        ) : <p className="dash-muted">Rien en attente : tous les contrats sont envoyés, les fiches complètes et les documents vérifiés.</p>}
+      </section>
+
+      <div className="hr-overview-grid">
+        <RhOverviewCard href="/dashboard/rh/equipe" title="Équipe" value={members.length}
+          caption={`${incompleteMembers.length} fiche${incompleteMembers.length > 1 ? "s" : ""} à compléter`}
+          tone={incompleteMembers.length ? "warning" : ""} />
+        <RhOverviewCard href="/dashboard/rh/equipe" title="Sessions" value={`${sessions.length} session${sessions.length > 1 ? "s" : ""}`}
+          caption={sessionsWithoutDirection ? `${sessionsWithoutDirection} sans direction` : "Toutes les sessions ont une direction"}
+          tone={sessionsWithoutDirection ? "warning" : ""} />
+        <RhOverviewCard href="/dashboard/rh/contrats" title="Contrats & paie" value={contracts.length}
+          caption={`${progress.signed} signé${progress.signed > 1 ? "s" : ""} · ${progress.awaitingSignature} en signature · ${progress.toSend} à envoyer`}
+          tone={progress.toSend ? "warning" : ""} />
+        <RhOverviewCard href="/dashboard/rh/documents" title="Documents RH" value={documentsToReview}
+          caption="à vérifier" tone={documentsToReview ? "warning" : ""} />
+        {canDayPlans && (
+          <RhOverviewCard href="/dashboard/rh/deroules" title="Déroulés de séjour" value={`${sessions.length}`}
+            caption="sessions à organiser jour par jour" />
+        )}
+        {isAdmin && (
+          <RhOverviewCard href="/dashboard/rh/comptes" title="Comptes équipe" value={pendingAccounts}
+            caption="demande(s) à valider" tone={pendingAccounts ? "alert" : ""} />
+        )}
+      </div>
+
+      {sessionCoverage.length > 0 && (
+        <section className="dash-section hr-overview-sessions">
+          <h2>Équipes par session</h2>
+          <div className="hr-table-scroll">
+            <table className="hr-overview-table">
+              <thead>
+                <tr><th>Session</th><th>Dates</th><th>Équipe</th><th>Direction</th>{canDayPlans && <th aria-label="Déroulé" />}</tr>
+              </thead>
+              <tbody>
+                {sessionCoverage.map(({ session, staff, direction }) => (
+                  <tr key={session.id}>
+                    <td><strong>{session.sejourName}</strong> <span className="dash-muted">{session.week}</span></td>
+                    <td>{formatDateRange(session.startDate, session.endDate)}</td>
+                    <td><Link href={`/dashboard/rh/equipe?session=${encodeURIComponent(session.id)}`}>{staff ? `${staff} personne${staff > 1 ? "s" : ""}` : "Personne"}</Link></td>
+                    <td>{direction ? <Badge label="Affectée" variant="success" /> : <Badge label="À affecter" variant="warning" />}</td>
+                    {canDayPlans && (
+                      <td><Link className="dash-btn" href={`/dashboard/rh/deroules/${encodeURIComponent(session.id)}`}>Déroulé</Link></td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+const RH_VIEWS = {
+  overview:  { title: "Ressources humaines", intro: "Ce qui reste à faire pour la saison, section par section." },
+  equipe:    { title: "Équipe", intro: "Une ligne par personne : affectations, contrats, documents et compte. Cliquez sur quelqu’un pour ouvrir sa fiche." },
+  fiche:     { title: "Fiche", intro: "" },
+  contrats:  { title: "Contrats & paie", intro: "Tous les contrats de la saison : signature DocuSign, déclarations et paiement des salaires." },
+  documents: { title: "Documents RH", intro: "Toutes les pièces de l’équipe, à vérifier et valider." },
+  comptes:   { title: "Comptes équipe", intro: "Demandes de compte de l’espace équipe, à valider et relier à une fiche." },
+};
+
+export default function HumanResources({ view = "overview", memberId = "", startEdit = false, initialTab = "", initialSession = "" }) {
   const { currentUser, isAdmin, sections } = useAuth();
   const { showToast } = useToast();
+  const router = useRouter();
   const [members,   setMembers]   = useState([]);
   // Tous les contrats, toutes saisons (archives comprises) : l'historique des fiches en a besoin.
   const [allContracts, setContracts] = useState([]);
@@ -2122,9 +2215,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
   const [staffAccounts, setStaffAccounts] = useState([]);
   const [gridRows,  setGridRows]  = useState(DEFAULT_SALARY_GRID);
   const [loading,   setLoading]   = useState(true);
-  const [tab,       setTab]       = useState(initialTab);
-  const [fiche,     setFiche]     = useState(null);
-  const [ficheStartsInEdit, setFicheStartsInEdit] = useState(false);
+  const tab = RH_VIEWS[view] ? view : "overview";
   const [contractModal, setContractModal] = useState({ isOpen: false, member: null, contract: null, session: null });
   const [seasonChoice, setSeasonChoice] = useState("");
 
@@ -2159,14 +2250,10 @@ export default function HumanResources({ initialTab = "sejours" }) {
   const [gridModalOpen, setGridModalOpen]  = useState(false);
   const [docusignBusyId, setDocusignBusyId] = useState("");
 
+  // La fiche est une page : on y arrive depuis le tableau de l'équipe, des contrats ou des comptes.
   const openMemberFile = (member, startEditing = false) => {
-    setFicheStartsInEdit(startEditing);
-    setFiche(member);
-  };
-
-  const closeMemberFile = () => {
-    setFiche(null);
-    setFicheStartsInEdit(false);
+    if (!member?.id) return;
+    router.push(`/dashboard/rh/equipe/${encodeURIComponent(member.id)}${startEditing ? "?modifier=1" : ""}`);
   };
 
   const persistDocusignState = async (contractId, fields) => {
@@ -2299,7 +2386,6 @@ export default function HumanResources({ initialTab = "sejours" }) {
       return exists ? item : { ...item, documents: [...(item.documents || []), documentEntry] };
     };
     setMembers((previous) => previous.map(updateDocuments));
-    setFiche((previous) => previous ? updateDocuments(previous) : previous);
     return url;
   };
 
@@ -2428,7 +2514,6 @@ export default function HumanResources({ initialTab = "sejours" }) {
     await updateDoc(doc(db, COLLECTIONS.STAFF_MEMBERS, contract.memberId), updates);
     const applyUpdates = (member) => member.id === contract.memberId ? { ...member, ...updates } : member;
     setMembers((previous) => previous.map(applyUpdates));
-    setFiche((previous) => previous ? applyUpdates(previous) : previous);
   };
 
   const refreshDocusignStatus = async (contract) => {
@@ -2582,7 +2667,6 @@ export default function HumanResources({ initialTab = "sejours" }) {
             }
           : item;
         setMembers((previous) => previous.map(removeLinkedDocuments));
-        setFiche((previous) => previous ? removeLinkedDocuments(previous) : previous);
       }
       showToast(
         payload.voided
@@ -2657,7 +2741,6 @@ export default function HumanResources({ initialTab = "sejours" }) {
 
   const updateMember = (updated) => {
     setMembers((prev) => prev.map((m) => m.id === updated.id ? updated : m));
-    setFiche((prev) => prev?.id === updated.id ? updated : prev);
     const memberName = `${updated.firstName || ""} ${updated.lastName || ""}`.trim() || updated.name;
     const linkedContracts = allContracts.filter((contract) => contract.memberId === updated.id && !isArchivedRecord(contract, archivedSeasons));
     const linkedIds = new Set(linkedContracts.map((contract) => contract.id));
@@ -2698,7 +2781,6 @@ export default function HumanResources({ initialTab = "sejours" }) {
       ? { ...member, accountUid: account?.uid || "", email: account?.email ? account.email.trim().toLowerCase() : member.email }
       : member);
     setMembers((previous) => previous.map(apply));
-    setFiche((previous) => previous ? apply(previous) : previous);
   };
 
   const handleContractSaved = (savedContract, createdMember, directionMemberId = "") => {
@@ -2739,65 +2821,83 @@ export default function HumanResources({ initialTab = "sejours" }) {
   const animCount = members.filter((m) => m.staffType !== "directeur").length;
   const dirCount  = members.filter((m) => m.staffType === "directeur").length;
 
-  const TABS = [
-    { key: "sejours",  label: "Par séjour",  count: new Set([...seasonSessions.map((session) => session.id), ...contracts.map(contractSessionKey)]).size || null },
-    { key: "equipe",   label: "Équipe",       count: members.length },
-    { key: "contrats", label: "Contrats",     count: contracts.length },
-    { key: "documents", label: "Documents", count: staffDocuments.filter((document) => document.status !== "validated").length || null },
-    { key: "comptes",  label: "Comptes",      count: countPendingAccounts(staffAccounts) || null, alert: true },
-  ];
+  const pendingAccounts = countPendingAccounts(staffAccounts);
+  const documentsToReview = staffDocuments.filter((document) => document.status !== "validated").length;
+  const navCounts = {
+    "/dashboard/rh/equipe": members.length,
+    "/dashboard/rh/contrats": contracts.length,
+    "/dashboard/rh/documents": documentsToReview,
+    "/dashboard/rh/comptes": pendingAccounts,
+  };
+  const viewMeta = RH_VIEWS[tab];
+  const isFiche = tab === "fiche";
+  const showSeason = tab !== "comptes";
+  const canCreateContract = ["overview", "equipe", "contrats"].includes(tab);
+  const ficheMember = isFiche ? members.find((member) => member.id === memberId) || null : null;
+  const contractActions = {
+    onNewContract: (member, session = null) => openNewContract(member, session),
+    onEditContract: openEditContract,
+    onDeleteContract: deleteContractOnly,
+    onToggleCea: toggleCeaDeclaration,
+    onToggleSocialSection: toggleSocialSection,
+    onTogglePayment: toggleContractPayment,
+    onDocusignSend: requestDocusignSend,
+    onDocusignAttach: attachDocusignEnvelope,
+    onDocusignRefresh: refreshDocusignStatus,
+    onDocusignReset: resetDocusignContract,
+  };
+  const seasonSelect = (
+    <select className="hr-season-select" value={season} onChange={(event) => setSeasonChoice(event.target.value)} aria-label="Saison affichée">
+      {seasonOptions.map((key) => <option key={key} value={key}>Saison {key}</option>)}
+    </select>
+  );
 
   return (
     <div className="dash-page hr-page">
 
-      {/* ── En-tête ── */}
-      <header className="dash-page-header-row">
-        <div className="dash-page-header">
-          <h1>Ressources humaines</h1>
-          <p>Saison {season} · {animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}</p>
-        </div>
-        <div className="dash-row-actions">
-          <select className="hr-season-select" value={season} onChange={(event) => setSeasonChoice(event.target.value)} aria-label="Saison affichée">
-            {seasonOptions.map((key) => <option key={key} value={key}>Saison {key}</option>)}
-          </select>
-          <button
-            type="button"
-            className="dash-btn"
-            onClick={() => refreshVisibleDocusignStatuses(allRefreshableDocusignContracts)}
-            disabled={!allRefreshableDocusignContracts.length || Boolean(docusignBusyId)}
-            title="Actualise tous les contrats DocuSign actifs et archive les PDF termines"
-          >
-            {docusignBusyId === "__bulk__"
-              ? "Actualisation signatures..."
-              : `Actualiser signatures (${allRefreshableDocusignContracts.length})`}
-          </button>
-          <a className="dash-btn" href="/api/docusign/consent" target="_blank" rel="noreferrer">
-            Connecter DocuSign
-          </a>
-          {(isAdmin || sections.includes("dayPlans")) && <Link className="dash-btn" href="/dashboard/rh/deroules">Déroulés</Link>}
-          <button type="button" className="dash-btn" onClick={() => setGridModalOpen(true)}>
-            Grille salariale
-          </button>
-          <button type="button" className="dash-btn dash-btn-primary" onClick={() => openNewContract(null)}>
-            + Nouveau contrat
-          </button>
-        </div>
-      </header>
+      {/* ── En-tête : titre de la section et ses seules actions (la fiche a le sien) ── */}
+      {!isFiche && (
+        <header className="dash-page-header-row">
+          <div className="dash-page-header">
+            <h1>{viewMeta.title}</h1>
+            <p>
+              {showSeason && <>Saison {season} · {animCount} animateur{animCount !== 1 ? "s" : ""} · {dirCount} direction · {contracts.length} contrat{contracts.length !== 1 ? "s" : ""}<br /></>}
+              <span className="dash-muted">{viewMeta.intro}</span>
+            </p>
+          </div>
+          <div className="dash-row-actions">
+            {showSeason && seasonSelect}
+            {tab === "contrats" && (
+              <>
+                <button
+                  type="button"
+                  className="dash-btn"
+                  onClick={() => refreshVisibleDocusignStatuses(allRefreshableDocusignContracts)}
+                  disabled={!allRefreshableDocusignContracts.length || Boolean(docusignBusyId)}
+                  title="Actualise tous les contrats DocuSign actifs et archive les PDF signés"
+                >
+                  {docusignBusyId === "__bulk__"
+                    ? "Actualisation des signatures…"
+                    : `Actualiser les signatures (${allRefreshableDocusignContracts.length})`}
+                </button>
+                <a className="dash-btn" href="/api/docusign/consent" target="_blank" rel="noreferrer">
+                  Connecter DocuSign
+                </a>
+                <button type="button" className="dash-btn" onClick={() => setGridModalOpen(true)}>
+                  Grille salariale
+                </button>
+              </>
+            )}
+            {canCreateContract && (
+              <button type="button" className="dash-btn dash-btn-primary" onClick={() => openNewContract(null)}>
+                + Nouveau contrat
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
-      {/* ── Navigation principale ── */}
-      <nav className="hr-main-nav">
-        {TABS.filter((t) => isAdmin || t.key !== "comptes").map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`hr-main-tab${tab === t.key ? " is-active" : ""}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {t.count != null && <span className={`hr-tab-count${t.alert ? " is-alert" : ""}`}>{t.count}</span>}
-          </button>
-        ))}
-      </nav>
+      <RhNav counts={navCounts} alerts={["/dashboard/rh/comptes", "/dashboard/rh/documents"]} />
 
       {loading ? (
         <section className="dash-section">
@@ -2805,8 +2905,60 @@ export default function HumanResources({ initialTab = "sejours" }) {
         </section>
       ) : (
         <div className="hr-content">
-          {tab === "sejours"  && <SejoursView  members={members} contracts={contracts} sessions={seasonSessions} season={season} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} onBatchContracts={handleBatchContracts} onNewContract={openNewContract} />}
-          {tab === "equipe"   && <EquipeView   members={members} contracts={contracts} documents={staffDocuments} onFiche={openMemberFile} onContract={handleContract} onEditContract={openEditContract} />}
+          {tab === "overview" && <RhOverview
+            season={season}
+            members={members}
+            contracts={contracts}
+            sessions={seasonSessions}
+            staffDocuments={staffDocuments}
+            pendingAccounts={pendingAccounts}
+            isAdmin={isAdmin}
+            canDayPlans={isAdmin || sections.includes("dayPlans")}
+          />}
+          {tab === "equipe" && <TeamView
+            members={members}
+            contracts={contracts}
+            documents={staffDocuments}
+            accounts={staffAccounts}
+            sessions={seasonSessions}
+            season={season}
+            isAdmin={isAdmin}
+            canDayPlans={isAdmin || sections.includes("dayPlans")}
+            initialSession={initialSession}
+            onOpen={openMemberFile}
+            onNewContract={openNewContract}
+            onBatchContracts={handleBatchContracts}
+          />}
+          {isFiche && (ficheMember ? (
+            <>
+              <div className="hr-member-season">{seasonSelect}</div>
+              <MemberPage
+                key={ficheMember.id}
+                member={ficheMember}
+                contracts={contracts}
+                allContracts={allContracts}
+                documents={staffDocuments}
+                accounts={staffAccounts}
+                season={season}
+                isAdmin={isAdmin}
+                archivedSeasons={archivedSeasons}
+                sessionsById={catalog.byId}
+                startEdit={startEdit}
+                initialTab={initialTab}
+                busy={Boolean(docusignBusyId)}
+                actions={contractActions}
+                onUpdate={updateMember}
+                onDocumentChange={handleDocumentChange}
+                onDocumentDelete={handleDocumentDelete}
+                onMemberLinked={handleAccountMemberLinked}
+              />
+            </>
+          ) : (
+            <div className="hr-empty">
+              <p>Cette fiche n’existe pas ou a été supprimée.</p>
+              <Link className="dash-btn" href="/dashboard/rh/equipe">Retour à l’équipe</Link>
+            </div>
+          ))}
           {tab === "contrats" && <ContratsView
             contracts={contracts}
             members={members}
@@ -2840,23 +2992,6 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onFiche={openMemberFile}
           />}
         </div>
-      )}
-
-      {/* ── Fiche modale ── */}
-      {fiche && (
-        <FicheModal
-          member={fiche}
-          contracts={contracts}
-          allContracts={allContracts}
-          archivedSeasons={archivedSeasons}
-          sessionsById={catalog.byId}
-          structuredDocuments={staffDocuments}
-          initialEdit={ficheStartsInEdit}
-          onClose={closeMemberFile}
-          onUpdate={updateMember}
-          onEditContract={openEditContract}
-          onDocumentChange={handleDocumentChange}
-        />
       )}
 
       {/* ── Contrat : création / édition ── */}

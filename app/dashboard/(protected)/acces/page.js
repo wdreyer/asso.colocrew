@@ -1,5 +1,6 @@
-import DashboardAccess from "@/src/components/dashboard/DashboardAccess";
+import { redirect } from "next/navigation";
 
-export default function DashboardAccessPage() {
-  return <DashboardAccess />;
+// Ancienne adresse : les droits d'accès sont maintenant dans l'espace RH.
+export default function DashboardLegacyAccessPage() {
+  redirect("/dashboard/rh/acces");
 }

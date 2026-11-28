@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import { db, storage } from "@/src/lib/firebase";
@@ -58,8 +59,6 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
   const [stayFilter, setStayFilter] = useState("all");
   const [weekFilter, setWeekFilter] = useState("all");
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [busy, setBusy] = useState("");
-  const [message, setMessage] = useState("");
 
   const stayOptions = useMemo(() => [...new Set(contracts.map((contract) => contract.stayCode || contract.stay).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "fr")), [contracts]);
@@ -90,6 +89,153 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
   }, { complete: 0, missing: 0, pending: 0 }), [members, documents]);
 
   const selectedRow = useMemo(() => rows.find((row) => row.member.id === selectedMemberId) || null, [rows, selectedMemberId]);
+  const { busy, message, changeStatus, openDocument, adminUpload, validateWithoutFile, deleteStaffDocument } =
+    useStaffDocumentActions({ documents, onDocumentChange, onDocumentDelete });
+
+  return (
+    <div className="hr-doc-manager">
+      <div className="hr-doc-summary">
+        <button type="button" className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}><strong>{members.length}</strong><span>Dossiers</span></button>
+        <button type="button" className={filter === "complete" ? "is-active" : ""} onClick={() => setFilter("complete")}><strong>{totals.complete}</strong><span>Complets</span></button>
+        <button type="button" className={filter === "pending" ? "is-active" : ""} onClick={() => setFilter("pending")}><strong>{totals.pending}</strong><span>En cours</span></button>
+        <button type="button" className={filter === "missing" ? "is-active" : ""} onClick={() => setFilter("missing")}><strong>{totals.missing}</strong><span>Pas validés</span></button>
+        <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un animateur…" />
+      </div>
+
+      <div className="hr-doc-card-filters">
+        <div className="hr-doc-filter-group">
+          <span>Séjour</span>
+          <div className="hr-doc-filter-options">
+            <button type="button" className={`hr-doc-filter-card ${stayFilter === "all" ? "is-active" : ""}`} onClick={() => setStayFilter("all")}>Tous</button>
+            {stayOptions.map((stay) => (
+              <button type="button" key={stay} className={`hr-doc-filter-card ${stayFilter === stay ? "is-active" : ""}`} onClick={() => setStayFilter(stay)}>{stay}</button>
+            ))}
+          </div>
+        </div>
+        <div className="hr-doc-filter-group">
+          <span>Semaine</span>
+          <div className="hr-doc-filter-options">
+            <button type="button" className={`hr-doc-filter-card ${weekFilter === "all" ? "is-active" : ""}`} onClick={() => setWeekFilter("all")}>Toutes</button>
+            {weekOptions.map((week) => (
+              <button type="button" key={week} className={`hr-doc-filter-card ${weekFilter === week ? "is-active" : ""}`} onClick={() => setWeekFilter(week)}>{week}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {message && <div className="hr-doc-message">{message}</div>}
+      {!rows.length && <div className="hr-empty"><p>Aucun dossier ne correspond à ce filtre.</p></div>}
+
+      {!!rows.length && (
+        <div className="hr-doc-table-wrap">
+          <table className="hr-doc-table is-simple">
+            <thead>
+              <tr>
+                <th>Animateur</th>
+                <th>Affectations</th>
+                {STAFF_DOCUMENT_TYPES.map((type) => <th key={type.key}>{type.label}</th>)}
+                <th>État</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ member, assignments, completion }) => {
+                const tone = rowTone(completion);
+                return (
+                  <tr
+                    key={member.id}
+                    className={`is-${tone} ${selectedMemberId === member.id ? "is-selected" : ""}`}
+                    onClick={() => setSelectedMemberId(member.id)}
+                  >
+                    <td className="hr-doc-person-cell"><strong>{memberName(member)}</strong></td>
+                    <td className="hr-doc-assignments-cell">{assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</td>
+                    {STAFF_DOCUMENT_TYPES.map((type) => {
+                      const status = statusForType(documents, member.id, type.key);
+                      return (
+                        <td key={type.key}>
+                          <span className={`hr-doc-status is-${status.tone}`}>
+                            {status.label}{status.count > 1 ? ` · ${status.count}` : ""}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td><span className={`hr-doc-global is-${tone}`}>{completion.validated}/{STAFF_DOCUMENT_TYPES.length}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedRow && (
+        <section className="hr-doc-detail-panel">
+          <div className="hr-doc-detail-head">
+            <div>
+              <h3>{memberName(selectedRow.member)}</h3>
+              <p>{selectedRow.assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</p>
+            </div>
+            <div className="dash-row-actions">
+              <Link className="dash-btn" href={`/dashboard/rh/equipe/${encodeURIComponent(selectedRow.member.id)}`}>Ouvrir la fiche</Link>
+              <button type="button" onClick={() => setSelectedMemberId("")}>Fermer</button>
+            </div>
+          </div>
+          <div className="hr-doc-detail-grid">
+            {STAFF_DOCUMENT_TYPES.map((type) => (
+              <DocumentTypePanel
+                key={type.key}
+                type={type}
+                member={selectedRow.member}
+                documents={documentsByType(documents, selectedRow.member.id, type.key)}
+                busy={busy}
+                onOpen={openDocument}
+                onUpload={adminUpload}
+                onValidate={changeStatus}
+                onManualValidate={validateWithoutFile}
+                onDelete={deleteStaffDocument}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Dossier de documents d'une seule personne (fiche RH), avec les mêmes actions que le tableau. */
+export function MemberDocuments({ member, documents, onDocumentChange, onDocumentDelete }) {
+  const actions = useStaffDocumentActions({ documents, onDocumentChange, onDocumentDelete });
+  const completion = completionFor(member, documents);
+  return (
+    <div className="hr-member-docs">
+      <p className="hr-docs-hint">
+        {completion.validated}/{STAFF_DOCUMENT_TYPES.length} documents validés
+        {completion.pending ? ` · ${completion.pending} à vérifier` : ""}
+        {completion.missing ? ` · ${completion.missing} manquant${completion.missing > 1 ? "s" : ""}` : ""}
+      </p>
+      {actions.message && <div className="hr-doc-message">{actions.message}</div>}
+      <div className="hr-doc-detail-grid">
+        {STAFF_DOCUMENT_TYPES.map((type) => (
+          <DocumentTypePanel
+            key={type.key}
+            type={type}
+            member={member}
+            documents={documentsByType(documents, member.id, type.key)}
+            busy={actions.busy}
+            onOpen={actions.openDocument}
+            onUpload={actions.adminUpload}
+            onValidate={actions.changeStatus}
+            onManualValidate={actions.validateWithoutFile}
+            onDelete={actions.deleteStaffDocument}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function useStaffDocumentActions({ documents, onDocumentChange, onDocumentDelete }) {
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
 
   const syncStatus = async (member, documentType, status, locked) => {
     const statusValue = { status, locked, updatedAt: new Date().toISOString() };
@@ -219,110 +365,7 @@ export default function StaffDocumentsPanel({ members, contracts, documents, onD
     }
   };
 
-  return (
-    <div className="hr-doc-manager">
-      <div className="hr-doc-summary">
-        <button type="button" className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}><strong>{members.length}</strong><span>Dossiers</span></button>
-        <button type="button" className={filter === "complete" ? "is-active" : ""} onClick={() => setFilter("complete")}><strong>{totals.complete}</strong><span>Complets</span></button>
-        <button type="button" className={filter === "pending" ? "is-active" : ""} onClick={() => setFilter("pending")}><strong>{totals.pending}</strong><span>En cours</span></button>
-        <button type="button" className={filter === "missing" ? "is-active" : ""} onClick={() => setFilter("missing")}><strong>{totals.missing}</strong><span>Pas validés</span></button>
-        <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un animateur…" />
-      </div>
-
-      <div className="hr-doc-card-filters">
-        <div className="hr-doc-filter-group">
-          <span>Séjour</span>
-          <div className="hr-doc-filter-options">
-            <button type="button" className={`hr-doc-filter-card ${stayFilter === "all" ? "is-active" : ""}`} onClick={() => setStayFilter("all")}>Tous</button>
-            {stayOptions.map((stay) => (
-              <button type="button" key={stay} className={`hr-doc-filter-card ${stayFilter === stay ? "is-active" : ""}`} onClick={() => setStayFilter(stay)}>{stay}</button>
-            ))}
-          </div>
-        </div>
-        <div className="hr-doc-filter-group">
-          <span>Semaine</span>
-          <div className="hr-doc-filter-options">
-            <button type="button" className={`hr-doc-filter-card ${weekFilter === "all" ? "is-active" : ""}`} onClick={() => setWeekFilter("all")}>Toutes</button>
-            {weekOptions.map((week) => (
-              <button type="button" key={week} className={`hr-doc-filter-card ${weekFilter === week ? "is-active" : ""}`} onClick={() => setWeekFilter(week)}>{week}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {message && <div className="hr-doc-message">{message}</div>}
-      {!rows.length && <div className="hr-empty"><p>Aucun dossier ne correspond à ce filtre.</p></div>}
-
-      {!!rows.length && (
-        <div className="hr-doc-table-wrap">
-          <table className="hr-doc-table is-simple">
-            <thead>
-              <tr>
-                <th>Animateur</th>
-                <th>Affectations</th>
-                {STAFF_DOCUMENT_TYPES.map((type) => <th key={type.key}>{type.label}</th>)}
-                <th>État</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ member, assignments, completion }) => {
-                const tone = rowTone(completion);
-                return (
-                  <tr
-                    key={member.id}
-                    className={`is-${tone} ${selectedMemberId === member.id ? "is-selected" : ""}`}
-                    onClick={() => setSelectedMemberId(member.id)}
-                  >
-                    <td className="hr-doc-person-cell"><strong>{memberName(member)}</strong></td>
-                    <td className="hr-doc-assignments-cell">{assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</td>
-                    {STAFF_DOCUMENT_TYPES.map((type) => {
-                      const status = statusForType(documents, member.id, type.key);
-                      return (
-                        <td key={type.key}>
-                          <span className={`hr-doc-status is-${status.tone}`}>
-                            {status.label}{status.count > 1 ? ` · ${status.count}` : ""}
-                          </span>
-                        </td>
-                      );
-                    })}
-                    <td><span className={`hr-doc-global is-${tone}`}>{completion.validated}/{STAFF_DOCUMENT_TYPES.length}</span></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {selectedRow && (
-        <section className="hr-doc-detail-panel">
-          <div className="hr-doc-detail-head">
-            <div>
-              <h3>{memberName(selectedRow.member)}</h3>
-              <p>{selectedRow.assignments.map(assignmentLabel).join(" | ") || "Affectation à confirmer"}</p>
-            </div>
-            <button type="button" onClick={() => setSelectedMemberId("")}>Fermer</button>
-          </div>
-          <div className="hr-doc-detail-grid">
-            {STAFF_DOCUMENT_TYPES.map((type) => (
-              <DocumentTypePanel
-                key={type.key}
-                type={type}
-                member={selectedRow.member}
-                documents={documentsByType(documents, selectedRow.member.id, type.key)}
-                busy={busy}
-                onOpen={openDocument}
-                onUpload={adminUpload}
-                onValidate={changeStatus}
-                onManualValidate={validateWithoutFile}
-                onDelete={deleteStaffDocument}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  );
+  return { busy, message, changeStatus, openDocument, adminUpload, validateWithoutFile, deleteStaffDocument };
 }
 
 function DocumentTypePanel({ type, member, documents, busy, onOpen, onUpload, onValidate, onManualValidate, onDelete }) {

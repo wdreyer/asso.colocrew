@@ -9,14 +9,16 @@ import { DASHBOARD_SECTIONS, effectiveDashboardSections } from "@/src/lib/dashbo
 import { mapStaffAccount, staffAccountName } from "@/src/lib/staffAccounts";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { dashboardFetch } from "@/src/lib/dashboardFetch";
+import RhNav from "@/src/components/dashboard/rh/RhNav";
 
 const SECTION_DETAILS = {
+  hr: "Équipe et fiches, contrats & paie, documents RH. Les comptes et les droits restent réservés aux administrateurs.",
   overview: "Vue transversale, incluant les réservations et les contrats.",
   transport: "Inclut les dossiers voyageurs et les données d’équipe nécessaires aux convoyages.",
   finance: "Inclut les données de réservation, de transport et de paie utilisées en comptabilité.",
   archives: "Inclut les dossiers de réservation, les convoyages, les contrats et les déroulés des saisons.",
   communication: "Inclut la liste des réservations pour sélectionner les familles.",
-  dayPlans: "Inclut les données d’équipe utilisées pour planifier les séjours.",
+  dayPlans: "Déroulés jour par jour des sessions ; inclut les données d’équipe utilisées pour les planifier.",
   reservations: "Inclut les tarifs, les documents des familles et le journal de suivi.",
 };
 
@@ -24,7 +26,8 @@ function displayName(account) {
   return account.name || staffAccountName(account);
 }
 
-function AccessForm({ account, onSaved }) {
+/** Sections du dashboard ouvertes à un compte équipe ; aussi affiché dans la fiche RH. */
+export function AccessForm({ account, onSaved, embedded = false }) {
   const { currentUser } = useAuth();
   const initial = effectiveDashboardSections(account);
   const [selection, setSelection] = useState(initial);
@@ -53,9 +56,9 @@ function AccessForm({ account, onSaved }) {
   }
 
   return (
-    <div className="dash-section dashboard-access-form">
-      <h2>{displayName(account)}</h2>
-      {account.email && <p className="dash-muted">{account.email}</p>}
+    <div className={embedded ? "dashboard-access-form" : "dash-section dashboard-access-form"}>
+      {!embedded && <h2>{displayName(account)}</h2>}
+      {!embedded && account.email && <p className="dash-muted">{account.email}</p>}
       {account.administrator ? <p>Administrateur · Accès à toutes les sections</p> : !approved ? (
         <p>Validez et reliez le compte dans <Link href="/dashboard/rh/comptes">Comptes équipe</Link>.</p>
       ) : (
@@ -156,8 +159,10 @@ export default function DashboardAccess() {
     <div className="dash-page">
       <header className="dash-page-header">
         <h1>Droits d’accès</h1>
-        <p>Consultez les administrateurs et gérez les accès de l’équipe.</p>
+        <p>Consultez les administrateurs et choisissez les sections du dashboard ouvertes à chaque compte équipe validé.</p>
       </header>
+      <RhNav />
+      <div className="hr-content">
       {error && <p role="alert">{error}</p>}
       {result && <p role="status">{result}</p>}
       <div className="dashboard-access-grid">
@@ -181,6 +186,12 @@ export default function DashboardAccess() {
             account={account}
             onSaved={(message) => { setResult(message); setFormVersion((version) => version + 1); }} />
         )}
+        {!account && directory && !error && (
+          <div className="dash-section dashboard-access-form">
+            <p className="dash-muted">Choisissez un compte dans la liste pour voir ou modifier ses droits.</p>
+          </div>
+        )}
+      </div>
       </div>
     </div>
   );
