@@ -470,7 +470,7 @@ export default function Medias() {
       if (item.status === "done") continue;
       const fileToUpload = item.compressedFile || item.file;
       const filename = normalizeFilename(fileToUpload.name || item.file.name);
-      const storagePath = `${uploadAlbum}/${Date.now()}-${filename}`;
+      const storagePath = `medias/${uploadAlbum}/${Date.now()}-${filename}`;
       const storageRef = ref(storage, storagePath);
       await new Promise((resolve) => {
         const task = uploadBytesResumable(storageRef, fileToUpload);

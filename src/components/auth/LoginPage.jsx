@@ -18,8 +18,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.replace("/dashboard");
-    } catch (_err) {
-      // erreur gérée dans le context
+    } catch {
+      setError("Adresse email ou mot de passe incorrect.");
     } finally {
       setSubmitting(false);
     }
@@ -29,7 +29,7 @@ export default function LoginPage() {
     <div className="dash-login-page">
       <form className="dash-login-card" onSubmit={handleSubmit}>
         <div className="dash-login-logo">ColoCrew</div>
-        <h1>Espace admin</h1>
+        <h1>Dashboard ColoCrew</h1>
 
         <label htmlFor="admin-email">Email</label>
         <input

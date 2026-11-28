@@ -1,14 +1,9 @@
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 import nodemailer from "nodemailer";
-import { db } from "@/src/lib/firebase";
+
 import { unsubscribeHeaders, withUnsubscribeLink } from "@/src/lib/unsubscribe";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
 
 const RUNS = "campagne_runs";
 const SEND_MAIL_TIMEOUT_MS = 8000;
@@ -56,28 +51,28 @@ function sendMailWithTimeout(transporter, message) {
 }
 
 async function recordEvent(runRef, event) {
-  await addDoc(collection(runRef, "events"), {
+  await runRef.collection("events").add({
     ...event,
-    createdAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 }
 
 async function readRunState(runRef, sent, errors, total, fallbackDelayMs) {
-  const snapshot = await getDoc(runRef);
+  const snapshot = await runRef.get();
   const runData = snapshot.data() || {};
   const action = runData.controlAction;
   const currentDelayMs = Number(runData.delayMs || fallbackDelayMs || 3000);
   if (!["pause", "stop"].includes(action)) return { delayMs: currentDelayMs };
   const status = action === "pause" ? "paused" : "stopped";
-  await updateDoc(runRef, {
+  await runRef.update({
     status,
     sent,
     errors,
     currentEmail: "",
     currentSender: "",
     controlAction: "",
-    updatedAt: serverTimestamp(),
-    ...(status === "stopped" ? { finishedAt: serverTimestamp() } : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+    ...(status === "stopped" ? { finishedAt: FieldValue.serverTimestamp() } : {}),
   });
   await recordEvent(runRef, { type: status, sent, errors, total });
   return { status, delayMs: currentDelayMs };
@@ -91,8 +86,8 @@ async function readQueue(runRef, startIndex, count, chunkSize) {
     const chunkIndex = Math.floor(cursor / chunkSize);
     const chunkOffset = cursor % chunkSize;
     const chunkId = String(chunkIndex).padStart(6, "0");
-    const chunkSnapshot = await getDoc(doc(runRef, "queue", chunkId));
-    if (!chunkSnapshot.exists()) break;
+    const chunkSnapshot = await runRef.collection("queue").doc(chunkId).get();
+    if (!chunkSnapshot.exists) break;
 
     const contacts = chunkSnapshot.data().contacts || [];
     if (chunkOffset >= contacts.length) break;
@@ -109,14 +104,14 @@ async function readQueue(runRef, startIndex, count, chunkSize) {
   return queued;
 }
 
-export async function POST(request, context) {
+async function handlePOST(request, context) {
   const body = await request.json().catch(() => ({}));
   const maxPerRequest = Math.max(1, Math.min(Number(body.maxPerRequest || 2) || 2, 25));
   const { id } = await context.params;
-  const runRef = doc(db, RUNS, id);
-  const runSnapshot = await getDoc(runRef);
+  const runRef = adminDb().collection(RUNS).doc(id);
+  const runSnapshot = await runRef.get();
 
-  if (!runSnapshot.exists()) {
+  if (!runSnapshot.exists) {
     return Response.json({ error: "Campagne introuvable" }, { status: 404 });
   }
 
@@ -147,12 +142,12 @@ export async function POST(request, context) {
     Number(run.nextIndex ?? (Number(run.sent || 0) + Number(run.errors || 0))) || 0,
   );
   if (!total || startIndex >= total) {
-    await updateDoc(runRef, {
+    await runRef.update({
       status: "done",
       currentEmail: "",
       currentSender: "",
-      updatedAt: serverTimestamp(),
-      finishedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      finishedAt: FieldValue.serverTimestamp(),
     });
     return Response.json({ error: "Cette campagne est deja terminee" }, { status: 409 });
   }
@@ -167,12 +162,12 @@ export async function POST(request, context) {
     return Response.json({ error: "La file d'envoi est incomplete" }, { status: 409 });
   }
 
-  await updateDoc(runRef, {
+  await runRef.update({
     status: "running",
     currentEmail: "",
     currentSender: "",
     lastError: "",
-    updatedAt: serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
   await recordEvent(runRef, {
     type: "resumed",
@@ -205,11 +200,11 @@ export async function POST(request, context) {
         const { contact, index } = queued[position];
         const sender = senders[index % senders.length];
         try {
-          await updateDoc(runRef, {
+          await runRef.update({
             status: "running",
             currentEmail: contact.email,
             currentSender: sender.email,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await sendMailWithTimeout(transporter, {
             from: `"${sender.name}" <${sender.email}>`,
@@ -221,27 +216,27 @@ export async function POST(request, context) {
           });
           sent++;
           nextIndex = index + 1;
-          await updateDoc(runRef, {
+          await runRef.update({
             sent,
             errors,
             nextIndex,
             currentEmail: contact.email,
             currentSender: sender.email,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent(runRef, { type: "sent", email: contact.email, sender: sender.email, sent, errors });
           send({ type: "ok", runId: id, sent, errors, total, email: contact.email, sender: sender.email });
         } catch (error) {
           errors++;
           nextIndex = index + 1;
-          await updateDoc(runRef, {
+          await runRef.update({
             sent,
             errors,
             nextIndex,
             currentEmail: contact.email,
             currentSender: sender.email,
             lastError: error.message,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent(runRef, { type: "error", email: contact.email, sender: sender.email, message: error.message, sent, errors });
           send({ type: "err", runId: id, sent, errors, total, email: contact.email, message: error.message });
@@ -255,12 +250,12 @@ export async function POST(request, context) {
       }
 
       if (nextIndex < total) {
-        await updateDoc(runRef, {
+        await runRef.update({
           status: "paused",
           nextIndex,
           currentEmail: "",
           currentSender: "",
-          updatedAt: serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
         await recordEvent(runRef, { type: "batch_done", sent, errors, total, remaining: total - nextIndex });
         send({ type: "batchDone", runId: id, sent, errors, total, remaining: total - nextIndex });
@@ -268,24 +263,24 @@ export async function POST(request, context) {
         return;
       }
 
-      await updateDoc(runRef, {
+      await runRef.update({
         sent,
         errors,
         nextIndex: total,
         status: "done",
         currentEmail: "",
         currentSender: "",
-        finishedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        finishedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await recordEvent(runRef, { type: "done", sent, errors, total });
       send({ type: "done", runId: id, sent, errors, total });
       controller.close();
     },
     async cancel() {
-      await updateDoc(runRef, {
+      await runRef.update({
         status: "interrupted",
-        updatedAt: serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await recordEvent(runRef, { type: "interrupted" });
     },
@@ -299,3 +294,5 @@ export async function POST(request, context) {
     },
   });
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

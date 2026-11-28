@@ -1,5 +1,5 @@
 import { generateContractHTML } from "@/src/lib/contractTemplate";
-import { requireFirebaseAdmin, adminErrorResponse } from "@/src/lib/serverAdminAuth";
+import { requireDashboardSection, adminErrorResponse } from "@/src/lib/serverAdminAuth";
 import { sendDocusignEnvelope } from "@/src/lib/docusignServer";
 
 export const runtime = "nodejs";
@@ -90,7 +90,7 @@ const DOCUSIGN_PERSONAL_FIELDS = [
 
 export async function POST(request) {
   try {
-    await requireFirebaseAdmin(request);
+    await requireDashboardSection(request, ["hr"]);
     const body = await request.json();
     const member = sanitizedMember(body?.member);
     const contract = sanitizedContract(body?.contract);

@@ -8,11 +8,13 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
-  query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
+import ReservationHistory, { activityRef, operatorActivity } from "@/src/components/dashboard/ReservationHistory";
+import { dashboardFetch } from "@/src/lib/dashboardFetch";
+import { useAuth } from "@/src/contexts/AuthContext";
 import Badge from "@/src/components/dashboard/ui/Badge";
 import DataTable from "@/src/components/dashboard/ui/DataTable";
 import { useToast } from "@/src/contexts/ToastContext";
@@ -951,7 +953,25 @@ function buildSuiteEmailHtml({
   return parts.join("");
 }
 
-function PanelTarifTab({ item, onSave, onGoToEmail }) {
+async function saveReservationChange(item, fields, user, activity = []) {
+  const ref = doc(db, COLLECTIONS.RESERVATIONS, item.id);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw new Error("Cette réservation a été supprimée.");
+    const latest = mapReservation(snapshot);
+    if (latest.status !== item.status || latest.archived ||
+      ("finalPrice" in fields && (latest.finalPrice !== item.finalPrice || latest.alreadyPaid !== item.alreadyPaid))) {
+      throw new Error("Ce dossier vient de changer. Actualisez les réservations avant de réessayer.");
+    }
+    transaction.update(ref, fields);
+    for (const entry of activity) {
+      transaction.set(doc(activityRef(item.id)), operatorActivity(user, entry.type, entry.summary));
+    }
+  });
+}
+
+function PanelTarifTab({ item, onSave, onGoToEmail, trackActivity }) {
+  const { currentUser } = useAuth();
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const childCount = reservationChildCount(item);
@@ -985,13 +1005,13 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
   const suggestedSejourPrice = hasBasePrice ? Number((baseTotalBeforeDiscount * discountFactor).toFixed(2)) : null;
 
   const save = async () => {
-    if (!sejourPrice) { showToast("Renseignez le prix du séjour", "warning"); return; }
+    if (!sejourPrice || !Number.isFinite(totalPrice) || totalPrice <= 0) { showToast("Renseignez un prix valide pour le séjour", "warning"); return; }
     setSaving(true);
     try {
       const remainingValue = amountDueNow;
       const nextPaymentStatus = remainingValue === 0 ? "paid" : alreadyPaid > 0 ? "in_progress" : "not_paid";
 
-      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
+      await saveReservationChange(item, {
         finalPrice: totalPrice,
         "transport.fee": transportAmountNum,
         "payment.totalPrice": totalPrice,
@@ -1003,7 +1023,7 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
         "payment.remainingValue": remainingValue,
         "payment.paymentStatus": nextPaymentStatus,
         updatedAt: serverTimestamp(),
-      });
+      }, currentUser, trackActivity && totalPrice !== item.finalPrice ? [{ type: "price", summary: "Prix validé à " + fmtCur(totalPrice) }] : []);
       onSave({
         ...item,
         finalPrice: totalPrice,
@@ -1017,7 +1037,7 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
       showToast("Prix du séjour enregistré", "success");
     } catch (err) {
       console.error(err);
-      showToast("Erreur lors de l'enregistrement du prix", "error");
+      showToast(err.message || "Erreur lors de l’enregistrement du prix", "error");
     } finally {
       setSaving(false);
     }
@@ -1071,7 +1091,7 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
       )}
 
       <div className="rp-price-calc">
-        <div className="rp-price-calc-title">{isPriceDefined ? "✅ Prix défini" : "⚠️ Prix à définir"}</div>
+        <div className="rp-price-calc-title">{isPriceDefined ? "Prix validé" : "⚠️ Prix à définir"}</div>
 
         <div className="rp-price-calc-grid">
           <label className="rp-email-label">
@@ -1129,7 +1149,7 @@ function PanelTarifTab({ item, onSave, onGoToEmail }) {
   );
 }
 
-function EmailComposer({ item, onGoToTarif }) {
+function EmailComposer({ item, onGoToTarif, onSent }) {
   const { showToast } = useToast();
   const [tplKey, setTplKey] = useState("suite_reservation");
   const [sending, setSending] = useState(false);
@@ -1300,15 +1320,17 @@ function EmailComposer({ item, onGoToTarif }) {
     if (!to || !subject || (isFinancialEmail ? false : !body)) { showToast("Remplissez tous les champs", "warning"); return; }
     setSending(true);
     try {
-      const res = await fetch("/api/send-admin-email", {
+      const res = await dashboardFetch("/api/send-admin-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isFinancialEmail ? { to, subject, bodyHtml: previewHtml } : { to, subject, body }),
+        body: JSON.stringify({ reservationId: item.id, requestId: crypto.randomUUID(), template: EMAIL_TEMPLATES.find((template) => template.key === tplKey)?.label, to, subject, ...(isFinancialEmail ? { bodyHtml: previewHtml } : { body }) }),
       });
-      if (!res.ok) throw new Error();
-      showToast("Email envoyé !", "success");
-    } catch {
-      showToast("Erreur lors de l'envoi", "error");
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      showToast(result.warning || "Email envoyé", result.warning ? "warning" : "success");
+      onSent?.();
+    } catch (error) {
+      showToast(error.message || "Erreur lors de l’envoi", "error");
     } finally {
       setSending(false);
     }
@@ -1593,13 +1615,15 @@ En cas de question ou d'empêchement, contactez-nous rapidement.
 
 Cordialement,
 L'équipe ColoCrew`;
-      const response = await fetch("/api/send-admin-email", {
+      const response = await dashboardFetch("/api/send-admin-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          reservationId: item.id,
+          requestId: crypto.randomUUID(),
+          template: "Convocation transport",
           to: item.email,
           subject: `ColoCrew — Convocation transport ${item.sejourName}`,
-          body: `Bonjour ${item.nom},\n\nVous trouverez en pièce jointe la convocation de transport de ${childFirstName} pour le séjour « ${item.sejourName} ».\n\nMerci de vérifier les horaires et le point de rendez-vous. En cas de question ou d’empêchement, contactez-nous rapidement.\n\nCordialement,\nL’équipe ColoCrew`,
           attachment: {
             filename: `Convocation-${item.numeroDeReservation || item.id}.pdf`,
             contentBase64: bytesToBase64(pdfBytes),
@@ -1895,7 +1919,8 @@ function SessionSelect({ sessions, value, onChange, currentLabel = "", placehold
   );
 }
 
-function EditTab({ item, onSave }) {
+function EditTab({ item, onSave, trackActivity, checkCapacity }) {
+  const { currentUser } = useAuth();
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -1954,12 +1979,13 @@ function EditTab({ item, onSave }) {
       showToast("Ce changement de statut n'est pas prévu : repassez d'abord par « Demande reçue »", "warning");
       return;
     }
+    if (form.status === "validated" && item.status !== "validated" && !checkCapacity(selectedSession?.id)) return;
     setSaving(true);
     try {
       const finalPrice   = Number(String(form.finalPrice).replace(",", "."));
       const transportFee = Number(String(form.transportFee).replace(",", "."));
       const qf = Number(String(form.qf).replace(",", "."));
-      const hasFinalPrice = Number.isFinite(finalPrice) && form.finalPrice !== "";
+      const hasFinalPrice = Number.isFinite(finalPrice) && finalPrice > 0;
       const alreadyPaid = Number(item.alreadyPaid || 0);
       const remainingValue = hasFinalPrice ? Math.max(Number((finalPrice - alreadyPaid).toFixed(2)), 0) : null;
       const nextPaymentStatus = !hasFinalPrice
@@ -1991,7 +2017,12 @@ function EditTab({ item, onSave }) {
         birthDate:  c.birthDate,
         birthPlace: c.birthPlace,
       }));
-      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
+      const activity = [];
+      if (trackActivity && form.status !== item.status) activity.push({ type: "status", summary: RESERVATION_STATUS_META[form.status].label });
+      if (trackActivity && (hasFinalPrice ? finalPrice : null) !== item.finalPrice) {
+        activity.push({ type: "price", summary: hasFinalPrice ? "Prix validé à " + fmtCur(finalPrice) : "Prix à valider" });
+      }
+      await saveReservationChange(item, {
         status: form.status,
         finalPrice: hasFinalPrice ? finalPrice : null,
         "payment.totalPrice": hasFinalPrice ? finalPrice : 0,
@@ -2016,10 +2047,12 @@ function EditTab({ item, onSave }) {
         "transport.fee": Number.isFinite(transportFee) && form.transportFee !== "" ? transportFee : null,
         "minor.children": childrenPayload,
         updatedAt: serverTimestamp(),
-        ...(form.status === "validated" ? { validatedAt: serverTimestamp() } : {}),
-      });
+        ...(form.status === "validated" && item.status !== "validated" ? { validatedAt: serverTimestamp() } : {}),
+      }, currentUser, activity);
+      let syncFailed = false;
       if (form.status === "validated" || item.status === "validated") {
-        await resyncReservationTransports(item.id, syncData);
+        try { await resyncReservationTransports(item.id, syncData); }
+        catch (error) { console.error(error); syncFailed = true; }
       }
       onSave({
         ...item,
@@ -2033,10 +2066,10 @@ function EditTab({ item, onSave }) {
         remainingValue,
         paymentStatus: nextPaymentStatus,
       });
-      showToast("Modifications enregistrées", "success");
+      showToast(syncFailed ? "Dossier enregistré. La synchronisation des trajets a échoué." : "Modifications enregistrées", syncFailed ? "warning" : "success");
     } catch (err) {
       console.error(err);
-      showToast("Erreur lors de la sauvegarde", "error");
+      showToast(err.message || "Erreur lors de la sauvegarde", "error");
     } finally {
       setSaving(false);
     }
@@ -2157,20 +2190,34 @@ const PANEL_TABS = [
   { key: "notes",  label: "Notes" },
 ];
 
-export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange, initialTab = "tarif", sessionState = null }) {
+export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete, onStatusChange, initialTab = "tarif", sessionState = null, fullPage = false, occupancyFor }) {
   const { showToast } = useToast();
+  const { currentUser, isAdmin, sections } = useAuth();
+  const canEdit = isAdmin || sections.includes("reservations");
   const [item, setItem]         = useState(externalItem);
   const [panelTab, setPanelTab] = useState(initialTab);
   const [saving, setSaving]     = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const trackActivity = fullPage && ["pending", "waitlist"].includes(item.status);
+  const availableTabs = canEdit ? PANEL_TABS : PANEL_TABS.filter(({ key }) => ["info", "convoyage"].includes(key));
+  const tabs = trackActivity ? [{ key: "history", label: "Suivi" }, ...availableTabs] : availableTabs;
+  const activeTab = tabs.some(({ key }) => key === panelTab) ? panelTab : "info";
 
   useEffect(() => setItem(externalItem), [externalItem]);
 
   useEffect(() => {
+    if (fullPage) return;
     const fn = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [onClose]);
+  }, [onClose, fullPage]);
+
+  const checkCapacity = (sessionId) => {
+    const fill = (sessionId && occupancyFor ? occupancyFor({ id: sessionId }) : sessionState);
+    if (!fill?.capacity || fill.validated + reservationChildCount(item) <= fill.capacity) return true;
+    return window.confirm(`La session est complète (${fill.validated}/${fill.capacity} enfants validés). Valider quand même cette réservation ?`);
+  };
 
   const updateStatus = async (newStatus) => {
     if (newStatus === item.status) return;
@@ -2178,28 +2225,34 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
       showToast("Changement de statut non prévu", "warning");
       return;
     }
-    // `sessionState` is only passed by the Reservations page; other callers skip this check.
-    if (newStatus === "validated" && sessionState?.capacity) {
-      const after = sessionState.validated + reservationChildCount(item);
-      if (after > sessionState.capacity && !window.confirm(
-        `La session est complète (${sessionState.validated}/${sessionState.capacity} enfants validés). Valider quand même cette réservation ?`,
-      )) return;
-    }
+    if (newStatus === "validated" && !checkCapacity()) return;
+    setChangingStatus(true);
     try {
       const syncData = reservationDataForSync(item, { status: newStatus });
-      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, item.id), {
+      await saveReservationChange(item, {
         status: newStatus, updatedAt: serverTimestamp(),
         ...(newStatus === "validated" ? { validatedAt: serverTimestamp() } : {}),
-      });
-      const syncedTransports = await resyncReservationTransports(item.id, syncData);
+      }, currentUser, trackActivity ? [{ type: "status", summary: RESERVATION_STATUS_META[newStatus].label }] : []);
       const updated = { ...item, status: newStatus };
+      let syncedTransports;
+      try {
+        syncedTransports = await resyncReservationTransports(item.id, syncData);
+      } catch (error) {
+        console.error(error);
+      }
       setItem(updated);
       onStatusChange(updated);
-      showToast(newStatus === "validated" ? `Réservation validée, ${syncedTransports} trajet(s) synchronisé(s)` : `Statut : ${RESERVATION_STATUS_META[newStatus]?.label}`, "success");
-    } catch { showToast("Erreur changement statut", "error"); }
+      if (syncedTransports == null) showToast("Statut enregistré. La synchronisation des trajets a échoué.", "warning");
+      else showToast(newStatus === "validated" ? `Réservation validée, ${syncedTransports} trajet(s) synchronisé(s)` : `Statut : ${RESERVATION_STATUS_META[newStatus]?.label}`, "success");
+    } catch (error) { showToast(error.message || "Erreur changement statut", "error"); }
+    finally { setChangingStatus(false); }
   };
 
-  const handleSave = (updated) => { setItem(updated); onSave(updated); };
+  const handleSave = (updated) => {
+    setItem(updated);
+    if (fullPage && updated.status !== item.status) onStatusChange(updated);
+    else onSave(updated);
+  };
 
   const handleSaveNotes = async (notes) => {
     setSaving(true);
@@ -2224,7 +2277,8 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
   const sejourLink = item.tokenUnique ? `/reservation/${item.tokenUnique}` : null;
 
   return (
-    <aside className="res-panel">
+    <section className={fullPage ? "crm-detail" : "res-panel"} aria-label="Fiche réservation">
+      {fullPage && <button type="button" className="dash-btn crm-back" onClick={onClose}>Retour aux réservations</button>}
       {/* Header */}
       <div className="rp-header">
         <div className="rp-header-top">
@@ -2232,36 +2286,37 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
             {(item.nom || "?")[0].toUpperCase()}
           </div>
           <div className="rp-header-info">
-            <div className="rp-header-name">{item.nom}</div>
+            {fullPage ? <h1 className="rp-header-name">{item.nom}</h1> : <div className="rp-header-name">{item.nom}</div>}
             <div className="rp-header-meta">
               {item.numeroDeReservation && <span className="rp-header-ref">{item.numeroDeReservation}</span>}
               <span className="rp-header-date">{fmt(item.dateMs)}</span>
               <span className="rp-header-sejour">{item.sessionLabel || (item.sejourName !== "—" ? item.sejourName : "")}</span>
             </div>
           </div>
-          <button type="button" className="rp-close" onClick={onClose} aria-label="Fermer">
+          {!fullPage && <button type="button" className="rp-close" onClick={onClose} aria-label="Fermer">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
-          </button>
+          </button>}
         </div>
 
         <div className="rp-header-actions">
-          <select className="dash-input rp-status-select"
+          {canEdit ? <select className="dash-input rp-status-select" aria-label="Statut de l’inscription" disabled={changingStatus}
             value={item.status} onChange={e => updateStatus(e.target.value)}
             style={{ "--status-color": sc }}>
             <StatusOptions current={item.status} withIcons />
-          </select>
+          </select> : <Badge label={STATUS_LABEL[item.status]} variant={STATUS_BADGE[item.status]} />}
 
-          {item.status !== "validated" && canTransition(item.status, "validated") && (
-            <button type="button" className="rp-validate-btn" onClick={() => updateStatus("validated")}>
+          {canEdit && item.status !== "validated" && canTransition(item.status, "validated") && (
+            <button type="button" className="rp-validate-btn" disabled={changingStatus} onClick={() => updateStatus("validated")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" stroke="currentColor">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              Valider
+              Valider l’inscription
             </button>
           )}
 
+          {trackActivity && <Badge label={item.finalPrice > 0 ? "Prix validé" : "Tarif à valider"} variant={item.finalPrice > 0 ? "success" : "warning"} />}
           {sejourLink && (
             <a href={sejourLink} target="_blank" rel="noopener noreferrer" className="rp-icon-btn" title="Voir la réservation publique">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">
@@ -2273,9 +2328,9 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
         </div>
 
         <div className="rp-tabs">
-          {PANEL_TABS.map(t => (
+          {tabs.map(t => (
             <button key={t.key} type="button"
-              className={`rp-tab${panelTab === t.key ? " is-active" : ""}`}
+              aria-pressed={activeTab === t.key} className={`rp-tab${activeTab === t.key ? " is-active" : ""}`}
               onClick={() => setPanelTab(t.key)}>{t.label}</button>
           ))}
         </div>
@@ -2283,24 +2338,25 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
 
       {/* Body */}
       <div className="rp-body">
-        {panelTab === "tarif" && <PanelTarifTab item={item} onSave={handleSave} onGoToEmail={() => setPanelTab("email")} />}
-        {panelTab === "info"  && <PanelInfoTab item={item} />}
-        {panelTab === "convoyage" && <ConvoyageInfoTab item={item} />}
-        {panelTab === "docs"  && <DocumentsTab item={item} onSave={handleSave} />}
-        {panelTab === "email" && <EmailComposer item={item} onGoToTarif={() => setPanelTab("tarif")} />}
-        {panelTab === "edit"  && <EditTab item={item} onSave={handleSave} />}
-        {panelTab === "notes" && <NotesTab item={item} onSave={handleSaveNotes} saving={saving} />}
+        {activeTab === "history" && <ReservationHistory item={item} onGoToEmail={() => setPanelTab("email")} onGoToTarif={() => setPanelTab("tarif")} />}
+        {activeTab === "tarif" && <PanelTarifTab item={item} onSave={handleSave} trackActivity={trackActivity} onGoToEmail={() => setPanelTab("email")} />}
+        {activeTab === "info"  && <PanelInfoTab item={item} />}
+        {activeTab === "convoyage" && <ConvoyageInfoTab item={item} />}
+        {activeTab === "docs"  && <DocumentsTab item={item} onSave={handleSave} />}
+        {activeTab === "email" && <EmailComposer item={item} onGoToTarif={() => setPanelTab("tarif")} onSent={trackActivity ? () => setPanelTab("history") : undefined} />}
+        {activeTab === "edit"  && <EditTab item={item} onSave={handleSave} trackActivity={trackActivity} checkCapacity={checkCapacity} />}
+        {activeTab === "notes" && <NotesTab item={item} onSave={handleSaveNotes} saving={saving} />}
       </div>
 
       <div className="rp-footer">
-        <button type="button" className="dash-btn dash-btn-danger" onClick={handleDelete} disabled={deleting || saving}>
+        {canEdit && <button type="button" className="dash-btn dash-btn-danger" onClick={handleDelete} disabled={deleting || saving}>
           {deleting ? "Suppression…" : "Supprimer"}
-        </button>
+        </button>}
         {item.dateUpdatedMs && item.dateUpdatedMs !== item.dateMs && (
           <span style={{ fontSize: 11, color: "var(--dash-muted)" }}>Modifié le {fmt(item.dateUpdatedMs)}</span>
         )}
       </div>
-    </aside>
+    </section>
   );
 }
 
@@ -2592,7 +2648,7 @@ function NewReservationModal({ onClose, onCreated, initialSessionId = "", occupa
 
 const VIEWS = [
   { key: "sessions",  label: "Sessions" },
-  { key: "pending",   label: "Demandes" },
+  { key: "pending",   label: "Inscriptions en cours" },
   { key: "validated", label: "Validées" },
   { key: "waitlist",  label: "Liste d'attente" },
   { key: "all",       label: "Toutes" },
@@ -2712,7 +2768,7 @@ function SessionsOverview({ rows, orphan, onOpen, onCreate }) {
 export default function Reservations() {
   const [items, setItems]               = useState([]);
   const [convoys, setConvoys]           = useState([]);
-  const [view, setView]                 = useState("sessions");
+  const [view, setView]                 = useState("pending");
   const [filters, setFilters]           = useState({ sejour: "all", session: "all", transport: "all" });
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading]           = useState(true);
@@ -2727,7 +2783,7 @@ export default function Reservations() {
     setLoading(true);
     try {
       const [snap, transportsSnap] = await Promise.all([
-        getDocs(query(collection(db, COLLECTIONS.RESERVATIONS), orderBy("createdAt", "desc"))),
+        getDocs(collection(db, COLLECTIONS.RESERVATIONS)),
         getDocs(collection(db, COLLECTIONS.TRANSPORTS)).catch(() => null),
       ]);
       setItems(snap.docs.map(mapReservation));
@@ -2880,7 +2936,12 @@ export default function Reservations() {
   const handleStatusChange = (updated) => {
     const patch = { ...updated, raw: { ...(updated.raw || {}), status: updated.status } };
     setItems(prev => prev.map(x => x.id === updated.id ? { ...x, ...patch } : x));
-    if (selectedItem?.id === updated.id) setSelectedItem(prev => ({ ...prev, ...patch }));
+    if (updated.status === "validated") {
+      setSelectedItem(null);
+      setView("validated");
+    } else if (selectedItem?.id === updated.id) {
+      setSelectedItem(prev => ({ ...prev, ...patch }));
+    }
   };
 
   const handleDelete = useCallback(async (id) => {
@@ -3037,6 +3098,7 @@ export default function Reservations() {
       render: row => (
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
           <Badge label={STATUS_LABEL[row.status] || row.status} variant={STATUS_BADGE[row.status] || "neutral"} />
+          {row.status === "pending" && <Badge label={row.finalPrice > 0 ? "Prix validé" : "Tarif à valider"} variant={row.finalPrice > 0 ? "success" : "warning"} />}
           {row.depositPaid && <span className="res27-chip is-deposit">Acompte</span>}
         </div>
       ),
@@ -3052,9 +3114,21 @@ export default function Reservations() {
   };
   const filteredSession = catalog.byId.get(filters.session);
 
+  if (selectedItem) {
+    return (
+      <ReservationPanel key={selectedItem.id}
+        fullPage item={selectedItem}
+        initialTab={["pending", "waitlist"].includes(selectedItem.status) ? "history" : "info"}
+        occupancyFor={fillFor} sessionState={selectedSessionState}
+        onClose={() => setSelectedItem(null)} onSave={handleSave}
+        onDelete={handleDelete} onStatusChange={handleStatusChange}
+      />
+    );
+  }
+
   return (
     <>
-      <div className={`res-page-layout${selectedItem ? " has-panel" : ""}`}>
+      <div className="res-page-layout">
         <div className="res-main">
           <div className="dash-page">
             <header className="dash-page-header dash-page-header-row">
@@ -3177,7 +3251,7 @@ export default function Reservations() {
                 <button type="button"
                   className={`res-view-btn${priceFilter === "todo" ? " is-active" : ""}`}
                   onClick={() => setPriceFilter("todo")}>
-                  ⚠️ À traiter
+                  Tarif à valider
                   <span className="res-view-count">{pricingCounts.todo}</span>
                 </button>
                 <button type="button"
@@ -3202,13 +3276,12 @@ export default function Reservations() {
               />
             ) : (
               <DataTable
-                columns={columns}
+                columns={view === "pending" || view === "waitlist" ? columns.filter((column) => ["numeroDeReservation", "nom", "sessionLabel", "finalPrice", "status"].includes(column.key)) : columns}
                 data={viewItems}
                 searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation","week"]}
                 defaultSortKey="numeroDeReservation"
                 defaultSortDirection="desc"
-                onRowClick={row => setSelectedItem(prev => prev?.id === row.id ? null : row)}
-                selectedRowId={selectedItem?.id}
+                onRowClick={setSelectedItem}
                 emptyLabel={emptyLabels[view] || "Aucune réservation."}
                 toolsInline
               />
@@ -3216,16 +3289,6 @@ export default function Reservations() {
           </div>
         </div>
 
-        {selectedItem && (
-          <ReservationPanel
-            item={selectedItem}
-            sessionState={selectedSessionState}
-            onClose={() => setSelectedItem(null)}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            onStatusChange={handleStatusChange}
-          />
-        )}
       </div>
 
       {newSessionId !== null && (

@@ -124,6 +124,7 @@ export async function approveStaffAccount({ account, memberId, reviewer }) {
   const batch = writeBatch(db);
   batch.set(doc(db, COLLECTIONS.STAFF_ACCOUNTS, account.uid), {
     status: "approved",
+    ...(account.memberId !== memberId ? { dashboardSections: deleteField() } : {}),
     memberId,
     rejectionReason: deleteField(),
     reviewedAt: serverTimestamp(),
@@ -158,6 +159,7 @@ export async function approveStaffAccountWithNewMember({ account, reviewer }) {
   batch.set(memberRef, member);
   batch.set(doc(db, COLLECTIONS.STAFF_ACCOUNTS, account.uid), {
     status: "approved",
+    ...(account.memberId !== memberRef.id ? { dashboardSections: deleteField() } : {}),
     memberId: memberRef.id,
     rejectionReason: deleteField(),
     reviewedAt: serverTimestamp(),
@@ -176,6 +178,7 @@ export async function rejectStaffAccount({ account, reason = "", reviewer }) {
   const batch = writeBatch(db);
   batch.set(doc(db, COLLECTIONS.STAFF_ACCOUNTS, account.uid), {
     status: "rejected",
+    dashboardSections: deleteField(),
     rejectionReason: String(reason || "").trim(),
     reviewedAt: serverTimestamp(),
     reviewedBy: reviewerLabel(reviewer),
@@ -193,6 +196,7 @@ export async function unlinkStaffAccount({ account, reviewer }) {
   batch.set(doc(db, COLLECTIONS.STAFF_ACCOUNTS, account.uid), {
     status: "pending",
     memberId: "",
+    dashboardSections: deleteField(),
     reviewedAt: serverTimestamp(),
     reviewedBy: reviewerLabel(reviewer),
   }, { merge: true });

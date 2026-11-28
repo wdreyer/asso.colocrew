@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { prepareReservationMail, sendReservationMail } from "@/src/lib/reservationMailHistory";
 
 /**
  * POST /api/send-email-reservation
@@ -10,10 +11,8 @@ import nodemailer from "nodemailer";
  * - Coordonnées du responsable légal
  * - Récapitulatif du paiement incluant l'estimation
  */
-export async function POST(request) {
+export async function sendReservationReceivedEmail(data) {
   try {
-    // Récupération des données envoyées en JSON
-    const data = await request.json();
     const {
       formType, // Doit être "reservation"
       // Champs communs (pour information)
@@ -90,13 +89,15 @@ export async function POST(request) {
       html: reservationHtmlContent,
     };
 
-    // Envoi des emails
-    await transporter.sendMail(adminMailOptions);
-    await transporter.sendMail(userMailOptions);
-
-    return new Response(
-      JSON.stringify({ message: "Emails envoyés avec succès" }),
-      { status: 200 }
+    const operation = await prepareReservationMail({
+      reservationId, requestId: "received",
+      actor: { uid: "automation", email: "contact@colocrew.com", name: "ColoCrew · envoi automatique" },
+      to: userMailOptions.to, subject: reservationSubject, html: reservationHtmlContent,
+      template: waitlist ? "Inscription sur liste d’attente" : "Demande reçue", attachments: [],
+    });
+    return await sendReservationMail(operation,
+      () => transporter.sendMail(userMailOptions),
+      () => transporter.sendMail(adminMailOptions),
     );
   } catch (error) {
     console.error("Erreur lors de l'envoi de l'email:", error);

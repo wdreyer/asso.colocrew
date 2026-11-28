@@ -1,163 +1,162 @@
 rules_version = '2';
 
-// Règles Firestore ColoCrew — PROPOSITION, NON DÉPLOYÉE. Lire docs/REGLES-FIREBASE.md avant tout.
-//
-// Principe : les admins (document admins/{uid}) ont tout. Un membre de l'équipe dont le compte
-// staff_accounts/{uid} est "approved" et relié à un memberId lit uniquement SES données.
-//
-// CE QUI RESTE OUVERT, ET POURQUOI
-// Les routes API (app/api/**) utilisent le SDK client Firebase côté serveur, SANS utilisateur
-// connecté : pour Firestore, ce sont des visiteurs anonymes. Tant qu'elles ne passent pas à
-// firebase-admin, il faut laisser ouvert :
-//   - reservations : lecture (get + list), création, mise à jour publiques.
-//       app/api/reservation (création + stripeDepositUrl), app/api/find-reservation (requête),
-//       app/api/stripe-webhook (requêtes + paiement), app/api/convocations/j7-reminder (liste
-//       complète + mise à jour), page /reservation/[token] (requête tokenUnique côté navigateur).
-//       => n'importe qui peut lister les réservations (données des familles). TROU PRINCIPAL.
-//   - transports : lecture publique + mise à jour limitée aux champs passengers/updatedAt.
-//       app/api/reservation lit tous les convoyages et ajoute le passager au bon convoyage.
-//   - acompte_18_juin, campagne_runs (+ events, queue), campagne_contacts, campagne_listes,
-//     campagne_brouillons, campagne_unsubscribes : lecture/écriture publiques.
-//       app/api/acompte-18-juin/dispatch, app/api/brevo/**, app/api/stripe-webhook.
-//   - polls : lecture/écriture publiques (sondage /quizz et /resultats).
-//   - ColoCrew : lecture publique (document "mot de passe" des anciennes pages /admin,
-//     /editsejour, /retours — à supprimer, ce mot de passe est lisible par tous).
-// Contenu publié, lu par le site public (lecture seule) : sejours, pages, retours, seasons,
-// blog, temoignages, photos, albums.
-//
-// CE QUI SE FERME (admin connecté obligatoire) : toutes les collections RH (staff_*),
-// day_plans en écriture, et les anciennes pages d'administration hors /dashboard
-// (/admin, /editsejour, /uploadsejour, /photos, /retours) qui n'écrivent plus que si
-// l'admin est connecté dans le même navigateur via /dashboard.
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
     function signedIn() {
       return request.auth != null;
     }
-
     function isAdmin() {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
-
     function staffAccount() {
       return get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data;
     }
-
     function isApprovedStaff() {
       return signedIn()
         && exists(/databases/$(database)/documents/staff_accounts/$(request.auth.uid))
         && staffAccount().status == 'approved'
         && staffAccount().get('memberId', '') != '';
     }
-
-    function myMemberId() {
-      return staffAccount().memberId;
+    function hasSection(sections) {
+      return isApprovedStaff() && staffAccount().get('dashboardSections', []).hasAny(sections);
     }
-
     function onlyChanges(fields) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
     }
+    function onlyArchiveChanges() {
+      return hasSection(['archives'])
+        && onlyChanges(['archived', 'season', 'archivedAt', 'archivedBy', 'restoredAt', 'restoredBy']);
+    }
+    function myConvoy() {
+      return isApprovedStaff() && resource.data.staffMemberIds.hasAny([staffAccount().memberId]);
+    }
 
-    // ── Admins : tout ────────────────────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if isAdmin();
     }
-
-    // Chacun peut vérifier s'il est admin (Header, AuthContext, serverAdminAuth).
     match /admins/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
     }
-
-    // ── Espace équipe ────────────────────────────────────────────────────────────────────
     match /staff_accounts/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
-      // Demande initiale : toujours "pending", jamais reliée à un dossier par la personne.
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
         && request.resource.data.status == 'pending'
         && request.resource.data.get('memberId', '') == ''
-        && !request.resource.data.keys().hasAny(['reviewedAt', 'reviewedBy']);
-      // Corrections de la demande, sans toucher au statut ni au dossier lié.
+        && !request.resource.data.keys().hasAny([
+          'reviewedAt', 'reviewedBy', 'dashboardSections', 'dashboardReviewedAt', 'dashboardReviewedBy'
+        ]);
       allow update: if signedIn() && request.auth.uid == uid
         && onlyChanges(['firstName', 'lastName', 'phone', 'requestedRole', 'updatedAt']);
     }
-
-    match /staff_members/{memberId} {
-      allow get: if isApprovedStaff() && myMemberId() == memberId;
-      allow update: if isApprovedStaff() && myMemberId() == memberId
-        && onlyChanges(['phone', 'address', 'dateOfBirth', 'birthPlace', 'nationality', 'updatedAt']);
+    match /staff_members/{id} {
+      allow read: if hasSection(['hr', 'transport', 'dayPlans']);
+      allow get: if isApprovedStaff() && staffAccount().memberId == id;
+      allow create, delete: if hasSection(['hr']);
+      allow update: if hasSection(['hr']) || (
+        isApprovedStaff() && staffAccount().memberId == id
+        && onlyChanges(['phone', 'address', 'dateOfBirth', 'birthPlace', 'nationality', 'updatedAt'])
+      );
     }
-
-    match /staff_contracts/{contractId} {
-      allow read: if isApprovedStaff() && resource.data.memberId == myMemberId();
+    match /staff_contracts/{id} {
+      allow read: if hasSection(['hr', 'transport', 'dayPlans', 'finance', 'archives', 'overview'])
+        || (isApprovedStaff() && resource.data.memberId == staffAccount().memberId);
+      allow create, update, delete: if hasSection(['hr']);
+      allow update: if onlyArchiveChanges();
     }
-
-    match /staff_documents/{documentId} {
-      allow read: if isApprovedStaff() && resource.data.memberId == myMemberId();
+    match /staff_documents/{id} {
+      allow read: if hasSection(['hr']) || (isApprovedStaff() && resource.data.memberId == staffAccount().memberId);
+      allow write: if hasSection(['hr']);
       allow create: if isApprovedStaff()
-        && request.resource.data.memberId == myMemberId()
+        && request.resource.data.memberId == staffAccount().memberId
         && request.resource.data.status == 'pending'
         && request.resource.data.locked == false;
     }
-
-    match /day_plans/{planId} {
+    match /staff_public_profiles/{id} { allow read, write: if hasSection(['hr']); }
+    match /salary_grid/{id} { allow read, write: if hasSection(['hr']); }
+    match /day_plans/{id} {
       allow read: if isApprovedStaff();
+      allow write: if hasSection(['dayPlans']);
+      allow update: if onlyArchiveChanges();
     }
 
-    // ── Convoyages ───────────────────────────────────────────────────────────────────────
-    match /transports/{transportId} {
-      // Cible une fois l'API sous firebase-admin :
-      //   allow read: if isApprovedStaff() && resource.data.staffMemberIds.hasAny([myMemberId()]);
-      //   allow update: if isApprovedStaff() && resource.data.staffMemberIds.hasAny([myMemberId()])
-      //     && onlyChanges(['passengers', 'updatedAt']);
-      // OUVERTURE TEMPORAIRE (app/api/reservation, sans authentification) :
-      allow read: if true;
-      allow update: if onlyChanges(['passengers', 'updatedAt']);
-    }
+    match /reservations/{id} {
+      allow read: if hasSection(['reservations', 'finance', 'archives', 'overview', 'transport', 'communication']);
+      allow create, update, delete: if hasSection(['reservations']);
+      allow update: if onlyArchiveChanges();
+      allow update: if hasSection(['communication']) && onlyChanges([
+        'stripeDepositUrl', 'stripeBalanceUrl', 'payment', 'smsS4ReminderSent', 'smsS4ReminderSentAt',
+        'smsS4ReminderRecipient', 'smsS4ReminderText'
+      ]) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['payment'])
+        || request.resource.data.payment.diff(resource.data.get('payment', {})).affectedKeys().hasOnly([
+          'failedPaymentRecoveryUrl', 'failedPaymentRecoveryInstallments', 'failedPaymentRecoveryCreatedAt'
+        ]));
+      allow update: if hasSection(['transport']) && onlyChanges([
+        'legal', 'updatedAt', 'convocationSent', 'convocationSentAt', 'convocationReminderSentAt',
+        'convocationReminderDoneAt', 'lastMinuteConvocationSentAt', 'lastMinuteConvocationTripId',
+        'lastMinuteConvocationSubject'
+      ]) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['legal'])
+        || request.resource.data.legal.diff(resource.data.get('legal', {})).affectedKeys().hasOnly([
+          'email', 'emails', 'phone', 'phones'
+        ]));
 
-    // ── Réservations ─────────────────────────────────────────────────────────────────────
-    match /reservations/{reservationId} {
-      // Cible : allow get: if isApprovedStaff(); (passagers de mes convoyages), le reste via l'API.
-      // OUVERTURE TEMPORAIRE (routes API sans authentification, page /reservation/[token]) :
-      allow read, create, update: if true;
+      match /activity/{eventId} {
+        allow read: if hasSection(['reservations']);
+        allow create: if hasSection(['reservations'])
+          && get(/databases/$(database)/documents/reservations/$(id)).data.get('archived', false) != true
+          && !(get(/databases/$(database)/documents/reservations/$(id)).data.get('status', '') in [
+            'validated', 'validee', 'validée', 'confirmed', 'cancelled', 'deleted', 'annulee', 'annulée', 'supprimee', 'supprimée'
+          ])
+          && request.resource.data.keys().hasOnly(['type', 'summary', 'actorUid', 'actorEmail', 'createdAt'])
+          && request.resource.data.type in ['call', 'manualEmail', 'note', 'price', 'status']
+          && request.resource.data.summary is string
+          && request.resource.data.summary.size() > 0
+          && request.resource.data.summary.size() <= 4000
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.actorEmail == request.auth.token.email
+          && request.resource.data.createdAt == request.time;
+      }
     }
+    match /transports/{id} {
+      allow read: if hasSection(['reservations', 'transport', 'hr', 'finance', 'archives']) || myConvoy();
+      allow write: if hasSection(['transport']);
+      allow update: if onlyArchiveChanges()
+        || (hasSection(['archives']) && onlyChanges(['archived', 'season', 'archivedAt', 'archivedBy', 'staffMemberIds']))
+        || ((hasSection(['reservations']) || myConvoy()) && onlyChanges(['passengers', 'updatedAt']));
+    }
+    match /transport_rdv_points/{id} { allow read, write: if hasSection(['transport']); }
+    match /transport_settings/{id} { allow read, write: if hasSection(['transport']); }
 
-    // ── Bénévoles (/edito-2026) et commandes de tee-shirts (/merch) ──────────────────────
-    // Écrits par app/api/benevoles et le webhook Stripe (client SDK sans authentification) :
-    // création publique d'une fiche « new » ; lecture et suivi réservés aux admins.
+    match /finance_summaries/{id} {
+      allow read: if hasSection(['finance', 'transport', 'production']);
+      allow write: if hasSection(['finance']);
+    }
+    match /accounting_reports/{id} {
+      allow read, write: if hasSection(['finance', 'production']);
+    }
+    match /accommodation_research/{id} { allow read, write: if hasSection(['accommodation']); }
     match /benevoles/{id} {
       allow create: if request.resource.data.status == 'new'
         && request.resource.data.keys().hasOnly(['firstName', 'lastName', 'phone', 'email', 'interests', 'availability', 'message', 'status', 'notes', 'source', 'createdAt', 'updatedAt']);
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if hasSection(['volunteers']);
     }
-    match /merch_orders/{id} {
-      // Cible : écriture par le webhook via firebase-admin uniquement.
-      // OUVERTURE TEMPORAIRE (webhook sans authentification) : get pour l'idempotence, create.
-      allow get, create: if true;
-      allow list, update: if isAdmin();
-    }
+    match /merch_orders/{id} { allow read, update: if hasSection(['merch']); }
 
-    // ── Routes API de campagnes et d'acomptes (OUVERTURE TEMPORAIRE) ─────────────────────
-    match /acompte_18_juin/{id} { allow read, write: if true; }
-    match /campagne_runs/{runId} { allow read, write: if true; }
-    match /campagne_runs/{runId}/{sub=**} { allow read, write: if true; }
-    match /campagne_contacts/{id} { allow read, write: if true; }
-    match /campagne_listes/{id} { allow read, write: if true; }
-    match /campagne_brouillons/{id} { allow read, write: if true; }
-    match /campagne_unsubscribes/{id} { allow read, write: if true; }
-
-    // ── Site public ──────────────────────────────────────────────────────────────────────
-    match /polls/{pollId} { allow read, write: if true; }
+    match /polls/{id} { allow read, write: if true; }
     match /ColoCrew/{id} { allow get: if true; }
-    match /sejours/{id} { allow read: if true; }
-    match /pages/{id} { allow read: if true; }
-    match /retours/{id} { allow read: if true; }
-    match /seasons/{id} { allow read: if true; }
-    match /blog/{id} { allow read: if true; }
-    match /temoignages/{id} { allow read: if true; }
-    match /photos/{id} { allow read: if true; }
-    match /albums/{id} { allow read: if true; }
+    match /sejours/{id} {
+      allow read: if true;
+      allow write: if hasSection(['stays', 'production']);
+    }
+    match /pages/{id} { allow read: if true; allow write: if hasSection(['pages']); }
+    match /retours/{id} { allow read: if true; allow write: if hasSection(['testimonials']); }
+    match /seasons/{id} { allow read: if true; allow write: if hasSection(['archives']); }
+    match /blog/{id} { allow read: if true; allow write: if hasSection(['blog']); }
+    match /blogPosts/{id} { allow read: if true; allow write: if hasSection(['blog']); }
+    match /temoignages/{id} { allow read: if true; allow write: if hasSection(['testimonials']); }
+    match /photos/{id} { allow read: if true; allow write: if hasSection(['media', 'pages', 'testimonials']); }
+    match /albums/{id} { allow read: if true; allow write: if hasSection(['media']); }
+    match /medias/{id} { allow read: if true; allow write: if hasSection(['media']); }
   }
 }

@@ -1,9 +1,7 @@
-"use server";
-
+import { sendReservationReceivedEmail } from "@/src/lib/reservationReceivedEmail";
+import { adminBucket, adminDb } from "@/src/lib/serverFirebase";
 import { NextResponse } from "next/server";
-import { db, storage } from "@/app/firebase"; // Assurez-vous que le client Firebase fonctionne en SSR
-import { collection, addDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 import { isHiddenSejour, isPublicBookableSession, sejourIdCandidates } from "@/src/lib/availability";
 import {
   computeSessionOccupancy,
@@ -21,7 +19,7 @@ function sessionCapacity(sessionEntry, sejourData) {
 
 /** Occupancy of every session of a s\u00e9jour (archived files excluded), keyed by sessionId. */
 async function sejourOccupancy(sejourId) {
-  const snap = await getDocs(query(collection(db, "reservations"), where("sejour.id", "==", sejourId)));
+  const snap = await adminDb().collection("reservations").where("sejour.id", "==", sejourId).get();
   return computeSessionOccupancy(
     snap.docs.map((entry) => entry.data()).filter((data) => data.archived !== true),
   );
@@ -29,13 +27,13 @@ async function sejourOccupancy(sejourId) {
 
 async function syncReservationToMatchingTransports(reservationId, reservation, legacyWeek) {
   if (normalizeReservationStatus(reservation.status) !== "validated") return 0;
-  const transportsSnap = await getDocs(collection(db, "transports"));
+  const transportsSnap = await adminDb().collection("transports").get();
   const transports = transportsSnap.docs.map((transportDoc) => ({ id: transportDoc.id, ...transportDoc.data() }));
   let synced = 0;
   for (const { transport, city } of matchReservationTransports(transports, reservation, { legacyWeek })) {
     const passengers = Array.isArray(transport.passengers) ? transport.passengers : [];
     if (passengers.some((passenger) => passenger.reservationId === reservationId)) continue;
-    await updateDoc(doc(db, "transports", transport.id), {
+    await adminDb().collection("transports").doc(transport.id).update({
       passengers: [...passengers, { reservationId, pickupCity: city }],
       updatedAt: new Date().toISOString(),
     });
@@ -54,8 +52,8 @@ export async function GET(request) {
     let sejourId = "";
     let sejourData = null;
     for (const candidate of sejourIdCandidates(sejourParam)) {
-      const sejourSnap = await getDoc(doc(db, "sejours", candidate));
-      if (sejourSnap.exists()) {
+      const sejourSnap = await adminDb().collection("sejours").doc(candidate).get();
+      if (sejourSnap.exists) {
         sejourId = candidate;
         sejourData = sejourSnap.data();
         break;
@@ -101,8 +99,8 @@ export async function POST(request) {
     let requestedSejour = "";
     let sejourData = null;
     for (const candidate of sejourIdCandidates(sessionSejour || body.urlSejour)) {
-      const sejourSnap = await getDoc(doc(db, "sejours", candidate));
-      if (sejourSnap.exists()) {
+      const sejourSnap = await adminDb().collection("sejours").doc(candidate).get();
+      if (sejourSnap.exists) {
         requestedSejour = candidate;
         sejourData = sejourSnap.data();
         break;
@@ -146,12 +144,19 @@ export async function POST(request) {
     const file = data.get("file");
     let pdfUrl = "";
     if (file && file.name) {
-      const arrayBuffer = await file.arrayBuffer();
-      const fileBytes = new Uint8Array(arrayBuffer);
-      const uniqueFileName = `${Date.now()}-${file.name}`;
-      const fileRef = ref(storage, `justificatifs/${uniqueFileName}`);
-      await uploadBytes(fileRef, fileBytes);
-      pdfUrl = await getDownloadURL(fileRef);
+      const type = file.type || "application/octet-stream";
+      if (file.size > 10 * 1024 * 1024 || !/^(application\/(pdf|octet-stream)|image\/[a-z0-9.+-]+)$/i.test(type)) {
+        return NextResponse.json({ error: "Le justificatif doit être une image ou un PDF de 10 Mo maximum." }, { status: 400 });
+      }
+      const token = crypto.randomUUID();
+      const bucket = adminBucket();
+      const fileName = "justificatifs/" + crypto.randomUUID() + "-" + file.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(-120);
+      await bucket.file(fileName).save(Buffer.from(await file.arrayBuffer()), {
+        resumable: false,
+        metadata: { contentType: type, metadata: { firebaseStorageDownloadTokens: token } },
+      });
+      pdfUrl = "https://firebasestorage.googleapis.com/v0/b/" + encodeURIComponent(bucket.name)
+        + "/o/" + encodeURIComponent(fileName) + "?alt=media&token=" + encodeURIComponent(token);
     }
 
     // ───────────────────────────────────────────────
@@ -321,7 +326,7 @@ export async function POST(request) {
     // ───────────────────────────────────────────────
     // 6) ENREGISTRER LA RÉSERVATION DANS FIRESTORE
     // ───────────────────────────────────────────────
-    const docRef = await addDoc(collection(db, "reservations"), newReservation);
+    const docRef = await adminDb().collection("reservations").add(newReservation);
     await syncReservationToMatchingTransports(docRef.id, newReservation, legacyWeek);
 
     // ───────────────────────────────────────────────
@@ -357,7 +362,7 @@ export async function POST(request) {
         const stripeData = await stripeRes.json();
         stripeDepositUrl = stripeData.url || null;
         if (stripeDepositUrl) {
-          await updateDoc(doc(db, "reservations", docRef.id), { stripeDepositUrl });
+          await adminDb().collection("reservations").doc(docRef.id).update({ stripeDepositUrl });
         }
       }
     } catch (err) {
@@ -367,24 +372,20 @@ export async function POST(request) {
     // ───────────────────────────────────────────────
     // 8) ENVOYER UN EMAIL DE CONFIRMATION
     // ───────────────────────────────────────────────
-    const sendMailRes = await fetch(`${baseUrl}/api/mail-resa`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        formType: "reservation",
-        reservationId: docRef.id,
-        numeroDeReservation,
-        lienAcces,
-        minor: newReservation.minor,
-        legal: newReservation.legal,
-        options: newReservation.options,
-        payment: newReservation.payment,
-        sejour: newReservation.sejour,
-        transport: newReservation.transport,
-        estimatedPriceString: newReservation.payment.estimatedPriceString,
-        stripeDepositUrl,
-        waitlist: isWaitlist,
-      }),
+    const sendMailRes = await sendReservationReceivedEmail({
+      formType: "reservation",
+      reservationId: docRef.id,
+      numeroDeReservation,
+      lienAcces,
+      minor: newReservation.minor,
+      legal: newReservation.legal,
+      options: newReservation.options,
+      payment: newReservation.payment,
+      sejour: newReservation.sejour,
+      transport: newReservation.transport,
+      estimatedPriceString: newReservation.payment.estimatedPriceString,
+      stripeDepositUrl,
+      waitlist: isWaitlist,
     });
 
     if (!sendMailRes.ok) {

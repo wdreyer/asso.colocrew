@@ -1,4 +1,7 @@
+
 "use client";
+
+import { dashboardFetch } from "@/src/lib/dashboardFetch";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useToast } from "@/src/contexts/ToastContext";
@@ -106,14 +109,14 @@ function TabContacts({ lists, setLists }) {
   }
 
   async function loadLists() {
-    const r = await fetch("/api/brevo/lists").then(r => r.json());
+    const r = await dashboardFetch("/api/brevo/lists").then(r => r.json());
     setLists(r.lists || []);
   }
 
   async function createList() {
     if (!newName.trim()) return;
     setSaving(true);
-    const r = await fetch("/api/brevo/lists", {
+    const r = await dashboardFetch("/api/brevo/lists", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newName.trim() }),
     }).then(r => r.json());
@@ -124,11 +127,11 @@ function TabContacts({ lists, setLists }) {
 
   async function deleteList(id) {
     if (!window.confirm("Supprimer cette liste et tous ses contacts ?")) return;
-    await fetch("/api/brevo/contacts", {
+    await dashboardFetch("/api/brevo/contacts", {
       method: "DELETE", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ listId: id }),
     });
-    await fetch("/api/brevo/lists", {
+    await dashboardFetch("/api/brevo/lists", {
       method: "DELETE", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
@@ -141,7 +144,7 @@ function TabContacts({ lists, setLists }) {
     const contacts = rowsToContacts(csvData.rows);
     if (!contacts.length) return showToast("Aucun email valide trouvé", "error");
     setImporting(true);
-    const r = await fetch("/api/brevo/contacts", {
+    const r = await dashboardFetch("/api/brevo/contacts", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contacts, listId: targetList }),
     }).then(r => r.json());
@@ -158,7 +161,7 @@ function TabContacts({ lists, setLists }) {
     if (openList === listId) { setOpenList(null); return; }
     setOpenList(listId);
     setLoadingContacts(true);
-    const r = await fetch(`/api/brevo/contacts?listId=${listId}`).then(r => r.json());
+    const r = await dashboardFetch(`/api/brevo/contacts?listId=${listId}`).then(r => r.json());
     setListContacts(r.contacts || []);
     setLoadingContacts(false);
   }
@@ -558,7 +561,7 @@ function TabCampagne({ lists }) {
 
   const loadRun = useCallback(async (runId) => {
     if (!runId) return;
-    const r = await fetch(`/api/brevo/runs/${runId}`).then(r => r.json());
+    const r = await dashboardFetch(`/api/brevo/runs/${runId}`).then(r => r.json());
     if (r.run) {
       setSavedRun(r.run);
       setSavedEvents(r.events || []);
@@ -566,7 +569,7 @@ function TabCampagne({ lists }) {
   }, []);
 
   const loadLatestRun = useCallback(async () => {
-    const r = await fetch("/api/brevo/runs?limit=1").then(r => r.json());
+    const r = await dashboardFetch("/api/brevo/runs?limit=1").then(r => r.json());
     const latest = r.runs?.[0];
     if (latest) {
       setActiveRunId(latest.id);
@@ -577,7 +580,7 @@ function TabCampagne({ lists }) {
 
   const loadDrafts = useCallback(async () => {
     try {
-      const response = await fetch("/api/brevo/drafts");
+      const response = await dashboardFetch("/api/brevo/drafts");
       const data = await response.json();
       if (response.ok) setDrafts(data.drafts || []);
     } catch {
@@ -598,7 +601,7 @@ function TabCampagne({ lists }) {
     if (!runId) return;
     setControllingRun(true);
     try {
-      const r = await fetch(`/api/brevo/runs/${runId}/control`, {
+      const r = await dashboardFetch(`/api/brevo/runs/${runId}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...values }),
@@ -642,7 +645,7 @@ function TabCampagne({ lists }) {
 
     setSavingDraft(true);
     try {
-      const response = await fetch("/api/brevo/drafts", {
+      const response = await dashboardFetch("/api/brevo/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -717,7 +720,7 @@ function TabCampagne({ lists }) {
     if (!testEmail) return showToast("Renseignez l'adresse de test", "error");
     if (!subject || !html) return showToast("Renseignez l'objet et le contenu", "error");
     setTesting(true);
-    const r = await fetch("/api/brevo/test-send", {
+    const r = await dashboardFetch("/api/brevo/test-send", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: testEmail, sender: SENDERS[testSender], subject, htmlContent: html, replyTo }),
     }).then(r => r.json());
@@ -750,7 +753,7 @@ function TabCampagne({ lists }) {
     setDispatchDone(null);
 
     try {
-      const res = await fetch("/api/brevo/dispatch", {
+      const res = await dashboardFetch("/api/brevo/dispatch", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contacts, senders, subject, htmlContent: html, replyTo, delayMs, sourceMode, listId, listName: selectedListName, maxPerRequest: batchSize }),
       });
@@ -791,7 +794,7 @@ function TabCampagne({ lists }) {
       while (shouldResume && runIdToResume) {
         shouldResume = false;
         await new Promise(resolve => setTimeout(resolve, 800));
-        const resumeRes = await fetch(`/api/brevo/runs/${runIdToResume}/resume`, {
+        const resumeRes = await dashboardFetch(`/api/brevo/runs/${runIdToResume}/resume`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ maxPerRequest: batchSize }),
         });
@@ -1288,7 +1291,7 @@ function TabHistoriqueFirebase() {
   const [controlling, setControlling] = useState(false);
 
   const loadRun = useCallback(async (runId) => {
-    const r = await fetch(`/api/brevo/runs/${runId}`).then(r => r.json());
+    const r = await dashboardFetch(`/api/brevo/runs/${runId}`).then(r => r.json());
     if (r.run) {
       setSelectedRun(r.run);
       setEvents(r.events || []);
@@ -1298,7 +1301,7 @@ function TabHistoriqueFirebase() {
   const loadRuns = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/brevo/runs?limit=20").then(r => r.json());
+      const r = await dashboardFetch("/api/brevo/runs?limit=20").then(r => r.json());
       setRuns(r.runs || []);
       if (r.runs?.[0]) await loadRun(r.runs[0].id);
     } catch {
@@ -1330,7 +1333,7 @@ function TabHistoriqueFirebase() {
 
       while (keepGoing) {
         keepGoing = false;
-        const res = await fetch(`/api/brevo/runs/${runId}/resume`, {
+        const res = await dashboardFetch(`/api/brevo/runs/${runId}/resume`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ maxPerRequest: batchSize }),
@@ -1365,7 +1368,7 @@ function TabHistoriqueFirebase() {
     if (!runId) return;
     setControlling(true);
     try {
-      const r = await fetch(`/api/brevo/runs/${runId}/control`, {
+      const r = await dashboardFetch(`/api/brevo/runs/${runId}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...values }),
@@ -1564,7 +1567,7 @@ export default function Campagnes() {
   const loadLists = useCallback(async () => {
     setLoadingLists(true);
     try {
-      const r = await fetch("/api/brevo/lists").then(r => r.json());
+      const r = await dashboardFetch("/api/brevo/lists").then(r => r.json());
       setLists(r.lists || []);
     } catch {
       showToast("Impossible de charger les listes", "error");

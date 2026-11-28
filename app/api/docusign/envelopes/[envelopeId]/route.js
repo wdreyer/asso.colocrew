@@ -1,11 +1,11 @@
-import { requireFirebaseAdmin, adminErrorResponse } from "@/src/lib/serverAdminAuth";
+import { requireDashboardSection, adminErrorResponse } from "@/src/lib/serverAdminAuth";
 import { getDocusignEnvelope } from "@/src/lib/docusignServer";
 
 export const runtime = "nodejs";
 
 export async function GET(request, { params }) {
   try {
-    await requireFirebaseAdmin(request);
+    await requireDashboardSection(request, ["hr"]);
     const { envelopeId } = await params;
     if (!envelopeId) throw new Error("Numéro d'enveloppe manquant.");
     const result = await getDocusignEnvelope(envelopeId);

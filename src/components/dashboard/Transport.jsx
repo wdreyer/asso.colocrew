@@ -1,3 +1,4 @@
+
 ﻿"use client";
 
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -3330,7 +3331,7 @@ function OperationsTab({ transport, allReservations, staffMembers, staffContract
       extractFormData.append("file", file);
       const [snapshot, extractRes] = await Promise.allSettled([
         uploadBytes(ref(storage, storagePath), file),
-        fetch("/api/extract-ticket", { method: "POST", body: extractFormData }),
+        dashboardFetch("/api/extract-ticket", { method: "POST", body: extractFormData }),
       ]);
 
       // URL Firebase
@@ -6722,7 +6723,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
     const wi = trip.weekInfo;
     const subject  = `${reminder ? `Rappel ${reminderLabel} — ` : ""}Convocation transport — ${sejourReal}${wi ? ` (${wi.dates})` : ""} — ${fmtDateLong(trip.date)}`;
-    const resp = await fetch("/api/communication/send", {
+    const resp = await dashboardFetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
@@ -6751,7 +6752,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const wi = reservation.weekInfo || selectedPeriod;
     const sejourReal = reservation.sejourName && reservation.sejourName !== "-" ? shortSejourName(reservation.sejourName) : "Séjour ColoCrew";
     const subject = `${reminder ? `Rappel ${reminderLabel} — ` : ""}Convocation sur place — ${sejourReal}${wi ? ` (${wi.dates})` : ""}`;
-    const resp = await fetch("/api/communication/send", {
+    const resp = await dashboardFetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),
@@ -6773,7 +6774,7 @@ function ConvocationsTab({ transports, reservations, staffMembers = [], staffCon
     const html = buildConvocEmailHtml(trip, merged, rdvInfo, transports, lastMinuteMessage, animInfo, convocSettings);
     const sejourReal = (primary.sejourName && primary.sejourName !== "-") ? primary.sejourName : shortSejourName(trip.sejourName);
     const subject = `IMPORTANT - Nouvelle convocation transport - ${sejourReal} - ${fmtDateLong(trip.date)}`;
-    const resp = await fetch("/api/communication/send", {
+    const resp = await dashboardFetch("/api/communication/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: destinationEmail, subject, html, from_name: "ColoCrew", from_email: "contact@colocrew.com", includeDecharge: true }),

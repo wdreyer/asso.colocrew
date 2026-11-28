@@ -1,4 +1,5 @@
-export async function DELETE(_, context) {
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
+async function handleDELETE(_, context) {
   const { id } = await context.params;
   const res = await fetch(`https://api.brevo.com/v3/senders/${id}`, {
     method: "DELETE",
@@ -8,3 +9,5 @@ export async function DELETE(_, context) {
   const data = await res.json();
   return Response.json(data, { status: res.status });
 }
+
+export const DELETE = withDashboardAccess(["campaigns"], handleDELETE);

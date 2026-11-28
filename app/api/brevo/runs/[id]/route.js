@@ -1,15 +1,6 @@
-import { db } from "@/src/lib/firebase";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 
 const RUNS = "campagne_runs";
 
@@ -39,30 +30,30 @@ function serializeEvent(docSnap) {
   };
 }
 
-export async function GET(_request, context) {
+async function handleGET(_request, context) {
   const { id } = await context.params;
-  const runRef = doc(db, RUNS, id);
-  const runSnap = await getDoc(runRef);
-  if (!runSnap.exists()) {
+  const runRef = adminDb().collection(RUNS).doc(id);
+  const runSnap = await runRef.get();
+  if (!runSnap.exists) {
     return Response.json({ error: "Campagne introuvable" }, { status: 404 });
   }
   const data = runSnap.data();
   const updatedAt = data.updatedAt?.toMillis?.() ?? 0;
   const staleAfter = Math.max(90000, Number(data.delayMs || 3000) * 10);
   if (data.status === "running" && updatedAt > 0 && Date.now() - updatedAt > staleAfter) {
-    await updateDoc(runRef, {
+    await runRef.update({
       status: "interrupted",
       lastError: "Envoi interrompu ou serveur redemarre",
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   }
 
-  const eventsSnap = await getDocs(
-    query(collection(runRef, "events"), orderBy("createdAt", "desc"), limit(50))
-  );
+  const eventsSnap = await runRef.collection("events").orderBy("createdAt", "desc").limit(50).get();
 
   return Response.json({
     run: serializeRun(runSnap),
     events: eventsSnap.docs.map(serializeEvent),
   });
 }
+
+export const GET = withDashboardAccess(["campaigns"], handleGET);

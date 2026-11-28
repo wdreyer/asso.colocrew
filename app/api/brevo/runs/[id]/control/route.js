@@ -1,16 +1,10 @@
-import { db } from "@/src/lib/firebase";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 
 const RUNS = "campagne_runs";
 
-export async function POST(request, context) {
+async function handlePOST(request, context) {
   const { id } = await context.params;
   const { action, delayMs } = await request.json();
 
@@ -18,9 +12,9 @@ export async function POST(request, context) {
     return Response.json({ error: "Action invalide" }, { status: 400 });
   }
 
-  const runRef = doc(db, RUNS, id);
-  const runSnap = await getDoc(runRef);
-  if (!runSnap.exists()) {
+  const runRef = adminDb().collection(RUNS).doc(id);
+  const runSnap = await runRef.get();
+  if (!runSnap.exists) {
     return Response.json({ error: "Campagne introuvable" }, { status: 404 });
   }
 
@@ -30,28 +24,30 @@ export async function POST(request, context) {
       return Response.json({ error: "Vitesse invalide" }, { status: 400 });
     }
 
-    await updateDoc(runRef, {
+    await runRef.update({
       delayMs: nextDelay,
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
-    await addDoc(collection(runRef, "events"), {
+    await runRef.collection("events").add({
       type: "speed_changed",
       delayMs: nextDelay,
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
     return Response.json({ ok: true, delayMs: nextDelay });
   }
 
-  await updateDoc(runRef, {
+  await runRef.update({
     controlAction: action,
-    controlRequestedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    controlRequestedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
-  await addDoc(collection(runRef, "events"), {
+  await runRef.collection("events").add({
     type: `${action}_requested`,
-    createdAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 
   return Response.json({ ok: true });
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

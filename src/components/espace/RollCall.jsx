@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
-import { childAge, isChecked, reservationForRollCall } from "./convoy";
+import { dashboardFetch } from "@/src/lib/dashboardFetch";
+import { childAge, isChecked } from "./convoy";
 import { telHref } from "./format";
 import { Badge, EmptyState, Loader } from "./ui";
 
@@ -12,19 +13,28 @@ import { Badge, EmptyState, Loader } from "./ui";
  * Children of the member's part of a convoy. Reservations are read one by one by id (the only
  * reservation access the team space has); only validated bookings are listed, as before.
  */
-function useReservations(ids) {
+function useReservations(transportId, ids) {
   const key = ids.join("|");
   const [state, setState] = useState({ loading: true, byId: {} });
   useEffect(() => {
     let active = true;
     const list = key ? key.split("|") : [];
     setState({ loading: true, byId: {} });
-    Promise.all(list.map((id) => getDoc(doc(db, COLLECTIONS.RESERVATIONS, id))
-      .then((snapshot) => (snapshot.exists() ? reservationForRollCall(id, snapshot.data()) : null))
-      .catch(() => null)))
-      .then((rows) => active && setState({ loading: false, byId: Object.fromEntries(rows.filter(Boolean).map((row) => [row.id, row])) }));
+    const params = new URLSearchParams();
+    list.forEach((id) => params.append("id", id));
+    if (!list.length) {
+      setState({ loading: false, byId: {} });
+      return;
+    }
+    dashboardFetch("/api/team/convoys/" + encodeURIComponent(transportId) + "/roll-call?" + params)
+      .then((response) => {
+        if (!response.ok) throw new Error("Chargement du pointage impossible.");
+        return response.json();
+      })
+      .then((rows) => active && setState({ loading: false, byId: Object.fromEntries(rows.map((row) => [row.id, row])) }))
+      .catch(() => active && setState({ loading: false, byId: {} }));
     return () => { active = false; };
-  }, [key]);
+  }, [key, transportId]);
   return state;
 }
 
@@ -51,7 +61,7 @@ async function togglePresence(transportId, reservationId, checked, member) {
 
 export default function RollCall({ transport, passengers, canCheck, member }) {
   const ids = [...new Set(passengers.map((passenger) => passenger.reservationId).filter(Boolean))];
-  const { loading, byId } = useReservations(ids);
+  const { loading, byId } = useReservations(transport.id, ids);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 

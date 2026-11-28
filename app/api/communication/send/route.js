@@ -1,3 +1,5 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
+import { prepareReservationMail, sendReservationMail } from "@/src/lib/reservationMailHistory";
 import fs from "fs/promises";
 import path from "path";
 import nodemailer from "nodemailer";
@@ -193,6 +195,9 @@ async function parseSendRequest(request) {
   }
 
   return {
+    reservationId: String(form.get("reservationId") || ""),
+    requestId: String(form.get("requestId") || ""),
+    template: String(form.get("template") || ""),
     to: String(form.get("to") || ""),
     subject: String(form.get("subject") || ""),
     html: String(form.get("html") || ""),
@@ -204,9 +209,9 @@ async function parseSendRequest(request) {
   };
 }
 
-export async function POST(request) {
+async function handlePOST(request, _context, actor) {
   try {
-    const { to, subject, html, from_name, from_email, includeDecharge, convocData, uploadedAttachments = [] } = await parseSendRequest(request);
+    const { reservationId, requestId, template, to, subject, html, from_name, from_email, includeDecharge, convocData, uploadedAttachments = [] } = await parseSendRequest(request);
 
     if (!to || !subject || !html) {
       return Response.json({ error: "Paramètres manquants (to, subject, html)" }, { status: 400 });
@@ -244,26 +249,24 @@ export async function POST(request) {
       });
     }
 
-    const info = await transporter.sendMail({
+    const operation = reservationId ? await prepareReservationMail({
+      reservationId, requestId, actor, to, subject, html, template: String(template || "").slice(0, 120),
+      attachments: attachments.map(({ filename }) => filename),
+    }) : null;
+    const mail = {
       from: `"${from_name || "ColoCrew"}" <${from_email || "contact@colocrew.com"}>`,
       to,
       subject,
       html,
       attachments: attachments.length ? attachments : undefined,
-    });
-
-    // Copie admin séparée avec préfixe dans l'objet
-    await transporter.sendMail({
-      from: `"${from_name || "ColoCrew"}" <${from_email || "contact@colocrew.com"}>`,
-      to: "contact@colocrew.com",
-      subject: `[COPIE ADMIN] ${subject}`,
-      html,
-      attachments: attachments.length ? attachments : undefined,
-    });
-
-    return Response.json({ success: true, messageId: info.messageId });
+    };
+    return await sendReservationMail(operation, () => transporter.sendMail(mail), () => transporter.sendMail({
+      ...mail, to: "contact@colocrew.com", subject: `[COPIE ADMIN] ${subject}`,
+    }));
   } catch (error) {
     console.error("[communication/send] Erreur envoi:", error);
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ error: error.status ? error.message : "Erreur lors de l’envoi" }, { status: error.status || 500 });
   }
 }
+
+export const POST = withDashboardAccess(["communication","transport"], handlePOST);

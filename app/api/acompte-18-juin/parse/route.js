@@ -1,3 +1,4 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,7 +8,7 @@ export const runtime = "nodejs";
 
 const DEFAULT_WORKBOOK = "c:/Users/dreye/Downloads/Feuille de calcul sans titre.xlsx";
 
-export async function POST(request) {
+async function handlePOST(request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -304,3 +305,5 @@ function hasValue(value) {
 function round(value) {
   return Number((Number(value) || 0).toFixed(2));
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

@@ -1,12 +1,14 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
+import { prepareReservationMail, sendReservationMail } from "@/src/lib/reservationMailHistory";
 import fs from "fs/promises";
 import path from "path";
 import nodemailer from "nodemailer";
 
-export async function POST(request) {
+async function handlePOST(request, _context, actor) {
   try {
-    const { to, subject, body, bodyHtml, attachment, includeDecharge } = await request.json();
+    const { reservationId, requestId, template, to, subject, body, bodyHtml, attachment, includeDecharge } = await request.json();
 
-    if (!to || !subject || (!body && !bodyHtml)) {
+    if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(to || "") || typeof subject !== "string" || !subject.trim() || (!body && !bodyHtml)) {
       return new Response(
         JSON.stringify({ error: "Champs manquants : to, subject, body ou bodyHtml requis" }),
         { status: 400 },
@@ -78,26 +80,23 @@ export async function POST(request) {
 
     const mailAttachments = attachments.length ? attachments : undefined;
 
-    await transporter.sendMail({
-      from: `"ColoCrew" <contact@colocrew.com>`,
-      to,
-      subject,
-      html: htmlBody,
-      replyTo: "contact@colocrew.com",
-      attachments: mailAttachments,
+    const operation = await prepareReservationMail({
+      reservationId, requestId, actor, to, subject, html: htmlBody, template: String(template || "").slice(0, 120),
+      attachments: attachments.map(({ filename }) => filename),
     });
-
-    await transporter.sendMail({
-      from: `"ColoCrew Admin" <contact@colocrew.com>`,
+    const mail = {
+      from: `"ColoCrew" <contact@colocrew.com>`,
+      to, subject, html: htmlBody, replyTo: "contact@colocrew.com", attachments: mailAttachments,
+    };
+    return await sendReservationMail(operation, () => transporter.sendMail(mail), () => transporter.sendMail({
+      ...mail,
       to: "contact@colocrew.com",
       subject: `[COPIE ADMIN] ${subject} → ${to}`,
-      html: htmlBody,
-      attachments: mailAttachments,
-    });
-
-    return new Response(JSON.stringify({ message: "Email envoyé avec succès" }), { status: 200 });
+    }));
   } catch (error) {
-    console.error("Erreur envoi email admin:", error);
-    return new Response(JSON.stringify({ error: "Erreur lors de l'envoi" }), { status: 500 });
+    if (!error.status || error.status >= 500) console.error("Erreur envoi email dashboard:", error);
+    return Response.json({ error: error.status ? error.message : "Erreur lors de l’envoi" }, { status: error.status || 500 });
   }
 }
+
+export const POST = withDashboardAccess(["reservations"], handlePOST);

@@ -1,21 +1,10 @@
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
 import nodemailer from "nodemailer";
-import { initializeApp, getApp, getApps } from "firebase/app";
-import { collection, doc, getDocs, getFirestore, serverTimestamp, updateDoc } from "firebase/firestore";
+
 import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
 export const runtime = "nodejs";
-
-const FIREBASE_CONFIG = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId:
-    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID || "",
-};
-
-const db = getFirestore(getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG));
 
 function escapeHtml(value) {
   return String(value || "")
@@ -100,7 +89,7 @@ function reservationSeason(reservation) {
 }
 
 async function archivedSeasonKeys() {
-  const snap = await getDocs(collection(db, COLLECTIONS.SEASONS));
+  const snap = await adminDb().collection(COLLECTIONS.SEASONS).get();
   return new Set(snap.docs.filter((item) => item.data()?.status === "archived").map((item) => item.id));
 }
 
@@ -197,7 +186,7 @@ async function handle(request) {
 
   // Any departure date works; archived seasons and archived reservations are never reminded.
   const [snap, archivedSeasons] = await Promise.all([
-    getDocs(collection(db, COLLECTIONS.RESERVATIONS)),
+    adminDb().collection(COLLECTIONS.RESERVATIONS).get(),
     archivedSeasonKeys(),
   ]);
   if (archivedSeasons.has(seasonOfIsoDate(targetDate))) {
@@ -247,9 +236,9 @@ async function handle(request) {
         html: reminderHtml(reservation),
       });
 
-      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservation.id), {
+      await adminDb().collection(COLLECTIONS.RESERVATIONS).doc(reservation.id).update({
         convocationJ7ReminderSent: true,
-        convocationJ7ReminderSentAt: serverTimestamp(),
+        convocationJ7ReminderSentAt: FieldValue.serverTimestamp(),
         convocationJ7ReminderTargetDate: targetDate,
         convocationJ7ReminderMessageId: info.messageId || null,
       });
@@ -257,9 +246,9 @@ async function handle(request) {
       sent.push({ id: reservation.id, email: maskEmail(email), messageId: info.messageId || null });
     } catch (error) {
       errors.push({ id: reservation.id, email: maskEmail(email), error: error.message });
-      await updateDoc(doc(db, COLLECTIONS.RESERVATIONS, reservation.id), {
+      await adminDb().collection(COLLECTIONS.RESERVATIONS).doc(reservation.id).update({
         convocationJ7ReminderLastError: error.message,
-        convocationJ7ReminderLastErrorAt: serverTimestamp(),
+        convocationJ7ReminderLastErrorAt: FieldValue.serverTimestamp(),
       }).catch(() => {});
     }
   }

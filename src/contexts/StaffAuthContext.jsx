@@ -15,7 +15,7 @@ import { COLLECTIONS } from "@/src/lib/firebaseCollections";
 
 /**
  * Session of the team space (/espace-equipe). Separate from AuthContext, which belongs to the
- * admin dashboard and signs out anyone who is not an admin.
+ * dashboard and checks which sections this account may manage.
  *
  * status:
  *   "loading"    – Firebase Auth or the account document is not known yet

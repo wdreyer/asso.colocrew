@@ -1,13 +1,6 @@
-import { db } from "@/src/lib/firebase";
-import {
-  collection,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 
 const RUNS = "campagne_runs";
 
@@ -22,10 +15,10 @@ async function serialize(docSnap) {
   const data = docSnap.data();
   const stale = isStaleRunning(data);
   if (stale) {
-    await updateDoc(docSnap.ref, {
+    await docSnap.ref.update({
       status: "interrupted",
       lastError: "Envoi interrompu ou serveur redemarre",
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   }
   return {
@@ -40,9 +33,11 @@ async function serialize(docSnap) {
   };
 }
 
-export async function GET(request) {
+async function handleGET(request) {
   const { searchParams } = new URL(request.url);
   const max = Math.min(Number(searchParams.get("limit") || 5), 20);
-  const snap = await getDocs(query(collection(db, RUNS), orderBy("createdAt", "desc"), limit(max)));
+  const snap = await adminDb().collection(RUNS).orderBy("createdAt", "desc").limit(max).get();
   return Response.json({ runs: await Promise.all(snap.docs.map(serialize)) });
 }
+
+export const GET = withDashboardAccess(["campaigns"], handleGET);

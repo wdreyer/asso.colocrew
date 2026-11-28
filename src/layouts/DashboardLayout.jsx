@@ -5,56 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/src/contexts/AuthContext";
 
-const NAV_STRUCTURE = [
-  { label: "Vue d'ensemble", href: "/dashboard", icon: "grid", exact: true },
-  {
-    group: "Ventes & production",
-    items: [
-      { label: "Séjours en vente",    href: "/dashboard/sejours",      icon: "sun" },
-      { label: "Production séjour",   href: "/dashboard/production",   icon: "production" },
-      { label: "Hébergements",        href: "/dashboard/hebergements", icon: "home" },
-      { label: "Réservations",        href: "/dashboard/reservations", icon: "calendar" },
-      { label: "Finances",            href: "/dashboard/finances",     icon: "finance" },
-      { label: "Abonnements",         href: "/dashboard/abonnements",  icon: "subscription" },
-      { label: "Tee-shirts",          href: "/dashboard/tee-shirts",   icon: "shirt" },
-    ],
-  },
-  {
-    group: "Opérations",
-    items: [
-      {
-        label: "Ressources humaines", href: "/dashboard/rh", icon: "users",
-        children: [
-          { label: "Comptes équipe", href: "/dashboard/rh/comptes" },
-          { label: "Déroulés",       href: "/dashboard/rh/deroules" },
-        ],
-      },
-      { label: "Convoyages",          href: "/dashboard/transport",    icon: "transport" },
-      { label: "Bénévoles",           href: "/dashboard/benevoles",    icon: "heart" },
-    ],
-  },
-  {
-    group: "Communication",
-    items: [
-      { label: "Emails familles", href: "/dashboard/communication", icon: "send" },
-      { label: "Campagnes",       href: "/dashboard/campagnes",     icon: "mail" },
-    ],
-  },
-  {
-    group: "Site web",
-    items: [
-      { label: "Pages du site", href: "/dashboard/pages",       icon: "file" },
-      { label: "Médias",        href: "/dashboard/medias",      icon: "image" },
-      { label: "Témoignages",   href: "/dashboard/temoignages", icon: "quote" },
-    ],
-  },
-  {
-    group: "Historique",
-    items: [
-      { label: "Archives des saisons", href: "/dashboard/archives", icon: "archive" },
-    ],
-  },
-];
+import { DASHBOARD_NAV, canOpenDashboardItem } from "@/src/lib/dashboardAccess";
 
 function Icon({ type, size = 15 }) {
   const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round", stroke: "currentColor" };
@@ -84,7 +35,8 @@ function Icon({ type, size = 15 }) {
 
 export default function DashboardLayout({ children }) {
   const pathname = usePathname();
-  const { currentUser, logout } = useAuth();
+  const { currentUser, isAdmin, sections, logout } = useAuth();
+  const canOpen = (item) => canOpenDashboardItem(item, isAdmin, sections);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [closedGroups, setClosedGroups] = useState(new Set());
@@ -115,7 +67,7 @@ export default function DashboardLayout({ children }) {
           <div className="ds-brand-mark">CC</div>
           <div className="ds-brand-text">
             <span className="ds-brand-name">ColoCrew</span>
-            <span className="ds-brand-sub">Admin</span>
+            <span className="ds-brand-sub">{isAdmin ? "Admin" : "Équipe"}</span>
           </div>
           <button
             type="button"
@@ -129,7 +81,7 @@ export default function DashboardLayout({ children }) {
         </div>
 
         <nav className="ds-nav">
-          {NAV_STRUCTURE.map((entry) => {
+          {DASHBOARD_NAV.map((entry) => {
             if (!entry.group) {
               return (
                 <Link
@@ -144,6 +96,8 @@ export default function DashboardLayout({ children }) {
               );
             }
 
+            const items = entry.items.filter(canOpen);
+            if (!items.length) return null;
             const groupOpen = !closedGroups.has(entry.group);
             return (
               <div key={entry.group} className="ds-nav-group">
@@ -159,7 +113,7 @@ export default function DashboardLayout({ children }) {
                 </button>
                 {groupOpen && (
                   <div className="ds-nav-group-items">
-                    {entry.items.map((item) => {
+                    {items.map((item) => {
                       const parentActive = isActive(item);
                       const childActive = item.children?.some((c) => isActive(c));
                       return (
@@ -172,7 +126,7 @@ export default function DashboardLayout({ children }) {
                             <Icon type={item.icon} size={14} />
                             {item.label}
                           </Link>
-                          {item.children?.map((child) => (
+                          {item.children?.filter(canOpen).map((child) => (
                             <Link
                               key={child.href}
                               href={child.href}

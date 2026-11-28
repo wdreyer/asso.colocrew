@@ -1,5 +1,5 @@
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/app/firebase"; // Assurez-vous d'avoir configuré Firebase
+import { adminDb } from "@/src/lib/serverFirebase";
+// Assurez-vous d'avoir configuré Firebase
 
 export async function POST(request) {
   try {
@@ -9,13 +9,9 @@ export async function POST(request) {
     // On interroge la collection "reservations" en filtrant sur:
     // - numeroDeReservation (champ au niveau racine)
     // - legal.email (champ imbriqué dans l'objet "legal")
-    const reservationsRef = collection(db, "reservations");
-    const q = query(
-      reservationsRef,
-      where("numeroDeReservation", "==", numeroDeReservation),
-      where("legal.email", "==", email)
-    );
-    const querySnapshot = await getDocs(q);
+    const reservationsRef = adminDb().collection("reservations");
+    const q = reservationsRef.where("numeroDeReservation", "==", numeroDeReservation).where("legal.email", "==", email);
+    const querySnapshot = await q.get();
 
     // Si aucune réservation n'est trouvée, on renvoie une erreur 404
     if (querySnapshot.empty) {

@@ -1,15 +1,6 @@
-import { db } from "@/src/lib/firebase";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 
 const DRAFTS = "campagne_brouillons";
 
@@ -23,12 +14,12 @@ function serialize(snapshot) {
   };
 }
 
-export async function GET() {
-  const snapshot = await getDocs(query(collection(db, DRAFTS), orderBy("updatedAt", "desc")));
+async function handleGET() {
+  const snapshot = await adminDb().collection(DRAFTS).orderBy("updatedAt", "desc").get();
   return Response.json({ drafts: snapshot.docs.map(serialize) });
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const body = await request.json().catch(() => ({}));
   const name = String(body.name || body.subject || "").trim();
   const subject = String(body.subject || "").trim();
@@ -47,25 +38,29 @@ export async function POST(request) {
     subject,
     html,
     replyTo,
-    updatedAt: serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   if (body.id) {
-    const draftRef = doc(db, DRAFTS, String(body.id));
-    await setDoc(draftRef, values, { merge: true });
+    const draftRef = adminDb().collection(DRAFTS).doc(String(body.id));
+    await draftRef.set(values, { merge: true });
     return Response.json({ ok: true, id: draftRef.id });
   }
 
-  const draftRef = await addDoc(collection(db, DRAFTS), {
+  const draftRef = await adminDb().collection(DRAFTS).add({
     ...values,
-    createdAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
   return Response.json({ ok: true, id: draftRef.id });
 }
 
-export async function DELETE(request) {
+async function handleDELETE(request) {
   const body = await request.json().catch(() => ({}));
   if (!body.id) return Response.json({ error: "Identifiant requis" }, { status: 400 });
-  await deleteDoc(doc(db, DRAFTS, String(body.id)));
+  await adminDb().collection(DRAFTS).doc(String(body.id)).delete();
   return Response.json({ ok: true });
 }
+
+export const GET = withDashboardAccess(["campaigns"], handleGET);
+export const POST = withDashboardAccess(["campaigns"], handlePOST);
+export const DELETE = withDashboardAccess(["campaigns"], handleDELETE);

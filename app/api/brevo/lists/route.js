@@ -1,13 +1,11 @@
-import { db } from "@/src/lib/firebase";
-import {
-  collection, getDocs, addDoc, deleteDoc, doc,
-  serverTimestamp, query, orderBy,
-} from "firebase/firestore";
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 
 const COLL = "campagne_listes";
 
-export async function GET() {
-  const snap = await getDocs(query(collection(db, COLL), orderBy("createdAt", "desc")));
+async function handleGET() {
+  const snap = await adminDb().collection(COLL).orderBy("createdAt", "desc").get();
   const lists = snap.docs.map(d => ({
     id: d.id,
     ...d.data(),
@@ -16,20 +14,24 @@ export async function GET() {
   return Response.json({ lists });
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const { name } = await request.json();
   if (!name?.trim()) return Response.json({ error: "Nom requis" }, { status: 400 });
-  const ref = await addDoc(collection(db, COLL), {
+  const ref = await adminDb().collection(COLL).add({
     name: name.trim(),
     count: 0,
-    createdAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
   return Response.json({ id: ref.id });
 }
 
-export async function DELETE(request) {
+async function handleDELETE(request) {
   const { id } = await request.json();
   if (!id) return Response.json({ error: "id requis" }, { status: 400 });
-  await deleteDoc(doc(db, COLL, id));
+  await adminDb().collection(COLL).doc(id).delete();
   return Response.json({ ok: true });
 }
+
+export const GET = withDashboardAccess(["campaigns"], handleGET);
+export const POST = withDashboardAccess(["campaigns"], handlePOST);
+export const DELETE = withDashboardAccess(["campaigns"], handleDELETE);

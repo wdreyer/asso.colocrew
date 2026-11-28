@@ -1,19 +1,10 @@
+import { sendDepositEmail } from "@/src/lib/reservationDepositEmail";
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
 // app/api/stripe-webhook/route.js
 
 import Stripe from "stripe";
-import { db } from "@/app/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  updateDoc,
-  setDoc,
-  getDoc,
-  serverTimestamp,
-  arrayUnion,
-} from "firebase/firestore";
+
 import { syncInstallmentSubscriptionCancellation } from "@/src/lib/stripeInstallments";
 import { decodeMerchLines } from "@/src/lib/merchConfig";
 
@@ -35,9 +26,9 @@ async function saveMerchOrder(session) {
   const meta = session.metadata || {};
   const shipping = session.collected_information?.shipping_details || session.shipping_details || {};
   const address = shipping.address || session.customer_details?.address || {};
-  const ref = doc(db, "merch_orders", session.id);
-  if ((await getDoc(ref)).exists()) return;
-  await setDoc(ref, {
+  const ref = adminDb().collection("merch_orders").doc(session.id);
+  if ((await ref.get()).exists) return;
+  await ref.set({
     stripeSessionId: session.id,
     stripePaymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || "",
     paymentStatus: session.payment_status || "",
@@ -64,8 +55,8 @@ async function saveMerchOrder(session) {
     },
     status: "to_ship",
     paidAt: new Date((session.created || Date.now() / 1000) * 1000).toISOString(),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 }
 
@@ -107,7 +98,7 @@ function buildReservationPaymentPatch(reservationData, amountPaid, extra = {}) {
     ? {
         "finance.paidAmount": nextFinancePaid,
         "finance.remainingAmount": toMoney(Math.max(financeNetAmount - nextFinancePaid, 0)),
-        financeUpdatedAt: serverTimestamp(),
+        financeUpdatedAt: FieldValue.serverTimestamp(),
       }
     : {};
 
@@ -115,9 +106,9 @@ function buildReservationPaymentPatch(reservationData, amountPaid, extra = {}) {
     "payment.paymentStatus": newStatus,
     "payment.alreadyPaid": newAlreadyPaid,
     "payment.remainingValue": newRemainingValue,
-    "payment.lastStripePaymentAt": serverTimestamp(),
+    "payment.lastStripePaymentAt": FieldValue.serverTimestamp(),
     "payment.lastStripePaymentAmount": amountPaid,
-    updatedAt: serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
     ...extra,
     ...financePatch,
   };
@@ -125,20 +116,20 @@ function buildReservationPaymentPatch(reservationData, amountPaid, extra = {}) {
 
 function stripeTrackingPatch({ eventId, invoiceId, paymentIntentId }) {
   const patch = {};
-  if (eventId) patch["payment.stripePaymentEventIds"] = arrayUnion(eventId);
-  if (invoiceId) patch["payment.stripeInvoiceIds"] = arrayUnion(invoiceId);
-  if (paymentIntentId) patch["payment.stripePaymentIntentIds"] = arrayUnion(paymentIntentId);
+  if (eventId) patch["payment.stripePaymentEventIds"] = FieldValue.arrayUnion(eventId);
+  if (invoiceId) patch["payment.stripeInvoiceIds"] = FieldValue.arrayUnion(invoiceId);
+  if (paymentIntentId) patch["payment.stripePaymentIntentIds"] = FieldValue.arrayUnion(paymentIntentId);
   return patch;
 }
 
 async function findReservationByTokenOrSubscription({ tokenUnique, subscriptionId }) {
-  const reservationsRef = collection(db, "reservations");
+  const reservationsRef = adminDb().collection("reservations");
   if (tokenUnique) {
-    const snap = await getDocs(query(reservationsRef, where("tokenUnique", "==", tokenUnique)));
+    const snap = await reservationsRef.where("tokenUnique", "==", tokenUnique).get();
     if (!snap.empty) return snap.docs[0];
   }
   if (subscriptionId) {
-    const snap = await getDocs(query(reservationsRef, where("payment.installmentsSubscriptionId", "==", subscriptionId)));
+    const snap = await reservationsRef.where("payment.installmentsSubscriptionId", "==", subscriptionId).get();
     if (!snap.empty) return snap.docs[0];
   }
   return null;
@@ -161,15 +152,15 @@ async function creditReservationStripePayment({ tokenUnique, subscriptionId, amo
     payment.lastStripePaymentSource === "checkout.session.completed" &&
     Math.abs(Number(payment.lastStripePaymentAmount || 0) - amountPaid) < 0.01
   ) {
-    await updateDoc(doc(db, "reservations", reservationDoc.id), {
+    await adminDb().collection("reservations").doc(reservationDoc.id).update({
       ...stripeTrackingPatch({ eventId, invoiceId, paymentIntentId }),
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     return { status: "already_credited_by_checkout", reservationId: reservationDoc.id };
   }
 
-  const reservationRef = doc(db, "reservations", reservationDoc.id);
-  await updateDoc(reservationRef, buildReservationPaymentPatch(reservationData, amountPaid, {
+  const reservationRef = adminDb().collection("reservations").doc(reservationDoc.id);
+  await reservationRef.update(buildReservationPaymentPatch(reservationData, amountPaid, {
     ...(subscriptionId
       ? {
           "payment.installmentsSubscriptionId": subscriptionId,
@@ -256,13 +247,13 @@ export async function POST(request) {
   if (event.type === "customer.subscription.deleted") {
     const subscription = event.data.object;
     try {
-      const reservationsRef = collection(db, "reservations");
-      const q = query(reservationsRef, where("payment.installmentsSubscriptionId", "==", subscription.id));
-      const snap = await getDocs(q);
-      await Promise.all(snap.docs.map((reservationDoc) => updateDoc(doc(db, "reservations", reservationDoc.id), {
+      const reservationsRef = adminDb().collection("reservations");
+      const q = reservationsRef.where("payment.installmentsSubscriptionId", "==", subscription.id);
+      const snap = await q.get();
+      await Promise.all(snap.docs.map((reservationDoc) => adminDb().collection("reservations").doc(reservationDoc.id).update({
         "payment.installmentsSubscriptionStatus": "canceled",
-        "payment.installmentsCanceledAt": serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        "payment.installmentsCanceledAt": FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       })));
       console.log(`[stripe-webhook] abonnement annule: ${subscription.id}, reservations=${snap.docs.length}`);
     } catch (err) {
@@ -295,18 +286,18 @@ export async function POST(request) {
 
     try {
       if (session.metadata?.campaign === "acompte-18-juin" && session.metadata?.acompteDocId) {
-        await updateDoc(doc(db, "acompte_18_juin", session.metadata.acompteDocId), {
+        await adminDb().collection("acompte_18_juin").doc(session.metadata.acompteDocId).update({
           status: "deposit_paid",
           paidAmount: amountPaid,
           stripePaymentIntent: session.payment_intent || "",
-          paidAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          paidAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
 
-      const reservationsRef = collection(db, "reservations");
-      const q = query(reservationsRef, where("tokenUnique", "==", tokenUnique));
-      const snap = await getDocs(q);
+      const reservationsRef = adminDb().collection("reservations");
+      const q = reservationsRef.where("tokenUnique", "==", tokenUnique);
+      const snap = await q.get();
 
       if (!snap.empty) {
         const reservationDoc = snap.docs[0];
@@ -322,7 +313,7 @@ export async function POST(request) {
             headers: { "Content-Type": "application/json" },
           });
         }
-        const reservationRef = doc(db, "reservations", reservationDoc.id);
+        const reservationRef = adminDb().collection("reservations").doc(reservationDoc.id);
         const finance = reservationData.finance || null;
         const currentFinancePaid = Number(finance?.paidAmount || 0);
         const nextFinancePaid = Number((currentFinancePaid + amountPaid).toFixed(2));
@@ -333,7 +324,7 @@ export async function POST(request) {
               "finance.remainingAmount": Number(
                 Math.max(financeNetAmount - nextFinancePaid, 0).toFixed(2),
               ),
-              financeUpdatedAt: serverTimestamp(),
+              financeUpdatedAt: FieldValue.serverTimestamp(),
             }
           : {};
 
@@ -353,12 +344,12 @@ export async function POST(request) {
           const newRemainingValue = knownTotalDue > 0
             ? Number(Math.max(knownTotalDue - newAlreadyPaid, 0).toFixed(2))
             : reservationData.payment?.remainingValue ?? null;
-          await updateDoc(reservationRef, {
+          await reservationRef.update({
             "payment.depositStatus": "paid",
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.depositAmount": depositAmount,
             "payment.remainingValue": newRemainingValue,
-            "payment.lastStripePaymentAt": serverTimestamp(),
+            "payment.lastStripePaymentAt": FieldValue.serverTimestamp(),
             "payment.lastStripePaymentAmount": amountPaid,
             "payment.lastStripePaymentSource": "checkout.session.completed",
             ...stripeTrackingPatch({
@@ -368,8 +359,8 @@ export async function POST(request) {
             }),
             // Le statut de la réservation (demande / validée / liste d'attente) n'est plus
             // écrasé : l'acompte se lit dans payment.depositStatus (docs/MODELE-DONNEES.md §4).
-            "payment.depositPaidAt": serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            "payment.depositPaidAt": FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
             ...financePatch,
           });
           console.log(`Acompte reçu pour ${tokenUnique} : ${amountPaid}€`);
@@ -380,29 +371,27 @@ export async function POST(request) {
           const { legal = {}, sejour = {}, numeroDeReservation } = reservationData;
 
           if (!confirmationAlreadySent) {
-            const mailRes = await fetch(`${baseUrl}/api/mail-acompte`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                numeroDeReservation,
-                lienAcces,
-                clientEmail: legal.email,
-                clientFirstName: legal.firstName,
-                clientLastName: legal.lastName,
-                sejourName: sejour.name || sejour.urlSejour || "",
-                startDate: sejour.startDate,
-                endDate: sejour.endDate,
-                ageGroup: sejour.ageGroup,
-                amountPaid,
-              }),
+            const mailRes = await sendDepositEmail({
+              reservationId: reservationRef.id,
+              requestId: "deposit-" + event.id,
+              numeroDeReservation,
+              lienAcces,
+              clientEmail: legal.email,
+              clientFirstName: legal.firstName,
+              clientLastName: legal.lastName,
+              sejourName: sejour.name || sejour.urlSejour || "",
+              startDate: sejour.startDate,
+              endDate: sejour.endDate,
+              ageGroup: sejour.ageGroup,
+              amountPaid,
             });
 
             if (!mailRes.ok) {
               throw new Error(`Erreur envoi mail-acompte: ${await mailRes.text()}`);
             }
 
-            await updateDoc(reservationRef, {
-              "payment.depositConfirmationSentAt": serverTimestamp(),
+            await reservationRef.update({
+              "payment.depositConfirmationSentAt": FieldValue.serverTimestamp(),
             });
           }
 
@@ -432,13 +421,13 @@ export async function POST(request) {
             : payment?.remainingValue ?? null;
           const newStatus = newRemainingValue === 0 ? "paid" : "in_progress";
 
-          await updateDoc(reservationRef, {
+          await reservationRef.update({
             "payment.paymentStatus": newStatus,
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.remainingValue": newRemainingValue,
             "payment.installmentsSubscriptionId": session.subscription || null,
             "payment.installmentsSubscriptionStatus": session.subscription ? "active" : null,
-            "payment.lastStripePaymentAt": serverTimestamp(),
+            "payment.lastStripePaymentAt": FieldValue.serverTimestamp(),
             "payment.lastStripePaymentAmount": amountPaid,
             "payment.lastStripePaymentSource": "checkout.session.completed",
             ...stripeTrackingPatch({
@@ -446,7 +435,7 @@ export async function POST(request) {
               invoiceId: sessionInvoiceId,
               paymentIntentId: sessionPaymentIntentId,
             }),
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
             ...financePatch,
           });
           console.log(`Abonnement (${installmentsCount}x) confirmé pour ${tokenUnique} : ${amountPaid}€ prélevés`);
@@ -468,11 +457,11 @@ export async function POST(request) {
             newStatus = "not_paid";
           }
 
-          await updateDoc(reservationRef, {
+          await reservationRef.update({
             "payment.paymentStatus": newStatus,
             "payment.alreadyPaid": newAlreadyPaid,
             "payment.remainingValue": newRemainingValue,
-            "payment.lastStripePaymentAt": serverTimestamp(),
+            "payment.lastStripePaymentAt": FieldValue.serverTimestamp(),
             "payment.lastStripePaymentAmount": amountPaid,
             "payment.lastStripePaymentSource": "checkout.session.completed",
             ...stripeTrackingPatch({
@@ -480,7 +469,7 @@ export async function POST(request) {
               invoiceId: sessionInvoiceId,
               paymentIntentId: sessionPaymentIntentId,
             }),
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
             ...financePatch,
           });
           console.log(

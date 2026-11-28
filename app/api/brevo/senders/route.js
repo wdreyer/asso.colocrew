@@ -1,16 +1,17 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 const BREVO = "https://api.brevo.com/v3";
 
 function h() {
   return { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json" };
 }
 
-export async function GET() {
+async function handleGET() {
   const res = await fetch(`${BREVO}/senders`, { headers: h() });
   const data = await res.json();
   return Response.json(data, { status: res.status });
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const body = await request.json();
   const res = await fetch(`${BREVO}/senders`, {
     method: "POST",
@@ -20,3 +21,6 @@ export async function POST(request) {
   const data = await res.json();
   return Response.json(data, { status: res.status });
 }
+
+export const GET = withDashboardAccess(["campaigns"], handleGET);
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

@@ -1,4 +1,7 @@
+
 "use client";
+
+import { dashboardFetch } from "@/src/lib/dashboardFetch";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
@@ -1063,6 +1066,9 @@ export default function Communication() {
           );
         }
         const payload = {
+          reservationId: res.id,
+          requestId: crypto.randomUUID(),
+          template: templateKey,
           to: reservationForEmail.legal.email,
           subject: resolveVars(subject, reservationForEmail, extraVars),
           html: bodyToHtml(resolveVars(body, reservationForEmail, extraVars), templateKey),
@@ -1081,7 +1087,7 @@ export default function Communication() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
             };
-        const resp = await fetch("/api/communication/send", {
+        const resp = await dashboardFetch("/api/communication/send", {
           ...requestOptions,
         });
         if (!resp.ok) {
@@ -1127,7 +1133,7 @@ export default function Communication() {
       try {
         const recipient = normalizeSmsPhone(contactPhone(res));
         const content = resolveVars(smsBody, res);
-        const resp = await fetch("/api/brevo/sms", {
+        const resp = await dashboardFetch("/api/brevo/sms", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1170,7 +1176,7 @@ export default function Communication() {
     };
     setSmsTestSending(true);
     try {
-      const resp = await fetch("/api/brevo/sms", {
+      const resp = await dashboardFetch("/api/brevo/sms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

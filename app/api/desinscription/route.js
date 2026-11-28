@@ -1,5 +1,4 @@
-import { db } from "@/src/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { adminDb } from "@/src/lib/serverFirebase";
 import { normalizeEmail, verifyUnsubscribeToken } from "@/src/lib/unsubscribe";
 
 export const runtime = "nodejs";
@@ -33,7 +32,7 @@ export async function POST(request) {
       : Response.redirect(new URL("/desinscription?erreur=1", request.url), 303);
   }
 
-  await setDoc(doc(db, UNSUB, email), {
+  await adminDb().collection(UNSUB).doc(email).set({
     email,
     reason: oneClick ? "Lien désinscription (messagerie)" : "Lien désinscription",
     updatedAt: new Date().toISOString(),

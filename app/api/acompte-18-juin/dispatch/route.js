@@ -1,15 +1,8 @@
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 import nodemailer from "nodemailer";
 import Stripe from "stripe";
-import { db } from "@/src/lib/firebase";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
 
 export const runtime = "nodejs";
 
@@ -44,7 +37,7 @@ function jitteredDelay(baseMs) {
   return Math.max(500, Math.round(baseMs + jitter));
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const {
     families,
     sender = { name: "ColoCrew Inscriptions", email: "inscriptions@colocrew.com" },
@@ -56,7 +49,7 @@ export async function POST(request) {
     return Response.json({ error: "Paramètres manquants" }, { status: 400 });
   }
 
-  const sentSnap = await getDocs(collection(db, ACOMPTES));
+  const sentSnap = await adminDb().collection(ACOMPTES).get();
   const alreadySent = new Set(
     sentSnap.docs
       .filter((item) => ["email_sent", "deposit_paid"].includes(item.data()?.status))
@@ -76,7 +69,7 @@ export async function POST(request) {
   const total = targets.length;
   const transporter = createTransport();
   const encoder = new TextEncoder();
-  const runRef = await addDoc(collection(db, RUNS), {
+  const runRef = await adminDb().collection(RUNS).add({
     type: "acompte-18-juin",
     subject,
     replyTo,
@@ -95,30 +88,30 @@ export async function POST(request) {
     sourceMode: "xlsx-acompte-18-juin",
     canResume: false,
     delayMs,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   async function recordEvent(event) {
-    await addDoc(collection(runRef, "events"), {
+    await runRef.collection("events").add({
       ...event,
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   }
 
   async function shouldHalt(sent, errors) {
-    const snap = await getDoc(runRef);
+    const snap = await runRef.get();
     const action = snap.data()?.controlAction;
     if (!["pause", "stop"].includes(action)) return null;
     const status = action === "pause" ? "paused" : "stopped";
-    await updateDoc(runRef, {
+    await runRef.update({
       status,
       sent,
       errors,
       currentEmail: "",
       controlAction: "",
-      updatedAt: serverTimestamp(),
-      ...(status === "stopped" ? { finishedAt: serverTimestamp() } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(status === "stopped" ? { finishedAt: FieldValue.serverTimestamp() } : {}),
     });
     await recordEvent({ type: status, sent, errors, total });
     return { status };
@@ -151,30 +144,30 @@ export async function POST(request) {
 
         const family = targets[i];
         try {
-          await updateDoc(runRef, {
+          await runRef.update({
             status: "running",
             currentEmail: family.email,
             currentSender: sender.email,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
-          const acompteRef = await addDoc(collection(db, ACOMPTES), {
+          const acompteRef = await adminDb().collection(ACOMPTES).add({
             runId: runRef.id,
             email: family.email,
             family,
             status: "link_created",
             depositAmount: 100,
             paidAmount: 0,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           const session = await createDepositSession(family, acompteRef.id);
-          await updateDoc(doc(db, ACOMPTES, acompteRef.id), {
+          await adminDb().collection(ACOMPTES).doc(acompteRef.id).update({
             stripeSessionId: session.id,
             stripeUrl: session.url,
             status: "email_pending",
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
 
           const html = buildAcompteEmailHtml(family, session.url);
@@ -187,17 +180,17 @@ export async function POST(request) {
           });
 
           sent++;
-          await updateDoc(runRef, {
+          await runRef.update({
             sent,
             errors,
             currentEmail: family.email,
             currentSender: sender.email,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
-          await updateDoc(doc(db, ACOMPTES, acompteRef.id), {
+          await adminDb().collection(ACOMPTES).doc(acompteRef.id).update({
             status: "email_sent",
-            sentAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            sentAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent({
             type: "sent",
@@ -211,13 +204,13 @@ export async function POST(request) {
           send({ type: "ok", runId: runRef.id, sent, errors, total, email: family.email, reference: family.numeroDeReservation });
         } catch (err) {
           errors++;
-          await updateDoc(runRef, {
+          await runRef.update({
             sent,
             errors,
             currentEmail: family.email,
             currentSender: sender.email,
             lastError: err.message,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent({ type: "error", email: family.email, sender: sender.email, message: err.message, sent, errors });
           send({ type: "err", runId: runRef.id, sent, errors, total, email: family.email, message: err.message });
@@ -230,14 +223,14 @@ export async function POST(request) {
         }
       }
 
-      await updateDoc(runRef, {
+      await runRef.update({
         sent,
         errors,
         status: "done",
         currentEmail: "",
         currentSender: "",
-        finishedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        finishedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await recordEvent({ type: "done", sent, errors, total });
       send({
@@ -254,9 +247,9 @@ export async function POST(request) {
       controller.close();
     },
     async cancel() {
-      await updateDoc(runRef, {
+      await runRef.update({
         status: "interrupted",
-        updatedAt: serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await recordEvent({ type: "interrupted" });
     },
@@ -406,3 +399,5 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

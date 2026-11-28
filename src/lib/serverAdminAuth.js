@@ -1,52 +1,59 @@
-const firebaseApiKey = () =>
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "";
+import { COLLECTIONS } from "@/src/lib/firebaseCollections";
+import { effectiveDashboardSections } from "@/src/lib/dashboardAccess";
+import { adminAuth, adminDb } from "@/src/lib/serverFirebase";
 
-const firebaseProjectId = () =>
-  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "";
+function accessError(message, status) {
+  return Object.assign(new Error(message), { status });
+}
 
-export async function requireFirebaseAdmin(request) {
+export async function requireFirebaseUser(request) {
   const authorization = request.headers.get("authorization") || "";
-  const idToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-  const apiKey = firebaseApiKey();
-  const projectId = firebaseProjectId();
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!token) throw accessError("Connexion au dashboard requise.", 401);
 
-  if (!idToken || !apiKey || !projectId) {
-    throw Object.assign(new Error("Authentification administrateur requise."), { status: 401 });
+  const auth = adminAuth();
+  try {
+    return await auth.verifyIdToken(token);
+  } catch (error) {
+    if (error.code === "app/invalid-credential" || error.code === "app/network-error") throw error;
+    throw accessError("Session Firebase invalide ou expirée.", 401);
   }
+}
 
-  const accountResponse = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
-      cache: "no-store",
-    },
-  );
-  const accountPayload = await accountResponse.json().catch(() => ({}));
-  const uid = accountPayload?.users?.[0]?.localId;
-  if (!accountResponse.ok || !uid) {
-    throw Object.assign(new Error("Session Firebase invalide ou expirée."), { status: 401 });
+export async function requireDashboardSection(request, allowed = []) {
+  const user = await requireFirebaseUser(request);
+  const db = adminDb();
+  const [admin, account] = await Promise.all([
+    db.collection(COLLECTIONS.ADMINS).doc(user.uid).get(),
+    db.collection(COLLECTIONS.STAFF_ACCOUNTS).doc(user.uid).get(),
+  ]);
+  const staff = account.data();
+  const sections = effectiveDashboardSections(staff);
+  if (!admin.exists && !allowed.some((section) => sections.includes(section))) {
+    throw accessError("Votre compte ne dispose pas de cet accès.", 403);
   }
+  const name = [staff?.firstName, staff?.lastName].filter(Boolean).join(" ");
+  return { uid: user.uid, email: user.email || "", name, isAdmin: admin.exists, sections };
+}
 
-  const adminResponse = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/admins/${encodeURIComponent(uid)}`,
-    {
-      headers: { Authorization: `Bearer ${idToken}` },
-      cache: "no-store",
-    },
-  );
-
-  if (!adminResponse.ok) {
-    throw Object.assign(new Error("Accès administrateur refusé."), { status: 403 });
-  }
-
-  return { uid, email: accountPayload.users[0].email || "" };
+export function requireFirebaseAdmin(request) {
+  return requireDashboardSection(request);
 }
 
 export function adminErrorResponse(error) {
-  return Response.json(
-    { ok: false, error: error?.message || "Accès refusé." },
-    { status: Number(error?.status) || 500 },
-  );
+  const status = Number(error?.status) || 500;
+  if (status >= 500) console.error("Erreur du service dashboard", error);
+  return Response.json({ ok: false, error: status >= 500 ? "Le service est indisponible." : error.message }, { status });
+}
+
+export function withDashboardAccess(sections, handler) {
+  return async (request, context) => {
+    let actor;
+    try {
+      actor = await requireDashboardSection(request, sections);
+    } catch (error) {
+      return adminErrorResponse(error);
+    }
+    return handler(request, context, actor);
+  };
 }

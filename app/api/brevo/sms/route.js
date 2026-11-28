@@ -1,3 +1,4 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 export const runtime = "nodejs";
 
 const BREVO_SMS_URL = "https://api.brevo.com/v3/transactionalSMS/sms";
@@ -24,7 +25,7 @@ function getBrevoApiKey() {
   return "";
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   try {
     const apiKey = getBrevoApiKey();
     if (!apiKey) {
@@ -74,3 +75,5 @@ export async function POST(request) {
     return Response.json({ error: error.message || "Erreur envoi SMS" }, { status: 500 });
   }
 }
+
+export const POST = withDashboardAccess(["communication"], handlePOST);

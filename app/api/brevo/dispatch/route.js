@@ -1,18 +1,9 @@
+import { adminDb } from "@/src/lib/serverFirebase";
+import { FieldValue } from "firebase-admin/firestore";
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 import nodemailer from "nodemailer";
-import { db } from "@/src/lib/firebase";
+
 import { unsubscribeHeaders, withUnsubscribeLink } from "@/src/lib/unsubscribe";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-  writeBatch,
-} from "firebase/firestore";
 
 const CONTACTS = "campagne_contacts";
 const RUNS = "campagne_runs";
@@ -61,14 +52,14 @@ function sameCampaign(run, { subject, listId, listName }) {
 }
 
 async function getPreviouslySentEmails({ subject, listId, listName }) {
-  const runsSnapshot = await getDocs(collection(db, RUNS));
+  const runsSnapshot = await adminDb().collection(RUNS).get();
   const matchingRuns = runsSnapshot.docs.filter(snapshot => (
     sameCampaign(snapshot.data(), { subject, listId, listName })
   ));
   const sentEmails = new Set();
 
   for (const runSnapshot of matchingRuns) {
-    const eventsSnapshot = await getDocs(collection(runSnapshot.ref, "events"));
+    const eventsSnapshot = await runSnapshot.ref.collection("events").get();
     eventsSnapshot.docs
       .map(snapshot => snapshot.data())
       .filter(event => event.type === "sent")
@@ -93,14 +84,14 @@ function sendMailWithTimeout(transporter, message) {
 }
 
 async function persistQueue(runRef, contacts) {
-  let batch = writeBatch(db);
+  let batch = adminDb().batch();
   let writes = 0;
   let chunkCount = 0;
 
   for (let index = 0; index < contacts.length; index += QUEUE_CHUNK_SIZE) {
     const chunk = contacts.slice(index, index + QUEUE_CHUNK_SIZE);
     const chunkId = String(chunkCount).padStart(6, "0");
-    batch.set(doc(runRef, "queue", chunkId), {
+    batch.set(runRef.collection("queue").doc(chunkId), {
       index: chunkCount,
       contacts: chunk,
     });
@@ -109,7 +100,7 @@ async function persistQueue(runRef, contacts) {
 
     if (writes === 400) {
       await batch.commit();
-      batch = writeBatch(db);
+      batch = adminDb().batch();
       writes = 0;
     }
   }
@@ -123,7 +114,7 @@ async function persistQueue(runRef, contacts) {
  * For a saved list, only listId is sent by the browser; contacts are resolved
  * once here and persisted as a compact queue for subsequent batches.
  */
-export async function POST(request) {
+async function handlePOST(request) {
   const body = await request.json().catch(() => ({}));
   const {
     senders,
@@ -151,14 +142,14 @@ export async function POST(request) {
   }
 
   const contactsSnapshot = sourceMode === "list"
-    ? await getDocs(query(collection(db, CONTACTS), where("listId", "==", listId)))
+    ? await adminDb().collection(CONTACTS).where("listId", "==", listId).get()
     : null;
   const sourceContacts = sourceMode === "list"
     ? contactsSnapshot.docs.map(snapshot => snapshot.data())
     : body.contacts;
 
   const [unsubSnapshot, previouslySent] = await Promise.all([
-    getDocs(collection(db, UNSUB)),
+    adminDb().collection(UNSUB).get(),
     getPreviouslySentEmails({ subject, listId, listName }),
   ]);
   const unsubscribed = new Set(
@@ -187,7 +178,7 @@ export async function POST(request) {
 
   const total = filteredContacts.length;
   const batchLimit = Math.max(1, Math.min(Number(maxPerRequest) || 2, 25));
-  const runRef = await addDoc(collection(db, RUNS), {
+  const runRef = await adminDb().collection(RUNS).add({
     subject,
     replyTo,
     total,
@@ -210,22 +201,22 @@ export async function POST(request) {
     queueChunkSize: QUEUE_CHUNK_SIZE,
     queueChunkCount: 0,
     skippedAlreadySent: previouslySent.size,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   try {
     const queueChunkCount = await persistQueue(runRef, filteredContacts);
-    await updateDoc(runRef, {
+    await runRef.update({
       status: "running",
       queueChunkCount,
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   } catch (error) {
-    await updateDoc(runRef, {
+    await runRef.update({
       status: "failed",
       lastError: error.message,
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
     return Response.json({ error: "Impossible de preparer la file d'envoi" }, { status: 500 });
   }
@@ -234,28 +225,28 @@ export async function POST(request) {
   const encoder = new TextEncoder();
 
   async function recordEvent(event) {
-    await addDoc(collection(runRef, "events"), {
+    await runRef.collection("events").add({
       ...event,
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   }
 
   async function shouldHalt(sent, errors) {
-    const snapshot = await getDoc(runRef);
+    const snapshot = await runRef.get();
     const runData = snapshot.data() || {};
     const action = runData.controlAction;
     const currentDelayMs = Number(runData.delayMs || delayMs || 3000);
     if (!["pause", "stop"].includes(action)) return { delayMs: currentDelayMs };
     const status = action === "pause" ? "paused" : "stopped";
-    await updateDoc(runRef, {
+    await runRef.update({
       status,
       sent,
       errors,
       currentEmail: "",
       currentSender: "",
       controlAction: "",
-      updatedAt: serverTimestamp(),
-      ...(status === "stopped" ? { finishedAt: serverTimestamp() } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(status === "stopped" ? { finishedAt: FieldValue.serverTimestamp() } : {}),
     });
     await recordEvent({ type: status, sent, errors, total });
     return { status, delayMs: currentDelayMs };
@@ -280,11 +271,11 @@ export async function POST(request) {
         const contact = filteredContacts[index];
         const sender = senders[index % senders.length];
         try {
-          await updateDoc(runRef, {
+          await runRef.update({
             status: "running",
             currentEmail: contact.email,
             currentSender: sender.email,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await sendMailWithTimeout(transporter, {
             from: `"${sender.name}" <${sender.email}>`,
@@ -295,26 +286,26 @@ export async function POST(request) {
             headers: unsubscribeHeaders(contact.email),
           });
           sent++;
-          await updateDoc(runRef, {
+          await runRef.update({
             sent,
             errors,
             nextIndex: index + 1,
             currentEmail: contact.email,
             currentSender: sender.email,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent({ type: "sent", email: contact.email, sender: sender.email, sent, errors });
           send({ type: "ok", runId: runRef.id, sent, errors, total, email: contact.email, sender: sender.email });
         } catch (error) {
           errors++;
-          await updateDoc(runRef, {
+          await runRef.update({
             sent,
             errors,
             nextIndex: index + 1,
             currentEmail: contact.email,
             currentSender: sender.email,
             lastError: error.message,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent({ type: "error", email: contact.email, sender: sender.email, message: error.message, sent, errors });
           send({ type: "err", runId: runRef.id, sent, errors, total, email: contact.email, message: error.message });
@@ -323,12 +314,12 @@ export async function POST(request) {
 
         if (processedThisBatch >= batchLimit && index < filteredContacts.length - 1) {
           const nextIndex = index + 1;
-          await updateDoc(runRef, {
+          await runRef.update({
             status: "paused",
             nextIndex,
             currentEmail: "",
             currentSender: "",
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
           await recordEvent({ type: "batch_done", sent, errors, total, remaining: total - nextIndex });
           send({ type: "batchDone", runId: runRef.id, sent, errors, total, remaining: total - nextIndex });
@@ -343,24 +334,24 @@ export async function POST(request) {
         }
       }
 
-      await updateDoc(runRef, {
+      await runRef.update({
         sent,
         errors,
         nextIndex: total,
         status: "done",
         currentEmail: "",
         currentSender: "",
-        finishedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        finishedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await recordEvent({ type: "done", sent, errors, total });
       send({ type: "done", runId: runRef.id, sent, errors, total });
       controller.close();
     },
     async cancel() {
-      await updateDoc(runRef, {
+      await runRef.update({
         status: "interrupted",
-        updatedAt: serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       await recordEvent({ type: "interrupted" });
     },
@@ -374,3 +365,5 @@ export async function POST(request) {
     },
   });
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

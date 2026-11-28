@@ -1,3 +1,4 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 import OpenAI from "openai";
 
 const PROMPT = `Tu es un assistant qui extrait les informations d'un billet de transport (train, bus, avion…).
@@ -42,7 +43,7 @@ async function extractFromImage(base64, mediaType) {
   return response.choices[0].message.content;
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   if (!process.env.OPENAI_API_KEY) {
     return Response.json({ error: "OPENAI_API_KEY manquante dans .env.local" }, { status: 500 });
   }
@@ -81,3 +82,5 @@ export async function POST(request) {
     return Response.json({ error: err.message }, { status: 500 });
   }
 }
+
+export const POST = withDashboardAccess(["transport"], handlePOST);

@@ -1,8 +1,11 @@
 import nodemailer from "nodemailer";
+import { prepareReservationMail, sendReservationMail } from "@/src/lib/reservationMailHistory";
 
-export async function POST(request) {
+export async function sendDepositEmail(data) {
   try {
     const {
+      reservationId,
+      requestId,
       numeroDeReservation,
       lienAcces,
       clientEmail,
@@ -13,7 +16,7 @@ export async function POST(request) {
       endDate,
       ageGroup,
       amountPaid = 100,
-    } = await request.json();
+    } = data;
 
     const transporter = nodemailer.createTransport({
       host: "smtp-relay.sendinblue.com",
@@ -140,23 +143,20 @@ export async function POST(request) {
       </div>
     </div>`;
 
-    await transporter.sendMail({
-      from: `"ColoCrew" <contact@colocrew.com>`,
-      to: clientEmail,
-      subject: `✅ Votre place est bloquée ! — ColoCrew N° ${numeroDeReservation}`,
-      html: clientHtml,
+    const subject = `✅ Votre place est bloquée ! — ColoCrew N° ${numeroDeReservation}`;
+    const operation = await prepareReservationMail({
+      reservationId, requestId,
+      actor: { uid: "automation", email: "contact@colocrew.com", name: "ColoCrew · envoi automatique" },
+      to: clientEmail, subject, html: clientHtml, template: "Confirmation d’acompte", attachments: [],
     });
-
-    await transporter.sendMail({
-      from: `"ColoCrew" <contact@colocrew.com>`,
-      to: "contact@colocrew.com",
-      subject: `✅ Acompte reçu — ${numeroDeReservation} — ${clientFirstName} ${clientLastName}`,
-      html: adminHtml,
-    });
-
-    return new Response(JSON.stringify({ message: "Emails acompte envoyés" }), {
-      status: 200,
-    });
+    const from = '"ColoCrew" <contact@colocrew.com>';
+    return await sendReservationMail(operation,
+      () => transporter.sendMail({ from, to: clientEmail, subject, html: clientHtml }),
+      () => transporter.sendMail({
+        from, to: "contact@colocrew.com", html: adminHtml,
+        subject: `✅ Acompte reçu — ${numeroDeReservation} — ${clientFirstName} ${clientLastName}`,
+      }),
+    );
   } catch (error) {
     console.error("Erreur mail-acompte:", error);
     return new Response(JSON.stringify({ error: "Erreur serveur" }), {

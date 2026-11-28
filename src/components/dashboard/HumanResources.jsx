@@ -2113,7 +2113,7 @@ function SalaryGridModal({ isOpen, gridRows, onClose, onChange }) {
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function HumanResources({ initialTab = "sejours" }) {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin, sections } = useAuth();
   const { showToast } = useToast();
   const [members,   setMembers]   = useState([]);
   // Tous les contrats, toutes saisons (archives comprises) : l'historique des fiches en a besoin.
@@ -2649,11 +2649,11 @@ export default function HumanResources({ initialTab = "sejours" }) {
   ), []);
 
   // Demandes de comptes de l'espace équipe, en direct pour le badge de l'onglet.
-  useEffect(() => onSnapshot(
+  useEffect(() => isAdmin ? onSnapshot(
     collection(db, COLLECTIONS.STAFF_ACCOUNTS),
     (snapshot) => setStaffAccounts(snapshot.docs.map(mapStaffAccount)),
     () => setStaffAccounts([]),
-  ), []);
+  ) : undefined, [isAdmin]);
 
   const updateMember = (updated) => {
     setMembers((prev) => prev.map((m) => m.id === updated.id ? updated : m));
@@ -2774,9 +2774,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
           <a className="dash-btn" href="/api/docusign/consent" target="_blank" rel="noreferrer">
             Connecter DocuSign
           </a>
-          <Link className="dash-btn" href="/dashboard/rh/deroules">
-            Déroulés
-          </Link>
+          {(isAdmin || sections.includes("dayPlans")) && <Link className="dash-btn" href="/dashboard/rh/deroules">Déroulés</Link>}
           <button type="button" className="dash-btn" onClick={() => setGridModalOpen(true)}>
             Grille salariale
           </button>
@@ -2788,7 +2786,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
 
       {/* ── Navigation principale ── */}
       <nav className="hr-main-nav">
-        {TABS.map((t) => (
+        {TABS.filter((t) => isAdmin || t.key !== "comptes").map((t) => (
           <button
             key={t.key}
             type="button"
@@ -2834,7 +2832,7 @@ export default function HumanResources({ initialTab = "sejours" }) {
             onDocumentChange={handleDocumentChange}
             onDocumentDelete={handleDocumentDelete}
           />}
-          {tab === "comptes" && <StaffAccountsPanel
+          {isAdmin && tab === "comptes" && <StaffAccountsPanel
             accounts={staffAccounts}
             members={members}
             onMemberCreated={handleAccountMemberCreated}

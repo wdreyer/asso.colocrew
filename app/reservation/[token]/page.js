@@ -2,8 +2,6 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
-import { db } from "@/app/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
 import DocumentsObligatoires from "@/app/components/DocumentsObligatoires";
 import Spinner from "@/app/components/layout/Spinner";
 
@@ -15,6 +13,13 @@ import {
   FaTrain,
 } from "react-icons/fa";
 
+async function loadReservation(token) {
+  const response = await fetch("/api/reservation/" + encodeURIComponent(token));
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("La réservation est temporairement indisponible.");
+  return response.json();
+}
+
 export default function ReservationPage({ params }) {
   const { token } = use(params);
   const searchParams = useSearchParams();
@@ -24,40 +29,37 @@ export default function ReservationPage({ params }) {
   const [reservation, setReservation] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [loadingDeposit, setLoadingDeposit] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (!token) return;
+    let active = true;
     async function fetchReservation() {
+      setLoadError("");
       setChargement(true);
       try {
-        const requete = query(
-          collection(db, "reservations"),
-          where("tokenUnique", "==", token)
-        );
-        const snap = await getDocs(requete);
-        if (!snap.empty) {
-          setReservation(snap.docs[0].data());
+        if (active) {
+          const data = await loadReservation(token);
+          if (active) setReservation(data);
         }
       } catch (err) {
-        console.error(err);
+        if (active) setLoadError(err.message);
       } finally {
-        setChargement(false);
+        if (active) setChargement(false);
       }
     }
     fetchReservation();
+    return () => { active = false; };
   }, [token]);
 
   useEffect(() => {
     if (!token || !justCreated || reservation?.payment?.depositStatus === "paid") return;
 
+    let active = true;
     const refreshReservation = async () => {
       try {
-        const requete = query(
-          collection(db, "reservations"),
-          where("tokenUnique", "==", token)
-        );
-        const snap = await getDocs(requete);
-        if (!snap.empty) setReservation(snap.docs[0].data());
+        const data = await loadReservation(token);
+        if (active && data) setReservation(data);
       } catch (err) {
         console.error(err);
       }
@@ -67,21 +69,23 @@ export default function ReservationPage({ params }) {
     const timeout = setTimeout(() => clearInterval(interval), 30000);
 
     return () => {
+      active = false;
       clearInterval(interval);
       clearTimeout(timeout);
     };
   }, [token, justCreated, reservation?.payment?.depositStatus]);
 
   useEffect(() => {
-    if (!chargement && !reservation) {
+    if (!chargement && !reservation && !loadError) {
       const timer = setTimeout(() => {
         router.push("/reservation");
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [chargement, reservation, router]);
+  }, [chargement, reservation, loadError, router]);
 
   if (chargement) return <Spinner />;
+  if (loadError) return <p className="p-6 text-center" role="alert">{loadError}</p>;
 
   if (!reservation) {
     return (

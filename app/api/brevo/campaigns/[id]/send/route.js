@@ -1,4 +1,5 @@
-export async function POST(_, context) {
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
+async function handlePOST(_, context) {
   const { id } = await context.params;
   const res = await fetch(`https://api.brevo.com/v3/emailCampaigns/${id}/sendNow`, {
     method: "POST",
@@ -8,3 +9,5 @@ export async function POST(_, context) {
   const data = await res.json();
   return Response.json(data, { status: res.status });
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

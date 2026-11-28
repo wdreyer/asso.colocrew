@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStaffAuth } from "@/src/contexts/StaffAuthContext";
 import { personName } from "./format";
+import { effectiveDashboardSections } from "@/src/lib/dashboardAccess";
 
 /** Navigation of the team space: tabs on top on desktop, a bottom bar on phones. */
 
@@ -39,6 +40,7 @@ export default function EspaceShell({ children }) {
   const pathname = usePathname() || BASE;
   const { member, account, signOut } = useStaffAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const hasDashboard = effectiveDashboardSections(account).length > 0;
   const name = personName(member) || personName(account);
   const moreActive = MOBILE_MORE.some((tab) => isActive(pathname, tab.href));
 
@@ -47,7 +49,10 @@ export default function EspaceShell({ children }) {
       <div className="mx-auto w-full max-w-3xl px-4 pb-28 pt-28 sm:pb-16 sm:pt-36">
         <div className="mb-5 flex items-center justify-between gap-3">
           <p className="truncate text-sm text-[#6b5c7b]">Espace équipe · <strong className="text-[#24173D]">{name}</strong></p>
-          <button type="button" onClick={signOut} className="hidden text-sm font-bold text-[#B8336A] sm:block">Se déconnecter</button>
+          <div className="flex gap-3">
+            {hasDashboard && <Link className="text-sm font-bold text-[#B8336A]" href="/dashboard">Dashboard</Link>}
+            <button type="button" onClick={signOut} className="hidden text-sm font-bold text-[#B8336A] sm:block">Se déconnecter</button>
+          </div>
         </div>
 
         <nav className="mb-6 hidden gap-1 overflow-x-auto rounded-2xl border border-[#ece3f3] bg-white p-1.5 sm:flex" aria-label="Espace équipe">

@@ -1,7 +1,8 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 import nodemailer from "nodemailer";
 import { unsubscribeHeaders, withUnsubscribeLink } from "@/src/lib/unsubscribe";
 
-export async function POST(request) {
+async function handlePOST(request) {
   const { to, sender, subject, htmlContent, replyTo } = await request.json();
 
   if (!to || !sender?.email || !subject || !htmlContent) {
@@ -32,3 +33,5 @@ export async function POST(request) {
     return Response.json({ error: err.message }, { status: 500 });
   }
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

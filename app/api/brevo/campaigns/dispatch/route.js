@@ -1,3 +1,4 @@
+import { withDashboardAccess } from "@/src/lib/serverAdminAuth";
 const BREVO = "https://api.brevo.com/v3";
 
 function h() {
@@ -43,7 +44,7 @@ function jitteredMinutes(baseMinutes) {
   return Math.max(5, Math.round(baseMinutes + jitter));
 }
 
-export async function POST(request) {
+async function handlePOST(request) {
   const {
     name,
     subject,
@@ -143,3 +144,5 @@ export async function POST(request) {
 
   return Response.json({ created: created.length, total: contacts.length, campaigns: created, errors });
 }
+
+export const POST = withDashboardAccess(["campaigns"], handlePOST);

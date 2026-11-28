@@ -3,7 +3,7 @@ import {
   installmentCountFromText,
   installmentCountFromSubscription,
 } from "@/src/lib/stripeInstallments";
-import { adminErrorResponse, requireFirebaseAdmin } from "@/src/lib/serverAdminAuth";
+import { adminErrorResponse, requireDashboardSection } from "@/src/lib/serverAdminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,7 +192,7 @@ function buildSchedule(subscription, remainingInvoices, invoiceAmount) {
 
 export async function GET(request) {
   try {
-    await requireFirebaseAdmin(request);
+    await requireDashboardSection(request, ["subscriptions"]);
   } catch (error) {
     return adminErrorResponse(error);
   }
