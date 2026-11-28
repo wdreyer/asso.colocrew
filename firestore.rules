@@ -109,7 +109,7 @@ service cloud.firestore {
             'validated', 'validee', 'validée', 'confirmed', 'cancelled', 'deleted', 'annulee', 'annulée', 'supprimee', 'supprimée'
           ])
           && request.resource.data.keys().hasOnly(['type', 'summary', 'actorUid', 'actorEmail', 'createdAt'])
-          && request.resource.data.type in ['call', 'manualEmail', 'note', 'price', 'status']
+          && request.resource.data.type in ['call', 'manualEmail', 'note', 'price', 'status', 'followUp', 'assign']
           && request.resource.data.summary is string
           && request.resource.data.summary.size() > 0
           && request.resource.data.summary.size() <= 4000

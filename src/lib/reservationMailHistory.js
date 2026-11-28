@@ -30,7 +30,8 @@ export async function prepareReservationMail({ reservationId, requestId, actor, 
       actorEmail: actor.email,
       ...(track ? { actorName: actor.name, subject, recipient: to, template, html, attachments } : {}),
     });
-    return { entry };
+    // Seuls les emails écrits par l'équipe comptent comme un contact avec la famille (suivi CRM).
+    return { entry, reservation, countsAsContact: track && actor.uid !== "automation" };
   });
 }
 
@@ -53,6 +54,12 @@ export async function sendReservationMail(operation, send, sendCopy) {
   } catch (error) {
     console.error("Email envoyé, historique indisponible", error);
     warning = "Email envoyé. Historique indisponible.";
+  }
+  if (operation?.countsAsContact) {
+    await operation.reservation.update({
+      "crm.lastContactAt": FieldValue.serverTimestamp(),
+      "crm.lastContactType": "email",
+    }).catch((error) => console.error("Email envoyé, date de dernier contact non enregistrée", error));
   }
   try {
     await sendCopy();

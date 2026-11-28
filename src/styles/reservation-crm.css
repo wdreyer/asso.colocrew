@@ -6,7 +6,7 @@
 }
 
 .crm-detail .rp-header {
-  border: 1px solid var(--dash-border);
+  border: var(--dash-border);
   border-radius: 16px;
   overflow: hidden;
   background: #fff;
@@ -33,7 +33,7 @@
 .crm-sidebar, .crm-log-form { display: grid; gap: 14px; }
 .crm-card {
   background: #fff;
-  border: 1px solid var(--dash-border);
+  border: var(--dash-border);
   border-radius: 14px;
   padding: 20px;
   min-width: 0;
@@ -48,14 +48,14 @@
 .crm-log-form textarea { resize: vertical; }
 .crm-log-form button { justify-self: start; }
 .crm-timeline { list-style: none; margin: 0; padding: 0; }
-.crm-event { padding: 14px 0 14px 16px; border-left: 2px solid var(--dash-border); }
-.crm-event + .crm-event { border-top: 1px solid var(--dash-border); }
+.crm-event { padding: 14px 0 14px 16px; border-left: 2px solid rgba(120, 90, 160, 0.12); }
+.crm-event + .crm-event { border-top: var(--dash-border); }
 .crm-event-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; }
 .crm-event time, .crm-event .crm-event-author { color: var(--dash-muted); font-size: .875rem; }
 .crm-event-summary { white-space: pre-wrap; }
 .crm-event details { margin-top: 8px; }
 .crm-event summary { cursor: pointer; font-size: .875rem; font-weight: 600; }
-.crm-event iframe { width: 100%; min-height: 320px; margin-top: 8px; border: 1px solid var(--dash-border); border-radius: 8px; }
+.crm-event iframe { width: 100%; min-height: 320px; margin-top: 8px; border: var(--dash-border); border-radius: 8px; }
 
 .dashboard-access-grid { grid-template-columns: minmax(230px, .75fr) minmax(0, 1.65fr); }
 .dashboard-access-list, .dashboard-access-form { padding: 18px; }
@@ -66,7 +66,7 @@
   gap: 3px;
   text-align: start;
   background: #fff;
-  border: 1px solid var(--dash-border);
+  border: var(--dash-border);
   border-radius: 9px;
   padding: 9px 12px;
 }
@@ -84,7 +84,7 @@
   align-items: start;
   gap: 8px;
   padding: 8px;
-  border: 1px solid var(--dash-border);
+  border: var(--dash-border);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -96,3 +96,38 @@
   .crm-sidebar { grid-row: 1; }
   .dashboard-access-list { max-height: 42vh; }
 }
+
+/* ── Suivi des demandes : pipeline, relances, responsable ── */
+.res-crm-pipeline { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.res-crm-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px;
+  border: var(--dash-border); border-radius: 999px; background: #fff;
+  color: var(--dash-text); font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.res-crm-chip:hover { border-color: #b8336a; }
+.res-crm-chip.is-active { background: #fdeef5; border-color: #b8336a; color: #b8336a; }
+.res-crm-chip.is-alert .res-view-count { background: #b8336a; color: #fff; }
+.res-crm-chip.is-warning .res-view-count { background: #fef3c7; color: #92400e; }
+.res-crm-chip.is-success .res-view-count { background: #dcfce7; color: #166534; }
+.res-crm-muted { color: var(--dash-muted); font-size: 12px; }
+.res-crm-muted.is-warning, .res-crm-warning { color: #b45309; font-size: 12px; font-weight: 600; }
+.res-crm-next { display: grid; gap: 1px; font-size: 12px; }
+.res-crm-next span { color: var(--dash-muted); }
+.res-crm-next.is-due strong { color: #b45309; }
+.res-crm-next.is-late strong { color: #c0262d; }
+.res-crm-next.is-paid strong { color: #15803d; }
+.res27-chip.is-followup-due { background: #fef3c7; color: #92400e; }
+
+.crm-facts { display: grid; gap: 8px; margin: 0 0 8px; }
+.crm-facts > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: .875rem; }
+.crm-facts dt { color: var(--dash-muted); }
+.crm-facts dd { margin: 0; font-weight: 600; text-align: end; }
+.crm-hint { color: var(--dash-muted); font-size: .8125rem; }
+.crm-followup h3 { font-size: .9rem; margin: 16px 0 6px; }
+.crm-quick-dates { display: flex; flex-wrap: wrap; gap: 6px; }
+.crm-quick-dates .dash-btn { padding: 4px 10px; font-size: 12px; }
+.crm-text-warning { color: #b45309; }
+.crm-text-danger { color: #c0262d; }
+.crm-family-message { font-style: italic; color: var(--dash-muted); white-space: pre-wrap; }
+.crm-event.is-followUp, .crm-event.is-assign { border-left-color: #f5c2d7; }
+.crm-event.is-status { border-left-color: #b8336a; }

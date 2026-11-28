@@ -34,6 +34,15 @@ import {
   reservationTransports,
   sessionFillState,
 } from "@/src/lib/reservations";
+import {
+  CANCEL_REASONS,
+  REQUEST_STAGES,
+  REQUEST_STAGE_ORDER,
+  followUpLabel,
+  relativeDays,
+  requestFollowUp,
+  requestPriority,
+} from "@/src/lib/reservationCrm";
 
 /* ── Constants ─────────────────────────────────────────────────────────── */
 
@@ -2226,14 +2235,35 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
       return;
     }
     if (newStatus === "validated" && !checkCapacity()) return;
+    // Une demande annulée garde son motif : il sert à comprendre les demandes perdues.
+    let closeReason = "";
+    if (newStatus === "cancelled" && ["pending", "waitlist"].includes(item.status)) {
+      const answer = window.prompt(
+        `Motif de l’annulation (facultatif) :\n${CANCEL_REASONS.map((reason, index) => `${index + 1}. ${reason}`).join("\n")}\n\nTapez un numéro ou un motif libre.`,
+        "",
+      );
+      if (answer === null) return;
+      const choice = Number(answer.trim());
+      closeReason = (Number.isInteger(choice) && CANCEL_REASONS[choice - 1]) || answer.trim().slice(0, 200);
+    }
     setChangingStatus(true);
     try {
       const syncData = reservationDataForSync(item, { status: newStatus });
+      const statusSummary = RESERVATION_STATUS_META[newStatus].label + (closeReason ? ` · ${closeReason}` : "");
       await saveReservationChange(item, {
         status: newStatus, updatedAt: serverTimestamp(),
         ...(newStatus === "validated" ? { validatedAt: serverTimestamp() } : {}),
-      }, currentUser, trackActivity ? [{ type: "status", summary: RESERVATION_STATUS_META[newStatus].label }] : []);
-      const updated = { ...item, status: newStatus };
+        ...(closeReason ? { "crm.closeReason": closeReason } : {}),
+        // Une fois la demande close, plus de relance à faire.
+        ...(newStatus === "validated" || newStatus === "cancelled" ? { "crm.nextFollowUpAt": "", "crm.nextFollowUpNote": "" } : {}),
+      }, currentUser, trackActivity ? [{ type: "status", summary: statusSummary }] : []);
+      const closing = newStatus === "validated" || newStatus === "cancelled";
+      const crm = {
+        ...(item.raw?.crm || {}),
+        ...(closeReason ? { closeReason } : {}),
+        ...(closing ? { nextFollowUpAt: "", nextFollowUpNote: "" } : {}),
+      };
+      const updated = { ...item, status: newStatus, raw: { ...(item.raw || {}), crm } };
       let syncedTransports;
       try {
         syncedTransports = await resyncReservationTransports(item.id, syncData);
@@ -2252,6 +2282,13 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
     setItem(updated);
     if (fullPage && updated.status !== item.status) onStatusChange(updated);
     else onSave(updated);
+  };
+
+  // Le suivi (relance, responsable, dernier contact) vit dans `raw.crm`, relu par la liste.
+  const handleCrmChange = (patch) => {
+    const updated = { ...item, raw: { ...(item.raw || {}), crm: { ...(item.raw?.crm || {}), ...patch } } };
+    setItem(updated);
+    onSave(updated);
   };
 
   const handleSaveNotes = async (notes) => {
@@ -2316,7 +2353,17 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
             </button>
           )}
 
-          {trackActivity && <Badge label={item.finalPrice > 0 ? "Prix validé" : "Tarif à valider"} variant={item.finalPrice > 0 ? "success" : "warning"} />}
+          {trackActivity && (() => {
+            const followUp = requestFollowUp(item);
+            const stage = REQUEST_STAGES[followUp.stage];
+            return (
+              <>
+                <Badge label={stage.label} variant={stage.badge} />
+                {followUp.followUpDue && <span className="res27-chip is-followup-due">Relance {followUpLabel(followUp.followUp)}</span>}
+                {followUp.ownerName && <span className="res27-chip">Suivi par {followUp.ownerName}</span>}
+              </>
+            );
+          })()}
           {sejourLink && (
             <a href={sejourLink} target="_blank" rel="noopener noreferrer" className="rp-icon-btn" title="Voir la réservation publique">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" stroke="currentColor">
@@ -2338,7 +2385,7 @@ export function ReservationPanel({ item: externalItem, onClose, onSave, onDelete
 
       {/* Body */}
       <div className="rp-body">
-        {activeTab === "history" && <ReservationHistory item={item} onGoToEmail={() => setPanelTab("email")} onGoToTarif={() => setPanelTab("tarif")} />}
+        {activeTab === "history" && <ReservationHistory item={item} onCrmChange={handleCrmChange} onGoToEmail={() => setPanelTab("email")} onGoToTarif={() => setPanelTab("tarif")} />}
         {activeTab === "tarif" && <PanelTarifTab item={item} onSave={handleSave} trackActivity={trackActivity} onGoToEmail={() => setPanelTab("email")} />}
         {activeTab === "info"  && <PanelInfoTab item={item} />}
         {activeTab === "convoyage" && <ConvoyageInfoTab item={item} />}
@@ -2648,7 +2695,7 @@ function NewReservationModal({ onClose, onCreated, initialSessionId = "", occupa
 
 const VIEWS = [
   { key: "sessions",  label: "Sessions" },
-  { key: "pending",   label: "Inscriptions en cours" },
+  { key: "pending",   label: "Demandes à traiter" },
   { key: "validated", label: "Validées" },
   { key: "waitlist",  label: "Liste d'attente" },
   { key: "all",       label: "Toutes" },
@@ -2656,6 +2703,10 @@ const VIEWS = [
 ];
 
 const NO_SESSION = "__none__";
+
+/* Colonnes des listes de suivi (demandes, liste d'attente) ; les colonnes CRM n'apparaissent que là. */
+const CRM_COLUMNS = ["crmStage", "crmLastContact", "crmNextAction", "crmOwner"];
+const FOLLOW_UP_COLUMNS = ["numeroDeReservation", "nom", "sessionLabel", ...CRM_COLUMNS, "finalPrice"];
 
 function transportFilterValue(item) {
   return item.departureCity ? "__transport__" : "__sur_place__";
@@ -2775,6 +2826,7 @@ export default function Reservations() {
   const [newSessionId, setNewSessionId] = useState(null); // null = modal closed
   const [pickedSeason, setPickedSeason] = useState("");
   const { showToast } = useToast();
+  const { currentUser } = useAuth();
   const { activeSeason, archivedSeasons, seasons } = useSeasons();
   const season = pickedSeason && !archivedSeasons.has(pickedSeason) ? pickedSeason : activeSeason;
   const catalog = useSessionCatalog(season);
@@ -2802,12 +2854,18 @@ export default function Reservations() {
     return [...keys].filter((key) => key && !archivedSeasons.has(key)).sort((a, b) => b.localeCompare(a));
   }, [items, seasons, activeSeason, archivedSeasons]);
 
-  /* Réservations de la saison choisie, archivées exclues, rattachées à leur session. */
-  const seasonItems = useMemo(() => items
-    .filter((item) => !isArchivedRecord(item.raw || item, archivedSeasons))
-    .filter((item) => item.season === season || (!item.season && season === activeSeason))
-    .map((item) => withSession(item, catalog.sessions, catalog.byId)),
-  [items, archivedSeasons, season, activeSeason, catalog.sessions, catalog.byId]);
+  /* Réservations de la saison choisie, archivées exclues, rattachées à leur session, avec leur
+     suivi CRM (étape, relance, priorité) calculé une fois pour toutes les listes. */
+  const seasonItems = useMemo(() => {
+    const now = new Date();
+    return items
+      .filter((item) => !isArchivedRecord(item.raw || item, archivedSeasons))
+      .filter((item) => item.season === season || (!item.season && season === activeSeason))
+      .map((item) => {
+        const followUp = requestFollowUp(item, now);
+        return { ...withSession(item, catalog.sessions, catalog.byId), followUp, priority: requestPriority(followUp) };
+      });
+  }, [items, archivedSeasons, season, activeSeason, catalog.sessions, catalog.byId]);
 
   const occupancy = useMemo(
     () => computeSessionOccupancy(seasonItems.map((item) => ({ ...item.raw, status: item.status, sejour: { ...(item.raw?.sejour || {}), sessionId: item.sessionId } })), catalog.sessions),
@@ -2881,22 +2939,37 @@ export default function Reservations() {
     };
   }, [scopedItems, buckets]);
 
-  /* Sous-filtre "Prix défini" / "À traiter" pour les demandes */
-  const [priceFilter, setPriceFilter] = useState("all"); // "all" | "defined" | "todo"
-  const pricingCounts = useMemo(() => ({
-    defined: buckets.pending.filter(x => x.finalPrice > 0).length,
-    todo:    buckets.pending.filter(x => !(x.finalPrice > 0)).length,
-  }), [buckets.pending]);
+  /* Pipeline des demandes : étape, relances échues, dossiers sans nouvelles, mes dossiers. */
+  const [crmFilter, setCrmFilter] = useState("all");
+  const isFollowUpView = view === "pending" || view === "waitlist";
+  const crmFilters = useMemo(() => {
+    const list = buckets[view === "waitlist" ? "waitlist" : "pending"] || [];
+    const test = {
+      all: () => true,
+      due: (item) => item.followUp.followUpDue,
+      stale: (item) => item.followUp.stale,
+      mine: (item) => Boolean(currentUser) && item.followUp.ownerUid === currentUser.uid,
+      unassigned: (item) => !item.followUp.ownerUid,
+      ...Object.fromEntries(REQUEST_STAGE_ORDER.map((stage) => [stage, (item) => item.followUp.stage === stage])),
+    };
+    const entries = [
+      { key: "all", label: "Toutes" },
+      { key: "due", label: "À relancer", tone: "alert" },
+      ...(view === "pending" ? REQUEST_STAGE_ORDER.filter((stage) => stage !== "waitlist").map((stage) => ({
+        key: stage, label: REQUEST_STAGES[stage].label, tone: stage === "paid" ? "success" : "",
+      })) : []),
+      { key: "stale", label: "Sans nouvelles", tone: "warning", title: "Aucun échange depuis 7 jours et aucune relance prévue" },
+      { key: "mine", label: "Mes dossiers" },
+      { key: "unassigned", label: "Sans responsable" },
+    ];
+    return entries.map((entry) => ({ ...entry, items: list.filter(test[entry.key]) }));
+  }, [buckets, view, currentUser]);
 
   const viewItems = useMemo(() => {
     if (view === "all") return scopedItems;
-    if (view === "pending") {
-      if (priceFilter === "defined") return buckets.pending.filter(x => x.finalPrice > 0);
-      if (priceFilter === "todo")    return buckets.pending.filter(x => !(x.finalPrice > 0));
-      return buckets.pending;
-    }
+    if (isFollowUpView) return (crmFilters.find((entry) => entry.key === crmFilter) || crmFilters[0]).items;
     return buckets[view] || [];
-  }, [view, scopedItems, buckets, priceFilter]);
+  }, [view, scopedItems, buckets, isFollowUpView, crmFilters, crmFilter]);
 
   const setFilter = (key, value) => {
     setFilters((previous) => ({
@@ -2917,7 +2990,7 @@ export default function Reservations() {
   const changeView = (next) => {
     setView(next);
     setSelectedItem(null);
-    setPriceFilter("all");
+    setCrmFilter("all");
   };
 
   const openSession = (sessionId) => {
@@ -3086,6 +3159,53 @@ export default function Reservations() {
       },
     },
     {
+      key: "crmStage",
+      label: "Étape",
+      sortValue: row => REQUEST_STAGE_ORDER.indexOf(row.followUp?.stage),
+      render: row => {
+        const stage = REQUEST_STAGES[row.followUp?.stage];
+        return stage ? <Badge label={stage.label} variant={stage.badge} /> : null;
+      },
+    },
+    {
+      key: "crmLastContact",
+      label: "Dernier contact",
+      sortValue: row => row.followUp?.lastContactMs || 0,
+      render: row => {
+        const followUp = row.followUp || {};
+        if (!followUp.lastContactMs) {
+          return <span className={`res-crm-muted${followUp.stale ? " is-warning" : ""}`}>Aucun · reçue {relativeDays(followUp.ageDays)}</span>;
+        }
+        return <span className={followUp.stale ? "res-crm-warning" : ""}>{relativeDays(followUp.daysSilent)}</span>;
+      },
+    },
+    {
+      key: "crmNextAction",
+      label: "Prochaine action",
+      sortValue: row => row.priority || "9",
+      render: row => {
+        const followUp = row.followUp || {};
+        if (followUp.followUp) {
+          return (
+            <div className={`res-crm-next${followUp.followUpLate ? " is-late" : followUp.followUpDue ? " is-due" : ""}`}>
+              <strong>Relance {followUpLabel(followUp.followUp)}</strong>
+              {followUp.followUpNote && <span>{followUp.followUpNote}</span>}
+            </div>
+          );
+        }
+        if (followUp.stage === "paid") return <span className="res-crm-next is-paid"><strong>Valider l’inscription</strong></span>;
+        if (followUp.stage === "new") return <span className="res-crm-next is-due"><strong>Premier contact</strong></span>;
+        if (followUp.stale) return <span className="res-crm-warning">Sans nouvelles · à relancer</span>;
+        return <span className="res-crm-muted">—</span>;
+      },
+    },
+    {
+      key: "crmOwner",
+      label: "Suivi par",
+      sortValue: row => row.followUp?.ownerName || "~",
+      render: row => <span className={row.followUp?.ownerName ? "" : "res-crm-muted"}>{row.followUp?.ownerName ? row.followUp.ownerName.split("@")[0] : "—"}</span>,
+    },
+    {
       key: "dateMs",
       label: "Date inscription",
       sortValue: row => row.dateMs || 0,
@@ -3098,7 +3218,7 @@ export default function Reservations() {
       render: row => (
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
           <Badge label={STATUS_LABEL[row.status] || row.status} variant={STATUS_BADGE[row.status] || "neutral"} />
-          {row.status === "pending" && <Badge label={row.finalPrice > 0 ? "Prix validé" : "Tarif à valider"} variant={row.finalPrice > 0 ? "success" : "warning"} />}
+          {row.status === "pending" && row.followUp && <Badge label={REQUEST_STAGES[row.followUp.stage].label} variant={REQUEST_STAGES[row.followUp.stage].badge} />}
           {row.depositPaid && <span className="res27-chip is-deposit">Acompte</span>}
         </div>
       ),
@@ -3239,27 +3359,18 @@ export default function Reservations() {
               );
             })()}
 
-            {/* Sous-filtre : prix défini ou à traiter */}
-            {view === "pending" && (
-              <div className="res-view-selector" style={{ marginTop: 6 }}>
-                <button type="button"
-                  className={`res-view-btn${priceFilter === "all" ? " is-active" : ""}`}
-                  onClick={() => setPriceFilter("all")}>
-                  Toutes
-                  <span className="res-view-count">{buckets.pending.length}</span>
-                </button>
-                <button type="button"
-                  className={`res-view-btn${priceFilter === "todo" ? " is-active" : ""}`}
-                  onClick={() => setPriceFilter("todo")}>
-                  Tarif à valider
-                  <span className="res-view-count">{pricingCounts.todo}</span>
-                </button>
-                <button type="button"
-                  className={`res-view-btn${priceFilter === "defined" ? " is-active" : ""}`}
-                  onClick={() => setPriceFilter("defined")}>
-                  ✅ Prix défini
-                  <span className="res-view-count">{pricingCounts.defined}</span>
-                </button>
+            {/* Pipeline des demandes : étapes, relances et responsables */}
+            {isFollowUpView && (
+              <div className="res-crm-pipeline" role="group" aria-label="Filtrer les demandes">
+                {crmFilters.map((entry) => (
+                  <button key={entry.key} type="button" title={entry.title}
+                    aria-pressed={crmFilter === entry.key}
+                    className={`res-crm-chip${entry.tone ? ` is-${entry.tone}` : ""}${crmFilter === entry.key ? " is-active" : ""}`}
+                    onClick={() => setCrmFilter(entry.key)}>
+                    {entry.label}
+                    <span className="res-view-count">{entry.items.length}</span>
+                  </button>
+                ))}
               </div>
             )}
 
@@ -3276,13 +3387,16 @@ export default function Reservations() {
               />
             ) : (
               <DataTable
-                columns={view === "pending" || view === "waitlist" ? columns.filter((column) => ["numeroDeReservation", "nom", "sessionLabel", "finalPrice", "status"].includes(column.key)) : columns}
+                key={isFollowUpView ? "follow-up" : "files"}
+                columns={isFollowUpView
+                  ? columns.filter((column) => FOLLOW_UP_COLUMNS.includes(column.key))
+                  : columns.filter((column) => !CRM_COLUMNS.includes(column.key))}
                 data={viewItems}
                 searchableKeys={["nom","email","childName","sejourName","departureCity","returnCity","numeroDeReservation","week"]}
-                defaultSortKey="numeroDeReservation"
-                defaultSortDirection="desc"
+                defaultSortKey={isFollowUpView ? "crmNextAction" : "numeroDeReservation"}
+                defaultSortDirection={isFollowUpView ? "asc" : "desc"}
                 onRowClick={setSelectedItem}
-                emptyLabel={emptyLabels[view] || "Aucune réservation."}
+                emptyLabel={isFollowUpView && crmFilter !== "all" ? "Aucune demande pour ce filtre." : emptyLabels[view] || "Aucune réservation."}
                 toolsInline
               />
             )}
